@@ -4,8 +4,8 @@
 
 Use this prompt in the same Architect conversation after the prerequisite ecosystem study. I am supplying both documents in this message:
 
-- [ATTACH CURRENT SPECIFICATION]
-- [ATTACH CURRENT OPEN ISSUES]
+- ATTACHED CURRENT SPECIFICATION
+- ATTACHED CURRENT OPEN ISSUES
 
 The actual documents must be accessible here; these placeholders are not their contents. Identify which attachment serves each role and read both completely, including tables, examples, appendices, and qualifications. If an input is missing, unreadable, truncated, or its role is materially unclear, request the necessary material rather than reconstructing it. If the prerequisite study is unavailable in this conversation, say so instead of assuming it happened.
 
