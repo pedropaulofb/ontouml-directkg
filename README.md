@@ -32,7 +32,7 @@ The design intentionally **does not perform general OntoUML semantic validation*
 | Resource | What it provides |
 | --- | --- |
 | [Current specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md) | Authoritative requirements for mappings, controls, and intended behavior. |
-| [Mereology vocabulary](dkgm-vocabulary-v0.1.0.ttl) | Existing Turtle source for the four generic mereological properties and their accepted generic chains; **not** conversion output. |
+| [Mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) | Current Turtle representation of the four generic mereological properties and their accepted generic chains; archived releases and PyLODE documentation are maintained under [`vocabulary/`](vocabulary/README.md). **Not** conversion output. |
 | [Tests](tests/README.md) and [coverage inventory](tests/coverage.md) | Initial executable tests, fixtures, traceability, and the missing production-integration boundary. |
 | [Open design issues](documentation/specification/2026-10-21%20-%20remaining%20decisions%20handoff.md) | Non-normative, incomplete record of unresolved questions. |
 | [Documentation structure](documentation/specification/2026-10-21%20-%20documentation%20structure.md) | Proposed documentation organization; **not** an existing documentation website. |
@@ -59,4 +59,4 @@ The planned documentation website will use **Zensical** and **mkdocstrings**, wi
 
 ## License
 
-The repository includes the [Apache License 2.0](LICENSE). The [mereology vocabulary](dkgm-vocabulary-v0.1.0.ttl) separately declares **CC BY 4.0** in its RDF metadata.
+The repository includes the [Apache License 2.0](LICENSE). The [mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) separately declares **CC BY 4.0** in its RDF metadata.
