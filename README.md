@@ -57,6 +57,23 @@ The current source of truth is the [consolidated specification](documentation/sp
 
 The planned documentation website will use **Zensical** and **mkdocstrings**, with publication through GitHub Pages. The website and generated API reference are not present yet. No production installation command, Python API example, or CLI example can be verified at this stage.
 
+## Persistent identifiers
+
+The following **planned W3ID persistent identifiers** have HTTP 302 redirect rules configured in the [DirectKG W3ID fork](https://github.com/pedropaulofb/w3id.org/blob/add-directkg-namespace/ids/directkg/.htaccess). **They have not been merged into the official W3ID repository and are not yet operational.**
+
+| Resource | Planned persistent identifier | Configured redirect destination |
+| --- | --- | --- |
+| Project homepage | `https://w3id.org/directkg/` | `https://pedropaulofb.github.io/ontouml-directkg/` |
+| Documentation | `https://w3id.org/directkg/docs` | `https://pedropaulofb.github.io/ontouml-directkg/` |
+| Git repository | `https://w3id.org/directkg/git` | `https://github.com/pedropaulofb/ontouml-directkg` |
+| PyPI distribution | `https://w3id.org/directkg/pypi` | `https://pypi.org/project/ontouml-directkg/` |
+| Latest GitHub release | `https://w3id.org/directkg/releases/latest` | `https://github.com/pedropaulofb/ontouml-directkg/releases/latest` |
+| Specific GitHub release | `https://w3id.org/directkg/releases/vX.Y.Z` | `https://github.com/pedropaulofb/ontouml-directkg/releases/tag/vX.Y.Z` |
+
+The versioned release pattern applies to stable `vX.Y.Z` tags. The documentation website, PyPI distribution, and GitHub releases must also be published before their destinations become useful. Until W3ID deployment is verified, use the existing direct repository links.
+
+These redirects do **not** configure dereferencing or RDF content negotiation for the distinct DirectKG Mereology Vocabulary identifier, `https://w3id.org/directkg/vocab`.
+
 ## License
 
 The repository includes the [Apache License 2.0](LICENSE). The [mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) separately declares **CC BY 4.0** in its RDF metadata.
