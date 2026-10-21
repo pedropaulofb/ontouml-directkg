@@ -26,6 +26,13 @@ class Diagnostic:
     messages; they are not required production codes or JSON keys. A real
     binding must document each mapping and retain ``raw`` for reviewer audit.
     It must never infer an event, source locator or fact from the test request.
+
+    ``source_ids`` retains IDs actually reported by the diagnostic. In contrast,
+    ``identified_sources`` uses canonical source IDs to represent declarations
+    unambiguously identified by any actually reported locator (for example a
+    name, source path, native element reference, or ID). Resolve such locators
+    against the actual source only when unambiguous; never fill this field from
+    the expected affected element or the condition being tested.
     """
 
     severity: str
@@ -36,6 +43,7 @@ class Diagnostic:
     generated_iris: tuple[str, ...] = ()
     facts: frozenset[str] = frozenset()
     raw: Any = None
+    identified_sources: tuple[str, ...] = ()
 
 
 @dataclass
@@ -63,7 +71,7 @@ def diagnostic_signatures(events):
     """
     return Counter((event.severity, event.kind, tuple(sorted(event.source_ids)),
                     tuple(sorted(event.source_types)), tuple(sorted(event.generated_iris)),
-                    tuple(sorted(event.facts))) for event in events)
+                    tuple(sorted(event.facts)), tuple(sorted(event.identified_sources))) for event in events)
 
 
 class Invocation(Protocol):

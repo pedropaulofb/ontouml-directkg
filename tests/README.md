@@ -51,6 +51,14 @@ The binding must execute the real public library and adapt only observed values:
 - Preserve every produced diagnostic and its original payload (`raw`), including
   repeated events and diagnostics produced before abort. Do not infer events,
   locators or facts from source inputs or expected behavior.
+- Keep IDs explicitly reported by diagnostics in `source_ids`. Populate
+  `identified_sources` with canonical source IDs only by resolving an actually
+  reported locator unambiguously against the actual source. A reported name,
+  path, native element reference, or ID can identify an affected declaration;
+  this normalization must not assume which declaration a test expects. Generic
+  missing-name and extensionality checks accept this identification without
+  demanding a literal source ID in the diagnostic. Class-fallback and duplicate-ID
+  assertions retain their separately required explicit-ID checks.
 - Normalize actual diagnostic meanings to the test-side `kind` values used in
   tests: `placeholder_base`, `missing_name`, `ordinary_id_use`,
   `owner_qualification`, `unknown_information`, `duplicate_id`,

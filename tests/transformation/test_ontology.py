@@ -122,7 +122,7 @@ def test_custom_assignments_are_omitted_and_cannot_supply_language(run, source_j
     assert diagnostic_signatures(assigned.diagnostics) == diagnostic_signatures(plain.diagnostics)
     assert set(plain.ontology.objects(BASE.Person, RDFS.comment)) != set(no_flag.ontology.objects(BASE.Person, RDFS.comment))
     assert_selected_equal(plain.ontology, no_flag.ontology, FIXED_PREDICATES, {OWL.disjointWith})
-    assert any(d.kind == "extensionality" and d.severity == "INFO" and "cPerson" in d.source_ids for d in assigned.diagnostics)
+    assert any(d.kind == "extensionality" and d.severity == "INFO" and "cPerson" in d.identified_sources for d in assigned.diagnostics)
     assert not any(d.kind in {"omitted_custom_assignments", "unknown_information", "ambiguous_language"} for d in assigned.diagnostics)
     assert Literal("Person") in set(assigned.ontology.objects(BASE.Person, RDFS.label))
     assert not any(isinstance(term, Literal) and "CUSTOM_" in str(term) for triple in assigned.ontology for term in triple)

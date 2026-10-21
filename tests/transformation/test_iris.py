@@ -193,7 +193,7 @@ def test_generic_attribute_fallback_keeps_name_strategy(run, source_json, tmp_pa
     assert (BASE.Owner, RDF.type, OWL.Class) in result.ontology  # strategy did not switch
     assert (resource, RDF.type, OWL.DatatypeProperty) in result.ontology
     assert (resource, RDFS.domain, BASE.Owner) in result.ontology
-    notices = [d for d in result.diagnostics if d.kind == "missing_name" and "aFallback" in d.source_ids]
+    notices = [d for d in result.diagnostics if d.kind == "missing_name" and "aFallback" in d.identified_sources]
     assert notices and all(d.severity == "WARNING" for d in notices)
     assert any(str(resource) in d.generated_iris for d in notices)
     if value and value.strip():
@@ -213,7 +213,7 @@ def test_generic_missing_name_in_id_mode_is_info(run, source_json, tmp_path, inp
     result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
     assert result.outcome == "completed"
     assert (BASE.aFallback, RDF.type, OWL.DatatypeProperty) in result.ontology
-    events = [d for d in result.diagnostics if d.kind == "missing_name" and "aFallback" in d.source_ids]
+    events = [d for d in result.diagnostics if d.kind == "missing_name" and "aFallback" in d.identified_sources]
     assert events and all(d.severity == "INFO" for d in events)
 
 
@@ -225,7 +225,9 @@ def test_ordinary_id_use_has_no_diagnostic(run, source_json, tmp_path, name):
     result = run(path=write_input(tmp_path, document), iri_strategy="id")
     assert result.outcome == "completed"
     assert not any(d.kind == "ordinary_id_use" for d in result.diagnostics)
-    assert not any(d.kind == "missing_name" and "aFallback" in d.source_ids for d in result.diagnostics)
+    # This fixture has no other missing name. A forbidden event must not escape
+    # the assertion merely because it omits a particular locator representation.
+    assert not any(d.kind == "missing_name" for d in result.diagnostics)
 
 
 @pytest.mark.parametrize("self_relation", [pytest.param(False,id="different_classes"), pytest.param(True,id="self_relation")])

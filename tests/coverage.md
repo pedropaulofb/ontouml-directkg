@@ -16,6 +16,15 @@ The observed run collected 289 cases: 26 passed, 263 failed at the integration b
 
 Rule IDs in each implemented test's `Rules:` docstring match its inventory references. Exact sections supplement IDs for unnumbered clauses. Each parameter row is explicit below. Runtime mutations start from the complete listed source and are written to pytest temporary files; these are reviewed case edits, not simplified replacement export schemas or a fixture-builder framework. No generated runtime output belongs in fixture directories.
 
+Wave 1 self-check correction: generic attribute missing-name diagnostics (DK-IRI-04)
+and the integrated extensionality INFO (DK-DIAG-17) check identification of the
+affected declaration through any unambiguous actually reported locator. They do
+not require a literal source ID where the rule does not mandate one. The binding
+records this identification separately from explicitly reported IDs; class-fallback
+and duplicate-ID assertions retain their explicit-ID requirements. The ordinary
+ID-use case also rejects forbidden missing-name events independently of locator
+format. Node IDs, fixture pairings, and approved wave scope are unchanged.
+
 ## Fixture provenance and contract checks
 
 All stored source models are purpose-authored to the inspected **ontouml-vp-plugin 0.5.3** structure, not claimed to be literal exports from a running VP installation. The official release resolves to commit `9fc02b8162db9910f21b8713549cafce2627dad0`:
