@@ -12,7 +12,7 @@ permissions:
   statuses: read
 
 concurrency:
-  group: dependabot-approval-${ github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  group: dependabot-approval-${{ github.event.workflow_run.pull_requests[0].number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -25,8 +25,8 @@ jobs:
     steps:
       - name: Approve only the successfully checked Dependabot revision
         env:
-          GH_TOKEN: ${ github.token }}
-          TESTED_SHA: ${ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
         shell: bash
         run: |
           set -euo pipefail
