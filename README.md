@@ -1,0 +1,62 @@
+# OntoUML DirectKG
+
+[![License: Apache-2.0](https://img.shields.io/github/license/pedropaulofb/ontouml-directkg?style=flat-square)](LICENSE)
+[![Project stage: specification and tests](https://img.shields.io/badge/status-specification%20%26%20tests-blue?style=flat-square)](tests/README.md)
+[![Last commit on main](https://img.shields.io/github/last-commit/pedropaulofb/ontouml-directkg/main?style=flat-square)](https://github.com/pedropaulofb/ontouml-directkg/commits/main)
+
+**OntoUML DirectKG** is an open-source project to transform [OntoUML](https://ontouml.org/) conceptual models into **domain-oriented RDF/OWL ontologies**. The intended output describes the modeled domain—its classes, properties, and selected logical constraints—rather than reproducing the OntoUML metamodel, diagrams, or JSON export structure.
+
+It is intended for OntoUML modelers, ontology engineers, knowledge-graph developers, and contributors implementing the transformation.
+
+> **Current status: specification and initial tests, not a working converter.** This repository contains an accepted transformation specification, a reusable mereology vocabulary, and development tests. It **does not yet provide an installable DirectKG Python library or executable CLI**. The transformation features below are *specified*, not available for use.
+
+## Intended transformation
+
+| Aspect | Specified behavior |
+| --- | --- |
+| **Input** | OntoUML JSON exported by the Visual Paradigm [`ontouml-vp-plugin` 0.5.3](https://github.com/OntoUML/ontouml-vp-plugin/releases/tag/0.5.3), with bounded support for localized text. Other exporter versions are not guaranteed. |
+| **Output** | Domain-oriented RDF/OWL ontology; **RDF 1.1 Turtle** is the sole officially specified ontology serialization. |
+| **Interfaces** | A Python library and CLI with equivalent transformation behavior; their production entry points do not yet exist. |
+
+The [normative specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md) defines mappings for:
+
+- **Domain structure:** classes, generalizations, attributes, datatypes, binary relations, and applicable cardinality or generalization-set constraints.
+- **Selected OntoUML semantics:** higher-order classification, enumerations, named inverse properties, and controlled material-relation property chains.
+- **Mereology:** source-specific properties linked to generic `memberOf`, `subCollectionOf`, `subQuantityOf`, and `componentOf` properties in a reusable DirectKG vocabulary.
+- **Identity and reporting:** generated IRIs, multilingual labels, configurable input-handling policies, diagnostics, outcomes, and provenance.
+
+The design intentionally **does not perform general OntoUML semantic validation** or guarantee a particular OWL profile. It does not require gUFO or OntoUML-metamodel imports. Diagram layout, package organization, and custom `propertyAssignments` are outside the domain-graph output scope.
+
+## Explore the repository
+
+| Resource | What it provides |
+| --- | --- |
+| [Current specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md) | Authoritative requirements for mappings, controls, and intended behavior. |
+| [Mereology vocabulary](dkgm-vocabulary-v0.1.0.ttl) | Existing Turtle source for the four generic mereological properties and their accepted generic chains; **not** conversion output. |
+| [Tests](tests/README.md) and [coverage inventory](tests/coverage.md) | Initial executable tests, fixtures, traceability, and the missing production-integration boundary. |
+| [Open design issues](documentation/specification/2026-10-21%20-%20remaining%20decisions%20handoff.md) | Non-normative, incomplete record of unresolved questions. |
+| [Documentation structure](documentation/specification/2026-10-21%20-%20documentation%20structure.md) | Proposed documentation organization; **not** an existing documentation website. |
+
+## Getting started with the current repository
+
+**Converter installation and usage are not available yet.** The following commands clone the repository, install **test-only** dependencies (`pytest` and `rdflib`), collect the tests, and run checks that do not require production conversion code:
+
+```bash
+git clone https://github.com/pedropaulofb/ontouml-directkg.git
+cd ontouml-directkg
+python -m pip install -r tests/requirements.txt
+python -m pytest --rootdir=. --collect-only -q tests
+python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper'
+```
+
+These commands **do not install or run DirectKG**. The conversion-facing tests currently call an unbound adapter in [`tests/support/invocation.py`](tests/support/invocation.py) and fail until a real public conversion interface is connected. Refer to the [test instructions](tests/README.md) before attempting a full test run. The observed test environment uses Python 3.12; no supported production Python-version range has been established.
+
+## Documentation and development
+
+The current source of truth is the [consolidated specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md), not the archived specifications or unresolved-issues record. Development tests document expected behavior but **do not demonstrate a working implementation**.
+
+The planned documentation website will use **Zensical** and **mkdocstrings**, with publication through GitHub Pages. The website and generated API reference are not present yet. No production installation command, Python API example, or CLI example can be verified at this stage.
+
+## License
+
+The repository includes the [Apache License 2.0](LICENSE). The [mereology vocabulary](dkgm-vocabulary-v0.1.0.ttl) separately declares **CC BY 4.0** in its RDF metadata.
