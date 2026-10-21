@@ -7,6 +7,7 @@ on:
 
 # The privileged follow-up never checks out or executes PR code.
 permissions:
+  contents: read
   pull-requests: write
   checks: read
   statuses: read
@@ -74,19 +75,21 @@ jobs:
             -f query='query($owner: String!, $name: String!) {
               repository(owner: $owner, name: $name) {
                 ref(qualifiedName: "refs/heads/main") {
-                  branchProtectionRule { requiredStatusChecks { context } }
+                  branchProtectionRule { requiredStatusChecks { context app { databaseId } } }
                 }
               }
             }' -f owner="$owner" -f name="$repo_name")"
-          jq -e '.data.repository.ref != null' <<< "$protection" > /dev/null
+          jq -e '.errors == null and .data.repository.ref != null' <<< "$protection" > /dev/null
           rules="$(gh api --paginate \
             "repos/$GITHUB_REPOSITORY/rules/branches/main?per_page=100" | jq -s 'add')"
           required="$(jq -n --argjson protection "$protection" --argjson rules "$rules" '
             [
-              $protection.data.repository.ref.branchProtectionRule.requiredStatusChecks[]?.context,
+              ($protection.data.repository.ref.branchProtectionRule.requiredStatusChecks[]? |
+                {context, integration_id: .app.databaseId}),
               ($rules[] | select(.type == "required_status_checks") |
-                .parameters.required_status_checks[]?.context)
-            ] | map(select(. != null)) | unique
+                .parameters.required_status_checks[]? |
+                {context, integration_id: .integration_id})
+            ] | unique_by([.context, .integration_id])
           ')"
 
           # Verify current-head check runs and commit statuses via REST.
@@ -101,12 +104,18 @@ jobs:
               --argjson required "$required" '
               def passed: .status == "completed" and
                 (.conclusion == "success" or .conclusion == "neutral" or .conclusion == "skipped");
+              def source_ok($req):
+                ($req.integration_id == null or $req.integration_id == -1 or
+                  .app.id == $req.integration_id);
               (any($runs[]; .name == "validate" and .conclusion == "success" and .status == "completed")) and
               (all($runs[]; passed)) and
               ($statuses.total_count == 0 or $statuses.state == "success") and
-              (all($required[]; . as $name |
-                any($runs[]; .name == $name and passed) or
-                any($statuses.statuses[]; .context == $name and .state == "success")))
+              (all($required[]; . as $req |
+                (any($runs[]; .name == $req.context and source_ok($req) and passed) or
+                  (($req.integration_id == null or $req.integration_id == -1) and
+                    any($statuses.statuses[]; .context == $req.context and .state == "success"))) and
+                (all($runs[] | select(.name == $req.context); passed)) and
+                (all($statuses.statuses[] | select(.context == $req.context); .state == "success"))))
             ' > /dev/null; then
               ready=true
               break
