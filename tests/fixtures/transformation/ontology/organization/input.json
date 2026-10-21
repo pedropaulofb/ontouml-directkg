@@ -1,0 +1,298 @@
+{
+  "id": "projectOne",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "projectOne_root",
+    "name": "ANOTHER_ROOT_SENTINEL",
+    "description": "ROOT_DESCRIPTION_SENTINEL",
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "pkgNested",
+        "name": "PACKAGE_NAME_SENTINEL",
+        "description": "PACKAGE_DESCRIPTION_SENTINEL",
+        "type": "Package",
+        "propertyAssignments": null,
+        "contents": [
+          {
+            "id": "pkgInner",
+            "name": "INNER_PACKAGE_SENTINEL",
+            "description": "INNER_DESCRIPTION_SENTINEL",
+            "type": "Package",
+            "propertyAssignments": null,
+            "contents": [
+              {
+                "id": "cPerson",
+                "name": "Person",
+                "description": null,
+                "type": "Class",
+                "propertyAssignments": null,
+                "stereotype": "kind",
+                "isAbstract": false,
+                "isDerived": false,
+                "properties": [
+                  {
+                    "id": "aAge",
+                    "name": "age",
+                    "description": null,
+                    "type": "Property",
+                    "propertyAssignments": null,
+                    "stereotype": null,
+                    "isDerived": false,
+                    "isReadOnly": false,
+                    "isOrdered": false,
+                    "cardinality": null,
+                    "propertyType": {
+                      "id": "dInt",
+                      "type": "Class"
+                    },
+                    "subsettedProperties": null,
+                    "redefinedProperties": null,
+                    "aggregationKind": null
+                  },
+                  {
+                    "id": "aNote",
+                    "name": "note",
+                    "description": null,
+                    "type": "Property",
+                    "propertyAssignments": null,
+                    "stereotype": null,
+                    "isDerived": false,
+                    "isReadOnly": false,
+                    "isOrdered": false,
+                    "cardinality": null,
+                    "propertyType": null,
+                    "subsettedProperties": null,
+                    "redefinedProperties": null,
+                    "aggregationKind": null
+                  },
+                  {
+                    "id": "aAddress",
+                    "name": "address",
+                    "description": null,
+                    "type": "Property",
+                    "propertyAssignments": null,
+                    "stereotype": null,
+                    "isDerived": false,
+                    "isReadOnly": false,
+                    "isOrdered": false,
+                    "cardinality": null,
+                    "propertyType": {
+                      "id": "cAddress",
+                      "type": "Class"
+                    },
+                    "subsettedProperties": null,
+                    "redefinedProperties": null,
+                    "aggregationKind": null
+                  }
+                ],
+                "isExtensional": null,
+                "isPowertype": null,
+                "order": null,
+                "literals": null,
+                "restrictedTo": null
+              },
+              {
+                "id": "cOrg",
+                "name": "Organization",
+                "description": null,
+                "type": "Class",
+                "propertyAssignments": null,
+                "stereotype": "category",
+                "isAbstract": false,
+                "isDerived": false,
+                "properties": null,
+                "isExtensional": null,
+                "isPowertype": null,
+                "order": null,
+                "literals": null,
+                "restrictedTo": null
+              },
+              {
+                "id": "cAddress",
+                "name": "Address",
+                "description": null,
+                "type": "Class",
+                "propertyAssignments": null,
+                "stereotype": "datatype",
+                "isAbstract": false,
+                "isDerived": false,
+                "properties": null,
+                "isExtensional": null,
+                "isPowertype": null,
+                "order": null,
+                "literals": null,
+                "restrictedTo": null
+              },
+              {
+                "id": "dInt",
+                "name": "int",
+                "description": null,
+                "type": "Class",
+                "propertyAssignments": null,
+                "stereotype": "datatype",
+                "isAbstract": false,
+                "isDerived": false,
+                "properties": null,
+                "isExtensional": null,
+                "isPowertype": null,
+                "order": null,
+                "literals": null,
+                "restrictedTo": null
+              },
+              {
+                "id": "rWorks",
+                "name": "worksFor",
+                "description": null,
+                "type": "Relation",
+                "propertyAssignments": null,
+                "stereotype": "material",
+                "isAbstract": false,
+                "isDerived": false,
+                "properties": [
+                  {
+                    "id": "eSource",
+                    "name": "workers",
+                    "description": null,
+                    "type": "Property",
+                    "propertyAssignments": null,
+                    "stereotype": null,
+                    "isDerived": false,
+                    "isReadOnly": false,
+                    "isOrdered": false,
+                    "cardinality": null,
+                    "propertyType": {
+                      "id": "cPerson",
+                      "type": "Class"
+                    },
+                    "subsettedProperties": null,
+                    "redefinedProperties": null,
+                    "aggregationKind": "NONE"
+                  },
+                  {
+                    "id": "eTarget",
+                    "name": "employer",
+                    "description": null,
+                    "type": "Property",
+                    "propertyAssignments": null,
+                    "stereotype": null,
+                    "isDerived": false,
+                    "isReadOnly": false,
+                    "isOrdered": false,
+                    "cardinality": null,
+                    "propertyType": {
+                      "id": "cOrg",
+                      "type": "Class"
+                    },
+                    "subsettedProperties": null,
+                    "redefinedProperties": null,
+                    "aggregationKind": "NONE"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": [
+    {
+      "id": "diagramOne",
+      "name": "DIAGRAM_NAME_SENTINEL",
+      "description": "DIAGRAM_DESCRIPTION_SENTINEL",
+      "type": "Diagram",
+      "owner": {
+        "id": "projectOne_root",
+        "type": "Package"
+      },
+      "contents": [
+        {
+          "id": "viewOne",
+          "type": "ClassView",
+          "modelElement": {
+            "id": "cPerson",
+            "type": "Class"
+          },
+          "shape": {
+            "id": "shapeOne",
+            "type": "Rectangle",
+            "x": 113,
+            "y": 227,
+            "width": 311,
+            "height": 419
+          }
+        },
+        {
+          "id": "viewTwo",
+          "type": "ClassView",
+          "modelElement": {
+            "id": "cPerson",
+            "type": "Class"
+          },
+          "shape": {
+            "id": "shapeTwo",
+            "type": "Rectangle",
+            "x": 619,
+            "y": 227,
+            "width": 311,
+            "height": 419
+          }
+        },
+        {
+          "id": "viewOrg",
+          "type": "ClassView",
+          "modelElement": {
+            "id": "cOrg",
+            "type": "Class"
+          },
+          "shape": {
+            "id": "shapeOrg",
+            "type": "Rectangle",
+            "x": 733,
+            "y": 839,
+            "width": 311,
+            "height": 419
+          }
+        },
+        {
+          "id": "viewRelation",
+          "type": "RelationView",
+          "modelElement": {
+            "id": "rWorks",
+            "type": "Relation"
+          },
+          "shape": {
+            "id": "pathRelation",
+            "type": "Path",
+            "points": [
+              {
+                "x": 113,
+                "y": 227
+              },
+              {
+                "x": 523,
+                "y": 227
+              },
+              {
+                "x": 733,
+                "y": 839
+              }
+            ]
+          },
+          "source": {
+            "id": "viewOne",
+            "type": "ClassView"
+          },
+          "target": {
+            "id": "viewOrg",
+            "type": "ClassView"
+          }
+        }
+      ]
+    }
+  ]
+}

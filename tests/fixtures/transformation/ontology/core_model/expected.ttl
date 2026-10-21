@@ -1,0 +1,14 @@
+@prefix : <https://example.test/model#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+<https://example.test/model> a owl:Ontology .
+:cPerson a owl:Class .
+:cOrg a owl:Class .
+:cAddress a owl:Class .
+:aAge a owl:DatatypeProperty ; rdfs:domain :cPerson ; rdfs:range xsd:int .
+:aNote a owl:DatatypeProperty ; rdfs:domain :cPerson .
+:aAddress a owl:ObjectProperty ; rdfs:domain :cPerson ; rdfs:range :cAddress .
+:eTarget a owl:ObjectProperty ; rdfs:domain :cPerson ; rdfs:range :cOrg .
+:eSource a owl:ObjectProperty ; rdfs:domain :cOrg ; rdfs:range :cPerson ; owl:inverseOf :eTarget .

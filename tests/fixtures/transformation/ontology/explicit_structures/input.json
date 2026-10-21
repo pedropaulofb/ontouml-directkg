@@ -1,0 +1,94 @@
+{
+  "id": "projectOne",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "projectOne_root",
+    "name": "ROOT_CONTAINER_SENTINEL",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cAlpha",
+        "name": "Alpha",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cBeta",
+        "name": "Beta",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cGamma",
+        "name": "Gamma",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "gAlphaBeta",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cAlpha",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cBeta",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gBetaGamma",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cBeta",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cGamma",
+          "type": "Class"
+        }
+      }
+    ]
+  },
+  "diagrams": null
+}
