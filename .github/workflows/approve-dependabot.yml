@@ -66,6 +66,58 @@ jobs:
             all(.[]; .bucket == "pass" or .bucket == "skipping")
           ' <<< "$checks" > /dev/null
 
+          # CLI rollups can omit required checks with no reported status.
+          # Read required contexts from branch protection and active rulesets.
+          owner="$(cut -d/ -f1 <<< "$GITHUB_REPOSITORY")"
+          repo_name="$(cut -d/ -f2 <<< "$GITHUB_REPOSITORY")"
+          protection="$(gh api graphql \
+            -f query='query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                ref(qualifiedName: "refs/heads/main") {
+                  branchProtectionRule { requiredStatusChecks { context } }
+                }
+              }
+            }' -f owner="$owner" -f name="$repo_name")"
+          jq -e '.data.repository.ref != null' <<< "$protection" > /dev/null
+          rules="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/rules/branches/main?per_page=100" | jq -s 'add')"
+          required="$(jq -n --argjson protection "$protection" --argjson rules "$rules" '
+            [
+              $protection.data.repository.ref.branchProtectionRule.requiredStatusChecks[]?.context,
+              ($rules[] | select(.type == "required_status_checks") |
+                .parameters.required_status_checks[]?.context)
+            ] | map(select(. != null)) | unique
+          ')"
+
+          # Verify current-head check runs and commit statuses via REST.
+          # Poll for required checks that have not appeared yet; fail closed.
+          ready=false
+          for attempt in $(seq 1 240); do
+            runs="$(gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/commits/$TESTED_SHA/check-runs?per_page=100" |
+              jq -s '[.[].check_runs[]] | group_by([.name, .app.id]) | map(max_by(.id))')"
+            statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$TESTED_SHA/status")"
+            if jq -n -e --argjson runs "$runs" --argjson statuses "$statuses" \
+              --argjson required "$required" '
+              def passed: .status == "completed" and
+                (.conclusion == "success" or .conclusion == "neutral" or .conclusion == "skipped");
+              (any($runs[]; .name == "validate" and .conclusion == "success" and .status == "completed")) and
+              (all($runs[]; passed)) and
+              ($statuses.total_count == 0 or $statuses.state == "success") and
+              (all($required[]; . as $name |
+                any($runs[]; .name == $name and passed) or
+                any($statuses.statuses[]; .context == $name and .state == "success")))
+            ' > /dev/null; then
+              ready=true
+              break
+            fi
+            if (( attempt < 240 )); then sleep 10; fi
+          done
+          if [[ "$ready" != true ]]; then
+            echo "::error::Required or reported checks are missing, pending, or failing."
+            exit 1
+          fi
+
           # Reject stale runs, including PR updates made while waiting for checks.
           current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr")"
           jq -e --arg sha "$TESTED_SHA" --arg repo "$GITHUB_REPOSITORY" '
