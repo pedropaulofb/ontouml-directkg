@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from rdflib import Graph, Literal, RDF, URIRef
 from rdflib.namespace import OWL, SKOS
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASE = "https://w3id.org/directkg/vocab"
 STEM = "dkgm-vocabulary"
 RELEASE_RE = re.compile(r"dkgm-vocabulary-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\.ttl")

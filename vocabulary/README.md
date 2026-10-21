@@ -26,9 +26,9 @@ requires its own accepted modeling decisions; this pipeline only publishes it.
 Run with Python 3.12:
 
 ```bash
-python -m pip install -r scripts/requirements.txt
-python scripts/build.py
-python -m unittest discover -s scripts/tests -v
+python -m pip install -r vocabulary/scripts/requirements.txt
+python vocabulary/scripts/build.py
+python -m unittest discover -s vocabulary/scripts/tests -v
 ```
 
 The build validates metadata and release immutability (with `--base SHA`),

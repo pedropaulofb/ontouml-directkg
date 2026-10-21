@@ -30,13 +30,13 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: scripts/requirements.txt
-      - run: python -m pip install -r scripts/requirements.txt
+          cache-dependency-path: vocabulary/scripts/requirements.txt
+      - run: python -m pip install -r vocabulary/scripts/requirements.txt
       - name: Validate release immutability and generate representations
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python scripts/build.py --base "$BASE_SHA"
-      - run: python -m unittest discover -s scripts/tests -v
+        run: python vocabulary/scripts/build.py --base "$BASE_SHA"
+      - run: python -m unittest discover -s vocabulary/scripts/tests -v
 
   prepare:
     needs: validate
@@ -53,8 +53,8 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: scripts/requirements.txt
-      - run: python -m pip install -r scripts/requirements.txt
+          cache-dependency-path: vocabulary/scripts/requirements.txt
+      - run: python -m pip install -r vocabulary/scripts/requirements.txt
       - name: Confirm main has not advanced
         env:
           EXPECTED_SHA: ${{ github.sha }}
@@ -64,7 +64,7 @@ jobs:
             exit 1
           }
       - name: Build vocabulary representations
-        run: python scripts/build.py
+        run: python vocabulary/scripts/build.py
       - name: Commit generated representations
         run: |
           git config user.name "github-actions[bot]"
