@@ -20,13 +20,16 @@ DUPLICATES = {
     "cross_kind": {"cPerson"}, "decoded_equal": {"cPerson"},
 }
 VALID_BUNDLES = [
-    ("shared/core_model", "input.json"), ("iris/base_iri", "input.json"),
+    ("shared/core_model", "input.json"), ("shared/base_iri", "input.json"),
     ("iris/names", "input.json"), ("iris/id_escaping", "input.json"),
     ("iris/collisions", "input.json"), ("iris/fallbacks", "input.json"),
-    ("properties/collisions", "input.json"), ("properties/unnamed_owner", "input.json"),
+    ("shared/property_collisions", "input.json"), ("properties/unnamed_owner", "input.json"),
     ("ontology/organization", "input.json"), ("ontology/organization", "duplicate_views.json"),
     ("ontology/custom_assignments", "input.json"), ("ontology/explicit_structures", "input.json"),
+    ("input_diagnostics/id_comparison", "input.json"),
 ]
+# Preserve existing harness node IDs when their canonical fixture paths move.
+VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions"}
 NEGATIVE_BUNDLES = [
     ("input_diagnostics/unknown_information", "input.json", {"unknown_field:waveOneUnknownField"}),
     ("input_diagnostics/unknown_information", "unknown_element.json", {"unknown_element"}),
@@ -72,7 +75,7 @@ def _break_end(document, defect):
         raise AssertionError("Unlisted governed defect: " + defect)
 
 
-@pytest.mark.parametrize("key,filename", VALID_BUNDLES, ids=[key.replace("/", "_") + ("_duplicate_views" if name != "input.json" else "") for key, name in VALID_BUNDLES])
+@pytest.mark.parametrize("key,filename", VALID_BUNDLES, ids=[VALID_BUNDLE_IDS.get(key, key.replace("/", "_")) + ("_duplicate_views" if name != "input.json" else "") for key, name in VALID_BUNDLES])
 def test_fixture_contract_valid_inputs(key, filename):
     """Harness/source-format check only; no transformation coverage credit."""
     document = load_json(key, filename)
@@ -99,7 +102,7 @@ def test_fixture_contract_register_covers_all_stored_inputs():
     assert set(FIXTURES.rglob("*.json")) == listed
 
 
-@pytest.mark.parametrize("key,filename", [("ontology/core_model", "expected.ttl"), ("ontology/explicit_structures", "expected.ttl")], ids=["core_ground_assertions", "explicit_generalizations"])
+@pytest.mark.parametrize("key,filename", [("shared/core_model", "expected.ttl"), ("ontology/explicit_structures", "expected.ttl")], ids=["core_ground_assertions", "explicit_generalizations"])
 def test_fixture_contract_turtle_expectations(key, filename):
     """Harness parsing only; each expectation is paired explicitly in its consumer."""
     expected = load_graph(fixture_path(key, filename))
@@ -121,7 +124,7 @@ def test_unknown_information_follows_input_policy(run, source_path, input_policy
         assert result.outcome == "completed"
         assert all(d.severity == "WARNING" for d in events)
         assert not any(d.severity == "ERROR" for d in result.diagnostics)
-        assert_contains(result.ontology, load_graph(source_path("ontology/core_model", "expected.ttl")))
+        assert_contains(result.ontology, load_graph(source_path("shared/core_model", "expected.ttl")))
         for triple in result.ontology:
             for term in triple:
                 assert "UNRECOGNIZED_FIELD_SENTINEL" not in str(term)
@@ -204,6 +207,23 @@ def test_repeated_references_are_not_duplicate_declarations(run, input_policy):
     assert (BASE.Person, RDF.type, OWL.Class) in result.ontology
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_ids_differing_only_by_surrounding_whitespace_remain_distinct(run, input_policy):
+    """Rules: DK-DIAG-05, DK-IRI-02, DK-IRI-05, DK-CONF-02; §3.4 duplicate source-element IDs.
+
+    Both declarations coexist in the same complete input. This tests duplicate
+    detection independently of the separate byte-escaping parameter cases.
+    """
+    result = run("input_diagnostics/id_comparison", iri_strategy="id", input_policy=input_policy)
+    assert result.configuration_error is None
+    assert result.outcome == "completed"
+    assert not any(d.kind == "duplicate_id" or d.severity == "ERROR" for d in result.diagnostics)
+    expected = {BASE.C17, BASE._x20C17_x20}
+    assert set(result.ontology.subjects(RDF.type, OWL.Class)) == expected
+    assert (BASE.C17, RDFS.label, Literal("Original")) in result.ontology
+    assert (BASE._x20C17_x20, RDFS.label, Literal("Spaced")) in result.ontology
+
+
 @pytest.mark.parametrize("target", STEREOTYPE_TARGETS)
 @pytest.mark.parametrize("condition", ["null", "absent", "custom"])
 @pytest.mark.parametrize("stereotype_policy", ["require-known", "allow-missing", "allow-custom"])
@@ -230,7 +250,7 @@ def test_stereotype_acceptance_matrix(run, source_json, source_path, tmp_path, t
         assert events and all(d.severity == "ERROR" for d in events)
     else:
         assert result.outcome == "completed"
-        assert_contains(result.ontology, load_graph(source_path("ontology/core_model", "expected.ttl")))
+        assert_contains(result.ontology, load_graph(source_path("shared/core_model", "expected.ttl")))
         if condition == "custom":
             assert events and all(d.severity == "WARNING" for d in events)
             # Accepted custom stereotypes must add no stereotype-specific semantics.
@@ -280,7 +300,7 @@ def test_default_stereotype_policy_accepts_custom(run, source_json, tmp_path):
 @pytest.mark.parametrize("input_policy", POLICIES)
 def test_nonfatal_warnings_do_not_change_completed_outcome(invoke, source_path, tmp_path, input_policy):
     """Rules: DK-IRI-01, DK-DIAG-01, DK-DIAG-05; §15 outcome classification."""
-    result = invoke.convert(source_path("iris/base_iri"), options={"input_policy": input_policy, "provenance": "none"}, workdir=tmp_path)
+    result = invoke.convert(source_path("shared/base_iri"), options={"input_policy": input_policy, "provenance": "none"}, workdir=tmp_path)
     assert result.outcome == "completed"
     assert result.ontology is not None
     assert any(d.kind == "placeholder_base" and d.severity == "WARNING" for d in result.diagnostics)

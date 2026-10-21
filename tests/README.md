@@ -31,6 +31,11 @@ behavior. The two Turtle files are **partial ground-triple expectations**, not
 complete conversion outputs. Pairings are explicit; integrity scans never infer
 input/expectation pairings from filenames or directory order.
 
+Cross-topic inputs use `shared/base_iri` and `shared/property_collisions`.
+The canonical `shared/core_model` bundle contains both `input.json` and its
+partial ID-mode `expected.ttl`; consumers select them explicitly. These files
+were promoted under structure §8, with existing harness node IDs retained.
+
 ## Actual invocation binding
 
 **Unbound:** the inspected repository has no production Python code, public

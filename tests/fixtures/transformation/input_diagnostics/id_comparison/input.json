@@ -1,0 +1,48 @@
+{
+  "id": "whitespaceIds",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "whitespaceIds_root",
+    "name": "Root",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "C17",
+        "name": "Original",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": " C17 ",
+        "name": "Spaced",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      }
+    ]
+  },
+  "diagrams": null
+}

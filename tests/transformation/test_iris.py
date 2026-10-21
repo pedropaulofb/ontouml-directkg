@@ -4,7 +4,7 @@ import copy
 
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
-from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
+from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, write_input
 from tests.support.invocation import diagnostic_signatures
@@ -65,7 +65,7 @@ def test_effective_base_and_ontology_identity(invoke, source_path, tmp_path, sup
     options = {"provenance": "none"}
     if supplied is not None:
         options["base_iri"] = supplied
-    result = invoke.convert(source_path("iris/base_iri"), options=options, workdir=tmp_path)
+    result = invoke.convert(source_path("shared/base_iri"), options=options, workdir=tmp_path)
     assert result.outcome == "completed"
     assert result.configuration_error is None
     assert (URIRef(ontology), RDF.type, OWL.Ontology) in result.ontology
@@ -93,7 +93,7 @@ def test_invalid_supplied_base_is_rejected_before_conversion(invoke, source_path
     Missing production must fail the invocation, not satisfy a broad
     pytest.raises(Exception) assertion intended for configuration errors.
     """
-    result = invoke.convert(source_path("iris/base_iri"), options={"base_iri": supplied, "input_policy": input_policy, "provenance": "none"}, workdir=tmp_path)
+    result = invoke.convert(source_path("shared/base_iri"), options={"base_iri": supplied, "input_policy": input_policy, "provenance": "none"}, workdir=tmp_path)
     assert result.configuration_error is not None
     assert result.outcome is None
     assert result.ontology is None
@@ -260,11 +260,32 @@ def test_identifier_annotations_use_designated_targets_and_raw_values(run, strat
         options["omit_identifiers"] = True
     result = run(**options)
     assert result.outcome == "completed"
+    if strategy == "name" and not omit:
+        # Establish destinations without consulting any identifier annotation.
+        # Property labels/relationships avoid choosing an optional qualification
+        # convention for otherwise unique property names (DK-PROP-02).
+        targets = {"cPerson": BASE.Person, "cOrg": BASE.Organization, "cAddress": BASE.Address}
+        for identifier, label in (("aAge", "age"), ("aNote", "note"), ("aAddress", "address"), ("eTarget", "worksFor")):
+            targets[identifier] = one_subject(result.ontology, RDFS.label, Literal(label))
+        targets["eSource"] = one_subject(result.ontology, OWL.inverseOf, targets["eTarget"])
+        assert len(set(targets.values())) == len(ELIGIBLE_IDS)
+        assert all(isinstance(resource, URIRef) for resource in targets.values())
+        for identifier in ("cPerson", "cOrg", "cAddress"):
+            assert (targets[identifier], RDF.type, OWL.Class) in result.ontology
+        for identifier, kind, domain, value_range in (
+            ("aAge", OWL.DatatypeProperty, BASE.Person, XSD.int),
+            ("aNote", OWL.DatatypeProperty, BASE.Person, None),
+            ("aAddress", OWL.ObjectProperty, BASE.Person, BASE.Address),
+            ("eTarget", OWL.ObjectProperty, BASE.Person, BASE.Organization),
+            ("eSource", OWL.ObjectProperty, BASE.Organization, BASE.Person),
+        ):
+            resource = targets[identifier]
+            assert (resource, RDF.type, kind) in result.ontology
+            assert set(result.ontology.objects(resource, RDFS.domain)) == {domain}
+            assert set(result.ontology.objects(resource, RDFS.range)) == (set() if value_range is None else {value_range})
     for identifier in ELIGIBLE_IDS:
         if strategy == "name" and not omit:
-            resource = one_subject(result.ontology, DCTERMS.identifier, Literal(identifier))
-            assert isinstance(resource, URIRef)
-            assert (resource, DCTERMS.identifier, Literal(identifier)) in result.ontology
+            assert set(result.ontology.subjects(DCTERMS.identifier, Literal(identifier))) == {targets[identifier]}
         elif strategy == "id":
             assert (BASE[identifier], DCTERMS.identifier, Literal(identifier)) not in result.ontology
         else:
@@ -300,7 +321,7 @@ def test_omit_identifiers_changes_only_rd28_annotations(run, strategy):
 
 def test_source_backed_iris_stay_fixed_across_inverse_modes(run, source_json, tmp_path):
     """Rules: DK-IRI-07, DK-IRI-09, DK-INV-07, DK-INV-10, DK-CONF-01, DK-CONF-02."""
-    document = source_json("properties/collisions")
+    document = source_json("shared/property_collisions")
     claim = copy.deepcopy(document["model"]["contents"][1])
     claim.update(id="cWorkers", name="workers", properties=None)
     document["model"]["contents"].append(claim)

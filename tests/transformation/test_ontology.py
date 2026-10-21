@@ -58,7 +58,7 @@ def test_core_asserted_domain_graph(run, source_path):
     result = run(iri_strategy="id")
     assert result.outcome == "completed"
     assert result.configuration_error is None
-    assert_contains(result.ontology, load_graph(source_path("ontology/core_model", "expected.ttl")))
+    assert_contains(result.ontology, load_graph(source_path("shared/core_model", "expected.ttl")))
     for property_iri in (BASE.aAge, BASE.aNote, BASE.aAddress, BASE.eTarget, BASE.eSource):
         assert len(set(result.ontology.objects(property_iri, RDFS.domain))) == 1
     assert not list(result.ontology.objects(BASE.aNote, RDFS.range))
@@ -76,7 +76,7 @@ def test_generated_ontology_has_import_even_without_mereology(run, input_policy)
     stable DKGM target remains blocked; an arbitrary import is not certified
     as the accepted DKGM URI by this test.
     """
-    result = run("iris/base_iri", input_policy=input_policy)
+    result = run("shared/base_iri", input_policy=input_policy)
     assert result.outcome == "completed"
     ontology = URIRef("https://example.test/model")
     assert (ontology, RDF.type, OWL.Ontology) in result.ontology

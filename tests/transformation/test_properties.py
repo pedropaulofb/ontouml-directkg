@@ -12,7 +12,7 @@ BASE = Namespace("https://example.test/model#")
 
 def test_colliding_source_properties_stay_distinct_with_original_kinds(run):
     """Rules: DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-GEN-03, DK-CONF-02."""
-    result = run("properties/collisions")
+    result = run("shared/property_collisions")
     assert result.outcome == "completed"
     resources = {identifier: one_subject(result.ontology, DCTERMS.identifier, Literal(identifier)) for identifier in ("a1", "a2", "a3", "eTarget")}
     assert len(set(resources.values())) == 4
@@ -55,8 +55,8 @@ def test_owner_qualification_uses_escaped_fallback_before_class_suffixes(run, in
 
 def test_collision_mapping_is_repeatable_without_fixed_suffix_allocation(run):
     """Rules: DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-CONF-01, DK-CONF-02."""
-    first = run("properties/collisions")
-    again = run("properties/collisions")
+    first = run("shared/property_collisions")
+    again = run("shared/property_collisions")
     assert first.outcome == again.outcome == "completed"
     for identifier in ("a1", "a2", "a3", "eTarget"):
         assert one_subject(first.ontology, DCTERMS.identifier, Literal(identifier)) == one_subject(again.ontology, DCTERMS.identifier, Literal(identifier))
