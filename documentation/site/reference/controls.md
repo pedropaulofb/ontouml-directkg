@@ -57,7 +57,7 @@ Neither generating mode guarantees OWL 2 DL conformance. See [Reasoner and profi
 
 ### Presentation and persistence do not change transformation outcomes
 
-Changing console thresholds or requesting/accessing diagnostic exports must not change diagnostic production/severity, recovery, abortion, transformation outcome, ontology-output eligibility, or exit-code selection. JSON mirrors diagnostics actually produced; it does not generate reports of every known semantic loss. A quiet console therefore does not establish full preservation.
+Changing console thresholds must not change diagnostic production/severity, recovery, abortion, transformation outcome, ontology-output eligibility, or exit-code selection. Requesting or accessing diagnostic exports must not change transformation diagnostics, recovery, abortion, transformation outcome, or ontology-output eligibility. On the CLI, failure to create or write a requested diagnostics file returns `4`, taking precedence over transformation codes `0`, `1`, and `3` and delivery-failure codes `5` and `6`. JSON mirrors diagnostics actually produced; it does not generate reports of every known semantic loss. A quiet console therefore does not establish full preservation.
 
 Transformation outcome remains distinct from delivery failure. The detailed CLI exit-code table and precedence belong to the planned CLI guide; the available [Output contract](output.md#delivery-boundaries) summarizes artifact eligibility.
 
