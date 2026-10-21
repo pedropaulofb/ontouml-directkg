@@ -1,0 +1,81 @@
+name: Documentation
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Commit containing the prepared vocabulary and documentation sources
+        required: true
+        type: string
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Check out documentation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - name: Record the source revision
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Set up documentation Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install documentation dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-docs.txt
+      - name: Build and validate documentation
+        run: zensical build --clean --strict
+      - name: Include the existing vocabulary publications
+        run: |
+          mkdir -p site/vocabulary
+          cp -R vocabulary/latest vocabulary/versioned site/vocabulary/
+      - name: Upload only the public site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: site/
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check the publication is still current
+        id: current
+        env:
+          EXPECTED_SHA: ${{ needs.build.outputs.source_sha }}
+        run: |
+          REMOTE_MAIN=$(git ls-remote "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" refs/heads/main | cut -f1)
+          test -n "$REMOTE_MAIN"
+          if [ "$REMOTE_MAIN" = "$EXPECTED_SHA" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main advanced; skip this stale site artifact."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+      # Repository Pages settings must select GitHub Actions as the source.
+      - name: Check GitHub Pages configuration
+        if: steps.current.outputs.publish == 'true'
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - name: Deploy GitHub Pages
+        if: steps.current.outputs.publish == 'true'
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

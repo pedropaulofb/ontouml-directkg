@@ -36,10 +36,14 @@ generates missing HTML snapshots with PyLODE's `ontpub` profile, then
 synchronizes `latest/`. It does not overwrite previously generated
 versioned HTML. The GitHub Actions workflow validates on pull requests and
 automatically commits generated representations on pushes to `main` or
-manual runs. It publishes `vocabulary/latest/` as a GitHub Pages artifact
-and attempts a Pages deployment. To serve the site, configure **Settings →
-Pages → Build and deployment → GitHub Actions**. Versioned HTML archives
-remain accessible in the GitHub repository, not as separate Pages routes.
+manual runs. It then calls `.github/workflows/docs.yml` with the prepared
+commit SHA. That workflow builds the Zensical documentation and includes
+both `vocabulary/latest/` and `vocabulary/versioned/` under the site's
+`vocabulary/` path in a single GitHub Pages artifact. The documentation
+homepage and vocabulary pages therefore share one publisher rather than
+replacing each other's site. To serve the site, configure **Settings →
+Pages → Build and deployment → GitHub Actions**. Workflow configuration
+alone is not evidence of successful deployment.
 
 The converter itself is not implemented yet. The vocabulary's RDF license is
 CC BY 4.0; the repository's overall software license is Apache 2.0.

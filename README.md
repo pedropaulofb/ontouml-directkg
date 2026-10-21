@@ -35,7 +35,7 @@ The design intentionally **does not perform general OntoUML semantic validation*
 | [Mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) | Current Turtle representation of the four generic mereological properties and their accepted generic chains; archived releases and PyLODE documentation are maintained under [`vocabulary/`](vocabulary/README.md). **Not** conversion output. |
 | [Tests](tests/README.md) and [coverage inventory](tests/coverage.md) | Initial executable tests, fixtures, traceability, and the missing production-integration boundary. |
 | [Open design issues](documentation/specification/2026-10-21%20-%20remaining%20decisions%20handoff.md) | Non-normative, incomplete record of unresolved questions. |
-| [Documentation structure](documentation/specification/2026-10-21%20-%20documentation%20structure.md) | Proposed documentation organization; **not** an existing documentation website. |
+| [Documentation structure](documentation/specification/2026-10-21%20-%20documentation%20structure.md) | Approved page organization and responsibilities; public website sources are under `documentation/site/`. |
 
 ## Getting started with the current repository
 
@@ -53,9 +53,11 @@ These commands **do not install or run DirectKG**. The conversion-facing tests c
 
 ## Documentation and development
 
-The current source of truth is the [consolidated specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md), not the archived specifications or unresolved-issues record. Development tests document expected behavior but **do not demonstrate a working implementation**.
+The current source of truth is the [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/c2262aff7ce41a874875e354c9842fd97c8c879b/documentation/specification/2026-10-21%20-%20specification%20handoff.md), not the archived specifications or unresolved-issues record. Baseline consolidated: **2026-10-21**; repository commit: `c2262aff7ce41a874875e354c9842fd97c8c879b`; source path: `documentation/specification/2026-10-21 - specification handoff.md`. Development tests document expected behavior but **do not demonstrate a working implementation**.
 
-The planned documentation website will use **Zensical** and **mkdocstrings**, with publication through GitHub Pages. The website and generated API reference are not present yet. No production installation command, Python API example, or CLI example can be verified at this stage.
+The documentation website uses **Zensical**, with **mkdocstrings** configured for future source-derived API references. Start with [Home](documentation/site/index.md), [Semantics and limitations](documentation/site/concepts/semantics.md), [Input contract](documentation/site/reference/input.md), [Output contract](documentation/site/reference/output.md), and [Controls](documentation/site/reference/controls.md). Detailed guides and mappings remain assigned to later documentation waves. No production installation command, Python API example, CLI invocation, or generated API reference can be verified at this stage.
+
+Root `zensical.toml` owns the site configuration and navigation. `.github/workflows/docs.yml` builds public sources from `documentation/site/` into `site/` and includes the existing vocabulary publications. The vocabulary workflow calls this single publisher after preparing its artifacts. Internal specifications and prompts stay outside the public source root. GitHub Pages publication still depends on repository settings and a successful deployment; configured workflows alone do not establish a live website.
 
 ## Persistent identifiers
 

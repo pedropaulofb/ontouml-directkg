@@ -1,0 +1,27 @@
+[project]
+site_name = "OntoUML DirectKG"
+site_description = "Accepted contracts and mapping guidance for domain-oriented OntoUML to RDF/OWL conversion."
+# Configured deployment target, not a claim of successful Pages publication.
+site_url = "https://pedropaulofb.github.io/ontouml-directkg/"
+repo_url = "https://github.com/pedropaulofb/ontouml-directkg"
+docs_dir = "documentation/site"
+site_dir = "site"
+nav = [
+  { "Home" = "index.md" },
+  { "Semantics and limitations" = "concepts/semantics.md" },
+  { "Reference" = [
+    { "Input contract" = "reference/input.md" },
+    { "Output contract" = "reference/output.md" },
+    { "Controls" = "reference/controls.md" },
+  ] },
+]
+
+[project.validation]
+invalid_links = true
+invalid_link_anchors = true
+
+# No source paths or API-object directives until real public modules exist.
+[project.plugins.mkdocstrings]
+default_handler = "python"
+
+[project.plugins.mkdocstrings.handlers.python]

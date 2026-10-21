@@ -1,0 +1,4 @@
+# Documentation tooling only; these do not establish DirectKG runtime requirements.
+zensical==0.0.71
+mkdocstrings==1.0.8
+mkdocstrings-python==2.0.10
