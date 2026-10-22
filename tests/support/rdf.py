@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from rdflib import BNode, Graph
-from rdflib.namespace import RDF
+from rdflib import BNode, Graph, Literal
+from rdflib.namespace import RDF, RDFS, OWL, XSD
 from rdflib.compare import graph_diff, isomorphic, to_isomorphic
 
 
@@ -60,6 +60,66 @@ def rdf_list(graph: Graph, head):
         values.append(one_object(graph, head, RDF.first))
         head = one_object(graph, head, RDF.rest)
     return tuple(values)
+
+
+def property_expression(graph: Graph, node):
+    """Read a named property or explicit anonymous inverse, without entailment."""
+    if not isinstance(node, BNode):
+        return node
+    inverse = one_object(graph, node, OWL.inverseOf)
+    assert not isinstance(inverse, BNode), "Expected an inverse of a named property"
+    return ("inverse", inverse)
+
+
+def necessary_restrictions(graph: Graph, owner):
+    """Read asserted subclass restrictions, including explicit intersections.
+
+    No equivalentClass, inherited closure, or inferred restriction is read.
+    Return actual nodes; callers decide which restrictions their rule requires.
+    """
+    found, seen = set(), set()
+    def visit(node):
+        if node in seen:
+            return
+        seen.add(node)
+        if (node, RDF.type, OWL.Restriction) in graph:
+            found.add(node)
+        for head in graph.objects(node, OWL.intersectionOf):
+            for member in rdf_list(graph, head):
+                visit(member)
+    for node in graph.objects(owner, RDFS.subClassOf):
+        visit(node)
+    return found
+
+
+def cardinality_facts(graph: Graph, owner, expression):
+    """Read asserted OWL cardinalities, retaining qualifiers and real nodes.
+
+    This does not select a DirectKG mapping or equate alternative count forms.
+    """
+    predicates = {OWL.minCardinality: "min", OWL.maxCardinality: "max", OWL.cardinality: "exact",
+                  OWL.minQualifiedCardinality: "min", OWL.maxQualifiedCardinality: "max",
+                  OWL.qualifiedCardinality: "exact"}
+    qualified = {OWL.minQualifiedCardinality, OWL.maxQualifiedCardinality, OWL.qualifiedCardinality}
+    facts = []
+    for node in necessary_restrictions(graph, owner):
+        actual = property_expression(graph, one_object(graph, node, OWL.onProperty))
+        if actual != expression:
+            continue
+        qualifiers = set(graph.objects(node, OWL.onClass)) | set(graph.objects(node, OWL.onDataRange))
+        for predicate, kind in predicates.items():
+            for value in graph.objects(node, predicate):
+                assert isinstance(value, Literal) and value.datatype == XSD.nonNegativeInteger
+                number = value.toPython()
+                assert isinstance(number, int) and not isinstance(number, bool) and number >= 0
+                if predicate in qualified:
+                    assert len(qualifiers) == 1
+                    qualifier = next(iter(qualifiers))
+                else:
+                    assert not qualifiers
+                    qualifier = None
+                facts.append((kind, number, qualifier, node))
+    return facts
 
 
 def assert_selected_equal(actual: Graph, expected: Graph, predicates, unordered_predicates=(),

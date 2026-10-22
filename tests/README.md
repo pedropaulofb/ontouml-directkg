@@ -3,9 +3,10 @@
 Wave 1 — Executable foundation, input policies, and general identity — received
 the forwarded independent OK for `7364ed8843c565592d4bfa550d90c218988c83ba`.
 Wave 2 — Classes, enumerations, higher-order classification, and source text —
-is resubmitted after correcting F4 against
-`a36322fa87c006cece63aaadd2aa5ccd513f6087`; its new revision awaits independent
-review. The earlier F1–F3 corrections remain. Waves 3–6 remain unimplemented.
+received the forwarded independent OK for
+`196d16b056668f3292e8309d545e6aaa49c90497`, verified reachable from remote main.
+Wave 3 — Attributes, datatypes, property references, and source flags — is
+submitted for independent review. Waves 4–6 remain unimplemented.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -32,7 +33,7 @@ Dependencies are test-only; no production packaging is selected.
 The fixture/harness subset runs independently of production. Intentionally
 invalid source files are checked against their declared defects; one malformed
 JSON file is expected not to parse. These passes do not certify transformation
-behavior. The five Turtle files are **partial ground-triple expectations**, not
+behavior. The seven Turtle files are **partial ground-triple expectations**, not
 complete conversion outputs. Pairings are explicit; integrity scans never infer
 input/expectation pairings from filenames or directory order.
 
@@ -87,6 +88,10 @@ The binding must execute the real public library and adapt only observed values:
   `omitted_description`. These are semantic categories, not demanded production
   codes. The real binding must document how actual codes/fields/messages map to
   each category and retain evidence for review.
+  Wave 3 adds `void_datatype`, `missing_cardinality`, `invalid_cardinality`,
+  `redefinition_warning`, `ordering`, and `multilingual_primitive_conflict`.
+  Their names are test-side readings of actual diagnostic meaning. The last
+  category is used to reject an invented conflict, not to require a diagnostic.
 - Test-side diagnostic `facts` describe actually reported content. Wave 1 checks
   `placeholder_namespace`, `not_recommended_for_publication`,
   `stereotype:category`, `competing_declarations`, and `conversion_aborted`.
@@ -103,6 +108,8 @@ The binding must execute the real public library and adapt only observed values:
   that abstract-stereotype disjointness was omitted is represented by
   `stereotype_disjointness_omitted`; tests reject that claim in this context.
   None of these spellings is required in production messages or JSON.
+  Wave 3 additionally reads `void`, `range_omitted`, and
+  `ordering_not_represented` from actual messages/fields, never from expectations.
 - Populate `Observation.comments` by reading the meanings of actually produced
   RDF comments for `isAbstract`, `isDerived`, `isExtensional`, and the `abstract`
   stereotype. Each `CommentMeaning` retains its exact RDF subject and literal;
@@ -114,6 +121,13 @@ The binding must execute the real public library and adapt only observed values:
   template where the specification fixes only meaning. The binding must
   document its actual text/field interpretation for review. Fixed classifier-
   order comments are checked directly as RDF literals instead.
+  Wave 3 also reads `isReadOnly`, `aggregationKind` (SHARED/COMPOSITE), and
+  `isOrdered`. `CommentMeaning.context` records actually expressed occurrence
+  context: `relation`, `source_end`, `target_end`, `attribute`, or `class`.
+  A comment about both ends may produce two meanings with the same literal.
+  Do not infer an end's context merely from which input flag is true: the
+  produced comment must distinguish the occurrences. Attribute tests permit
+  an implicit context where the property target already identifies it.
 - Populate `Observation.project_description_output` with actual RDF statements
   representing source `Project.description` annotations and
   any text presented as a replacement for missing source-project description,
@@ -135,6 +149,17 @@ The binding must execute the real public library and adapt only observed values:
   its expected omission. Document how actual output meanings are recognized;
   do not attribute unrelated reliable metadata to this field. Omission cases
   assert this evidence is empty while separately checking required mappings.
+- Populate `Observation.flag_semantic_output` with actual prohibited logical
+  or sequence output induced solely by GEN-05/PROP-04/05 characteristics, such
+  as extra logical axioms, dependence, direction changes, value-order sequences,
+  or properties generated solely to represent a flag. Exclude independently
+  required mappings and permitted independent metadata. Document the actual
+  RDF/interface evidence; never infer absence from the expected behavior.
+- Bind `has_local_value_restriction_control()` to inspection of the real public
+  Python controls for an optional local allValuesFrom feature. It is a test-side
+  question, not a proposed production method or parameter spelling. The CLI
+  counterpart remains in Wave 6. An unavailable interface must raise the
+  integration error rather than answer from the specification.
 - Read diagnostics, outcome, and delivered graph through the actual public
   result/access mechanisms when the tests request another read. Do not return
   a cached test snapshot in place of the real access operation.
@@ -164,6 +189,17 @@ expression is also accepted. No inferred OWL fact substitutes for an assertion.
 Harness checks of these assertions use explicit small RDF graphs and receive
 no conversion-coverage credit.
 
+Wave 3 reads cardinality restrictions only from asserted subclass conditions,
+including explicit intersections. It accepts unqualified attribute counts or
+qualified counts using the declared range or the applicable universal range,
+and the accepted equal-count alternatives (including maximum zero). It does
+not impose the relation-only cardinality serialization on attributes. RD-14
+property expressions are inspected as actual named properties or explicit
+anonymous inverses; no entailment supplies an expected inclusion.
+Primitive normalization recommendations remain SHOULD: their safety tests
+allow custom treatment when a recommendation is declined and forbid a wrong
+registered target. They do not certify compliance with the recommendation.
+
 Wave 2's corrected comparisons can also select named subjects and logical type
 objects, leaving unrelated descriptive resources/types unconstrained. They
 compare flag-comment meanings with actual RDF evidence, not raw wording. The
@@ -191,6 +227,11 @@ specification changes. Its current repository copy is read without modification.
 
 The concrete stable DKGM URI is still unspecified. Import existence/no-fragment
 checks do not certify a concrete target. Detailed vocabulary/bridge checks and
-the remaining approved waves are recorded in the inventory. Wave 1's approval
-does not certify Wave 2, the concrete DKGM identity, or unavailable production
-behavior. Wave 2 requires its own independent verdict before progression.
+the remaining approved waves are recorded in the inventory. Wave 1/2 approvals
+do not certify Wave 3, the concrete DKGM identity, or unavailable production
+behavior. Wave 3 requires its own independent verdict before progression.
+
+Attribute standalone `*` recognition is asserted. Its exact restriction graph
+is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit
+`*` to `0..*` mapping is limited to relations; DK-ATT-03 does not state that
+single-value mapping. Explicit attribute intervals are tested independently.

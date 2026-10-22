@@ -31,6 +31,9 @@ VALID_BUNDLES = [
     ("classes/disjointness", "input.json"), ("classes/generalization_sets", "input.json"),
     ("classes/enumerations", "input.json"), ("classes/flags", "input.json"),
     ("higher_order/categorizers", "input.json"), ("shared/source_text", "input.json"),
+    ("attributes_datatypes/value_types", "input.json"), ("attributes_datatypes/structured", "input.json"),
+    ("properties/references", "input.json"), ("properties/source_flags", "input.json"),
+    ("properties/omitted_connector", "input.json"),
 ]
 # Preserve existing harness node IDs when their canonical fixture paths move.
 VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions"}
@@ -108,8 +111,10 @@ def test_fixture_contract_register_covers_all_stored_inputs():
 
 @pytest.mark.parametrize("key,filename", [("shared/core_model", "expected.ttl"), ("ontology/explicit_structures", "expected.ttl"),
                                        ("classes/generalization_sets", "expected.ttl"), ("classes/enumerations", "expected.ttl"),
-                                       ("higher_order/categorizers", "expected.ttl")],
-                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions"])
+                                       ("higher_order/categorizers", "expected.ttl"),
+                                       ("attributes_datatypes/value_types", "expected.ttl"),
+                                       ("attributes_datatypes/structured", "expected.ttl")],
+                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions", "primitive_attribute_ground", "recursive_datatype_ground"])
 def test_fixture_contract_turtle_expectations(key, filename):
     """Harness parsing only; each expectation is paired explicitly in its consumer."""
     expected = load_graph(fixture_path(key, filename))

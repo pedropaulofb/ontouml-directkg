@@ -63,6 +63,11 @@ class CommentMeaning:
     literal: Literal
     field: str
     value: bool | str
+    # Context actually expressed by the comment: attribute, relation,
+    # source_end, target_end, or class. Resolve observed role wording, not the
+    # source flag under test. Needed to distinguish end occurrences sharing a
+    # primary-property target; older tests need not demand a context.
+    context: str | None = None
 
 
 @dataclass
@@ -93,6 +98,13 @@ class Observation:
     # missing source text. Positive description tests require actual evidence.
     # This is a test-side reading, not a proposed production attribute.
     project_description_output: tuple[tuple[Node, Node, Node], ...] = ()
+    # Actual prohibited logical/sequence output induced solely by the source
+    # characteristics in GEN-05/PROP-04/05: extra logical axioms, dependence,
+    # direction changes, value-order lists/sequences, or properties created
+    # solely to represent a flag. Exclude independently required mappings and
+    # permitted independent metadata. Read actual output/interface evidence;
+    # never infer an empty result from the request or expected behavior.
+    flag_semantic_output: tuple[tuple[Node, Node, Node], ...] = ()
 
 
 def diagnostic_signatures(events):
@@ -107,6 +119,14 @@ def diagnostic_signatures(events):
 
 
 class Invocation(Protocol):
+    def has_local_value_restriction_control(self) -> bool:
+        """Inspect actual public Python controls for an optional allValuesFrom
+        feature. No production parameter spelling is prescribed. Do not answer
+        from the specification or tests; bind to the real interface evidence.
+        The CLI surface is covered separately in its approved later wave.
+        """
+        ...
+
     def convert(
         self, source: Path, *, options: Mapping[str, Any], workdir: Path
     ) -> Observation:
@@ -132,6 +152,9 @@ class Invocation(Protocol):
 
 
 class _UnboundInvocation:
+    def has_local_value_restriction_control(self):
+        self._unavailable()
+
     def _unavailable(self) -> None:
         raise ImplementationUnavailable(
             "DirectKG integration unavailable: main at the inspected baseline "

@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
-TOPICS = frozenset({"ontology", "iris", "properties", "input_diagnostics",
+TOPICS = frozenset({"ontology", "iris", "properties", "input_diagnostics", "attributes_datatypes",
                     "classes", "higher_order", "labels"})
 
 
