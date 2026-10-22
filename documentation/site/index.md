@@ -6,9 +6,9 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 ## Current availability
 
-**These pages describe accepted intended behavior.** At the reviewed repository revision, `a36322fa87c006cece63aaadd2aa5ccd513f6087`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
+**These pages describe accepted intended behavior.** At the reviewed repository revision, `9e52a66af43e39b374d0a642298b1117d12be4d8`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
 
-The website currently provides shared contracts, conceptual guidance, and mappings for classifiers, attributes, relations, property features, mereology, identity, and text. Contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides are available. Downloadable examples and implementation-dependent onboarding/API material remain pending. Navigation links only to pages that exist.
+The website provides shared contracts, conceptual guidance, mappings, and contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and available development checks. Getting started and generated API pages remain pending their implementation prerequisites; navigation links only to pages that exist.
 
 ## Scope at a glance
 
@@ -31,6 +31,7 @@ The website currently provides shared contracts, conceptual guidance, and mappin
 - Follow [Binary relations](mapping/relations.md), [Inverse properties](mapping/inverses.md), and [Property features](mapping/property-features.md) for relation direction, constraints, and partial property mappings.
 - Read [Derivations and material chains](mapping/derivations-and-chains.md), [Mereology and DKGM](mapping/mereology.md), and [Instantiation associations](mapping/instantiation.md) for their distinct preservation and reasoning boundaries.
 - Use [Identifiers and naming](reference/identifiers.md) and [Labels, comments, and language](reference/text.md) for identity and human-readable text.
+- Inspect [Examples](examples/index.md) for the paired source data and mapping excerpt; use [Contributing](development/contributing.md) for build, preview, and maintenance instructions.
 
 ## Relationship to other approaches
 
@@ -38,4 +39,4 @@ DirectKG aims for a comparatively lightweight graph of domain concepts and relat
 
 ---
 
-Governing source: §§2–3; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing source: §§2–3; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

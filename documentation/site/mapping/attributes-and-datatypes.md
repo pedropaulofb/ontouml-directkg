@@ -48,6 +48,8 @@ For example, `{"de":"Ganzzahl","en":"int"}` selects `Ganzzahl`, so existing cust
 
 An explicit `propertyType: null` means **unspecified typing**. Keep the datatype property, owner domain, and applicable explicit cardinality. Generate no range or value-type restriction; do not guess `rdfs:Literal`, `xsd:string`, or another datatype. Null typing is not automatically an input error (DK-DAT-03).
 
+The downloadable [classes-and-attributes example](../examples/index.md#classes-and-untyped-attributes) pairs a checked Catalog adaptation with a labelled Turtle illustration of two distinct untyped attributes and their owner domains.
+
 VP `void` means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). Keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available.
 
 Do not substitute an XSD datatype, `rdfs:Literal`, `owl:Nothing`, `owl:bottomDataProperty`, `xsd:anySimpleType`, `xsd:anyAtomicType`, or an invented empty datatype for `void`. In particular, `void` does not mean that the attribute must have no values. Its warning and unsupported status distinguish it from null typing; both preserve the property's otherwise applicable mappings.
@@ -103,4 +105,4 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

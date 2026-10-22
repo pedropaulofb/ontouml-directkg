@@ -1,0 +1,95 @@
+{
+  "id": "_h9APOGFS_j2pNiv",
+  "name": "LucasBassetti_CaixaBanco",
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "_h9APOGFS_j2pNiv_root",
+    "name": "LucasBassetti_CaixaBanco",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "vb9APOGFS_j2pNyK",
+        "name": "Caixa Banco",
+        "description": "Autor: Lucas Bassetti",
+        "type": "Package",
+        "propertyAssignments": null,
+        "contents": [
+          {
+            "id": "1H9APOGFS_j2pNya",
+            "name": "Operação",
+            "description": null,
+            "type": "Class",
+            "propertyAssignments": null,
+            "stereotype": "relator",
+            "isAbstract": false,
+            "isDerived": false,
+            "properties": [
+              {
+                "id": "1H9APOGFS_j2pNyb",
+                "name": "valor",
+                "description": null,
+                "type": "Property",
+                "propertyAssignments": null,
+                "stereotype": null,
+                "isDerived": false,
+                "isReadOnly": false,
+                "isOrdered": false,
+                "cardinality": null,
+                "propertyType": null,
+                "subsettedProperties": null,
+                "redefinedProperties": null,
+                "aggregationKind": "NONE"
+              }
+            ],
+            "isExtensional": null,
+            "isPowertype": null,
+            "order": null,
+            "literals": null,
+            "restrictedTo": [
+              "relator"
+            ]
+          },
+          {
+            "id": "1H9APOGFS_j2pNye",
+            "name": "Recibo",
+            "description": null,
+            "type": "Class",
+            "propertyAssignments": null,
+            "stereotype": "relator",
+            "isAbstract": false,
+            "isDerived": false,
+            "properties": [
+              {
+                "id": "1H9APOGFS_j2pNyf",
+                "name": "valor",
+                "description": null,
+                "type": "Property",
+                "propertyAssignments": null,
+                "stereotype": null,
+                "isDerived": false,
+                "isReadOnly": false,
+                "isOrdered": false,
+                "cardinality": null,
+                "propertyType": null,
+                "subsettedProperties": null,
+                "redefinedProperties": null,
+                "aggregationKind": "NONE"
+              }
+            ],
+            "isExtensional": null,
+            "isPowertype": null,
+            "order": null,
+            "literals": null,
+            "restrictedTo": [
+              "relator"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

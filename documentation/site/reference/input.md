@@ -12,6 +12,8 @@ The standalone OntoUML Schema is an interpretation reference. Arbitrary schema-c
 
 A Catalog `ontology.json` file is a candidate example, not evidence of compatibility. A selected file must be checked against this contract before being presented as a supported complete input.
 
+The [classes-and-attributes example](../examples/index.md#catalog-source-and-adaptation) documents a bounded Catalog adaptation checked against the 0.5.3 serialization structure, with its exact provenance and reference checks. It does not establish compatibility for the full source project or other Catalog files.
+
 ## Language enrichment
 
 In textual fields already supported by DirectKG, both plain strings and the schema-defined `languageString` representation are accepted. The schema-defined top-level `Project.languages` field supplies project-level language information. Top-level `Project.description` is supported in plain-string or accepted localized form and maps to an ontology comment when nonempty.
@@ -66,4 +68,4 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

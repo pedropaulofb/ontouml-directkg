@@ -33,6 +33,8 @@ nav = [
     { "Labels, comments, and language" = "reference/text.md" },
     { "Diagnostics and recovery" = "reference/diagnostics.md" },
   ] },
+  { "Examples" = "examples/index.md" },
+  { "Contributing" = "development/contributing.md" },
 ]
 
 [project.validation]

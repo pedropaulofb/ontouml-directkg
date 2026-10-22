@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
+# Specification illustration; not executed DirectKG output or a complete ontology.
+# Source, adaptation, configuration, and omissions: ../index.md
+@prefix : <https://example.org/directkg-example#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:id_1H9APOGFS_x5Fj2pNya a owl:Class ;
+    rdfs:label "Operação"@pt-BR .
+
+:id_1H9APOGFS_x5Fj2pNye a owl:Class ;
+    rdfs:label "Recibo"@pt-BR .
+
+:id_1H9APOGFS_x5Fj2pNyb a owl:DatatypeProperty ;
+    rdfs:label "valor"@pt-BR ;
+    rdfs:domain :id_1H9APOGFS_x5Fj2pNya .
+
+:id_1H9APOGFS_x5Fj2pNyf a owl:DatatypeProperty ;
+    rdfs:label "valor"@pt-BR ;
+    rdfs:domain :id_1H9APOGFS_x5Fj2pNye .
