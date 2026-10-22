@@ -9,7 +9,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.invocation import diagnostic_signatures
-from tests.support.rdf import (assert_contains, assert_graph_equal, load_graph,
+from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, load_graph,
                                one_object, one_subject, rdf_list)
 
 
@@ -292,12 +292,15 @@ def test_complete_enumeration_membership_closure_and_difference(run, source_json
     _assert_values(result.ontology, target, values, complete=True)
     for value, source in zip(values, enum["literals"]):
         assert (value, RDFS.label, Literal(source["name"])) in result.ontology
-    attribute = BASE.pStatus if iri_strategy == "id" else BASE.status
+    attribute = BASE.pStatus if iri_strategy == "id" else one_subject(result.ontology, DCTERMS.identifier, Literal("pStatus"))
     assert (attribute, RDF.type, OWL.ObjectProperty) in result.ontology
+    assert (attribute, RDFS.domain, BASE.cOwner if iri_strategy == "id" else BASE.Owner) in result.ontology
     assert (attribute, RDFS.range, target) in result.ontology
-    legacy = BASE.pLegacy if iri_strategy == "id" else BASE.Pending
+    assert (attribute, RDFS.label, Literal("status")) in result.ontology
+    legacy = BASE.pLegacy if iri_strategy == "id" else one_subject(result.ontology, DCTERMS.identifier, Literal("pLegacy"))
     assert (legacy, RDF.type, OWL.DatatypeProperty) in result.ontology
     assert (legacy, RDFS.domain, target) in result.ontology
+    assert (legacy, RDFS.label, Literal("Pending")) in result.ontology
     assert not list(result.ontology.objects(legacy, RDFS.range))
     assert (legacy, RDF.type, OWL.NamedIndividual) not in result.ontology
     if count == 3 and iri_strategy == "id":
@@ -394,9 +397,11 @@ def test_value_prefix_uses_already_resolved_enum_class_name(run, source_json, tm
     source_element(document, "cOwner")["name"] = "Status"
     result = run(path=write_input(tmp_path, document))
     assert result.outcome == "completed"
-    # The typed attribute identifies the enum independently of an ID annotation.
-    enum = one_object(result.ontology, BASE.status, RDFS.range)
-    owner = one_object(result.ontology, BASE.status, RDFS.domain)
+    # Unique property candidates may be qualified. Its own ID locates the
+    # attribute; its domain and range independently identify the two classes.
+    attribute = one_subject(result.ontology, DCTERMS.identifier, Literal("pStatus"))
+    enum = one_object(result.ontology, attribute, RDFS.range)
+    owner = one_object(result.ontology, attribute, RDFS.domain)
     assert {enum, owner} == {BASE.Status_1, BASE.Status_2}
     stem = str(enum).removeprefix(str(BASE))
     values = {BASE[stem + "_" + name] for name in ("Pending", "Approved", "Closed")}
@@ -413,7 +418,8 @@ def test_literal_collisions_with_other_source_resources_preserve_both(run, sourc
         source_element(document, "vPending")["name"] = None
     result = run(path=write_input(tmp_path, document))
     assert result.outcome == "completed"
-    owner = one_object(result.ontology, BASE.status, RDFS.domain)
+    attribute = one_subject(result.ontology, DCTERMS.identifier, Literal("pStatus"))
+    owner = one_object(result.ontology, attribute, RDFS.domain)
     values = set(result.ontology.subjects(RDF.type, BASE.Status))
     pending_candidates = values - {BASE.Status_Approved, BASE.Status_Closed}
     assert len(pending_candidates) == 1
@@ -436,7 +442,7 @@ def test_literal_id_strategy_uses_own_escaped_id_without_enum_prefix(run, source
     target = BASE.id_9literal_x5F_xC3_xA9
     _assert_values(result.ontology, BASE.eStatus, {target, BASE.vApproved, BASE.vClosed}, complete=True)
     assert (target, RDFS.label, Literal("Pending")) in result.ontology
-    assert set(result.ontology.subjects(DCTERMS.identifier, Literal("9literal_é"))) == {target}
+    assert not list(result.ontology.subjects(DCTERMS.identifier, Literal("9literal_é")))
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
@@ -621,7 +627,7 @@ def test_order_is_only_the_fixed_english_comment(run, source_json, tmp_path, val
 
 @pytest.mark.parametrize("input_policy", POLICIES)
 def test_restricted_to_is_recognized_but_wholly_omitted(run, source_json, tmp_path, input_policy):
-    """Rules: DK-CLS-01, DK-CLS-03, DK-CLS-04, DK-CLS-05, DK-DIAG-05, DK-GEN-02."""
+    """Rules: DK-CLS-01, DK-CLS-03, DK-CLS-04, DK-CLS-05, DK-DIAG-05, DK-GEN-02, DK-GEN-05."""
     document = source_json("classes/disjointness")
     baseline = run("classes/disjointness", iri_strategy="id", input_policy=input_policy)
     for item in document["model"]["contents"]:
@@ -633,7 +639,25 @@ def test_restricted_to_is_recognized_but_wholly_omitted(run, source_json, tmp_pa
     ordered = run(path=write_input(tmp_path, with_order, "ordered.json"), iri_strategy="id", input_policy=input_policy)
     result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
     assert baseline.outcome == ordered.outcome == result.outcome == "completed"
-    assert_graph_equal(result.ontology, ordered.ontology)
+    roots = {BASE[c["id"]] for c in document["model"]["contents"]} | {BASE.vGroup}
+    logical_types = {OWL.Class, OWL.NamedIndividual} | roots
+    # Compare the fixed named-class mapping, not freely oriented disjointness,
+    # enum-expression presentation, optional metadata or flag-comment wording.
+    assert_selected_equal(result.ontology, ordered.ontology,
+                          {RDF.type, RDFS.subClassOf, RDFS.domain, RDFS.range,
+                           OWL.disjointUnionOf, OWL.equivalentProperty},
+                          {OWL.disjointWith}, subjects=roots, type_objects=logical_types)
+    for observation in (ordered, result):
+        _assert_values(observation.ontology, BASE.cEnumeration, {BASE.vGroup}, complete=True)
+        assert not observation.restricted_to_output
+        assert all((c.subject, RDFS.comment, c.literal) in observation.ontology for c in observation.comments)
+        for item in document["model"]["contents"]:
+            if item["id"] not in {"dInt", "dVoid"}:
+                assert (BASE[item["id"]], RDFS.comment, Literal("OntoUML classifier order: 12.", lang="en")) in observation.ontology
+                _assert_comment(observation, BASE[item["id"]], "isAbstract", False)
+                _assert_comment(observation, BASE[item["id"]], "isDerived", False)
+        _assert_comment(observation, BASE.cAbstract, "stereotype", "abstract")
+    assert {(c.subject, c.field, c.value) for c in result.comments} == {(c.subject, c.field, c.value) for c in ordered.comments}
     assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(ordered.diagnostics)
     assert _pairs(result.ontology) == _pairs(baseline.ontology)
     assert not any(d.kind in {"restricted_to", "unknown_information", "semantic_validation"} for d in result.diagnostics)

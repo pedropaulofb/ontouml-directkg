@@ -46,6 +46,30 @@ def test_rdf_helper_checks_graph_identity_and_ordered_lists():
     pair = Graph().parse(data='<urn:test:a> <urn:test:pair> <urn:test:b>.', format="turtle")
     reciprocal = Graph().parse(data='<urn:test:b> <urn:test:pair> <urn:test:a>.', format="turtle")
     assert_selected_equal(pair, reciprocal, set(), {URIRef("urn:test:pair")})
+    # Optional descriptive resources/types and unfixed comment text may vary
+    # while the selected named-resource mapping remains the same.
+    left = Graph().parse(data='''@prefix : <urn:test:> .
+        @prefix owl: <http://www.w3.org/2002/07/owl#> .
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        :a a owl:Class; rdfs:comment "first wording"; owl:disjointWith :b.
+        :b a owl:Class. :metadata1 a :FirstMetadataType.''', format="turtle")
+    right = Graph().parse(data='''@prefix : <urn:test:> .
+        @prefix owl: <http://www.w3.org/2002/07/owl#> .
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        :a a owl:Class, :AdditionalMetadataType; rdfs:comment "second wording".
+        :b a owl:Class; owl:disjointWith :a. :metadata2 a :SecondMetadataType.''', format="turtle")
+    roots = {URIRef("urn:test:a"), URIRef("urn:test:b")}
+    for predicates in ({RDF.type}, {RDF.type, RDFS.subClassOf}):
+        assert_selected_equal(left, right, predicates, {OWL.disjointWith},
+                              subjects=roots, type_objects={OWL.Class})
+    right.add((URIRef("urn:test:a"), RDFS.subClassOf, URIRef("urn:test:b")))
+    with pytest.raises(AssertionError):
+        assert_selected_equal(left, right, {RDF.type, RDFS.subClassOf}, {OWL.disjointWith},
+                              subjects=roots, type_objects={OWL.Class})
+    right.remove((URIRef("urn:test:b"), RDF.type, OWL.Class))
+    with pytest.raises(AssertionError):
+        assert_selected_equal(left, right, {RDF.type}, {OWL.disjointWith},
+                              subjects=roots, type_objects={OWL.Class})
 
 
 def test_core_asserted_domain_graph(run, source_path):
@@ -181,7 +205,7 @@ def test_project_text_is_preserved_on_ontology_with_language_resolution(run, sou
 def test_missing_project_text_has_no_fallback_annotation_or_diagnostic(run, source_json, tmp_path, input_policy, field, predicate, condition):
     """Rules: DK-GEN-08, DK-LBL-02, DK-DIAG-05."""
     document = source_json("shared/base_iri")
-    # Shared single-class input has no collection-order choices or provenance.
+    # Shared single-class input isolates source-project text from domain mapping.
     for key in ("name", "description"):
         document.pop(key, None)
     baseline = run(path=write_input(tmp_path, document, "absent_project_text.json"), iri_strategy="id", input_policy=input_policy)
@@ -192,7 +216,13 @@ def test_missing_project_text_has_no_fallback_annotation_or_diagnostic(run, sour
     ontology = URIRef("https://example.test/model")
     assert not list(result.ontology.objects(ontology, predicate))
     assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
-    assert_graph_equal(result.ontology, baseline.ontology)
+    assert_selected_equal(result.ontology, baseline.ontology,
+                          {RDF.type, RDFS.subClassOf, OWL.equivalentClass},
+                          {OWL.disjointWith}, subjects={BASE.C17},
+                          type_objects={OWL.Class, OWL.NamedIndividual, BASE.C17})
+    for observation in (baseline, result):
+        assert (BASE.C17, RDF.type, OWL.Class) in observation.ontology
+        assert (BASE.C17, RDFS.label, Literal("Person")) in observation.ontology
 
 
 @pytest.mark.parametrize("iri_strategy", ["name", "id"])
@@ -209,10 +239,15 @@ def test_project_name_changes_only_ontology_label(run, source_json, tmp_path, ir
         assert set(result.ontology.subjects(RDF.type, OWL.Ontology)) == {ontology}
         assert set(result.ontology.objects(ontology, RDFS.label)) == {Literal(text)}
         assert not list(result.ontology.subjects(DCTERMS.identifier, Literal(document["id"])))
-    left, right = Graph(), Graph()
-    for source, target in [(first.ontology, left), (second.ontology, right)]:
-        for triple in source:
-            if triple[:2] != (ontology, RDFS.label):
-                target.add(triple)
-    assert_graph_equal(left, right)
+    target = BASE.C17 if iri_strategy == "id" else BASE.Person
+    for observation in (first, second):
+        assert (target, RDF.type, OWL.Class) in observation.ontology
+        assert (target, RDFS.label, Literal("Person")) in observation.ontology
+        assert {s for s in observation.ontology.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef) and str(s).startswith(str(BASE))} == {target}
+        identifiers = set(observation.ontology.subjects(DCTERMS.identifier, Literal("C17")))
+        assert identifiers == ({target} if iri_strategy == "name" else set())
+    assert_selected_equal(first.ontology, second.ontology,
+                          {RDF.type, RDFS.subClassOf, OWL.equivalentClass,
+                           RDFS.domain, RDFS.range}, {OWL.disjointWith},
+                          subjects={target}, type_objects={OWL.Class, OWL.NamedIndividual, target})
     assert diagnostic_signatures(first.diagnostics) == diagnostic_signatures(second.diagnostics)

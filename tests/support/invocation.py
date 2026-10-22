@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol
 
 from rdflib import Graph, Literal, URIRef
+from rdflib.term import Node
 
 
 class ImplementationUnavailable(RuntimeError):
@@ -80,6 +81,12 @@ class Observation:
     configuration_error: Any = None
     native: Any = field(default=None, repr=False)
     comments: tuple[CommentMeaning, ...] = ()
+    # Actual RDF statements expressing restrictedTo/nature information, read
+    # from the produced graph regardless of predicate or comment wording. This
+    # is a test-side semantic reading, not a production field. The binding must
+    # report every such statement (including erroneous output), never derive
+    # this evidence or an empty result from source inputs/expected omissions.
+    restricted_to_output: tuple[tuple[Node, Node, Node], ...] = ()
 
 
 def diagnostic_signatures(events):

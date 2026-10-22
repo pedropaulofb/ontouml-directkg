@@ -214,7 +214,7 @@ SELECTOR_CASES = [
 @pytest.mark.parametrize("identifier,prefix", [("cPerson", ""), ("aAge", ""), ("vPending", "Status_")], ids=["class", "attribute", "enum_value"])
 @pytest.mark.parametrize("text,selected", SELECTOR_CASES)
 def test_multilingual_selector_uses_original_keys_text_and_usable_candidates(run, source_json, tmp_path, identifier, prefix, text, selected):
-    """Rules: DK-IRI-10, DK-IRI-03, DK-IRI-08, DK-LBL-01, DK-LBL-02.
+    """Rules: DK-IRI-10, DK-IRI-03, DK-IRI-08, DK-PROP-02, DK-LBL-01, DK-LBL-02.
 
     Expected local names are explicit case data, not a test-side transformer.
     Check JSON order, user override and project languages independently of
@@ -225,16 +225,25 @@ def test_multilingual_selector_uses_original_keys_text_and_usable_candidates(run
             document = source_json("shared/source_text")
             _localize_other_text(document)
             if identifier == "aAge":
-                # Keep the selector case free of an unrelated class/property
-                # collision when the chosen attribute text is "Person".
+                # Force owner qualification, whose spelling is required by
+                # DK-PROP-02; a unique unqualified candidate is only optional.
                 source_element(document, "cPerson")["name"] = {"en": "AttributeOwner"}
             source_element(document, identifier)["name"] = dict(reversed(list(text.items()))) if reverse else copy.deepcopy(text)
+            if identifier == "aAge":
+                peer = copy.deepcopy(source_element(document, "aAge"))
+                peer["id"] = "pSelectorPeer"
+                source_element(document, "cOrg")["properties"] = [peer]
+            assert not fixture_issues(document)
             if context == "project":
                 document["languages"] = ["pt-BR", "en"]
             result = run(path=write_input(tmp_path, document, context + str(reverse) + ".json"), **options)
             assert result.outcome == "completed"
-            target = BASE[prefix + selected]
+            target = BASE[selected + "_AttributeOwner"] if identifier == "aAge" else BASE[prefix + selected]
             assert (target, RDF.type, OWL.NamedIndividual if identifier == "vPending" else OWL.DatatypeProperty if identifier == "aAge" else OWL.Class) in result.ontology
+            if identifier == "aAge":
+                assert (target, RDFS.domain, BASE.AttributeOwner) in result.ontology
+                assert (BASE[selected + "_Organization"], RDF.type, OWL.DatatypeProperty) in result.ontology
+                assert (BASE[selected + "_Organization"], RDFS.domain, BASE.Organization) in result.ontology
             expected = set()
             for key, value in text.items():
                 language = "nl" if context == "override" else key or None
@@ -247,7 +256,7 @@ def test_multilingual_selector_uses_original_keys_text_and_usable_candidates(run
 
 @pytest.mark.parametrize("identifier", ["cPerson", "aAge", "vPending"], ids=["class", "attribute", "enum_value"])
 def test_localized_name_selection_does_not_replace_id_strategy(run, source_json, tmp_path, identifier):
-    """Rules: DK-IRI-02, DK-IRI-08, DK-IRI-10, DK-LBL-01, DK-LBL-02."""
+    """Rules: DK-IRI-02, DK-IRI-08, DK-IRI-09, DK-IRI-10, DK-LBL-01, DK-LBL-02."""
     document = source_json("shared/source_text")
     _localize_other_text(document)
     source_element(document, identifier)["name"] = {"pt-BR": "Pessoa", "en": "Person"}
@@ -255,7 +264,8 @@ def test_localized_name_selection_does_not_replace_id_strategy(run, source_json,
     assert result.outcome == "completed"
     target = BASE[identifier]
     _assert_source_values(result.ontology, target, RDFS.label, {Literal("Pessoa", lang="nl"), Literal("Person", lang="nl")}, exclusive=False)
-    assert set(result.ontology.subjects(DCTERMS.identifier, Literal(identifier))) == {target}
+    assert (target, RDF.type, OWL.NamedIndividual if identifier == "vPending" else OWL.DatatypeProperty if identifier == "aAge" else OWL.Class) in result.ontology
+    assert not list(result.ontology.subjects(DCTERMS.identifier, Literal(identifier)))
 
 
 def test_language_override_does_not_propagate_to_generated_comments_or_identifiers(run, source_json, tmp_path):

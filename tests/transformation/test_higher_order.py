@@ -6,7 +6,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import source_element, write_input
 from tests.support.invocation import diagnostic_signatures
-from tests.support.rdf import assert_contains, assert_graph_equal, load_graph
+from tests.support.rdf import assert_contains, assert_selected_equal, load_graph
 
 
 BASE = Namespace("https://example.test/model#")
@@ -70,7 +70,15 @@ def test_restricted_to_order_and_stereotype_do_not_validate_higher_order_asserti
     assert set(result.ontology.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
     assert (BASE.cCategorizer, RDFS.comment, Literal("OntoUML classifier order: 0.", lang="en")) in result.ontology
     assert (BASE.cBase, RDFS.comment, Literal("OntoUML classifier order: 12.", lang="en")) in result.ontology
-    assert_graph_equal(result.ontology, baseline.ontology)
+    assert_selected_equal(result.ontology, baseline.ontology,
+                          {RDF.type, RDFS.subClassOf, RDFS.domain, RDFS.range,
+                           OWL.equivalentClass, OWL.disjointUnionOf},
+                          {OWL.disjointWith}, subjects=MODELED,
+                          type_objects={OWL.Class, OWL.NamedIndividual} | MODELED)
+    for observation in (baseline, result):
+        assert not observation.restricted_to_output
+        assert all((c.subject, RDFS.comment, c.literal) in observation.ontology for c in observation.comments)
+    assert {(c.subject, c.field, c.value) for c in result.comments} == {(c.subject, c.field, c.value) for c in baseline.comments}
     assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
     assert not any(d.kind in {"unknown_information", "restricted_to", "semantic_validation"} or d.severity == "ERROR" for d in result.diagnostics)
 
@@ -84,5 +92,8 @@ def test_punning_identity_is_the_same_under_both_iri_strategies(run, iri_strateg
     categorizer = BASE.cCategorizer if iri_strategy == "id" else BASE.Categorizer
     other = BASE.cOtherCategorizer if iri_strategy == "id" else BASE.OtherCategorizer
     assert {OWL.Class, OWL.NamedIndividual, categorizer, other} <= set(result.ontology.objects(one, RDF.type))
-    assert set(result.ontology.subjects(DCTERMS.identifier, Literal("cOne"))) == {one}
+    if iri_strategy == "name":
+        assert set(result.ontology.subjects(DCTERMS.identifier, Literal("cOne"))) == {one}
+    else:
+        assert not list(result.ontology.subjects(DCTERMS.identifier, Literal("cOne")))
     assert set(result.ontology.subjects(RDFS.label, Literal("One"))) == {one}

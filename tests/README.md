@@ -3,7 +3,9 @@
 Wave 1 — Executable foundation, input policies, and general identity — received
 the forwarded independent OK for `7364ed8843c565592d4bfa550d90c218988c83ba`.
 Wave 2 — Classes, enumerations, higher-order classification, and source text —
-is submitted for independent review. Waves 3–6 remain unimplemented.
+is resubmitted after correcting reviewer findings F1–F3 against
+`d9f03d866a354efebebc57c407f5923d1eba0506`; its new revision awaits independent
+review. Waves 3–6 remain unimplemented.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -112,6 +114,15 @@ The binding must execute the real public library and adapt only observed values:
   template where the specification fixes only meaning. The binding must
   document its actual text/field interpretation for review. Fixed classifier-
   order comments are checked directly as RDF literals instead.
+- Populate `Observation.restricted_to_output` by reading the actual RDF for any
+  statement expressing restrictedTo/nature information, including comments,
+  other annotations, logical axioms, or auxiliary-resource statements. Retain
+  the actual triples, including erroneous output. This is a test-side semantic
+  reading, not a requested production attribute or a predicate spelling. Do
+  not infer an empty result from the source field, the requested policy, or
+  its expected omission. Document how actual output meanings are recognized;
+  do not attribute unrelated reliable metadata to this field. Omission cases
+  assert this evidence is empty while separately checking required mappings.
 - Read diagnostics, outcome, and delivered graph through the actual public
   result/access mechanisms when the tests request another read. Do not return
   a cached test snapshot in place of the real access operation.
@@ -140,6 +151,20 @@ establish the required unordered pairs. An equivalent anonymous enumeration
 expression is also accepted. No inferred OWL fact substitutes for an assertion.
 Harness checks of these assertions use explicit small RDF graphs and receive
 no conversion-coverage credit.
+
+Wave 2's corrected comparisons can also select named subjects and logical type
+objects, leaving unrelated descriptive resources/types unconstrained. They
+compare flag-comment meanings with actual RDF evidence, not raw wording. The
+enumeration omission case checks membership/closure independently so allowed
+enumeration-expression presentation is not frozen across conversions. The
+project-text cases compare required identity and class mappings, permitting
+additional metadata under DK-GEN-11. Name-mode properties with unique candidates
+are located through their default source-ID annotations and checked through
+their domains/ranges and labels; they need not use the optional direct name.
+Attribute selector cases introduce a second same-named property on a distinct
+owner, making owner qualification mandatory and its exact construction testable.
+ID-mode identity checks require the own-ID IRI and source labels while rejecting
+the source-ID traceability annotation prohibited by DK-IRI-09.
 
 Use `tests.support` absolute imports. Data paths resolve from this suite, not
 the caller's current directory. Source mutations and converter artifacts belong

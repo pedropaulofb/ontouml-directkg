@@ -62,16 +62,24 @@ def rdf_list(graph: Graph, head):
     return tuple(values)
 
 
-def assert_selected_equal(actual: Graph, expected: Graph, predicates, unordered_predicates=()) -> None:
+def assert_selected_equal(actual: Graph, expected: Graph, predicates, unordered_predicates=(),
+                          *, subjects=None, type_objects=None) -> None:
     """Compare explicitly selected graph predicates, allowing named-node pairs.
 
     Callers own the selection and must justify any unordered pair treatment.
+    Optional subject/type-object selections limit a comparison to the promised
+    mapping, leaving unrelated metadata resources and their types unconstrained.
+    These selections do not follow blank-node edges or infer missing triples.
     This helper has no vocabulary-specific defaults or transformation rules.
     It is not a reasoner or a replacement for whole-graph isomorphism.
     """
     def selected(graph):
         projected = Graph()
         for subject, predicate, obj in graph:
+            if subjects is not None and subject not in subjects:
+                continue
+            if predicate == RDF.type and type_objects is not None and obj not in type_objects:
+                continue
             if predicate in unordered_predicates:
                 if isinstance(subject, BNode) or isinstance(obj, BNode):
                     raise ValueError("Unordered pair projection requires named endpoints")
