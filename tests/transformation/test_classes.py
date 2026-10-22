@@ -441,15 +441,17 @@ def test_literal_id_strategy_uses_own_escaped_id_without_enum_prefix(run, source
 
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("iri_strategy", ["name", "id"])
-@pytest.mark.parametrize("condition", ["absent", "null", "empty", "whitespace", "punctuation", "non_ascii"])
+@pytest.mark.parametrize("condition", ["absent", "null", "empty", "whitespace", "punctuation", "non_ascii", "localized_unusable"])
 def test_literal_generic_fallback_is_nonfatal_and_counts_as_complete(run, source_json, tmp_path, input_policy, iri_strategy, condition):
-    """Rules: DK-IRI-08, DK-IRI-04, DK-CLS-10, DK-CLS-11, DK-DIAG-13, DK-LBL-01."""
+    """Rules: DK-IRI-08, DK-IRI-04, DK-IRI-10, DK-CLS-10, DK-CLS-11, DK-DIAG-13, DK-LBL-01."""
     document = source_json("classes/enumerations")
     literal = source_element(document, "vPending")
     if condition == "absent":
         del literal["name"]
     else:
-        literal["name"] = {"null": None, "empty": "", "whitespace": "  \t", "punctuation": "___", "non_ascii": "東京"}[condition]
+        literal["name"] = {"null": None, "empty": "", "whitespace": "  \t", "punctuation": "___", "non_ascii": "東京",
+                           "localized_unusable": {"en": "___", "pt-BR": "東京"}}[condition]
+    assert not fixture_issues(document)
     result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
     assert result.outcome == "completed"
     enum = BASE.eStatus if iri_strategy == "id" else BASE.Status
@@ -458,7 +460,9 @@ def test_literal_generic_fallback_is_nonfatal_and_counts_as_complete(run, source
     assert not any("unnamedLiteral_" in str(term) for triple in result.ontology for term in triple)
     source_name = literal.get("name")
     labels = set(result.ontology.objects(BASE.vPending, RDFS.label))
-    if source_name is not None and source_name.strip():
+    if isinstance(source_name, dict):
+        assert labels == {Literal(text, lang=language) for language, text in source_name.items()}
+    elif source_name is not None and source_name.strip():
         assert Literal(source_name) in labels
     elif source_name is not None:
         assert labels <= {Literal(source_name)}

@@ -42,6 +42,9 @@ Wave 2 adds four class bundles, one higher-order bundle, and
 `shared/source_text`, which is consumed by both ontology and shared-text tests.
 No labels-only data directory is needed. Explicit small mutations, including
 localized text and governed invalid cases, stay in their owning test modules.
+The literal-fallback matrix includes a supported localized name whose every
+value is unusable for naming; both source labels remain, and fallback does not
+make enumeration closure incomplete.
 
 ## Actual invocation binding
 
