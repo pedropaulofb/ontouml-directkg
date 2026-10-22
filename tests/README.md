@@ -196,6 +196,9 @@ and the accepted equal-count alternatives (including maximum zero). It does
 not impose the relation-only cardinality serialization on attributes. RD-14
 property expressions are inspected as actual named properties or explicit
 anonymous inverses; no entailment supplies an expected inclusion.
+Primitive XSD targets omit source-derived-status comments; independent generated
+metadata under DK-GEN-11 is permitted. The primitive flag check reads actual
+comment meanings rather than prohibiting every `rdfs:comment` on that IRI.
 Primitive normalization recommendations remain SHOULD: their safety tests
 allow custom treatment when a recommendation is declined and forbid a wrong
 registered target. They do not certify compliance with the recommendation.

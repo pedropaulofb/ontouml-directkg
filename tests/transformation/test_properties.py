@@ -416,7 +416,8 @@ def test_primitive_class_derived_flag_has_no_xsd_or_invented_annotation_target(r
     assert result.outcome=='completed'
     assert not result.flag_semantic_output
     assert {v for _,v in _flag_values(result,BASE.pFocus,'isDerived')}=={True}
-    assert not list(result.ontology.objects(XSD.int,RDFS.comment))
+    # Independent metadata is permitted; a primitive has no derived-status target.
+    assert not _flag_values(result,XSD.int,"isDerived")
     assert not any(BASE.dValue in triple for triple in result.ontology)
     events=[d for d in result.diagnostics if d.kind=='derived_status']
     assert events and all('dValue' not in d.identified_sources for d in events)

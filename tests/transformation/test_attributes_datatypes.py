@@ -58,7 +58,7 @@ def _focus(graph, kind, range_, owner=BASE.cOwner, prop=BASE.pFocus):
 @pytest.mark.parametrize('iri_strategy', ['name', 'id'])
 @pytest.mark.parametrize('name,target', REGISTRY, ids=[p[0] for p in REGISTRY])
 def test_all_nine_registered_primitives_have_their_exact_ranges(run, source_json, tmp_path, iri_strategy, name, target):
-    """Rules: DK-DAT-01, DK-DAT-02, DK-ATT-01, DK-GEN-03, DK-ATT-04, DK-IRI-09."""
+    """Rules: DK-DAT-01, DK-DAT-02, DK-ATT-01, DK-GEN-03, DK-GEN-05, DK-ATT-04, DK-IRI-09."""
     document = source_json('attributes_datatypes/value_types')
     source_element(document, 'dValue')['name'] = name
     result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy)
@@ -68,7 +68,8 @@ def test_all_nine_registered_primitives_have_their_exact_ranges(run, source_json
     _focus(result.ontology, OWL.DatatypeProperty, target, owner, prop)
     assert not any(BASE.dValue in triple for triple in result.ontology)
     assert not list(result.ontology.subjects(DCTERMS.identifier, Literal('dValue')))
-    assert not list(result.ontology.objects(target, RDFS.comment))
+    # GEN-05 omits source derived-status comments, not independent metadata.
+    assert not any(c.subject == target and c.field == "isDerived" for c in result.comments)
     if name == 'char':
         assert not list(result.ontology.triples((None, OWL.withRestrictions, None)))
     assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
