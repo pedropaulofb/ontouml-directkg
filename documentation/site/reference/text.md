@@ -21,7 +21,7 @@ For a successfully generated primary property, both relation-label modes first u
 | `source-only` (default) | Generate no primary-property label |
 | `generated` | Add a fallback label from the lexical candidate selected by applicable name-based relation-naming rules |
 
-That lexical candidate retains the established source-field/stereotype/grounding-relator/endpoint naming precedence and conditions. The detailed relation-naming algorithm remains assigned to DOC-W3. The fallback label uses the candidate **before IRI-specific processing**, under both IRI strategies; do not parse the final IRI or include IRI-only encoding, collision qualification, or suffixes.
+That lexical candidate retains the established source-field/stereotype/grounding-relator/endpoint naming precedence and conditions. See [Primary direction and naming](../mapping/relations.md#primary-direction-and-naming) for the relation-naming algorithm. The fallback label uses the candidate **before IRI-specific processing**, under both IRI strategies; do not parse the final IRI or include IRI-only encoding, collision qualification, or suffixes.
 
 Generated fallback labels receive no automatic source-language propagation, including the explicit language override. Do not add RDF markers, annotations, or auxiliary resources solely to distinguish them from source-authored labels. Absence of such a marker adds no diagnostic or control. These modes leave inverse-label rules and existing naming diagnostics unchanged. See [Controls](controls.md#established-controls) for the canonical options and Python `relation_labels` parameter.
 
@@ -89,10 +89,10 @@ The flag alone supplies no derivation rule, property chain, equivalence, calcula
 
 `true` requires a nonfatal INFO **only when its derived-status comment is generated**, identifying the element and explaining that annotation preservation supplies no derivation rule. This limitation alone is not a warning. Do not claim an independently applicable explicit derivation mapping was omitted if it was applied. `false`, or a flag lacking an eligible target, produces no diagnostic solely for that condition; other independently required diagnostics remain.
 
-Descriptions have their separate target rules above. Abstractness, extensionality, and order belong to [Class declarations preserved as comments](../mapping/classes.md#class-declarations-preserved-as-comments); read-only, aggregation, and ordering declarations retain the planned Property features owner.
+Descriptions have their separate target rules above. Abstractness, extensionality, and order belong to [Class declarations preserved as comments](../mapping/classes.md#class-declarations-preserved-as-comments); read-only, aggregation, and ordering declarations belong to [Property features](../mapping/property-features.md).
 
 Produced INFO and warnings remain accessible/exportable under the diagnostic contract even when hidden by [console filtering](controls.md#presentation-and-persistence-do-not-change-transformation-outcomes). The detailed diagnostics reference remains assigned to DOC-W4.
 
 ---
 
-Governing rules: DK-LBL-01–02; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-04, 16, 19; baseline consolidated: **2026-10-21**; repository commit: `7364ed8843c565592d4bfa550d90c218988c83ba`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/7364ed8843c565592d4bfa550d90c218988c83ba/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-LBL-01–02; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-04, 16, 19; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

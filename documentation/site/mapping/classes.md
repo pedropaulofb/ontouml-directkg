@@ -37,7 +37,7 @@ A class generalization set constrains its **explicit specific classifiers**. Dis
 | `isComplete: false` | No covering axiom from that flag. It does not assert additional instances or subclasses. |
 | Fully resolved, exactly one member generalization, `isComplete: true` | Add the reverse subclass axiom: general is a subclass of specific, alongside the existing specific-to-general axiom. |
 
-For example, a complete set specializing `Vehicle` into `Car` and `Bicycle` constrains every vehicle to at least one of those classes. Overlap remains possible unless disjointness is separately required. This statement concerns class coverage; relation-set completeness has a different mapping boundary, to be documented in its assigned wave.
+For example, a complete set specializing `Vehicle` into `Car` and `Bicycle` constrains every vehicle to at least one of those classes. Overlap remains possible unless disjointness is separately required. This statement concerns class coverage; [relation-set completeness](relations.md#relation-set-completeness) has a different mapping boundary.
 
 ### Singleton and recovery boundaries
 
@@ -100,8 +100,8 @@ Abstractness does not establish completeness over modeled subclasses, emptiness,
 
 Order comments are informative: they do not drive classification, inference, or semantic validation. Absent/null order produces no order comment. No machine-readable order property, external order vocabulary, or custom DirectKG predicate is introduced. `restrictedTo` must not alter class, disjointness, order, or higher-order mappings; omission does not excuse independently invalid structure.
 
-Explicit `isDerived` values have the separate cross-cutting [derived-status comment mapping](../reference/text.md#derived-status-comments), including the condition for INFO and omission when no local target exists. Other property qualifiers belong to the planned Property features page.
+Explicit `isDerived` values have the separate cross-cutting [derived-status comment mapping](../reference/text.md#derived-status-comments), including the condition for INFO and omission when no local target exists. Other property qualifiers belong to [Property features](property-features.md).
 
 ---
 
-Governing rules: DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05; DK-DIAG-12–17; baseline consolidated: **2026-10-21**; repository commit: `7364ed8843c565592d4bfa550d90c218988c83ba`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/7364ed8843c565592d4bfa550d90c218988c83ba/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05; DK-DIAG-12–17; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

@@ -13,6 +13,12 @@ nav = [
     { "Classes and enumerations" = "mapping/classes.md" },
     { "Higher-order classification" = "mapping/higher-order.md" },
     { "Attributes and datatypes" = "mapping/attributes-and-datatypes.md" },
+    { "Binary relations" = "mapping/relations.md" },
+    { "Inverse properties" = "mapping/inverses.md" },
+    { "Property features" = "mapping/property-features.md" },
+    { "Derivations and material chains" = "mapping/derivations-and-chains.md" },
+    { "Mereology and DKGM" = "mapping/mereology.md" },
+    { "Instantiation associations" = "mapping/instantiation.md" },
   ] },
   { "Reference" = [
     { "Input contract" = "reference/input.md" },

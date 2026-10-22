@@ -31,7 +31,7 @@ Every generated ontology imports the **complete** reusable DKGM mereology vocabu
 
 The import target is the stable URI representing the vocabulary's latest version, without the property's `#` namespace suffix. It is not pinned to a vocabulary release or replaced by an address obtained by following a redirect. Resolving the same import later can therefore bring in changed imported axioms without changing the generated ontology file.
 
-**The concrete stable URI remains unspecified by the normative baseline.** The existing repository vocabulary uses a concrete address, but that artifact does not establish acceptance of that address as the final import target. No deployable placeholder import is supplied here.
+**The concrete stable URI remains unspecified by the normative baseline.** The existing repository vocabulary uses a concrete address, but that artifact does not establish acceptance of that address as the final import target. No deployable placeholder import is supplied here. [Mereology and DKGM](../mapping/mereology.md#import-and-vocabulary-identity) owns the identity pattern, artifact discrepancy, generic chains, and source-specific bridges.
 
 A nonempty source `Project.name` supplies an ontology `rdfs:label`; a nonempty supported `Project.description` supplies an ontology `rdfs:comment`, following source-language rules. Their absence does not generate fallback text or a diagnostic solely for that condition. They do not select ontology identity. An explicitly supplied external title supplements the project name using its separate metadata predicate rather than replacing the source label.
 
@@ -59,4 +59,4 @@ The detailed exit-code/precedence table, provenance failure procedures, and diag
 
 ---
 
-Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `c2262aff7ce41a874875e354c9842fd97c8c879b`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c2262aff7ce41a874875e354c9842fd97c8c879b/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

@@ -36,7 +36,7 @@ The `id` strategy favors source-identity stability. A named resource still uses 
 
 The enclosing association's ID is not the IRI basis for either direction, including self-relations. Disabling inverse generation leaves the primary property's target-end basis unchanged; the source-end ID then produces no separate inverse property. Association IDs can still be used internally or in diagnostics.
 
-Changing inverse mode must not change source-backed IRIs. Generated inverse candidates are resolved only after all source-backed claims/final IRIs, preserving source-backed precedence. Inverse-specific naming algorithms belong to the planned Inverse properties page; this reference does not substitute a new algorithm for them.
+Changing inverse mode must not change source-backed IRIs. Generated inverse candidates are resolved only after all source-backed claims/final IRIs, preserving source-backed precedence. [Inverse naming](../mapping/inverses.md#inverse-naming) owns the inverse-specific algorithms and their collision order.
 
 ## Names, escaping, and collisions
 
@@ -133,4 +133,4 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 
 ---
 
-Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-10-21**; repository commit: `7364ed8843c565592d4bfa550d90c218988c83ba`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/7364ed8843c565592d4bfa550d90c218988c83ba/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

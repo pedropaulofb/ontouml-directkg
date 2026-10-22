@@ -4,9 +4,9 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 ## Current availability
 
-**These pages describe accepted intended behavior.** At the reviewed repository revision, `c2262aff7ce41a874875e354c9842fd97c8c879b`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
+**These pages describe accepted intended behavior.** At the reviewed repository revision, `0307dd346c91346fa38bda2f8d57c9930b00751f`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
 
-The website currently provides shared contracts, conceptual guidance, and mappings for classifiers, attributes, identity, and text. Relation/property-feature mappings, operational guides, and verified examples remain assigned to later documentation waves. Navigation links only to pages that exist.
+The website currently provides shared contracts, conceptual guidance, and mappings for classifiers, attributes, relations, property features, mereology, identity, and text. Operational guides and verified examples remain assigned to later documentation waves. Navigation links only to pages that exist.
 
 ## Scope at a glance
 
@@ -26,6 +26,8 @@ The website currently provides shared contracts, conceptual guidance, and mappin
 - Read the [Output contract](reference/output.md) to understand ontology identity, artifact formats, and graph-versus-text guarantees.
 - Use [Controls](reference/controls.md) for the accepted option values, defaults, and interface boundaries.
 - Follow [Classes and enumerations](mapping/classes.md), [Higher-order classification](mapping/higher-order.md), and [Attributes and datatypes](mapping/attributes-and-datatypes.md) to interpret classifier and value mappings.
+- Follow [Binary relations](mapping/relations.md), [Inverse properties](mapping/inverses.md), and [Property features](mapping/property-features.md) for relation direction, constraints, and partial property mappings.
+- Read [Derivations and material chains](mapping/derivations-and-chains.md), [Mereology and DKGM](mapping/mereology.md), and [Instantiation associations](mapping/instantiation.md) for their distinct preservation and reasoning boundaries.
 - Use [Identifiers and naming](reference/identifiers.md) and [Labels, comments, and language](reference/text.md) for identity and human-readable text.
 
 ## Relationship to other approaches
@@ -34,4 +36,4 @@ DirectKG aims for a comparatively lightweight graph of domain concepts and relat
 
 ---
 
-Governing source: §§2–3; baseline consolidated: **2026-10-21**; repository commit: `c2262aff7ce41a874875e354c9842fd97c8c879b`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c2262aff7ce41a874875e354c9842fd97c8c879b/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing source: §§2–3; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

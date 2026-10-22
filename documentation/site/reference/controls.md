@@ -21,7 +21,7 @@ This is the canonical catalog of **specified controls and defaults**. No product
 | `--diagnostics-file` | Complete caller-selected output-file path | Not supplied; no CLI diagnostics file | Export every diagnostic actually produced to JSON, including those hidden by console filtering and those produced before an accepted abort. For conversions that run, export is attempted even after specified artifact-delivery failures. Supplied-base rejection produces no conversion-diagnostics report. |
 | `--console-level` | `info`, `warning`, `error` | `info` | Display INFO/WARNING/ERROR, WARNING/ERROR, or ERROR, respectively. Filter console presentation only; retain every produced diagnostic for collection, programmatic access, and requested JSON export. |
 
-See [Identifiers and naming](identifiers.md) and [Labels, comments, and language](text.md) for the available identity/text explanations. Detailed inverse construction, chain semantics, metadata/provenance, and diagnostic policies remain assigned to later waves. Links are added as their owning pages are delivered.
+See [Identifiers and naming](identifiers.md) and [Labels, comments, and language](text.md) for the available identity/text explanations. See [Inverse properties](../mapping/inverses.md) for eligibility and construction, and [Derivations and material chains](../mapping/derivations-and-chains.md) for chain eligibility, ambiguity, and constraint treatment. Detailed metadata/provenance and diagnostic policies remain assigned to later waves.
 
 ## Interface parity
 
@@ -53,7 +53,7 @@ Selecting `none` prevents named inverse generation, while accepted reverse-side 
 
 `preserve-conflicting-constraints` keeps the otherwise applicable cardinality and property-disjointness mappings. Its name does not promise preservation of every OntoUML semantic feature. Either generating mode produces the required nonfatal compatibility notice when a chain is emitted, even if no relevant constraint ultimately conflicts. The `none` mode alone does not produce that notice.
 
-Neither generating mode guarantees OWL 2 DL conformance. See [Reasoner and profile expectations](../concepts/semantics.md#reasoner-and-profile-expectations) for the conceptual boundary; the detailed explanation belongs to the planned chain-mapping page.
+Neither generating mode guarantees OWL 2 DL conformance. See [Reasoner and profile expectations](../concepts/semantics.md#reasoner-and-profile-expectations) for the conceptual boundary; see [OWL compatibility](../mapping/derivations-and-chains.md#owl-compatibility) for the detailed explanation.
 
 ### Presentation and persistence do not change transformation outcomes
 
@@ -67,4 +67,4 @@ No independent ontology-IRI, format-selection, prefix-selection, sorting/canonic
 
 ---
 
-Governing rules: §15; DK-GEN-09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-07; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-10-21**; repository commit: `c2262aff7ce41a874875e354c9842fd97c8c879b`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c2262aff7ce41a874875e354c9842fd97c8c879b/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §15; DK-GEN-09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-07; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

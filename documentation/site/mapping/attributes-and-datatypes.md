@@ -16,7 +16,7 @@ An attribute's resolved `propertyType` determines its property kind and range; t
 
 An enumeration-valued attribute therefore links to enumeration individuals rather than string literals. See [Enumerations and closure](classes.md#enumerations-and-closure). Distinct modeled attributes remain distinct properties even when their names coincide; [identifier disambiguation](../reference/identifiers.md#names-escaping-and-collisions) never changes the property kind.
 
-`isDerived` does not suppress ordinary attribute transformation; its [comment mapping](../reference/text.md#derived-status-comments) is separate. Supported `isReadOnly: true` and `isOrdered: true` declarations also have comment mappings, with INFO for each preserved ordering occurrence. Those comments do not implement read-only enforcement or ordered property values. Their detailed owner, Property features, remains assigned to DOC-W3.
+`isDerived` does not suppress ordinary attribute transformation; its [comment mapping](../reference/text.md#derived-status-comments) is separate. Supported `isReadOnly: true` and `isOrdered: true` declarations also have comment mappings, with INFO for each preserved ordering occurrence. Those comments do not implement read-only enforcement or ordered property values. See [Property features](property-features.md#read-only-and-aggregation-comments) and its [ordering explanation](property-features.md#ordering-without-ordered-values).
 
 ## Primitive registry
 
@@ -73,7 +73,7 @@ An absent cardinality field also supplies no restriction/default, but requires a
 
 Contradictory nonnegative numeric bounds such as `5..2` remain minimum five and maximum two under every policy, without a warning/error solely for the contradiction. The resulting class can be unsatisfiable. Untranslatable bounds, lexical normalization, and ambiguous malformed expressions instead follow DK-DIAG-10–11; `best-effort` preserves independently valid bounds only where those rules permit. The full parsing/recovery reference remains assigned to DOC-W4.
 
-Multiplicity restrictions using object-property expressions made non-simple by actually emitted material chains are subject to the targeted `omit-conflicting-constraints` treatment, including accepted subproperty/inverse propagation. Other independently applicable constraints remain; see the [chain-control boundary](../reference/controls.md#material-chains-have-targeted-effects). Detailed chain semantics remain assigned to DOC-W3.
+Multiplicity restrictions using object-property expressions made non-simple by actually emitted material chains are subject to the targeted `omit-conflicting-constraints` treatment, including accepted subproperty/inverse propagation. Other independently applicable constraints remain; see the [chain-control boundary](../reference/controls.md#material-chains-have-targeted-effects). [Material-chain modes](derivations-and-chains.md#material-chain-modes) explains the propagation and affected constraints.
 
 ### Structured custom datatypes
 
@@ -103,4 +103,4 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `7364ed8843c565592d4bfa550d90c218988c83ba`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/7364ed8843c565592d4bfa550d90c218988c83ba/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
