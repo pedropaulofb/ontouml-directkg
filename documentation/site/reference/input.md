@@ -40,6 +40,8 @@ The override changes literal tagging; it does not select or reorder the original
 
 This extension adds no package-local language declarations, general newer-schema support, or new metadata mappings. Custom `propertyAssignments`, even keys named `language`, `lang`, or `locale`, never supply language information.
 
+See [Labels, comments, and language](text.md) for the text targets and exclusions, and [Multilingual naming](identifiers.md#multilingual-naming) for the separate deterministic selection of naming input.
+
 ## Structural requirements
 
 Accepted mappings require source elements and their necessary references to be structurally resolvable. For an ordinary relation undergoing directional-property generation, both classifier endpoints and the required association-end IDs must be valid before either primary or inverse property is generated. A resolved relation-valued endpoint has a different mapping boundary from a null, malformed, or unresolved endpoint.
@@ -48,7 +50,7 @@ For separate declarations participating in accepted mappings or required referen
 
 Other structural failures follow their applicable recovery rules. `best-effort` does not authorize inventing missing information or delivering syntactically invalid RDF. It also does not authorize continuation after a stereotype condition rejected by the separate stereotype policy. See [Controls](controls.md#control-boundaries) for the policy boundaries.
 
-An explicit attribute `propertyType: null` is supported as unspecified typing; it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. Detailed multiplicity parsing and recovery belong to the planned Diagnostics and recovery reference.
+An explicit attribute `propertyType: null` is supported as [unspecified typing](../mapping/attributes-and-datatypes.md#untyped-and-void); it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. Detailed multiplicity parsing and recovery belong to the planned Diagnostics and recovery reference.
 
 ## Intentional omissions
 

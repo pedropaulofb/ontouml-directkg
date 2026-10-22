@@ -9,10 +9,17 @@ site_dir = "site"
 nav = [
   { "Home" = "index.md" },
   { "Semantics and limitations" = "concepts/semantics.md" },
+  { "Mapping reference" = [
+    { "Classes and enumerations" = "mapping/classes.md" },
+    { "Higher-order classification" = "mapping/higher-order.md" },
+    { "Attributes and datatypes" = "mapping/attributes-and-datatypes.md" },
+  ] },
   { "Reference" = [
     { "Input contract" = "reference/input.md" },
     { "Output contract" = "reference/output.md" },
     { "Controls" = "reference/controls.md" },
+    { "Identifiers and naming" = "reference/identifiers.md" },
+    { "Labels, comments, and language" = "reference/text.md" },
   ] },
 ]
 

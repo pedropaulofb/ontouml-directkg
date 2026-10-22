@@ -6,7 +6,7 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 **These pages describe accepted intended behavior.** At the reviewed repository revision, `c2262aff7ce41a874875e354c9842fd97c8c879b`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
 
-The website currently provides shared contracts and conceptual guidance. Detailed mapping pages, operational guides, and verified examples will be added through the approved documentation waves. Navigation links only to pages that exist.
+The website currently provides shared contracts, conceptual guidance, and mappings for classifiers, attributes, identity, and text. Relation/property-feature mappings, operational guides, and verified examples remain assigned to later documentation waves. Navigation links only to pages that exist.
 
 ## Scope at a glance
 
@@ -25,6 +25,8 @@ The website currently provides shared contracts and conceptual guidance. Detaile
 - Read the [Input contract](reference/input.md) before preparing an export.
 - Read the [Output contract](reference/output.md) to understand ontology identity, artifact formats, and graph-versus-text guarantees.
 - Use [Controls](reference/controls.md) for the accepted option values, defaults, and interface boundaries.
+- Follow [Classes and enumerations](mapping/classes.md), [Higher-order classification](mapping/higher-order.md), and [Attributes and datatypes](mapping/attributes-and-datatypes.md) to interpret classifier and value mappings.
+- Use [Identifiers and naming](reference/identifiers.md) and [Labels, comments, and language](reference/text.md) for identity and human-readable text.
 
 ## Relationship to other approaches
 

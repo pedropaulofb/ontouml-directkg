@@ -47,7 +47,7 @@ Under RDFS semantics, these statements entail that `:Acme` is an `:Employer` and
 
 Attribute and ordinary relation cardinalities constrain their classes through `rdfs:subClassOf` restrictions. They do not define those classes exhaustively through `owl:equivalentClass`. Under OWL semantics, a missing assertion in an inspected file does not by itself establish a violated minimum cardinality. Different individual IRIs do not, by themselves, establish inequality.
 
-The accepted mappings use explicit source structures. They do not promise general materialization of inferred closure. Specifically required materializations, such as modeled powertype membership and selected named-inverse hierarchy edges, are bounded exceptions. Class and individual facets sharing an IRI through OWL punning also remain logically separate.
+The accepted mappings use explicit source structures. They do not promise general materialization of inferred closure. Specifically required materializations, such as modeled powertype membership and selected named-inverse hierarchy edges, are bounded exceptions. Class and individual facets sharing an IRI through [OWL punning](../mapping/higher-order.md#punning-and-separate-facets) also remain logically separate.
 
 ## Validation boundary
 
@@ -65,9 +65,11 @@ Preservation depends on the construct, rather than on conversion completing with
 | --- | --- | --- |
 | Organizational and presentation information | Packages support traversal, while package organization, diagrams, and layout are intentionally absent from output. Their defined omission alone produces no diagnostic. | [Input omissions](../reference/input.md#intentional-omissions) |
 | Serialization and identity | Graph identity and ordered RDF lists have guarantees distinct from textual layout, prefix choices, and blank-node labels. | [Graph and text stability](../reference/output.md#graph-and-text-stability) |
+| Readable and source-based identity | Renaming or a changed selected translation can change a name-based IRI; ID-based construction uses the designated source ID. | [Strategy and renaming](../reference/identifiers.md#strategy-and-renaming) |
+| Classifiers and values | Enumeration closure requires a complete nonempty value list; `void` is recognized but unsupported, while null typing is unspecified. | [Enumerations and closure](../mapping/classes.md#enumerations-and-closure); [Untyped and void](../mapping/attributes-and-datatypes.md#untyped-and-void) |
 | Configurable output | Accepted controls have defined effects and defaults; stronger-looking output does not imply complete semantic preservation. | [Controls](../reference/controls.md) |
 | Partial mappings | UML redefinition preserves property inclusion, without its complete contextual replacement semantics. Multi-member relation-set completeness is not represented. | Detailed property-feature and relation explanations are pending their assigned documentation wave. |
-| Comment-only preservation | Abstractness, derived status, extensionality, ordering, and specified read-only/aggregation information have bounded annotation mappings. Comments do not enforce the additional source semantics or reconstruct ordered values. Diagnostic conditions differ by feature. | Detailed class, property-feature, and text explanations are pending their assigned documentation waves. |
+| Comment-only preservation | Abstractness, derived status, extensionality, ordering, and specified read-only/aggregation information have bounded annotation mappings. Comments do not enforce the additional source semantics or reconstruct ordered values. Diagnostic conditions differ by feature. | [Class declarations](../mapping/classes.md#class-declarations-preserved-as-comments); [Derived-status comments](../reference/text.md#derived-status-comments). Detailed property-feature explanations remain pending their assigned wave. |
 | Derivation limitations | Recognized connectors can inform transformation without receiving a separate output resource. Exported derivation multiplicities do not reliably record author intent. | Detailed derivation explanations are pending their assigned documentation wave. |
 
 This index is conceptual guidance. Pending topic pages and their explicit explanation obligations are not claimed as delivered by naming them here.

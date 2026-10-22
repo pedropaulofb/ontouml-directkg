@@ -23,7 +23,7 @@ The ontology IRI is derived from the effective entity base: remove a final `#`; 
 | `https://example.org/model` | `https://example.org/model#` | `https://example.org/model` |
 | `https://example.org/model/` | `https://example.org/model/` | `https://example.org/model/` |
 
-These are namespace illustrations, not published ontology addresses. The [base control](controls.md#established-controls) records the placeholder default. Invalid supplied bases are rejected before conversion; delimiter handling does not authorize trimming or repairing them. Detailed identity construction belongs to the planned Identifiers and naming reference.
+These are namespace illustrations, not published ontology addresses. The [base control](controls.md#established-controls) records the placeholder default. Invalid supplied bases are rejected before conversion; delimiter handling does not authorize trimming or repairing them. See [Identifiers and naming](identifiers.md) for identity construction and source-ID annotations.
 
 ### Required import and descriptive text
 
