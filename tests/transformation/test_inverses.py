@@ -280,7 +280,7 @@ def test_source_backed_iris_remain_stable_across_every_inverse_mode(run, source_
 
 @pytest.mark.parametrize('pattern',['instantiation','datatype_attribute','custom_attribute','generalization_set','unrepresented_connector','material_relator','material_mode','comparative_quality'])
 def test_ineligible_constructs_do_not_receive_named_or_anonymous_inverse_properties(run, source_json, tmp_path, pattern):
-    """Rules: DK-INV-02, DK-INV-04, DK-INS-01, DK-REL-08, DK-REL-17, DK-REL-18, DK-GEN-01.
+    """Rules: DK-INV-02, DK-INV-04, DK-INS-01, DK-REL-08, DK-REL-17, DK-REL-18, DK-GEN-01, DK-DIAG-06.
 
     Dependency-only eligibility assertions; full discarded-information,
     derivation and non-representation diagnostics remain Wave 5.
@@ -301,14 +301,15 @@ def test_ineligible_constructs_do_not_receive_named_or_anonymous_inverse_propert
         document['model']['contents'].extend([gen,gs]);forbidden={BASE.gClass,BASE.gsClass}
     elif pattern=='unrepresented_connector':forbidden={BASE.sConnector,BASE.tConnector,BASE.rConnector}
     else:
-        ground=copy.deepcopy(source_element(document,'cA'));ground.update(id='cGround',name='Ground',stereotype={'material_relator':'relator','material_mode':'intrinsicMode','comparative_quality':'quality'}[pattern])
+        ground=copy.deepcopy(source_element(document,'cA'));ground.update(id='cGround',name='Ground',stereotype={'material_relator':'relator','material_mode':'mode','comparative_quality':'quality'}[pattern])
         if pattern=='comparative_quality':source_element(document,'rFocus')['stereotype']='comparative'
         connector=copy.deepcopy(source_element(document,'rFocus'));connector.update(id='rDerivation',name=None,stereotype='derivation')
         connector['properties'][0].update(id='sDerivation',propertyType={'id':'rFocus','type':'Relation'})
         connector['properties'][1].update(id='tDerivation',propertyType={'id':'cGround','type':'Class'})
         document['model']['contents'].extend([ground,connector]);forbidden={BASE.rDerivation,BASE.sDerivation,BASE.tDerivation}
     assert not fixture_issues(document)
-    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all',material_property_chains='none')
+    options={'stereotype_policy':'require-known'} if pattern=='material_mode' else {}
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all',material_property_chains='none',**options)
     assert result.outcome=='completed'
     expected_edges=({(BASE.s0,BASE.t0),(BASE.s1,BASE.t1)} if pattern=='unrepresented_connector' else
                     set() if pattern=='instantiation' else {(BASE.sFocus,BASE.tFocus)})

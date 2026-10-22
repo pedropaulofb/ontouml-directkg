@@ -281,9 +281,20 @@ source-backed identity are asserted independently. Five DK-REL-04 rows also lack
 an explicit supported-field criterion for their directional semantic roles:
 componentOf, historicalDependence, participational, subCollectionOf and
 subQuantityOf. Ten direction cells assert only established-candidate safety;
-the other 20 assert an exact directional candidate. The inventory quotes the
+18 assert an exact directional candidate. The inventory quotes the
 relevant passages and records the targeted Architect question. Class labels and
 aggregation flags are not invented as a semantic orientation convention.
+
+Wave 4 reviewer correction F1 uses the exporter's `mode` stereotype for the
+characterization/manifestation inputs and material-mode dependencies. These
+positive mode inputs request `require-known`, so custom-stereotype acceptance
+cannot stand in for a recognized encoding. The two externalDependence cells
+also use `mode`, but assert only primary identity/direction and completion:
+the specification does not establish whether this encoding supplies DK-REL-04's
+"Extrinsic Mode" role. Exact lexical selection and its naming diagnostics remain
+blocked for Architect clarification; no intrinsic/extrinsic alias is assumed.
+F2 preserves specific-property disjointness when the general relation or its
+reference fails, independently of the correctly omitted hierarchy edges.
 
 Relation counts require the exact unqualified forms in REL-10/11, including one
 exact restriction for equal numeric bounds; they do not reuse the looser

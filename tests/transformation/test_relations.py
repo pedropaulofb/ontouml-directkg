@@ -60,15 +60,16 @@ def _both_counts(graph, side, expected, opposite=() , mode='none', self_relation
 
 # The two directions are separate nodes. Five same-role-type families lack an
 # input-field criterion selecting their semantic direction; only their bounded
-# candidate safety is asserted. The inventory marks that exact choice blocked.
+# candidate safety is asserted. The externalDependence mode-role interpretation
+# is separately blocked; those two cases assert only independent mappings.
 SEMANTIC_ROWS = [
  ('bringsAbout', ('event','Event'), ('situation','Situation'), 'bringsAbout', 'broughtAboutBy', False),
- ('characterization', ('kind','Bearer'), ('intrinsicMode','Feature'), 'isCharacterizedBy', 'characterizes', False),
+ ('characterization', ('kind','Bearer'), ('mode','Feature'), 'isCharacterizedBy', 'characterizes', False),
  ('componentOf', ('kind','Whole'), ('kind','Component'), 'hasComponent', 'componentOf', True),
  ('creation', ('event','Event'), ('kind','Endurant'), 'creates', 'wasCreatedIn', False),
- ('externalDependence', ('extrinsicMode','ExtrinsicMode'), ('kind','Endurant'), 'externallyDependsOn', 'isExternalDependencyOf', False),
+ ('externalDependence', ('mode','Mode'), ('kind','Endurant'), 'externallyDependsOn', 'isExternalDependencyOf', True),
  ('historicalDependence', ('historicalRole','Dependent'), ('kind','Antecedent'), 'historicallyDependsOn', 'isHistoricalDependencyOf', True),
- ('manifestation', ('intrinsicMode','Aspect'), ('event','Event'), 'manifestedIn', 'manifests', False),
+ ('manifestation', ('mode','Aspect'), ('event','Event'), 'manifestedIn', 'manifests', False),
  ('mediation', ('relator','Relator'), ('kind','Endurant'), 'mediates', 'isMediatedBy', False),
  ('memberOf', ('kind','Member'), ('collective','Collective'), 'memberOf', 'hasMember', False),
  ('participation', ('kind','Participant'), ('event','Event'), 'participatesIn', 'hasParticipant', False),
@@ -86,10 +87,11 @@ SEMANTIC_CASES = [pytest.param(stereo, a if not reverse else b, b if not reverse
 
 @pytest.mark.parametrize('stereotype,source,target,candidates,blocked', SEMANTIC_CASES)
 def test_stereotype_table_candidates_preserve_established_direction_when_resolvable(run, source_json, tmp_path, stereotype, source, target, candidates, blocked):
-    """Rules: DK-REL-01, DK-REL-02, DK-REL-04, DK-GEN-03, DK-PROP-02.
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-04, DK-GEN-03, DK-PROP-02, DK-DIAG-06.
 
     blocked=True asserts bounded candidate safety, not a selected semantic
-    direction. It does not claim exact direction coverage for those ten rows.
+    direction for ten cells. The two externalDependence cells assert no lexical
+    candidate or naming-diagnostic expectation until the mode role is clarified.
     """
     document = source_json('shared/binary_relation')
     source_element(document,'cA').update(stereotype=source[0], name=source[1])
@@ -97,12 +99,15 @@ def test_stereotype_table_candidates_preserve_established_direction_when_resolva
     source_element(document,'rFocus').update(stereotype=stereotype, name=None)
     source_element(document,'tFocus')['name'] = None
     assert not fixture_issues(document)
-    result = run(path=write_input(tmp_path,document),inverse_properties='none')
+    result = run(path=write_input(tmp_path,document),inverse_properties='none',stereotype_policy='require-known')
     assert result.outcome == 'completed'
     prop = _primary(result,strategy='name')
-    _candidate(result.ontology,prop,candidates,source[1])
+    if stereotype!='externalDependence':
+        _candidate(result.ontology,prop,candidates,source[1])
     _direction(result.ontology,prop,BASE[source[1]],BASE[target[1]])
-    assert not any(d.kind in NAMING_KINDS or d.severity == 'ERROR' for d in result.diagnostics)
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    if stereotype!='externalDependence':
+        assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
 
 
 PRECEDENCE = [
@@ -177,7 +182,7 @@ def test_material_name_uses_original_grounding_relator_text_without_has_prefix(r
 
 @pytest.mark.parametrize('failure',['absent','ambiguous','unnamed','unusable','mode_grounded'])
 def test_unavailable_material_grounding_warns_and_uses_endpoint_fallback(run, source_json, tmp_path, failure):
-    """Rules: DK-REL-02, DK-REL-03, DK-REL-05, DK-REL-06, DK-PROP-02, DK-GEN-03."""
+    """Rules: DK-REL-02, DK-REL-03, DK-REL-05, DK-REL-06, DK-PROP-02, DK-GEN-03, DK-DIAG-06."""
     document=source_json('relations/material_naming')
     contents=document['model']['contents']
     if failure=='absent': contents.remove(source_element(document,'rDerivation'))
@@ -187,9 +192,10 @@ def test_unavailable_material_grounding_warns_and_uses_endpoint_fallback(run, so
         connector['properties'][0]['id']='sOtherDerivation';connector['properties'][1].update(id='tOtherDerivation',propertyType={'id':'cOtherGround','type':'Class'})
         contents.extend([ground,connector])
     elif failure in {'unnamed','unusable'}: source_element(document,'cGround')['name']=None if failure=='unnamed' else '___'
-    else: source_element(document,'cGround')['stereotype']='intrinsicMode'
+    else: source_element(document,'cGround')['stereotype']='mode'
     assert not fixture_issues(document)
-    result=run(path=write_input(tmp_path,document),inverse_properties='none',material_property_chains='none')
+    options={'stereotype_policy':'require-known'} if failure=='mode_grounded' else {}
+    result=run(path=write_input(tmp_path,document),inverse_properties='none',material_property_chains='none',**options)
     assert result.outcome=='completed'
     prop=_primary(result,strategy='name');_candidate(result.ontology,prop,{'hTTPServer_xMLNode'},'HTTPServer')
     _direction(result.ontology,prop,BASE.HTTPServer,BASE.XMLNode)
@@ -567,8 +573,12 @@ def test_relation_set_partial_failures_never_turn_survivors_into_singleton_cover
         if mode=='all':expected_properties|={BASE['s'+key] for key in valid}
         assert {node for node in result.ontology.subjects(RDF.type,OWL.ObjectProperty)
                 if isinstance(node,URIRef) and str(node).startswith(str(BASE))}==expected_properties
-        pairs={frozenset((BASE.tMiddle,BASE.tLeaf))} if failure=='failed_specific_three_members' else set()
-        if pairs and mode=='all':pairs.add(frozenset((BASE.sMiddle,BASE.sLeaf)))
+        # Disjointness selects successfully mapped explicit specifics; it does
+        # not require their general relation or its hierarchy edge to survive.
+        specific_pair=('Middle','Leaf') if failure=='failed_specific_three_members' else (
+            ('Middle','Sibling') if failure in {'unresolved_general','failed_general'} else None)
+        pairs={frozenset(BASE['t'+key] for key in specific_pair)} if specific_pair else set()
+        if specific_pair and mode=='all':pairs.add(frozenset(BASE['s'+key] for key in specific_pair))
         assert _pairs(result.ontology)==pairs and not result.relation_completeness_output
         assert not any(d.kind=='singleton_completeness' for d in result.diagnostics)
         assert (BASE.cD,RDF.type,OWL.Class) in result.ontology
