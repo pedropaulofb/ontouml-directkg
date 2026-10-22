@@ -4,7 +4,7 @@ import pytest
 from rdflib import Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.rdf import one_subject
+from tests.support.rdf import one_subject, cardinality_facts, property_expression, property_chains
 
 
 BASE = Namespace("https://example.test/model#")
@@ -432,3 +432,87 @@ def test_rdf_helper_property_expressions_require_an_actual_inverse_edge():
     assert property_expression(graph,BASE.s0)==BASE.s0
     graph.add((inverse,OWL.inverseOf,BASE.t1))
     with pytest.raises(AssertionError): property_expression(graph,inverse)
+
+
+@pytest.mark.parametrize('reference',['subsettedProperties','redefinedProperties'],ids=['subsets','redefines'])
+@pytest.mark.parametrize('target,inverse_mode',[('attribute','all'),('target_end','none'),('source_end','all'),('source_end','none')],
+                         ids=['attribute_superproperty','target_superproperty','named_inverse_superproperty','anonymous_inverse_superproperty'])
+@pytest.mark.parametrize('mode',['none','omit-conflicting-constraints','preserve-conflicting-constraints'])
+def test_emitted_chain_nonsimplicity_follows_property_references_without_materializing_inverse_edges(run,source_json,tmp_path,reference,target,inverse_mode,mode):
+    """Rules: DK-PROP-03, DK-REL-07, DK-REL-09, DK-REL-10, DK-INV-04, DK-GEN-02, DK-DIAG-07."""
+    import copy
+    from tests.support.data import source_element,write_input,fixture_issues
+    document=source_json('shared/material_pattern')
+    attribute=copy.deepcopy(source_element(document,'sUnrelated'))
+    attribute.update(id='pAffected',name='affectedValue',propertyType={'id':'cB','type':'Class'},cardinality='1..*',aggregationKind=None)
+    safe=copy.deepcopy(attribute);safe.update(id='pSafe',name='safeValue',propertyType=None)
+    source_element(document,'cExtra')['properties']=[attribute,safe]
+    target_id='pAffected' if target=='attribute' else 'tUnrelated' if target=='target_end' else 'sUnrelated'
+    source_element(document,'tMaterial')[reference]=[{'id':target_id,'type':'Property'}]
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode)
+    assert result.outcome=='completed'
+    graph=result.ontology
+    expected=BASE.pAffected if target=='attribute' else BASE.tUnrelated if target=='target_end' else (
+        BASE.sUnrelated if inverse_mode=='all' else ('inverse',BASE.tUnrelated))
+    edges={(property_expression(graph,a),property_expression(graph,b)) for a,b in graph.subject_objects(RDFS.subPropertyOf)}
+    assert edges=={(BASE.tMaterial,expected)}
+    assert bool(property_chains(graph,BASE.tMaterial))==(mode!='none')
+    omit=mode=='omit-conflicting-constraints'
+    facts=cardinality_facts(graph,BASE.cA,BASE.tMaterial)
+    assert {(kind,n) for kind,n,_,_ in facts}==(set() if omit else {('min',2),('max',5)})
+    assert all(q is None for _,_,q,_ in facts)
+    if target=='attribute':
+        facts=cardinality_facts(graph,BASE.cExtra,BASE.pAffected)
+        assert {(kind,n) for kind,n,_,_ in facts}==(set() if omit else {('min',1)})
+        assert (BASE.pAffected,RDF.type,OWL.ObjectProperty) in graph
+        # An unaffected ordinary material relation must retain its restriction.
+        assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cA,BASE.tUnrelated)}=={('exact',4)}
+    else:
+        reverse=BASE.sUnrelated if inverse_mode=='all' else ('inverse',BASE.tUnrelated)
+        assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cA,BASE.tUnrelated)}==(set() if omit else {('exact',4)})
+        assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cExtra,reverse)}==(set() if omit else {('exact',1)})
+    assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cExtra,BASE.pSafe)}=={('min',1)}
+    assert (BASE.pSafe,RDF.type,OWL.DatatypeProperty) in graph
+    assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cGround,BASE.tLeft)}=={('exact',1)}
+    assert ((BASE.sMaterial,RDF.type,OWL.ObjectProperty) in graph)==(inverse_mode=='all')
+    # The single RD-14 inclusion remains: no inferred inverse counterpart or
+    # closure edge is emitted merely to perform non-simplicity propagation.
+    if omit:
+        assert any(d.kind=='chain_compatibility' and 'cardinalities_omitted' in d.facts for d in result.diagnostics)
+
+
+def test_reference_superproperty_counts_remain_when_candidate_chain_is_not_emitted(run,source_json,tmp_path):
+    """Rules: DK-PROP-03, DK-REL-07, DK-DIAG-07."""
+    from tests.support.data import source_element,write_input
+    document=source_json('shared/material_pattern')
+    document['model']['contents'].remove(source_element(document,'rDerivation'))
+    source_element(document,'tMaterial')['subsettedProperties']=[{'id':'sUnrelated','type':'Property'}]
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='none',material_property_chains='omit-conflicting-constraints')
+    assert result.outcome=='completed'
+    assert not property_chains(result.ontology,BASE.tMaterial)
+    assert {(k,n) for k,n,_,_ in cardinality_facts(result.ontology,BASE.cA,BASE.tUnrelated)}=={('exact',4)}
+    assert {(k,n) for k,n,_,_ in cardinality_facts(result.ontology,BASE.cExtra,('inverse',BASE.tUnrelated))}=={('exact',1)}
+    assert not any(d.kind=='chain_compatibility' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('reference',['subsettedProperties','redefinedProperties'],ids=['subsets','redefines'])
+@pytest.mark.parametrize('case,inverse_mode',[('inverse_origin','all'),('inverse_origin','none'),('simple_child','all')],
+                         ids=['named_inverse_origin','anonymous_inverse_origin','simple_child_below_chain'])
+def test_chain_propagation_uses_inverse_origins_but_does_not_spread_down_to_simple_children(run,source_json,tmp_path,reference,case,inverse_mode):
+    """Rules: DK-PROP-03, DK-REL-07, DK-REL-09, DK-INV-04, DK-GEN-02."""
+    from tests.support.data import source_element,write_input
+    document=source_json('shared/material_pattern')
+    if case=='inverse_origin':source_element(document,'sMaterial')[reference]=[{'id':'tUnrelated','type':'Property'}]
+    else:source_element(document,'tUnrelated')[reference]=[{'id':'tMaterial','type':'Property'}]
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties=inverse_mode,material_property_chains='omit-conflicting-constraints')
+    assert result.outcome=='completed'
+    graph=result.ontology
+    origin=BASE.sMaterial if inverse_mode=='all' else ('inverse',BASE.tMaterial)
+    expected=(origin,BASE.tUnrelated) if case=='inverse_origin' else (BASE.tUnrelated,BASE.tMaterial)
+    assert {(property_expression(graph,a),property_expression(graph,b)) for a,b in graph.subject_objects(RDFS.subPropertyOf)}=={expected}
+    assert property_chains(graph,BASE.tMaterial)
+    assert not cardinality_facts(graph,BASE.cA,BASE.tMaterial)
+    assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cA,BASE.tUnrelated)}==(set() if case=='inverse_origin' else {('exact',4)})
+    reverse=BASE.sUnrelated if inverse_mode=='all' else ('inverse',BASE.tUnrelated)
+    assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cExtra,reverse)}==(set() if case=='inverse_origin' else {('exact',1)})

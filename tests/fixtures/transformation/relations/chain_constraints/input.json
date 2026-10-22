@@ -1,0 +1,630 @@
+{
+  "id": "chainConstraintsProject",
+  "name": "chainConstraintsProject",
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "chainConstraintsProjectPackage",
+    "name": "SourceContainer",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cA",
+        "name": "ParticipantA",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cB",
+        "name": "ParticipantB",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cGround",
+        "name": "Ground",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "relator",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cExtra",
+        "name": "Extra",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rMaterial",
+        "name": "materialLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sMaterial",
+            "name": "sMaterialRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tMaterial",
+            "name": "tMaterialRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "2..5",
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rLeft",
+        "name": "leftLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "mediation",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sLeft",
+            "name": "sLeftRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cGround",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tLeft",
+            "name": "tLeftRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rRight",
+        "name": "rightLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "mediation",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sRight",
+            "name": "sRightRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cGround",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tRight",
+            "name": "tRightRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rUnrelated",
+        "name": "unrelatedLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sUnrelated",
+            "name": "sUnrelatedRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tUnrelated",
+            "name": "tUnrelatedRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "4",
+            "propertyType": {
+              "id": "cExtra",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rDerivation",
+        "name": null,
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "derivation",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sDerivation",
+            "name": null,
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "rMaterial",
+              "type": "Relation"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tDerivation",
+            "name": null,
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cGround",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rSuper",
+        "name": "superLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sSuper",
+            "name": "sSuperRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tSuper",
+            "name": "tSuperRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "2",
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rGrand",
+        "name": "grandLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sGrand",
+            "name": "sGrandRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tGrand",
+            "name": "tGrandRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "2",
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rPeer",
+        "name": "peerLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sPeer",
+            "name": "sPeerRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tPeer",
+            "name": "tPeerRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "2",
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rPeerTwo",
+        "name": "peertwoLink",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sPeerTwo",
+            "name": "sPeerTwoRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "1",
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tPeerTwo",
+            "name": "tPeerTwoRole",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": "2",
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "gMaterial",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rMaterial",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rSuper",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gSuper",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rSuper",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rGrand",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gPeer",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rPeer",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rSuper",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gPeerTwo",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rPeerTwo",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rSuper",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gsDisjoint",
+        "name": null,
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": true,
+        "isComplete": false,
+        "categorizer": null,
+        "generalizations": [
+          {
+            "id": "gMaterial",
+            "type": "Generalization"
+          },
+          {
+            "id": "gPeer",
+            "type": "Generalization"
+          },
+          {
+            "id": "gPeerTwo",
+            "type": "Generalization"
+          }
+        ]
+      },
+      {
+        "id": "gsSingleton",
+        "name": null,
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": null,
+        "generalizations": [
+          {
+            "id": "gPeer",
+            "type": "Generalization"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

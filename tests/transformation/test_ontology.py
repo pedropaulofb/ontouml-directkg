@@ -1,6 +1,7 @@
 """General domain output and source-container omission checks."""
 
 from urllib.parse import urlsplit
+from pathlib import Path
 
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
@@ -8,7 +9,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.invocation import diagnostic_signatures
 from tests.support.data import write_input
-from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph
+from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, property_chains
 
 
 BASE = Namespace("https://example.test/model#")
@@ -289,3 +290,57 @@ def test_project_name_changes_only_ontology_label(run, source_json, tmp_path, ir
                            RDFS.domain, RDFS.range}, {OWL.disjointWith},
                           subjects={target}, type_objects={OWL.Class, OWL.NamedIndividual, target})
     assert diagnostic_signatures(first.diagnostics) == diagnostic_signatures(second.diagnostics)
+
+
+@pytest.mark.parametrize('resource',['vocabulary/latest/dkgm-vocabulary.ttl','vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl'],
+                         ids=['latest_vocabulary','versioned_vocabulary'])
+def test_existing_mereology_vocabulary_has_relative_identity_complete_generic_axioms_and_no_gufo_alignment(resource):
+    """Rules: DK-GEN-04.
+
+    Read-only conformance of the actual resource, not proof that its concrete
+    URI has been adopted. No network redirect/version-pinning expectation.
+    """
+    graph=load_graph(Path(__file__).resolve().parents[2]/resource)
+    ontologies=set(graph.subjects(RDF.type,OWL.Ontology));assert len(ontologies)==1
+    ontology=next(iter(ontologies));assert isinstance(ontology,URIRef) and not urlsplit(str(ontology)).fragment
+    terms={name:URIRef(str(ontology)+'#'+name) for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf')}
+    for term in terms.values():
+        assert (term,RDF.type,OWL.ObjectProperty) in graph
+        assert (term,RDF.type,OWL.AsymmetricProperty) not in graph
+        assert not any((parent,RDF.type,OWL.AsymmetricProperty) in graph for parent in graph.transitive_objects(term,RDFS.subPropertyOf))
+    assert property_chains(graph,terms['memberOf'])=={(terms['memberOf'],terms['subCollectionOf'])}
+    assert property_chains(graph,terms['subCollectionOf'])=={(terms['subCollectionOf'],terms['subCollectionOf'])}
+    assert property_chains(graph,terms['subQuantityOf'])=={(terms['subQuantityOf'],terms['subQuantityOf'])}
+    assert not property_chains(graph,terms['componentOf'])
+    assert (terms['componentOf'],RDF.type,OWL.TransitiveProperty) not in graph
+    logical={OWL.imports,OWL.equivalentProperty,OWL.equivalentClass,RDFS.subPropertyOf,
+             RDFS.subClassOf,RDFS.domain,RDFS.range,OWL.inverseOf,OWL.sameAs,RDF.type,RDF.first}
+    for s,p,o in graph:
+        if p in logical or str(p).startswith(str(OWL)) or 'purl.org/nemo/gufo' in str(p).lower():
+            assert not any(isinstance(term,URIRef) and 'purl.org/nemo/gufo' in str(term).lower() for term in (s,p,o))
+
+
+@pytest.mark.parametrize('key',['shared/base_iri','shared/binary_relation'],ids=['no_relations','ordinary_relation'])
+def test_generated_ontology_uses_observed_core_import_without_copying_generic_axioms(run,key):
+    """Rules: DK-GEN-04, DK-GEN-01, DK-IRI-01."""
+    result=run(key,iri_strategy='id')
+    assert result.outcome=='completed'
+    ontology=URIRef('https://example.test/model');u=result.mereology_import
+    assert isinstance(u,URIRef) and not urlsplit(str(u)).fragment
+    assert (ontology,OWL.imports,u) in result.ontology
+    for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf'):
+        term=URIRef(str(u)+'#'+name)
+        assert (term,RDF.type,OWL.ObjectProperty) not in result.ontology
+        assert (term,RDF.type,OWL.AsymmetricProperty) not in result.ontology
+        assert not list(result.ontology.objects(term,OWL.propertyChainAxiom))
+    # This identifies the actual import from binding/publication evidence. The
+    # concrete accepted U and external redirect behavior remain blocked.
+
+
+def test_rdf_helper_property_chains_keep_order_and_anonymous_direction():
+    """Harness only: real RDF lists, not a simulated conversion."""
+    graph=Graph().parse(data='''@prefix : <urn:chain:> .
+        @prefix owl: <http://www.w3.org/2002/07/owl#> .
+        :p owl:propertyChainAxiom ([owl:inverseOf :left] :right).''',format='turtle')
+    assert property_chains(graph,URIRef('urn:chain:p'))=={(('inverse',URIRef('urn:chain:left')),URIRef('urn:chain:right'))}
+    assert property_chains(graph,URIRef('urn:chain:p'))!={(URIRef('urn:chain:right'),('inverse',URIRef('urn:chain:left')))}

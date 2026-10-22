@@ -117,6 +117,26 @@ class Observation:
     # including non-diagnostic native entries. Retain raw report evidence;
     # independently required structural/mapping diagnostics are not omissions.
     inverse_omission_reports: tuple[Any, ...] = ()
+    # The actually imported core mereology URI, identified from the real
+    # interface/publication evidence. Never fill from an expected constant or
+    # assume that an arbitrary import is the required vocabulary.
+    mereology_import: URIRef | None = None
+    # Actual separately exposed provenance graph, when supplied by the public
+    # Python result. Embedded statements remain in ontology. No reconstruction.
+    provenance: Graph | None = None
+    # Actual output representing intentionally unrepresented relation-valued
+    # connectors, including anonymous representations and grounding annotations.
+    # Exclude independent endpoint mappings and reliable descriptive metadata
+    # that does not represent the omitted connector.
+    unrepresented_connector_output: tuple[Any, ...] | None = None
+    # Actual additional semantics induced solely by a comparative-quality
+    # derivation: comparison rules, chains/equivalence, counts or characteristics.
+    comparative_semantic_output: tuple[Any, ...] | None = None
+    # Actual leaks of discarded instantiation values in RDF/provenance/native
+    # diagnostics. Includes booleans/characteristics whose meaning cannot be
+    # identified by string searching; excludes category names and diagnostic
+    # source-ID locators. Read actual evidence, never expected absence.
+    discarded_instantiation_output: tuple[Any, ...] | None = None
 
 
 def diagnostic_signatures(events):

@@ -36,6 +36,8 @@ VALID_BUNDLES = [
     ("shared/omitted_connector", "input.json"),
     ("shared/binary_relation", "input.json"), ("relations/material_naming", "input.json"),
     ("relations/hierarchy", "input.json"), ("inverses/secondary_collisions", "input.json"),
+    ("shared/material_pattern", "input.json"), ("relations/chain_constraints", "input.json"),
+    ("higher_order/instantiation", "input.json"),
 ]
 # Preserve existing harness node IDs when their canonical fixture paths move.
 VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions", "shared/omitted_connector": "properties_omitted_connector"}
@@ -117,8 +119,9 @@ def test_fixture_contract_register_covers_all_stored_inputs():
                                        ("attributes_datatypes/value_types", "expected.ttl"),
                                        ("attributes_datatypes/structured", "expected.ttl"),
                                        ("shared/binary_relation", "expected.ttl"),
-                                       ("inverses/secondary_collisions", "expected.ttl")],
-                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions", "primitive_attribute_ground", "recursive_datatype_ground", "binary_relation_ground", "inverse_secondary_collision_ground"])
+                                       ("inverses/secondary_collisions", "expected.ttl"),
+                                       ("relations/material_pattern", "expected_chain.ttl")],
+                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions", "primitive_attribute_ground", "recursive_datatype_ground", "binary_relation_ground", "inverse_secondary_collision_ground", "material_chain_direction"])
 def test_fixture_contract_turtle_expectations(key, filename):
     """Harness parsing only; each expectation is paired explicitly in its consumer."""
     expected = load_graph(fixture_path(key, filename))

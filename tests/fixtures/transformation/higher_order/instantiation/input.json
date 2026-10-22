@@ -1,0 +1,199 @@
+{
+  "id": "instantiationProject",
+  "name": "instantiationProject",
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "instantiationProjectPackage",
+    "name": "SourceContainer",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cBase",
+        "name": "Base",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cSpecific",
+        "name": "Specific",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOutside",
+        "name": "Outside",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cCategorizer",
+        "name": "Categorizer",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOtherCategorizer",
+        "name": "OtherCategorizer",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "gSpecific",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cSpecific",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cBase",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gsCategorizer",
+        "name": null,
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": {
+          "id": "cCategorizer",
+          "type": "Class"
+        },
+        "generalizations": [
+          {
+            "id": "gSpecific",
+            "type": "Generalization"
+          }
+        ]
+      },
+      {
+        "id": "gsOther",
+        "name": null,
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": {
+          "id": "cOtherCategorizer",
+          "type": "Class"
+        },
+        "generalizations": [
+          {
+            "id": "gSpecific",
+            "type": "Generalization"
+          }
+        ]
+      },
+      {
+        "id": "rInstantiation",
+        "name": "DISCARDED_ASSOCIATION_SENTINEL",
+        "description": "DISCARDED_DESCRIPTION_SENTINEL",
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "instantiation",
+        "isAbstract": true,
+        "isDerived": true,
+        "properties": [
+          {
+            "id": "sInstantiation",
+            "name": "DISCARDED_SOURCE_ROLE_SENTINEL",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": true,
+            "isReadOnly": true,
+            "isOrdered": true,
+            "cardinality": "37..41",
+            "propertyType": {
+              "id": "cOutside",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "COMPOSITE"
+          },
+          {
+            "id": "tInstantiation",
+            "name": "DISCARDED_TARGET_ROLE_SENTINEL",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": true,
+            "isReadOnly": true,
+            "isOrdered": true,
+            "cardinality": "43..47",
+            "propertyType": {
+              "id": "cCategorizer",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "COMPOSITE"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

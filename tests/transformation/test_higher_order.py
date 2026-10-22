@@ -1,10 +1,11 @@
 """Punned class/individual identity, categorizers, and powertype extension."""
 
+import copy
 import pytest
-from rdflib import Literal, Namespace
+from rdflib import Graph, Literal, Namespace
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
-from tests.support.data import source_element, write_input
+from tests.support.data import source_element, write_input, fixture_issues
 from tests.support.invocation import diagnostic_signatures
 from tests.support.rdf import assert_contains, assert_selected_equal, load_graph
 
@@ -97,3 +98,99 @@ def test_punning_identity_is_the_same_under_both_iri_strategies(run, iri_strateg
     else:
         assert not list(result.ontology.subjects(DCTERMS.identifier, Literal("cOne")))
     assert set(result.ontology.subjects(RDFS.label, Literal("One"))) == {one}
+
+
+INSTANTIATION_SENTINELS=['DISCARDED_ASSOCIATION_SENTINEL','DISCARDED_SOURCE_ROLE_SENTINEL',
+                         'DISCARDED_TARGET_ROLE_SENTINEL','DISCARDED_DESCRIPTION_SENTINEL','37..41','43..47']
+
+
+def _instantiation_warning_and_nonrepresentation(result,categories):
+    warnings=[d for d in result.diagnostics if d.kind=='discarded_instantiation_data']
+    assert len(warnings)==1
+    warning=warnings[0]
+    assert warning.severity=='WARNING'
+    assert 'rInstantiation' in warning.source_ids and 'Relation' in warning.source_types
+    assert {'association_data_not_materialized',*categories}<=warning.facts
+    assert warning.raw is not None  # retain real payload evidence for the audit
+    assert result.discarded_instantiation_output==(), "Read actual output/payloads; an unbound reader is not evidence of non-leakage"
+    for diagnostic in result.diagnostics:
+        text=diagnostic.message+repr(diagnostic.raw)+repr(diagnostic.facts)+repr(diagnostic.generated_iris)
+        assert not any(value in text for value in INSTANTIATION_SENTINELS)
+        assert not {str(BASE.rInstantiation),str(BASE.sInstantiation),str(BASE.tInstantiation)} & set(diagnostic.generated_iris)
+    graphs=[result.ontology]+([result.provenance] if result.provenance is not None else [])
+    for graph in graphs:
+        for triple in graph:
+            assert not any(value in str(term) for term in triple for value in INSTANTIATION_SENTINELS)
+            assert not any(term in {BASE.rInstantiation,BASE.sInstantiation,BASE.tInstantiation} for term in triple)
+    assert not any(d.kind=='semantic_validation' or d.severity=='ERROR' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('strategy',['name','id'])
+@pytest.mark.parametrize('provenance',['none','embedded','sidecar'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_instantiation_discard_warning_is_consolidated_and_values_do_not_leak_into_any_output(run,source_json,tmp_path,strategy,provenance,input_policy):
+    """Rules: DK-INS-01, DK-INS-02, DK-INS-03, DK-HO-01, DK-HO-02, DK-DIAG-05, DK-GEN-05, DK-LBL-02, DK-GEN-10."""
+    document=source_json('higher_order/instantiation')
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy=strategy,provenance=provenance,input_policy=input_policy)
+    assert result.outcome=='completed'
+    if provenance=='sidecar':assert isinstance(result.provenance,Graph) and len(result.provenance)>0
+    _instantiation_warning_and_nonrepresentation(result,{'discarded_identifier','discarded_association_name','discarded_role_names','discarded_multiplicities','discarded_characteristics'})
+    specific=BASE.cSpecific if strategy=='id' else BASE.Specific
+    categorizer=BASE.cCategorizer if strategy=='id' else BASE.Categorizer
+    other=BASE.cOtherCategorizer if strategy=='id' else BASE.OtherCategorizer
+    outside=BASE.cOutside if strategy=='id' else BASE.Outside
+    assert {OWL.Class,OWL.NamedIndividual,categorizer,other}<=set(result.ontology.objects(specific,RDF.type))
+    assert (outside,RDF.type,categorizer) not in result.ontology
+    assert not any(d.kind=='derived_status' for d in result.diagnostics)
+    # No other construct in this source has multiplicities or an OWL property.
+    counts={OWL.minCardinality,OWL.maxCardinality,OWL.cardinality,OWL.minQualifiedCardinality,OWL.maxQualifiedCardinality,OWL.qualifiedCardinality}
+    assert not any(p in counts for _,p,_ in result.ontology)
+
+
+@pytest.mark.parametrize('category',['identifier_only','association_name','role_names','multiplicities','characteristics','description'])
+def test_each_discarded_instantiation_category_is_reported_without_copying_its_values(run,source_json,tmp_path,category):
+    """Rules: DK-INS-01, DK-INS-02, DK-DIAG-05."""
+    document=source_json('higher_order/instantiation');association=source_element(document,'rInstantiation');original=copy.deepcopy(association)
+    association.update(name=None,description=None)
+    for key in ('isAbstract','isDerived'):association.pop(key,None)
+    for end in association['properties']:
+        end.update(name=None,description=None,cardinality=None)
+        for key in ('isReadOnly','isOrdered','isDerived','aggregationKind'):end.pop(key,None)
+    expected={'discarded_identifier'}
+    if category=='association_name':association['name']=original['name'];expected.add('discarded_association_name')
+    elif category=='role_names':
+        for end,old in zip(association['properties'],original['properties']):end['name']=old['name']
+        expected.add('discarded_role_names')
+    elif category=='multiplicities':
+        for end,old in zip(association['properties'],original['properties']):end['cardinality']=old['cardinality']
+        expected.add('discarded_multiplicities')
+    elif category=='characteristics':association['isAbstract']=True;expected.add('discarded_characteristics')
+    elif category=='description':association['description']=original['description'];expected.add('discarded_characteristics')
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy='strict')
+    assert result.outcome=='completed'
+    _instantiation_warning_and_nonrepresentation(result,expected)
+
+
+@pytest.mark.parametrize('powertype',[False,True],ids=['ordinary_categorizer','powertype'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_instantiation_declaration_does_not_invent_membership_or_reconcile_categorizers(run,source_json,tmp_path,powertype,input_policy):
+    """Rules: DK-INS-01, DK-INS-03, DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-02, DK-DIAG-02."""
+    document=source_json('higher_order/instantiation');source_element(document,'cCategorizer')['isPowertype']=powertype
+    # These ultimate sortals are disjoint, yet the explicit categorizers
+    # classify Specific under both. No consistency check may suppress either.
+    source_element(document,'cCategorizer')['stereotype']='mode'
+    source_element(document,'cOtherCategorizer')['stereotype']='quality'
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy)
+    assert result.outcome=='completed'
+    expected={BASE.cSpecific}|({BASE.cBase} if powertype else set())
+    assert set(result.ontology.subjects(RDF.type,BASE.cCategorizer))==expected
+    assert set(result.ontology.subjects(RDF.type,BASE.cOtherCategorizer))=={BASE.cSpecific}
+    assert set(result.ontology.subjects(RDF.type,OWL.NamedIndividual))==expected
+    assert ((BASE.cCategorizer,OWL.disjointWith,BASE.cOtherCategorizer) in result.ontology or
+            (BASE.cOtherCategorizer,OWL.disjointWith,BASE.cCategorizer) in result.ontology)
+    for instance in expected:
+        assert (instance,RDF.type,OWL.Class) in result.ontology
+    assert (BASE.cOutside,RDF.type,BASE.cCategorizer) not in result.ontology
+    assert not any(d.kind=='semantic_validation' or d.severity=='ERROR' for d in result.diagnostics)

@@ -7,7 +7,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.rdf import (assert_contains, cardinality_facts, load_graph,
-                               necessary_restrictions, one_subject)
+                               necessary_restrictions, one_subject, property_chains)
 
 BASE = Namespace('https://example.test/model#')
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -657,3 +657,469 @@ def test_rdf_helper_hierarchy_rejects_forced_named_inverse_resources():
     with pytest.raises(AssertionError):_hierarchy_expected(sample,'id',set(),[])
     graph.add((BASE.tGeneral,OWL.inverseOf,BASE.sGeneral))
     with pytest.raises(AssertionError):_hierarchy_expected(sample,'id',{'General'},[])
+
+
+# Chain expectations use original source identifiers and observed RDF lists;
+# no converter, inference engine or semantic-orientation repair lives here.
+CHAIN_MODES=['none','omit-conflicting-constraints','preserve-conflicting-constraints']
+GROUNDINGS=['relator','mode']
+
+
+def _grounding(document, grounding):
+    source_element(document,'cGround')['stereotype']=grounding
+    source_element(document,'rLeft')['stereotype']='characterization' if grounding=='mode' else 'mediation'
+    source_element(document,'rRight')['stereotype']='externalDependence' if grounding=='mode' else 'mediation'
+
+
+def _no_connector(result, identifiers=('rDerivation','sDerivation','tDerivation')):
+    assert result.unrepresented_connector_output==(), "Read actual connector output; an unbound reader is not evidence of omission"
+    for identifier in identifiers:
+        assert not any(BASE[identifier] in triple for triple in result.ontology)
+
+
+def _pattern_resources(result, named=True):
+    graph=result.ontology
+    for key,source,target in [('Material','cA','cB'),('Left','cGround','cA'),('Right','cGround','cB'),('Unrelated','cA','cExtra')]:
+        _direction(graph,BASE['t'+key],BASE[source],BASE[target])
+        assert ((BASE['s'+key],RDF.type,OWL.ObjectProperty) in graph)==named
+        observed={node for node in graph.subjects(OWL.inverseOf,BASE['t'+key]) if isinstance(node,URIRef)}
+        assert observed==({BASE['s'+key]} if named else set())
+        if named:_chain_inverse(graph,BASE['s'+key],BASE['t'+key])
+    _no_connector(result)
+
+
+def _chain_inverse(graph,inverse,primary):
+    assert (inverse,RDF.type,OWL.ObjectProperty) in graph
+    assert set(graph.objects(inverse,OWL.inverseOf))=={primary}
+    assert (primary,OWL.inverseOf,inverse) not in graph
+    assert set(graph.objects(inverse,RDFS.domain))==set(graph.objects(primary,RDFS.range))
+    assert set(graph.objects(inverse,RDFS.range))==set(graph.objects(primary,RDFS.domain))
+
+
+def _compatibility(result, mode, emitted, omitted=()):
+    notices=[d for d in result.diagnostics if d.kind=='chain_compatibility']
+    if not emitted:
+        assert not notices
+        return
+    assert notices and all(d.severity in {'INFO','WARNING'} for d in notices)
+    facts=set().union(*(d.facts for d in notices))
+    assert not {'all_chains_outside_dl','all_semantics_preserved','global_dl_guarantee'} & facts
+    if mode=='omit-conflicting-constraints':
+        assert {'not_dl_guarantee','omission_policy_applied',*omitted}<=facts
+    else:
+        assert {'constraints_preserved','possible_owl_dl_incompatibility'}<=facts
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('reverse',[False,True],ids=['relation_first','classifier_first'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_recognized_material_derivation_uses_both_orders_without_separate_output(run,source_json,tmp_path,grounding,reverse,input_policy):
+    """Rules: DK-REL-07, DK-REL-08, DK-DIAG-08, DK-DIAG-05, DK-GEN-05, DK-LBL-02."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    connector=source_element(document,'rDerivation')
+    connector.update(description='CONNECTOR_DESCRIPTION_SENTINEL',isDerived=True)
+    if reverse:connector['properties'].reverse()
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',stereotype_policy='require-known',
+               input_policy=input_policy,material_property_chains='preserve-conflicting-constraints')
+    assert result.outcome=='completed';_pattern_resources(result)
+    assert property_chains(result.ontology,BASE.tMaterial)=={(('inverse',BASE.tLeft),BASE.tRight)}
+    assert not list(result.ontology.triples((None,RDFS.comment,Literal('CONNECTOR_DESCRIPTION_SENTINEL'))))
+    assert not any(d.kind in {'unsupported_connector','derivation_omission','orientation_repair','derived_status'}
+                   or d.severity=='ERROR' for d in result.diagnostics)
+    _compatibility(result,'preserve-conflicting-constraints',True)
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('orientation',[(a,b,c) for a in (False,True) for b in (False,True) for c in (False,True)],
+                         ids=['left'+str(int(a))+'_right'+str(int(b))+'_material'+str(int(c)) for a in (False,True) for b in (False,True) for c in (False,True)])
+@pytest.mark.parametrize('mode',CHAIN_MODES[1:])
+@pytest.mark.parametrize('inverse_mode',['all','none'])
+def test_material_chain_order_and_anonymous_backward_steps_follow_primary_directions(run,source_json,source_path,tmp_path,grounding,orientation,mode,inverse_mode):
+    """Rules: DK-REL-07, DK-REL-08, DK-INV-01, DK-INV-04, DK-GEN-03, DK-DIAG-07."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    left,right,material=orientation
+    for key,reverse in [('Left',left),('Right',right),('Material',material)]:
+        if reverse:
+            ends=source_element(document,'r'+key)['properties']
+            ends[0]['propertyType'],ends[1]['propertyType']=ends[1]['propertyType'],ends[0]['propertyType']
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',stereotype_policy='require-known',
+               inverse_properties=inverse_mode,material_property_chains=mode)
+    assert result.outcome=='completed'
+    expected=((BASE.tLeft if left else ('inverse',BASE.tLeft)),(('inverse',BASE.tRight) if right else BASE.tRight))
+    if material:expected=((BASE.tRight if right else ('inverse',BASE.tRight)),(('inverse',BASE.tLeft) if left else BASE.tLeft))
+    assert property_chains(result.ontology,BASE.tMaterial)=={expected}
+    assert set(result.ontology.subjects(OWL.propertyChainAxiom,None))=={BASE.tMaterial}
+    for key,reverse,a,b in [('Left',left,'cGround','cA'),('Right',right,'cGround','cB'),('Material',material,'cA','cB')]:
+        _direction(result.ontology,BASE['t'+key],BASE[b if reverse else a],BASE[a if reverse else b])
+        assert ((BASE['s'+key],RDF.type,OWL.ObjectProperty) in result.ontology)==(inverse_mode=='all')
+        if inverse_mode=='all':_chain_inverse(result.ontology,BASE['s'+key],BASE['t'+key])
+    if not any(orientation):
+        assert property_chains(result.ontology,BASE.tMaterial)==property_chains(load_graph(source_path('relations/material_pattern','expected_chain.ttl')),BASE.tMaterial)
+    _no_connector(result);_compatibility(result,mode,True)
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('explicit',[False,True],ids=['default_none','explicit_none'])
+def test_disabled_material_chains_keep_both_direction_counts_and_all_other_properties(run,source_json,tmp_path,grounding,explicit):
+    """Rules: DK-REL-07, DK-REL-08, DK-REL-09, DK-REL-10, DK-REL-11, DK-DIAG-07."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    options={'material_property_chains':'none'} if explicit else {}
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all',**options)
+    assert result.outcome=='completed';_pattern_resources(result)
+    assert not list(result.ontology.triples((None,OWL.propertyChainAxiom,None)))
+    _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+    _counts(result.ontology,BASE.cB,BASE.sMaterial,{('exact',1)})
+    _compatibility(result,'none',False)
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('defect',['no_derivation','no_left','no_right','inherited_left','names_only','participant_is_grounder','participant_relator','unrelated_extra','unrelated_right_extra'])
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+def test_only_complete_direct_identifier_patterns_produce_chains(run,source_json,tmp_path,grounding,defect,mode):
+    """Rules: DK-REL-07, DK-REL-08, DK-GEN-02, DK-REL-11, DK-DIAG-07."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding);contents=document['model']['contents']
+    if defect.startswith('no_'):
+        key={'no_derivation':'rDerivation','no_left':'rLeft','no_right':'rRight'}[defect]
+        contents.remove(source_element(document,key))
+    elif defect in {'inherited_left','names_only'}:
+        source_element(document,'rLeft')['properties'][1]['propertyType']['id']='cExtra'
+        if defect=='names_only':source_element(document,'cExtra')['name']=source_element(document,'cA')['name']
+        else:contents.append({'id':'gParticipant','name':None,'description':None,'type':'Generalization','propertyAssignments':None,'specific':{'id':'cA','type':'Class'},'general':{'id':'cExtra','type':'Class'}})
+    elif defect=='participant_is_grounder':
+        source_element(document,'rMaterial')['properties'][0]['propertyType']['id']='cGround'
+    elif defect=='participant_relator':
+        source_element(document,'cA')['stereotype']='relator'
+    else:
+        extra=copy.deepcopy(source_element(document,'rRight' if defect=='unrelated_right_extra' else 'rLeft'));extra['id']='rExtraComponent'
+        extra['properties'][0]['id']='sExtraComponent';extra['properties'][1].update(id='tExtraComponent',propertyType={'id':'cExtra','type':'Class'})
+        contents.append(extra)
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',material_property_chains=mode)
+    assert result.outcome=='completed'
+    # A relator cannot be a participant in the relator pattern. The mode
+    # pattern with that edit also has no complete matching characterization.
+    emitted=(defect in {'unrelated_extra','unrelated_right_extra'} or (defect=='participant_relator' and grounding=='mode')) and mode!='none'
+    assert property_chains(result.ontology,BASE.tMaterial)==({(('inverse',BASE.tLeft),BASE.tRight)} if emitted else set())
+    assert (BASE.tMaterial,RDF.type,OWL.ObjectProperty) in result.ontology
+    if not emitted:
+        owner=BASE.cGround if defect=='participant_is_grounder' else BASE.cA
+        _counts(result.ontology,owner,BASE.tMaterial,{('min',2),('max',5)})
+        _counts(result.ontology,BASE.cB,BASE.sMaterial,{('exact',1)})
+    _no_connector(result);_compatibility(result,mode,emitted)
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('side',['left','right'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+@pytest.mark.parametrize('mode',CHAIN_MODES[1:])
+def test_ambiguity_on_either_pattern_side_is_nonfatal_and_retains_constraints(run,source_json,tmp_path,grounding,side,input_policy,mode):
+    """Rules: DK-REL-07, DK-REL-08, DK-DIAG-07, DK-DIAG-08, DK-DIAG-05."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    extra=copy.deepcopy(source_element(document,'rLeft' if side=='left' else 'rRight'))
+    extra['id']='rDuplicateComponent';extra['properties'][0]['id']='sDuplicateComponent';extra['properties'][1]['id']='tDuplicateComponent'
+    document['model']['contents'].append(extra)
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy,material_property_chains=mode)
+    assert result.outcome=='completed';_pattern_resources(result)
+    assert not property_chains(result.ontology,BASE.tMaterial)
+    notices=[d for d in result.diagnostics if d.kind=='chain_ambiguity' and 'rMaterial' in d.identified_sources]
+    assert notices and any('ambiguous_correspondence' in d.facts for d in notices)
+    if grounding=='relator':assert any(d.severity=='WARNING' for d in notices)
+    else:assert all(d.severity in {'INFO','WARNING'} for d in notices)
+    _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+    _counts(result.ontology,BASE.cB,BASE.sMaterial,{('exact',1)})
+    assert (BASE.tDuplicateComponent,RDF.type,OWL.ObjectProperty) in result.ontology
+    _compatibility(result,mode,False)
+
+
+@pytest.mark.parametrize('aggregation',['NONE','SHARED','COMPOSITE'])
+@pytest.mark.parametrize('stereotype',['material','mediation',None],ids=['ordinary_material','ordinary_mediation','missing_relation_stereotype'])
+def test_aggregation_flags_do_not_create_a_mereology_bridge_or_asymmetry(run,source_json,tmp_path,aggregation,stereotype):
+    """Rules: DK-REL-19, DK-PROP-04, DK-CLS-01, DK-DIAG-06."""
+    document=source_json('shared/binary_relation');source_element(document,'rFocus')['stereotype']=stereotype
+    source_element(document,'sFocus')['aggregationKind']=aggregation
+    source_element(document,'cA')['isExtensional']=True
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',stereotype_policy='allow-missing')
+    assert result.outcome=='completed';_direction(result.ontology)
+    generics={URIRef(str(result.mereology_import)+'#'+name) for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf')}
+    assert not generics & set(result.ontology.objects(BASE.tFocus,RDFS.subPropertyOf))
+    assert (BASE.tFocus,RDF.type,OWL.AsymmetricProperty) not in result.ontology
+    assert not result.flag_semantic_output
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_same_class_grounding_never_chooses_occurrences_or_substitutes_both_chains(run,source_json,tmp_path,grounding,mode,input_policy):
+    """Rules: DK-REL-07, DK-REL-08, DK-DIAG-07, DK-DIAG-08, DK-DIAG-05."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    source_element(document,'tMaterial')['propertyType']['id']='cA'
+    source_element(document,'tRight')['propertyType']['id']='cA'
+    # Different end IDs, roles and bounds do not distinguish occurrences.
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy,material_property_chains=mode)
+    assert result.outcome=='completed'
+    assert not list(result.ontology.triples((None,OWL.propertyChainAxiom,None)))
+    for key in ('Material','Left','Right','Unrelated'):assert (BASE['t'+key],RDF.type,OWL.ObjectProperty) in result.ontology
+    _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+    _counts(result.ontology,BASE.cA,BASE.sMaterial,{('exact',1)})
+    notices=[d for d in result.diagnostics if d.kind=='chain_ambiguity']
+    if mode=='none':assert not notices
+    else:assert any('rMaterial' in d.identified_sources and 'same_class_occurrences_unassigned' in d.facts and d.severity in {'INFO','WARNING'} for d in notices)
+    _no_connector(result);_compatibility(result,mode,False)
+    assert not any(d.kind=='unsupported_connector' or d.severity=='ERROR' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+@pytest.mark.parametrize('inverse_mode',['all','none'])
+@pytest.mark.parametrize('singleton',[False,True],ids=['ordinary_hierarchy','singleton_reverse_propagation'])
+def test_chain_constraint_policy_propagates_only_through_actual_generated_hierarchy(run,source_json,tmp_path,mode,inverse_mode,singleton):
+    """Rules: DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-07, DK-DIAG-14."""
+    document=source_json('relations/chain_constraints')
+    source_element(document,'gsSingleton')['isComplete']=singleton
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode)
+    assert result.outcome=='completed'
+    _pattern_resources(result,inverse_mode=='all')
+    affected={'Material','Super','Grand'}|({'Peer'} if singleton else set())
+    omitted=mode=='omit-conflicting-constraints'
+    for key in ('Material','Super','Grand','Peer','PeerTwo'):
+        _direction(result.ontology,BASE['t'+key],BASE.cA,BASE.cB)
+        if inverse_mode=='all':_chain_inverse(result.ontology,BASE['s'+key],BASE['t'+key])
+        expected={('min',2),('max',5)} if key=='Material' else {('exact',2)}
+        _counts(result.ontology,BASE.cA,BASE['t'+key],set() if omitted and key in affected else expected)
+        reverse=BASE['s'+key] if inverse_mode=='all' else ('inverse',BASE['t'+key])
+        _counts(result.ontology,BASE.cB,reverse,set() if omitted and key in affected else {('exact',1)})
+    # Chain-body-only and unrelated material properties keep their counts.
+    _counts(result.ontology,BASE.cGround,BASE.tLeft,{('exact',1)})
+    _counts(result.ontology,BASE.cGround,BASE.tRight,{('exact',1)})
+    _counts(result.ontology,BASE.cA,BASE.tUnrelated,{('exact',4)})
+    edges=[('Material','Super'),('Super','Grand'),('Peer','Super'),('PeerTwo','Super')]+([('Super','Peer')] if singleton else [])
+    expected_edges={(BASE['t'+a],BASE['t'+b]) for a,b in edges}
+    if inverse_mode=='all':expected_edges|={(BASE['s'+a],BASE['s'+b]) for a,b in edges}
+    assert _edges(result.ontology)==expected_edges
+    keys=['Material','Peer','PeerTwo']
+    pairs={frozenset((BASE[p+a],BASE[p+b])) for p in (['t','s'] if inverse_mode=='all' else ['t'])
+           for i,a in enumerate(keys) for b in keys[i+1:] if not omitted or not ({a,b}&affected)}
+    assert _pairs(result.ontology)==pairs
+    assert bool(property_chains(result.ontology,BASE.tMaterial))==(mode!='none')
+    _compatibility(result,mode,mode!='none',{'cardinalities_omitted','property_disjointness_omitted'} if omitted else ())
+    if omitted:
+        reported=set().union(*(set(d.identified_sources) for d in result.diagnostics if d.kind=='chain_compatibility'))
+        assert all({'r'+key,'t'+key,'s'+key}&reported for key in affected)
+    notices=[d for d in result.diagnostics if d.kind=='singleton_completeness']
+    if singleton:
+        assert any(d.severity=='INFO' and {'gsSingleton','rSuper','rPeer'}<=set(d.identified_sources)
+                   and {'extensional_equivalence','distinct_identifiers'}<=d.facts for d in notices)
+    else:assert not notices
+    _no_connector(result)
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('mode',CHAIN_MODES[1:])
+def test_emitted_chain_without_conflicting_constraints_still_reports_compatibility(run,source_json,tmp_path,grounding,mode):
+    """Rules: DK-REL-07, DK-DIAG-07."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    for relation in document['model']['contents']:
+        if relation['type']=='Relation':
+            for end in relation['properties']:end['cardinality']=None
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',material_property_chains=mode)
+    assert result.outcome=='completed'
+    assert property_chains(result.ontology,BASE.tMaterial)=={(('inverse',BASE.tLeft),BASE.tRight)}
+    _compatibility(result,mode,True)
+    facts=set().union(*(d.facts for d in result.diagnostics if d.kind=='chain_compatibility'))
+    assert not {'cardinalities_omitted','property_disjointness_omitted'} & facts
+
+
+@pytest.mark.parametrize('derived',[False,True],ids=['not_derived','derived'])
+@pytest.mark.parametrize('connector',[False,True],ids=['flag_without_derivation','explicit_derivation'])
+def test_derived_flag_neither_creates_nor_suppresses_an_explicit_material_chain(run,source_json,tmp_path,derived,connector):
+    """Rules: DK-GEN-05, DK-REL-07, DK-REL-08, DK-DIAG-16."""
+    document=source_json('shared/material_pattern');source_element(document,'rMaterial')['isDerived']=derived
+    if not connector:document['model']['contents'].remove(source_element(document,'rDerivation'))
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',material_property_chains='preserve-conflicting-constraints')
+    assert result.outcome=='completed'
+    assert bool(property_chains(result.ontology,BASE.tMaterial))==connector
+    meanings=[c for c in result.comments if c.subject==BASE.tMaterial and c.field=='isDerived']
+    assert {c.value for c in meanings}=={derived}
+    assert all((c.subject,RDFS.comment,c.literal) in result.ontology for c in meanings)
+    if derived:
+        events=[d for d in result.diagnostics if d.kind=='derived_status']
+        assert any(d.severity=='INFO' for d in events)
+        if connector:assert not any('explicit_derivation_omitted' in d.facts for d in events)
+    else:assert not any(d.kind=='derived_status' for d in result.diagnostics)
+    assert not result.flag_semantic_output
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES[1:])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_multiple_complete_mode_groundings_are_ambiguous_without_a_selected_chain(run,source_json,tmp_path,mode,input_policy):
+    """Rules: DK-REL-07, DK-REL-08, DK-DIAG-05, DK-DIAG-08."""
+    document=source_json('shared/material_pattern');_grounding(document,'mode')
+    source_element(document,'cExtra')['stereotype']='mode'
+    for original,new in [('rLeft','OtherLeft'),('rRight','OtherRight'),('rDerivation','OtherDerivation')]:
+        relation=copy.deepcopy(source_element(document,original));relation['id']='r'+new
+        relation['properties'][0]['id']='s'+new;relation['properties'][1]['id']='t'+new
+        relation['properties'][1 if original=='rDerivation' else 0]['propertyType']={'id':'cExtra','type':'Class'}
+        document['model']['contents'].append(relation)
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy,material_property_chains=mode)
+    assert result.outcome=='completed'
+    assert not property_chains(result.ontology,BASE.tMaterial)
+    assert any(d.kind=='chain_ambiguity' and 'rMaterial' in d.identified_sources and d.severity in {'INFO','WARNING'} for d in result.diagnostics)
+    _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+    _no_connector(result,('rDerivation','sDerivation','tDerivation','rOtherDerivation','sOtherDerivation','tOtherDerivation'))
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('variant',['renamed','reordered','renamed_reordered'])
+def test_chain_matching_uses_source_ids_independently_of_names_and_serialized_declaration_order(run,source_json,tmp_path,grounding,variant):
+    """Rules: DK-REL-07, DK-REL-08, DK-CONF-01."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    if variant!='reordered':
+        for item in document['model']['contents']:
+            if item['type']=='Class' or (item['type']=='Relation' and item['id']!='rDerivation'):item['name']='SameName'
+    if variant!='renamed':document['model']['contents'].reverse()
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',material_property_chains='preserve-conflicting-constraints')
+    assert result.outcome=='completed';_pattern_resources(result)
+    assert property_chains(result.ontology,BASE.tMaterial)=={(('inverse',BASE.tLeft),BASE.tRight)}
+
+
+@pytest.mark.parametrize('pattern',['material_to_quality','comparative_to_relator','ordinary_to_mode','missing_relation_stereotype',
+                                    'missing_classifier_stereotype','missing_connector_stereotype','non_derivation_connector','relation_to_relation'])
+@pytest.mark.parametrize('reverse',[False,True],ids=['relation_first','relation_last'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_resolved_unmapped_connectors_warn_without_inferred_pattern_or_representation(run,source_json,tmp_path,pattern,reverse,input_policy):
+    """Rules: DK-REL-17, DK-REL-08, DK-REL-18, DK-DIAG-05, DK-DIAG-06, DK-INV-02, DK-INV-04."""
+    document=source_json('shared/material_pattern')
+    if pattern=='material_to_quality':source_element(document,'cGround')['stereotype']='quality'
+    elif pattern=='comparative_to_relator':source_element(document,'rMaterial')['stereotype']='comparative'
+    elif pattern=='ordinary_to_mode':
+        source_element(document,'rMaterial')['stereotype']='mediation';source_element(document,'cGround')['stereotype']='mode'
+    elif pattern=='missing_relation_stereotype':source_element(document,'rMaterial')['stereotype']=None
+    elif pattern=='missing_classifier_stereotype':source_element(document,'cGround')['stereotype']=None
+    elif pattern=='missing_connector_stereotype':source_element(document,'rDerivation')['stereotype']=None
+    elif pattern=='non_derivation_connector':source_element(document,'rDerivation')['stereotype']='material'
+    else:source_element(document,'tDerivation')['propertyType']={'id':'rLeft','type':'Relation'}
+    if reverse:source_element(document,'rDerivation')['properties'].reverse()
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy,
+               stereotype_policy='allow-missing',material_property_chains='preserve-conflicting-constraints')
+    assert result.outcome=='completed';_pattern_resources(result)
+    assert not list(result.ontology.triples((None,OWL.propertyChainAxiom,None)))
+    assert any(d.kind=='unsupported_connector' and d.severity=='WARNING' and 'rDerivation' in d.identified_sources
+               and 'no_accepted_endpoint_mapping' in d.facts for d in result.diagnostics)
+    assert not any(d.kind in {'semantic_validation','comparative_derivation_semantics'} or d.severity=='ERROR' for d in result.diagnostics)
+    _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+    _counts(result.ontology,BASE.cB,BASE.sMaterial,{('exact',1)})
+
+
+@pytest.mark.parametrize('failure',['null','malformed','unresolved'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_unresolved_connector_endpoint_remains_structural_instead_of_an_unsupported_pattern(run,source_json,tmp_path,failure,input_policy):
+    """Rules: DK-REL-17, DK-REL-08, DK-DIAG-03, DK-DIAG-05, DK-DIAG-08."""
+    document=source_json('shared/material_pattern')
+    source_element(document,'tDerivation')['propertyType']={'null':None,'malformed':'cGround','unresolved':{'id':'cMissing','type':'Class'}}[failure]
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy,material_property_chains='omit-conflicting-constraints')
+    assert any(d.severity=='ERROR' for d in result.diagnostics)
+    assert not any(d.kind=='unsupported_connector' for d in result.diagnostics)
+    if input_policy!='best-effort':assert result.outcome=='aborted' and result.ontology is None
+    else:
+        assert result.outcome=='completed-with-errors';_pattern_resources(result)
+        assert not property_chains(result.ontology,BASE.tMaterial)
+        _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+@pytest.mark.parametrize('reverse',[False,True],ids=['comparative_first','quality_first'])
+@pytest.mark.parametrize('input_policy',POLICIES)
+def test_comparative_quality_derivation_has_no_comparison_semantics_and_a_distinct_nonfatal_notice(run,source_json,tmp_path,mode,reverse,input_policy):
+    """Rules: DK-REL-18, DK-REL-17, DK-REL-01, DK-INV-02, DK-DIAG-05, DK-LBL-02."""
+    document=source_json('shared/material_pattern')
+    source_element(document,'rMaterial')['stereotype']='comparative'
+    source_element(document,'cGround')['stereotype']='quality'
+    if reverse:source_element(document,'rDerivation')['properties'].reverse()
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy,material_property_chains=mode)
+    assert result.outcome=='completed';_pattern_resources(result)
+    assert result.comparative_semantic_output==(), "Read actual comparative output; do not presume absent semantics"
+    assert not list(result.ontology.triples((None,OWL.propertyChainAxiom,None)))
+    assert not list(result.ontology.objects(BASE.tMaterial,OWL.equivalentProperty))
+    assert not list(result.ontology.subjects(OWL.equivalentProperty,BASE.tMaterial))
+    forbidden={OWL.TransitiveProperty,OWL.SymmetricProperty,OWL.AsymmetricProperty,OWL.ReflexiveProperty,
+               OWL.IrreflexiveProperty,OWL.FunctionalProperty,OWL.InverseFunctionalProperty}
+    assert not forbidden & set(result.ontology.objects(BASE.tMaterial,RDF.type))
+    _counts(result.ontology,BASE.cA,BASE.tMaterial,{('min',2),('max',5)})
+    _counts(result.ontology,BASE.cB,BASE.sMaterial,{('exact',1)})
+    assert any(d.kind=='comparative_derivation_semantics' and d.severity in {'INFO','WARNING'}
+               and {'rDerivation','rMaterial','cGround'}<=set(d.identified_sources) for d in result.diagnostics)
+    assert not any(d.kind=='unsupported_connector' or d.severity=='ERROR' for d in result.diagnostics)
+    _compatibility(result,mode,False)
+
+
+@pytest.mark.parametrize('stereotype',['memberOf','subCollectionOf','subQuantityOf','componentOf'])
+@pytest.mark.parametrize('reverse',[False,True],ids=['modeled_forward','modeled_reverse'])
+@pytest.mark.parametrize('inverse_mode',['all','none'])
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+def test_mereology_uses_primary_direction_generic_bridge_and_primary_only_asserted_asymmetry(run,source_json,tmp_path,stereotype,reverse,inverse_mode,mode):
+    """Rules: DK-GEN-04, DK-REL-19, DK-REL-07, DK-PROP-04, DK-REL-09, DK-REL-10, DK-REL-11, DK-INV-04."""
+    document=source_json('shared/binary_relation');source_element(document,'rFocus')['stereotype']=stereotype
+    source_element(document,'sFocus').update(cardinality='1',aggregationKind='COMPOSITE' if reverse else 'NONE')
+    source_element(document,'tFocus')['cardinality']='2'
+    if reverse:
+        a=source_element(document,'sFocus');b=source_element(document,'tFocus')
+        a['propertyType'],b['propertyType']=b['propertyType'],a['propertyType']
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode)
+    assert result.outcome=='completed'
+    source,target=(BASE.cB,BASE.cA) if reverse else (BASE.cA,BASE.cB)
+    _direction(result.ontology,BASE.tFocus,source,target)
+    u=result.mereology_import
+    assert isinstance(u,URIRef) and '#' not in str(u)
+    generic=URIRef(str(u)+'#'+stereotype)
+    assert (BASE.tFocus,RDFS.subPropertyOf,generic) in result.ontology
+    assert (BASE.tFocus,RDF.type,OWL.AsymmetricProperty) in result.ontology
+    assert (BASE.sFocus,RDF.type,OWL.AsymmetricProperty) not in result.ontology
+    assert not list(result.ontology.objects(BASE.sFocus,RDFS.subPropertyOf))
+    _counts(result.ontology,source,BASE.tFocus,{('exact',2)})
+    _counts(result.ontology,target,BASE.sFocus if inverse_mode=='all' else ('inverse',BASE.tFocus),{('exact',1)})
+    assert ((BASE.sFocus,RDF.type,OWL.ObjectProperty) in result.ontology)==(inverse_mode=='all')
+    assert not list(result.ontology.triples((None,OWL.propertyChainAxiom,None)))
+    assert not result.flag_semantic_output
+    _compatibility(result,mode,False)
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+def test_compatible_source_mereologies_do_not_create_arbitrary_source_chains_or_mappings(run,source_json,tmp_path,mode):
+    """Rules: DK-REL-19, DK-GEN-04, DK-REL-07."""
+    document=source_json('shared/binary_relation')
+    source_element(document,'rFocus')['stereotype']='subQuantityOf'
+    other=copy.deepcopy(source_element(document,'rFocus'));other.update(id='rNext',name='nextPart')
+    other['properties'][0].update(id='sNext',propertyType={'id':'cB','type':'Class'})
+    other['properties'][1].update(id='tNext',propertyType={'id':'cA','type':'Class'})
+    document['model']['contents'].append(other)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',material_property_chains=mode)
+    assert result.outcome=='completed'
+    generic=URIRef(str(result.mereology_import)+'#subQuantityOf')
+    for prop in (BASE.tFocus,BASE.tNext):
+        assert (prop,RDFS.subPropertyOf,generic) in result.ontology
+        assert (prop,RDF.type,OWL.AsymmetricProperty) in result.ontology
+        assert (prop,RDF.type,OWL.TransitiveProperty) not in result.ontology
+    assert not list(result.ontology.triples((None,OWL.propertyChainAxiom,None)))
+    _compatibility(result,mode,False)
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('inverse_mode',['all','none'])
+def test_material_chain_modes_keep_name_strategy_source_identity_and_use_anonymous_backward_steps(run,source_json,tmp_path,grounding,inverse_mode):
+    """Rules: DK-REL-07, DK-REL-08, DK-INV-04, DK-INV-07, DK-IRI-09, DK-CONF-02."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    path=write_input(tmp_path,document)
+    observations=[run(path=path,iri_strategy='name',inverse_properties=inverse_mode,material_property_chains=mode) for mode in CHAIN_MODES]
+    assert all(result.outcome=='completed' for result in observations)
+    source_ids=['cA','cB','cGround','cExtra','tMaterial','tLeft','tRight','tUnrelated']
+    resources=[{identifier:one_subject(result.ontology,DCTERMS.identifier,Literal(identifier)) for identifier in source_ids} for result in observations]
+    assert resources[0]==resources[1]==resources[2]
+    for mode,result,mapped in zip(CHAIN_MODES,observations,resources):
+        expected=(('inverse',mapped['tLeft']),mapped['tRight'])
+        assert property_chains(result.ontology,mapped['tMaterial'])==({expected} if mode!='none' else set())
+        assert result.unrepresented_connector_output==(), "Bind the actual connector-output reader"

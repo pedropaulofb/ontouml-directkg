@@ -71,6 +71,12 @@ def property_expression(graph: Graph, node):
     return ("inverse", inverse)
 
 
+def property_chains(graph: Graph, conclusion):
+    """Read asserted, ordered property-expression lists without entailment."""
+    return {tuple(property_expression(graph, node) for node in rdf_list(graph, head))
+            for head in graph.objects(conclusion, OWL.propertyChainAxiom)}
+
+
 def necessary_restrictions(graph: Graph, owner):
     """Read asserted subclass restrictions, including explicit intersections.
 

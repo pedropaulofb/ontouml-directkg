@@ -8,8 +8,10 @@ received the forwarded independent OK for
 Wave 3 — Attributes, datatypes, property references, and source flags — received
 the forwarded independent OK for `f915ba0a3aaee70588fe115d23d992242180c226`,
 verified on remote main before Wave 4. Wave 4 — Ordinary relations, named inverses,
-and relation hierarchies — is submitted for independent review. Waves 5–6 remain
-unimplemented.
+and relation hierarchies — received the forwarded independent OK for
+fe3eba9f46612f927c74edf52a62cdee6cb69365, verified reachable from remote main.
+Wave 5 — Derivations, material-chain interactions, mereology, and non-representation —
+is submitted for independent review. Wave 6 remains unimplemented.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -36,8 +38,9 @@ Dependencies are test-only; no production packaging is selected.
 The fixture/harness subset runs independently of production. Intentionally
 invalid source files are checked against their declared defects; one malformed
 JSON file is expected not to parse. These passes do not certify transformation
-behavior. The nine Turtle files are **partial ground-triple expectations**, not
-complete conversion outputs. Pairings are explicit; integrity scans never infer
+behavior. Nine Turtle files are partial ground-triple expectations; the tenth
+is an ordered-chain expectation with an anonymous inverse expression. None is a
+complete conversion output. Pairings are explicit; integrity scans never infer
 input/expectation pairings from filenames or directory order.
 
 Cross-topic inputs use `shared/base_iri` and `shared/property_collisions`.
@@ -59,6 +62,18 @@ behavior began consuming it; all consumers/pairings and its old harness ID are
 preserved. The material-naming and relation-hierarchy bundles stay under
 `relations/`; the secondary inverse-collision bundle stays under `inverses/`.
 No existing attribute JSON is newly reused across topics.
+
+Wave 5 adds shared/material_pattern/input.json from its first use across
+relation and property topics. Its relation-only expectation stays at
+relations/material_pattern/expected_chain.ttl, explicitly paired across bundles
+for the default relator geometry under ID mode. The chain-constraint and instantiation inputs
+remain owned by relations and higher_order respectively. Existing reused data
+was already canonical shared data; no further promotion is needed.
+The existing vocabulary now lives at vocabulary/latest/dkgm-vocabulary.ttl and
+vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl. Tests read both current paths
+without modifying them; the plan's older root-resource pathname is not copied
+or restored. Those resource checks test relative URI/namespace relationships
+and axioms, not adoption of their concrete URI or external redirect behavior.
 
 ## Actual invocation binding
 
@@ -110,6 +125,12 @@ The binding must execute the real public library and adapt only observed values:
   event from the input. `invalid_cardinality` includes actual lexical/type
   multiplicity errors. Independent abstractness/derived INFO must not be
   mistaken for relation-naming or inverse-omission events.
+  Wave 5 reads chain_ambiguity, chain_compatibility, unsupported_connector,
+  derivation_omission, orientation_repair, comparative_derivation_semantics and
+  discarded_instantiation_data. These are semantic readings of real events;
+  nonfatal comparative/mode ambiguity notices need not have a fixed spelling
+  or severity beyond INFO/WARNING. Relator-component ambiguity and unsupported
+  resolved connectors retain their expressly required WARNING severity.
 - Test-side diagnostic `facts` describe actually reported content. Wave 1 checks
   `placeholder_namespace`, `not_recommended_for_publication`,
   `stereotype:category`, `competing_declarations`, and `conversion_aborted`.
@@ -131,6 +152,18 @@ The binding must execute the real public library and adapt only observed values:
   Wave 4 reads `coverage_not_represented` for the actual multi-member relation-
   set coverage explanation; singleton INFO reuses the established equivalence
   and distinct-identifier meanings.
+  Wave 5 additionally reads ambiguous_correspondence,
+  same_class_occurrences_unassigned, no_accepted_endpoint_mapping,
+  not_dl_guarantee, omission_policy_applied, constraints_preserved,
+  possible_owl_dl_incompatibility, cardinalities_omitted and
+  property_disjointness_omitted. Preserve erroneous claims too, including
+  all_chains_outside_dl, all_semantics_preserved, global_dl_guarantee and explicit_derivation_omitted,
+  so negative checks inspect actual output. Instantiation category meanings are
+  discarded_identifier, discarded_association_name, discarded_role_names,
+  discarded_multiplicities and discarded_characteristics (including a discarded
+  source description); association_data_not_materialized records the reported effect.
+  None prescribes a production field or exact phrase. The actual source ID and
+  available type must remain observable for the consolidated instantiation warning.
 - Populate `Observation.comments` by reading the meanings of actually produced
   RDF comments for `isAbstract`, `isDerived`, `isExtensional`, and the `abstract`
   stereotype. Each `CommentMeaning` retains its exact RDF subject and literal;
@@ -187,6 +220,25 @@ The binding must execute the real public library and adapt only observed values:
   Required structural/mapping notices are separate. Neither this collection nor
   the semantic RDF collections above may be presumed empty from expected rules
   or requested controls. Document actual interface/RDF evidence for review.
+- Populate mereology_import only from actual core-vocabulary interface or
+  publication evidence, never from an expected URI or an arbitrary import.
+  Populate provenance with the actual separately exposed Python graph when
+  available; embedded provenance remains in ontology. The Wave 5 sidecar
+  requests examine programmatic graph content only, not file delivery.
+- Read unrepresented_connector_output from actual connector representations,
+  including anonymous resources, reification, punning and grounding annotations.
+  Read comparative_semantic_output from actual additional comparison rules,
+  chains, equivalence, counts or characteristics induced solely by that
+  derivation. Exclude independent accepted endpoint/property mappings.
+- Read discarded_instantiation_output from actual RDF, provenance and native
+  diagnostic evidence that reproduces discarded values or their characteristics.
+  Include copied booleans/flags whose meaning string searching cannot establish;
+  exclude diagnostic category names and permitted source-ID locators. Retain
+  real diagnostic payloads in raw. Source names/roles/multiplicity sentinels are
+  also checked directly across RDF and diagnostic payload text.
+  These three new semantic readers default to None, not an observed empty
+  tuple. A real binding must explicitly observe an empty tuple when appropriate;
+  it cannot presume absence from the requested configuration or source data.
 - Bind `has_relation_cardinality_control(feature)` to the actual public Python
   control surface for the semantic questions `omit_without_named_inverse` and
   `qualified`. These are test-side feature terms, not production spellings;
@@ -208,7 +260,9 @@ Most graph-focused requests explicitly select a supplied base and
 `provenance=none` to isolate their scoped behavior. Other controls remain omitted
 unless selected by the case. Default embedded provenance and file deliveries
 belong to the already-planned later wave; this subset does not certify them.
-Stored expectations are partial ground graphs. Checks between separate
+Stored expectations are partial ground graphs or the explicitly paired ordered
+chain pattern. The generic property_chains reader retains list order and reads
+anonymous inverse expressions without inference. Checks between separate
 conversions compare explicitly selected domain predicates, including required
 source labels/identifiers, without demanding repeatable optional metadata or
 unfixed generated-comment wording. The allowed pairwise disjointness directions
@@ -266,9 +320,9 @@ specification changes. Its current repository copy is read without modification.
 
 The concrete stable DKGM URI is still unspecified. Import existence/no-fragment
 checks do not certify a concrete target. Detailed vocabulary/bridge checks and
-the remaining approved waves are recorded in the inventory. Wave 1–3 approvals
-do not certify Wave 4, the concrete DKGM identity, or unavailable production
-behavior. Wave 4 requires its own independent verdict before progression.
+the remaining approved waves are recorded in the inventory. Wave 1–4 approvals
+do not certify Wave 5, the concrete DKGM identity, or unavailable production
+behavior. Wave 5 requires its own independent verdict before progression.
 
 Attribute standalone `*` recognition is asserted. Its exact restriction graph
 is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit

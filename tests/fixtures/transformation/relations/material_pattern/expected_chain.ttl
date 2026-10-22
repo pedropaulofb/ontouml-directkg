@@ -1,0 +1,3 @@
+@prefix : <https://example.test/model#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+:tMaterial owl:propertyChainAxiom ( [ owl:inverseOf :tLeft ] :tRight ) .
