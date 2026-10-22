@@ -1,5 +1,7 @@
 # Home
 
+<p><img src="assets/ontouml-directkg-logo-transparent.png" alt="OntoUML DirectKG logo" width="240"></p>
+
 OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/OWL graph. Its classes and properties represent the modeled domain, rather than the OntoUML metamodel, Visual Paradigm diagrams, or the JSON document structure.
 
 ## Current availability

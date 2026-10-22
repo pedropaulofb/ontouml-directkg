@@ -44,3 +44,7 @@ invalid_link_anchors = true
 default_handler = "python"
 
 [project.plugins.mkdocstrings.handlers.python]
+
+[project.theme]
+logo = "assets/favicon.svg"
+favicon = "assets/favicon.svg"

@@ -4,6 +4,8 @@
 [![Project stage: specification and tests](https://img.shields.io/badge/status-specification%20%26%20tests-blue?style=flat-square)](tests/README.md)
 [![Last commit on main](https://img.shields.io/github/last-commit/pedropaulofb/ontouml-directkg/main?style=flat-square)](https://github.com/pedropaulofb/ontouml-directkg/commits/main)
 
+<img src="branding/ontouml-directkg-logo-transparent.png" alt="OntoUML DirectKG logo" width="260">
+
 **OntoUML DirectKG** is an open-source project to transform [OntoUML](https://ontouml.org/) conceptual models into **domain-oriented RDF/OWL ontologies**. The intended output describes the modeled domain—its classes, properties, and selected logical constraints—rather than reproducing the OntoUML metamodel, diagrams, or JSON export structure.
 
 It is intended for OntoUML modelers, ontology engineers, knowledge-graph developers, and contributors implementing the transformation.
