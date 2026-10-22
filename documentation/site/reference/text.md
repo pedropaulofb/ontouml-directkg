@@ -67,7 +67,7 @@ This applies only where source-authored text already has a supported mapping: na
 | RD-28 source-ID annotations | Untagged original strings; no language override |
 | External YAML text | Untagged; neither override nor project languages propagate to it |
 
-External descriptive metadata retains its separate accepted whitelist and mappings; its detailed guide remains assigned to DOC-W4. [Multilingual naming](identifiers.md#multilingual-naming) chooses original lexical input independently of this tagging precedence. Retagging does not choose a different name, reorder translations, or change primitive-recognition input.
+External descriptive metadata retains its separate [accepted whitelist and mappings](../guides/metadata-and-provenance.md#descriptive-metadata). [Multilingual naming](identifiers.md#multilingual-naming) chooses original lexical input independently of this tagging precedence. Retagging does not choose a different name, reorder translations, or change primitive-recognition input.
 
 ## Derived-status comments
 
@@ -91,8 +91,8 @@ The flag alone supplies no derivation rule, property chain, equivalence, calcula
 
 Descriptions have their separate target rules above. Abstractness, extensionality, and order belong to [Class declarations preserved as comments](../mapping/classes.md#class-declarations-preserved-as-comments); read-only, aggregation, and ordering declarations belong to [Property features](../mapping/property-features.md).
 
-Produced INFO and warnings remain accessible/exportable under the diagnostic contract even when hidden by [console filtering](controls.md#presentation-and-persistence-do-not-change-transformation-outcomes). The detailed diagnostics reference remains assigned to DOC-W4.
+Produced INFO and warnings remain accessible/exportable under the diagnostic contract even when hidden by [console filtering](controls.md#presentation-and-persistence-do-not-change-transformation-outcomes). [Diagnostics and recovery](diagnostics.md#diagnostic-conditions-and-intentional-silence) owns the detailed diagnostic conditions.
 
 ---
 
-Governing rules: DK-LBL-01–02; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-04, 16, 19; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-LBL-01–02; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-04, 16, 19; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

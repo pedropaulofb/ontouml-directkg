@@ -55,8 +55,8 @@ A failed ontology-file write does not change an already established transformati
 
 Required-provenance construction failure is different: with provenance enabled, it aborts before ontology delivery under every input policy. It must not silently change the requested provenance mode. These artifact-level boundaries do not resolve unexpected runtime failures or ontology-output failures outside the specification's defined scope.
 
-The detailed exit-code/precedence table, provenance failure procedures, and diagnostic policies belong to the planned CLI, Metadata and provenance, and Diagnostics and recovery pages. Their accepted controls are already listed in [Controls](controls.md).
+See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-delivery-failures), [Metadata and provenance failure boundaries](../guides/metadata-and-provenance.md#failure-boundaries), and [Diagnostics and recovery](diagnostics.md) for the detailed contracts. Their accepted controls are already listed in [Controls](controls.md).
 
 ---
 
-Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

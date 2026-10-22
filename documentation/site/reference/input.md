@@ -50,7 +50,7 @@ For separate declarations participating in accepted mappings or required referen
 
 Other structural failures follow their applicable recovery rules. `best-effort` does not authorize inventing missing information or delivering syntactically invalid RDF. It also does not authorize continuation after a stereotype condition rejected by the separate stereotype policy. See [Controls](controls.md#control-boundaries) for the policy boundaries.
 
-An explicit attribute `propertyType: null` is supported as [unspecified typing](../mapping/attributes-and-datatypes.md#untyped-and-void); it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. Detailed multiplicity parsing and recovery belong to the planned Diagnostics and recovery reference.
+An explicit attribute `propertyType: null` is supported as [unspecified typing](../mapping/attributes-and-datatypes.md#untyped-and-void); it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. See [Multiplicity parsing and recovery](diagnostics.md#multiplicity-parsing-and-recovery) for the detailed rules and [Policies and precedence](diagnostics.md#policies-and-precedence) for continuation and abortion.
 
 ## Intentional omissions
 
@@ -66,4 +66,4 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `c2262aff7ce41a874875e354c9842fd97c8c879b`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c2262aff7ce41a874875e354c9842fd97c8c879b/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

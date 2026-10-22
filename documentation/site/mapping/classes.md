@@ -47,7 +47,7 @@ An unresolved member reference or failed member transformation is an error. `str
 
 An explicitly empty `generalizations` array is a structural error under every completeness/disjointness combination. `strict` and `tolerant` abort; `best-effort` reports the error, omits the empty set's contribution, and continues elsewhere. Do not infer a general class, invent members, or assert an empty class extension from that array (DK-DIAG-12).
 
-Duplicate-member handling, missing or malformed membership containers, and categorizer recovery after failed members remain unspecified. The accepted rules for explicitly empty arrays and unresolved members do not fill those gaps. See [Higher-order classification](higher-order.md#categorizers-and-powertypes) for categorizer mappings and [Controls](../reference/controls.md#control-boundaries) for policy boundaries; the detailed recovery reference is pending its assigned wave.
+Duplicate-member handling, missing or malformed membership containers, and categorizer recovery after failed members remain unspecified. The accepted rules for explicitly empty arrays and unresolved members do not fill those gaps. See [Higher-order classification](higher-order.md#categorizers-and-powertypes) for categorizer mappings and [Controls](../reference/controls.md#control-boundaries) for policy boundaries; see [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-conditions-and-intentional-silence) for the detailed conditions.
 
 ## Enumerations and closure
 
@@ -104,4 +104,4 @@ Explicit `isDerived` values have the separate cross-cutting [derived-status comm
 
 ---
 
-Governing rules: DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05; DK-DIAG-12–17; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05; DK-DIAG-12–17; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

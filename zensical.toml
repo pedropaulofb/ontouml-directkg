@@ -8,6 +8,11 @@ docs_dir = "documentation/site"
 site_dir = "site"
 nav = [
   { "Home" = "index.md" },
+  { "Guides" = [
+    { "CLI guide" = "guides/cli.md" },
+    { "Python guide" = "guides/python.md" },
+    { "Metadata and provenance" = "guides/metadata-and-provenance.md" },
+  ] },
   { "Semantics and limitations" = "concepts/semantics.md" },
   { "Mapping reference" = [
     { "Classes and enumerations" = "mapping/classes.md" },
@@ -26,6 +31,7 @@ nav = [
     { "Controls" = "reference/controls.md" },
     { "Identifiers and naming" = "reference/identifiers.md" },
     { "Labels, comments, and language" = "reference/text.md" },
+    { "Diagnostics and recovery" = "reference/diagnostics.md" },
   ] },
 ]
 

@@ -63,7 +63,7 @@ Use unqualified `owl:minCardinality`, `owl:maxCardinality`, and `owl:cardinality
 | Explicit JSON `null` | None; no guessed default or diagnostic solely for null |
 | Absent field | None; warning and continuation under every input policy |
 
-No numeric restriction does not mean no relation. Null/absence differs from non-null `*` and `0..*` for [informed inverse eligibility](inverses.md#generation-and-eligibility). Present but invalid multiplicities are errors, rather than the absent-field fallback. `strict`/`tolerant` abort; `best-effort` retains error severity and only independently valid, unambiguously positioned bounds where permitted. The detailed DK-DIAG-10–11 parser/recovery reference remains assigned to DOC-W4.
+No numeric restriction does not mean no relation. Null/absence differs from non-null `*` and `0..*` for [informed inverse eligibility](inverses.md#generation-and-eligibility). Present but invalid multiplicities are errors, rather than the absent-field fallback. `strict`/`tolerant` abort; `best-effort` retains error severity and only independently valid, unambiguously positioned bounds where permitted. See [Multiplicity parsing and recovery](../reference/diagnostics.md#multiplicity-parsing-and-recovery) for the full DK-DIAG-10–11 rules.
 
 The following **specification illustration** assumes a named `worksFor` relation from `Person` to `Organization`, target multiplicity `1..*`, source multiplicity `0..1`, named inverses disabled, material chains disabled, name-based identity without collisions, and entity base `https://example.org/employment#`. This parseable excerpt shows direction and restrictions; labels, identifier annotations, ontology header/import, and execution provenance are omitted. It is not executed converter output.
 
@@ -126,4 +126,4 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–06, 09–17, 20; DK-GEN-03; DK-INV-12; DK-DIAG-07, 09–12, 14; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-REL-01–06, 09–17, 20; DK-GEN-03; DK-INV-12; DK-DIAG-07, 09–12, 14; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

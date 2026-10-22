@@ -71,7 +71,7 @@ Attribute constraints use `rdfs:subClassOf` restrictions: they are necessary con
 
 An absent cardinality field also supplies no restriction/default, but requires a warning and continuation of all other applicable mappings under every input policy. Explicit null remains distinct from both absent and explicitly unbounded input.
 
-Contradictory nonnegative numeric bounds such as `5..2` remain minimum five and maximum two under every policy, without a warning/error solely for the contradiction. The resulting class can be unsatisfiable. Untranslatable bounds, lexical normalization, and ambiguous malformed expressions instead follow DK-DIAG-10–11; `best-effort` preserves independently valid bounds only where those rules permit. The full parsing/recovery reference remains assigned to DOC-W4.
+Contradictory nonnegative numeric bounds such as `5..2` remain minimum five and maximum two under every policy, without a warning/error solely for the contradiction. The resulting class can be unsatisfiable. Untranslatable bounds, lexical normalization, and ambiguous malformed expressions instead follow DK-DIAG-10–11; `best-effort` preserves independently valid bounds only where those rules permit. See [Multiplicity parsing and recovery](../reference/diagnostics.md#multiplicity-parsing-and-recovery) for the full parsing rules.
 
 Multiplicity restrictions using object-property expressions made non-simple by actually emitted material chains are subject to the targeted `omit-conflicting-constraints` treatment, including accepted subproperty/inverse propagation. Other independently applicable constraints remain; see the [chain-control boundary](../reference/controls.md#material-chains-have-targeted-effects). [Material-chain modes](derivations-and-chains.md#material-chain-modes) explains the propagation and affected constraints.
 
@@ -103,4 +103,4 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

@@ -21,7 +21,7 @@ This is the canonical catalog of **specified controls and defaults**. No product
 | `--diagnostics-file` | Complete caller-selected output-file path | Not supplied; no CLI diagnostics file | Export every diagnostic actually produced to JSON, including those hidden by console filtering and those produced before an accepted abort. For conversions that run, export is attempted even after specified artifact-delivery failures. Supplied-base rejection produces no conversion-diagnostics report. |
 | `--console-level` | `info`, `warning`, `error` | `info` | Display INFO/WARNING/ERROR, WARNING/ERROR, or ERROR, respectively. Filter console presentation only; retain every produced diagnostic for collection, programmatic access, and requested JSON export. |
 
-See [Identifiers and naming](identifiers.md) and [Labels, comments, and language](text.md) for the available identity/text explanations. See [Inverse properties](../mapping/inverses.md) for eligibility and construction, and [Derivations and material chains](../mapping/derivations-and-chains.md) for chain eligibility, ambiguity, and constraint treatment. Detailed metadata/provenance and diagnostic policies remain assigned to later waves.
+See [Identifiers and naming](identifiers.md) and [Labels, comments, and language](text.md) for the available identity/text explanations. See [Inverse properties](../mapping/inverses.md) for eligibility and construction, and [Derivations and material chains](../mapping/derivations-and-chains.md) for chain eligibility, ambiguity, and constraint treatment. [Metadata and provenance](../guides/metadata-and-provenance.md) owns its accepted whitelist and failure boundaries; [Diagnostics and recovery](diagnostics.md) owns policies, outcomes, and diagnostic conditions.
 
 ## Interface parity
 
@@ -59,7 +59,7 @@ Neither generating mode guarantees OWL 2 DL conformance. See [Reasoner and profi
 
 Changing console thresholds must not change diagnostic production/severity, recovery, abortion, transformation outcome, ontology-output eligibility, or exit-code selection. Requesting or accessing diagnostic exports must not change transformation diagnostics, recovery, abortion, transformation outcome, or ontology-output eligibility. On the CLI, failure to create or write a requested diagnostics file returns `4`, taking precedence over transformation codes `0`, `1`, and `3` and delivery-failure codes `5` and `6`. JSON mirrors diagnostics actually produced; it does not generate reports of every known semantic loss. A quiet console therefore does not establish full preservation.
 
-Transformation outcome remains distinct from delivery failure. The detailed CLI exit-code table and precedence belong to the planned CLI guide; the available [Output contract](output.md#delivery-boundaries) summarizes artifact eligibility.
+Transformation outcome remains distinct from delivery failure. See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-delivery-failures) for the complete code table and precedence; the available [Output contract](output.md#delivery-boundaries) summarizes artifact eligibility.
 
 ### Controls that are not established
 
@@ -67,4 +67,4 @@ No independent ontology-IRI, format-selection, prefix-selection, sorting/canonic
 
 ---
 
-Governing rules: §15; DK-GEN-09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-07; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §15; DK-GEN-09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-07; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
