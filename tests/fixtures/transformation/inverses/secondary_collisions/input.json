@@ -1,0 +1,213 @@
+{
+  "id": "inverseCollisionProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "inverseCollisionProjectRoot",
+    "name": "SourceContainer",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cSource",
+        "name": "Source",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOrganization",
+        "name": "Organization",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOther",
+        "name": "Other",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "pLower",
+            "name": "worksFor",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": null,
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "pUpper",
+            "name": "WorksFor",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": null,
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cClaim",
+        "name": "inverseOfWorksFor_Source",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rUpper",
+        "name": "WorksFor",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "z_source",
+            "name": "staff",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cSource",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tUpper",
+            "name": "targets",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cOrganization",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rLower",
+        "name": "worksFor",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "a_source",
+            "name": "staff",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cSource",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tLower",
+            "name": "targets",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cOrganization",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

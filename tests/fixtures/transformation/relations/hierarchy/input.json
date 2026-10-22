@@ -1,0 +1,345 @@
+{
+  "id": "hierarchyProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "hierarchyProjectRoot",
+    "name": "SourceContainer",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cA",
+        "name": "A",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cB",
+        "name": "B",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cC",
+        "name": "C",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cD",
+        "name": "D",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rGeneral",
+        "name": "general",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sGeneral",
+            "name": "workers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tGeneral",
+            "name": "employers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rMiddle",
+        "name": "middle",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sMiddle",
+            "name": "workers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tMiddle",
+            "name": "employers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cC",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rLeaf",
+        "name": "leaf",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sLeaf",
+            "name": "workers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cC",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tLeaf",
+            "name": "employers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "rSibling",
+        "name": "sibling",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sSibling",
+            "name": "workers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cD",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tSibling",
+            "name": "employers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "gMiddle",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rMiddle",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rGeneral",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gLeaf",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rLeaf",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rMiddle",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gSibling",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "rSibling",
+          "type": "Relation"
+        },
+        "general": {
+          "id": "rGeneral",
+          "type": "Relation"
+        }
+      },
+      {
+        "id": "gsRelations",
+        "name": "RelationAlternatives",
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": null,
+        "generalizations": [
+          {
+            "id": "gMiddle",
+            "type": "Generalization"
+          },
+          {
+            "id": "gSibling",
+            "type": "Generalization"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

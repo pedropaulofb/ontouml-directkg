@@ -33,10 +33,12 @@ VALID_BUNDLES = [
     ("higher_order/categorizers", "input.json"), ("shared/source_text", "input.json"),
     ("attributes_datatypes/value_types", "input.json"), ("attributes_datatypes/structured", "input.json"),
     ("properties/references", "input.json"), ("properties/source_flags", "input.json"),
-    ("properties/omitted_connector", "input.json"),
+    ("shared/omitted_connector", "input.json"),
+    ("shared/binary_relation", "input.json"), ("relations/material_naming", "input.json"),
+    ("relations/hierarchy", "input.json"), ("inverses/secondary_collisions", "input.json"),
 ]
 # Preserve existing harness node IDs when their canonical fixture paths move.
-VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions"}
+VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions", "shared/omitted_connector": "properties_omitted_connector"}
 NEGATIVE_BUNDLES = [
     ("input_diagnostics/unknown_information", "input.json", {"unknown_field:waveOneUnknownField"}),
     ("input_diagnostics/unknown_information", "unknown_element.json", {"unknown_element"}),
@@ -113,8 +115,10 @@ def test_fixture_contract_register_covers_all_stored_inputs():
                                        ("classes/generalization_sets", "expected.ttl"), ("classes/enumerations", "expected.ttl"),
                                        ("higher_order/categorizers", "expected.ttl"),
                                        ("attributes_datatypes/value_types", "expected.ttl"),
-                                       ("attributes_datatypes/structured", "expected.ttl")],
-                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions", "primitive_attribute_ground", "recursive_datatype_ground"])
+                                       ("attributes_datatypes/structured", "expected.ttl"),
+                                       ("shared/binary_relation", "expected.ttl"),
+                                       ("inverses/secondary_collisions", "expected.ttl")],
+                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions", "primitive_attribute_ground", "recursive_datatype_ground", "binary_relation_ground", "inverse_secondary_collision_ground"])
 def test_fixture_contract_turtle_expectations(key, filename):
     """Harness parsing only; each expectation is paired explicitly in its consumer."""
     expected = load_graph(fixture_path(key, filename))

@@ -99,12 +99,24 @@ class Observation:
     # This is a test-side reading, not a proposed production attribute.
     project_description_output: tuple[tuple[Node, Node, Node], ...] = ()
     # Actual prohibited logical/sequence output induced solely by the source
-    # characteristics in GEN-05/PROP-04/05: extra logical axioms, dependence,
+    # characteristics in GEN-05/CLS-01/PROP-04/05: extra logical axioms, dependence,
     # direction changes, value-order lists/sequences, or properties created
     # solely to represent a flag. Exclude independently required mappings and
     # permitted independent metadata. Read actual output/interface evidence;
     # never infer an empty result from the request or expected behavior.
     flag_semantic_output: tuple[tuple[Node, Node, Node], ...] = ()
+    # Actual statements/auxiliary resources serving solely as RDF origin
+    # markers for primary fallback labels. Exclude independent provenance and
+    # metadata. Read output meaning; never infer absence from requested modes.
+    relation_label_origin_output: tuple[tuple[Node, Node, Node], ...] = ()
+    # Actual multi-member relation-set completeness/validation substitutes.
+    # Exclude independently required hierarchy, disjointness and annotations.
+    # This is output evidence, not an expected-input classification.
+    relation_completeness_output: tuple[tuple[Node, Node, Node], ...] = ()
+    # Actual element-level report entries about intentional inverse omissions,
+    # including non-diagnostic native entries. Retain raw report evidence;
+    # independently required structural/mapping diagnostics are not omissions.
+    inverse_omission_reports: tuple[Any, ...] = ()
 
 
 def diagnostic_signatures(events):
@@ -119,6 +131,13 @@ def diagnostic_signatures(events):
 
 
 class Invocation(Protocol):
+    def has_relation_cardinality_control(self, feature: str) -> bool:
+        """Inspect actual public Python controls for the semantic feature
+        omit_without_named_inverse or qualified. These test-side terms impose
+        no production method/parameter spelling. CLI inspection is Wave 6.
+        """
+        ...
+
     def has_local_value_restriction_control(self) -> bool:
         """Inspect actual public Python controls for an optional allValuesFrom
         feature. No production parameter spelling is prescribed. Do not answer
@@ -152,6 +171,9 @@ class Invocation(Protocol):
 
 
 class _UnboundInvocation:
+    def has_relation_cardinality_control(self, feature):
+        self._unavailable()
+
     def has_local_value_restriction_control(self):
         self._unavailable()
 

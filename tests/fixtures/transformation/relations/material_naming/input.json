@@ -1,0 +1,164 @@
+{
+  "id": "materialNamingProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "materialNamingRoot",
+    "name": "SourceContainer",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cA",
+        "name": "HTTPServer",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cB",
+        "name": "XMLNode",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rFocus",
+        "name": null,
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sFocus",
+            "name": "workers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tFocus",
+            "name": null,
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "cGround",
+        "name": "Employment",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "relator",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rDerivation",
+        "name": null,
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "derivation",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sDerivation",
+            "name": null,
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "rFocus",
+              "type": "Relation"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tDerivation",
+            "name": null,
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cGround",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

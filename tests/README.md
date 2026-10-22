@@ -5,8 +5,11 @@ the forwarded independent OK for `7364ed8843c565592d4bfa550d90c218988c83ba`.
 Wave 2 — Classes, enumerations, higher-order classification, and source text —
 received the forwarded independent OK for
 `196d16b056668f3292e8309d545e6aaa49c90497`, verified reachable from remote main.
-Wave 3 — Attributes, datatypes, property references, and source flags — is
-submitted for independent review. Waves 4–6 remain unimplemented.
+Wave 3 — Attributes, datatypes, property references, and source flags — received
+the forwarded independent OK for `f915ba0a3aaee70588fe115d23d992242180c226`,
+verified on remote main before Wave 4. Wave 4 — Ordinary relations, named inverses,
+and relation hierarchies — is submitted for independent review. Waves 5–6 remain
+unimplemented.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -33,7 +36,7 @@ Dependencies are test-only; no production packaging is selected.
 The fixture/harness subset runs independently of production. Intentionally
 invalid source files are checked against their declared defects; one malformed
 JSON file is expected not to parse. These passes do not certify transformation
-behavior. The seven Turtle files are **partial ground-triple expectations**, not
+behavior. The nine Turtle files are **partial ground-triple expectations**, not
 complete conversion outputs. Pairings are explicit; integrity scans never infer
 input/expectation pairings from filenames or directory order.
 
@@ -48,6 +51,14 @@ localized text and governed invalid cases, stay in their owning test modules.
 The literal-fallback matrix includes a supported localized name whose every
 value is unusable for naming; both source labels remain, and fallback does not
 make enumeration closure incomplete.
+
+Wave 4 adds canonical `shared/binary_relation` input/partial graph data from
+its first use across relation and inverse topics. `shared/omitted_connector`
+contains the byte-identical input promoted from the property topic when inverse
+behavior began consuming it; all consumers/pairings and its old harness ID are
+preserved. The material-naming and relation-hierarchy bundles stay under
+`relations/`; the secondary inverse-collision bundle stays under `inverses/`.
+No existing attribute JSON is newly reused across topics.
 
 ## Actual invocation binding
 
@@ -92,6 +103,13 @@ The binding must execute the real public library and adapt only observed values:
   `redefinition_warning`, `ordering`, and `multilingual_primitive_conflict`.
   Their names are test-side readings of actual diagnostic meaning. The last
   category is used to reject an invented conflict, not to require a diagnostic.
+  Wave 4 additionally reads `relation_naming`, `stereotype_naming`,
+  `comparative_naming`, `unavailable_grounding_relator`, `relator_naming`,
+  `inverse_omission`, and `relation_set_completeness`. These classify actual
+  message/report meaning, never prescribe production codes or manufacture an
+  event from the input. `invalid_cardinality` includes actual lexical/type
+  multiplicity errors. Independent abstractness/derived INFO must not be
+  mistaken for relation-naming or inverse-omission events.
 - Test-side diagnostic `facts` describe actually reported content. Wave 1 checks
   `placeholder_namespace`, `not_recommended_for_publication`,
   `stereotype:category`, `competing_declarations`, and `conversion_aborted`.
@@ -110,6 +128,9 @@ The binding must execute the real public library and adapt only observed values:
   None of these spellings is required in production messages or JSON.
   Wave 3 additionally reads `void`, `range_omitted`, and
   `ordering_not_represented` from actual messages/fields, never from expectations.
+  Wave 4 reads `coverage_not_represented` for the actual multi-member relation-
+  set coverage explanation; singleton INFO reuses the established equivalence
+  and distinct-identifier meanings.
 - Populate `Observation.comments` by reading the meanings of actually produced
   RDF comments for `isAbstract`, `isDerived`, `isExtensional`, and the `abstract`
   stereotype. Each `CommentMeaning` retains its exact RDF subject and literal;
@@ -150,11 +171,26 @@ The binding must execute the real public library and adapt only observed values:
   do not attribute unrelated reliable metadata to this field. Omission cases
   assert this evidence is empty while separately checking required mappings.
 - Populate `Observation.flag_semantic_output` with actual prohibited logical
-  or sequence output induced solely by GEN-05/PROP-04/05 characteristics, such
+  or sequence output induced solely by GEN-05/CLS-01/PROP-04/05 characteristics, such
   as extra logical axioms, dependence, direction changes, value-order sequences,
   or properties generated solely to represent a flag. Exclude independently
   required mappings and permitted independent metadata. Document the actual
   RDF/interface evidence; never infer absence from the expected behavior.
+- Read `relation_label_origin_output` from actual RDF statements/auxiliary
+  resources serving solely to distinguish generated primary labels from source
+  labels. Exclude independently permitted metadata/provenance.
+- Read `relation_completeness_output` from actual multi-member coverage axioms
+  or substitute validation structures. Exclude required hierarchy/disjointness
+  and descriptive annotations; retain erroneous output for negative checks.
+- Preserve actual element-level entries about intentional inverse omissions in
+  `inverse_omission_reports`, including non-diagnostic native report entries.
+  Required structural/mapping notices are separate. Neither this collection nor
+  the semantic RDF collections above may be presumed empty from expected rules
+  or requested controls. Document actual interface/RDF evidence for review.
+- Bind `has_relation_cardinality_control(feature)` to the actual public Python
+  control surface for the semantic questions `omit_without_named_inverse` and
+  `qualified`. These are test-side feature terms, not production spellings;
+  unavailable inspection raises the integration error. CLI inspection is Wave 6.
 - Bind `has_local_value_restriction_control()` to inspection of the real public
   Python controls for an optional local allValuesFrom feature. It is a test-side
   question, not a proposed production method or parameter spelling. The CLI
@@ -230,11 +266,29 @@ specification changes. Its current repository copy is read without modification.
 
 The concrete stable DKGM URI is still unspecified. Import existence/no-fragment
 checks do not certify a concrete target. Detailed vocabulary/bridge checks and
-the remaining approved waves are recorded in the inventory. Wave 1/2 approvals
-do not certify Wave 3, the concrete DKGM identity, or unavailable production
-behavior. Wave 3 requires its own independent verdict before progression.
+the remaining approved waves are recorded in the inventory. Wave 1–3 approvals
+do not certify Wave 4, the concrete DKGM identity, or unavailable production
+behavior. Wave 4 requires its own independent verdict before progression.
 
 Attribute standalone `*` recognition is asserted. Its exact restriction graph
 is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit
 `*` to `0..*` mapping is limited to relations; DK-ATT-03 does not state that
 single-value mapping. Explicit attribute intervals are tested independently.
+
+The approved exact-name blockers for present-but-unusable inverse roles and
+unusable inverse-domain qualifiers remain. Eligibility, labels, direction and
+source-backed identity are asserted independently. Five DK-REL-04 rows also lack
+an explicit supported-field criterion for their directional semantic roles:
+componentOf, historicalDependence, participational, subCollectionOf and
+subQuantityOf. Ten direction cells assert only established-candidate safety;
+the other 20 assert an exact directional candidate. The inventory quotes the
+relevant passages and records the targeted Architect question. Class labels and
+aggregation flags are not invented as a semantic orientation convention.
+
+Relation counts require the exact unqualified forms in REL-10/11, including one
+exact restriction for equal numeric bounds; they do not reuse the looser
+attribute alternatives. Named inverse assertions require explicit reversed
+domains/ranges and exactly one inverse-to-primary axiom without its reciprocal.
+Pairwise property disjointness is compared without fixing statement direction.
+Public-control inspection and the new semantic/report readers remain unexecuted
+until the real interface is bound; helper passes do not certify them.

@@ -1,0 +1,98 @@
+{
+  "id": "binaryProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "binaryProjectRoot",
+    "name": "SourceContainer",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cA",
+        "name": "HTTPServer",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cB",
+        "name": "XMLNode",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rFocus",
+        "name": "worksFor",
+        "description": null,
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "sFocus",
+            "name": "workers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cA",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "tFocus",
+            "name": "employers",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cB",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

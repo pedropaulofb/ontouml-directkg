@@ -1,0 +1,10 @@
+@prefix : <https://example.test/model#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+<https://example.test/model> a owl:Ontology .
+
+:worksFor_Source a owl:ObjectProperty ; rdfs:domain :Source ; rdfs:range :Organization .
+:WorksFor_Source a owl:ObjectProperty ; rdfs:domain :Source ; rdfs:range :Organization .
+:inverseOfWorksFor_Source_Organization_1 a owl:ObjectProperty ; rdfs:domain :Organization ; rdfs:range :Source ; owl:inverseOf :worksFor_Source ; rdfs:label "staff" ; dcterms:identifier "a_source" .
+:inverseOfWorksFor_Source_Organization_2 a owl:ObjectProperty ; rdfs:domain :Organization ; rdfs:range :Source ; owl:inverseOf :WorksFor_Source ; rdfs:label "staff" ; dcterms:identifier "z_source" .

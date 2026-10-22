@@ -1,0 +1,10 @@
+@prefix : <https://example.test/model#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+<https://example.test/model> a owl:Ontology .
+
+:cA a owl:Class ; rdfs:label "HTTPServer" .
+:cB a owl:Class ; rdfs:label "XMLNode" .
+:tFocus a owl:ObjectProperty ; rdfs:domain :cA ; rdfs:range :cB ; rdfs:label "worksFor" .
+:sFocus a owl:ObjectProperty ; rdfs:domain :cB ; rdfs:range :cA ; owl:inverseOf :tFocus ; rdfs:label "workers" .

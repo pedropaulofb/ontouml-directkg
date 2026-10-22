@@ -257,7 +257,7 @@ def test_intentionally_unrepresented_end_reference_does_not_create_a_property(ru
     Only RD-14's unavailable-expression boundary is credited here; the connector
     limitation's complete diagnostic/derivation matrix belongs to Wave 5.
     """
-    document = source_json('properties/omitted_connector')
+    document = source_json('shared/omitted_connector')
     left,right = ('sConnector','pBase') if side == 'referencing' else ('pChild','sConnector')
     source_element(document,left)[field] = [_reference(right)]
     assert not fixture_issues(document)
@@ -393,7 +393,7 @@ def test_absent_null_or_false_end_ordering_never_infers_order_or_loss_info(run, 
 @pytest.mark.parametrize('input_policy', POLICIES)
 def test_source_flags_with_no_generated_target_do_not_create_resources_or_flag_info(run, source_json, tmp_path, input_policy):
     """Rules: DK-GEN-05, DK-PROP-04, DK-PROP-05, DK-DIAG-16, DK-DIAG-18, DK-REL-17."""
-    document=source_json('properties/omitted_connector')
+    document=source_json('shared/omitted_connector')
     for identifier in ('rConnector','sConnector','tConnector'):
         source_element(document,identifier)['isDerived']=True
     for identifier in ('sConnector','tConnector'):
