@@ -7,12 +7,12 @@
 
 ## Status meanings and evidence limits
 
-- **Implemented / integration unavailable:** real executable assertions exist at the exact node IDs below. All 1590 behavioral cases currently fail with `ImplementationUnavailable` because no verified production implementation/API exists. No transformation assertion has passed or been certified by this run.
+- **Implemented / integration unavailable:** real executable assertions exist at the exact node IDs below. All 1592 behavioral cases currently fail with `ImplementationUnavailable` because no verified production implementation/API exists. No transformation assertion has passed or been certified by this run.
 - **Harness only / passed:** 72 independent fixture/RDF-helper checks passed. They are listed separately and receive no DirectKG transformation coverage credit.
 - **Planned:** later-wave assertions are not implemented merely because they appear here.
 - **Blocked for clarification:** the affected exact expectation has no normative answer; independent assertions continue. No skip/xfail hides this status.
 
-The observed run collected 1662 cases: 72 passed, 1590 failed at the integration boundary, no skips/xfails or collection errors. No other failure class was observed. See `tests/README.md` for reproducible commands and binding boundaries. This is assertion traceability, not a line-coverage metric or a claim of exhaustive inputs.
+The observed run collected 1664 cases: 72 passed, 1592 failed at the integration boundary, no skips/xfails or collection errors. No other failure class was observed. See `tests/README.md` for reproducible commands and binding boundaries. This is assertion traceability, not a line-coverage metric or a claim of exhaustive inputs.
 
 Rule IDs in each implemented test's `Rules:` docstring match its inventory references. Exact sections supplement IDs for unnumbered clauses. Each parameter row is explicit below. Runtime mutations start from the complete listed source and are written to pytest temporary files; these are reviewed case edits, not simplified replacement export schemas or a fixture-builder framework. No generated runtime output belongs in fixture directories.
 
@@ -199,8 +199,10 @@ label × language product. Cardinality recovery repeats every policy and both en
 directions; named-inverse recovery is sampled separately from the exhaustive
 anonymous recovery matrix. Independent flags/inverse availability, two/one/zero
 survivors and required source-end ordering retain their material combinations.
-All 1022 previously approved node IDs remain; Wave 4 adds 631 behavioral and 9
-harness cases, for 1662 total. Its full-suite failures are integration failures,
+The Wave 4 self-check adds the two one-sided inverse-disjointness cases; both
+inverses present and both absent remain covered by the independent flag matrix.
+All 1022 previously approved node IDs remain; Wave 4 adds 633 behavioral and 9
+harness cases, for 1664 total. Its full-suite failures are integration failures,
 not evidence that transformation or semantic readers executed successfully.
 
 ## Implemented Wave 1 assertion locations
@@ -1204,7 +1206,7 @@ SHOULD fulfillment. All source mutations start from the complete paired model.
 ## Implemented Wave 4 assertion locations
 
 Every row is **Implemented / integration unavailable**, introduced by **Wave 4**.
-These 631 behavioral cases have not executed production conversion or control
+These 633 behavioral cases have not executed production conversion or control
 inspection. Parameter references narrow function-wide rule unions. Blocked exact
 names are explicitly excluded from the affected rows, not hidden behind skips.
 
@@ -1743,6 +1745,8 @@ names are explicitly excluded from the affected rows, not hidden behind skips.
 | `tests/transformation/test_relations.py::test_relation_set_disjointness_and_multi_member_completeness_are_independent[disjoint-complete-tolerant-none]` | DK-REL-14, DK-REL-15, DK-REL-16, DK-INV-12, DK-DIAG-05, DK-GEN-02 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | Independent disjoint/complete flags, all policies and all/none named inverses: required unordered primary/inverse pairs only, explicit hierarchy retained, nonfatal identified coverage warning only for complete multi-member set, no coverage/validation replacement or property-union/equivalence substitute. |
 | `tests/transformation/test_relations.py::test_relation_set_disjointness_and_multi_member_completeness_are_independent[disjoint-complete-best-effort-all]` | DK-REL-14, DK-REL-15, DK-REL-16, DK-INV-12, DK-DIAG-05, DK-GEN-02 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | Independent disjoint/complete flags, all policies and all/none named inverses: required unordered primary/inverse pairs only, explicit hierarchy retained, nonfatal identified coverage warning only for complete multi-member set, no coverage/validation replacement or property-union/equivalence substitute. |
 | `tests/transformation/test_relations.py::test_relation_set_disjointness_and_multi_member_completeness_are_independent[disjoint-complete-best-effort-none]` | DK-REL-14, DK-REL-15, DK-REL-16, DK-INV-12, DK-DIAG-05, DK-GEN-02 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | Independent disjoint/complete flags, all policies and all/none named inverses: required unordered primary/inverse pairs only, explicit hierarchy retained, nonfatal identified coverage warning only for complete multi-member set, no coverage/validation replacement or property-union/equivalence substitute. |
+| `tests/transformation/test_relations.py::test_relation_disjointness_omits_inverse_pair_when_only_one_inverse_is_available[only_first_inverse]` | DK-REL-14, DK-REL-15, DK-INV-01, DK-INV-10, DK-INV-12, DK-DIAG-05 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | Wave 4 self-check correction: exactly one specific has a named inverse under strict/named. Retain primary disjointness and explicit hierarchy; omit the inverse pair without a forced inverse, anonymous substitute, warning or omission report. Each side is exercised independently. |
+| `tests/transformation/test_relations.py::test_relation_disjointness_omits_inverse_pair_when_only_one_inverse_is_available[only_second_inverse]` | DK-REL-14, DK-REL-15, DK-INV-01, DK-INV-10, DK-INV-12, DK-DIAG-05 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | Wave 4 self-check correction: exactly one specific has a named inverse under strict/named. Retain primary disjointness and explicit hierarchy; omit the inverse pair without a forced inverse, anonymous substitute, warning or omission report. Each side is exercised independently. |
 | `tests/transformation/test_relations.py::test_relation_disjointness_emits_every_explicit_three_member_pair` | DK-REL-14, DK-REL-15, DK-INV-12, DK-GEN-02 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | Three explicit specific relations produce all three primary and all three named-inverse disjointness pairs, independently of serialized statement order. |
 | `tests/transformation/test_relations.py::test_singleton_relation_completeness_adds_only_required_reverse_inclusions[neither_named-incomplete-overlapping-strict]` | DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-14, DK-DIAG-05, DK-GEN-02 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | All policies/flags and independent general/specific inverse availability: complete singleton adds reverse inclusion and identified INFO explaining extensional equivalence with distinct identifiers. Keep forward hierarchy; no equivalentProperty, forced inverse/anonymous expression, singleton warning or disjointness pair. |
 | `tests/transformation/test_relations.py::test_singleton_relation_completeness_adds_only_required_reverse_inclusions[neither_named-incomplete-overlapping-tolerant]` | DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-14, DK-DIAG-05, DK-GEN-02 | Key: `relations/hierarchy`. Paths: `tests/fixtures/transformation/relations/hierarchy/input.json` | All policies/flags and independent general/specific inverse availability: complete singleton adds reverse inclusion and identified INFO explaining extensional equivalence with distinct identifiers. Keep forward hierarchy; no equivalentProperty, forced inverse/anonymous expression, singleton warning or disjointness pair. |
@@ -1985,7 +1989,7 @@ Implemented means asserted, never a claim of production passing execution.
   Wave 5 retains full derivation/chain/mereology/instantiation interactions;
   Wave 6 retains CLI delivery, diagnostic export and public-interface parity.
 - **Integration unavailable:** no production API/CLI exists in the inspected
-  repository. All 1590 behavioral nodes fail clearly at that boundary.
+  repository. All 1592 behavioral nodes fail clearly at that boundary.
   No skip/xfail, fake transformer, reasoner entailment or supplied expected graph
   substitutes for execution. A real invocation binding, including audited reads
   of actual comment/diagnostic meanings, remains necessary.

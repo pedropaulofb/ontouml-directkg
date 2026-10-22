@@ -470,6 +470,23 @@ def test_relation_set_disjointness_and_multi_member_completeness_are_independent
     assert not any(d.severity=='ERROR' for d in result.diagnostics)
 
 
+@pytest.mark.parametrize('named_specific',['Middle','Sibling'],ids=['only_first_inverse','only_second_inverse'])
+def test_relation_disjointness_omits_inverse_pair_when_only_one_inverse_is_available(run, source_json, tmp_path, named_specific):
+    """Rules: DK-REL-14, DK-REL-15, DK-INV-01, DK-INV-10, DK-INV-12, DK-DIAG-05."""
+    document=source_json('relations/hierarchy')
+    source_element(document,'gsRelations').update(isDisjoint=True,isComplete=False)
+    for key in ('General','Middle','Leaf','Sibling'):
+        source_element(document,'s'+key)['name']='inverse'+key if key==named_specific else None
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='named',input_policy='strict')
+    assert result.outcome=='completed'
+    props,_,edges=_hierarchy_expected(result,'id',{named_specific},[('Middle','General'),('Leaf','Middle'),('Sibling','General')])
+    assert _edges(result.ontology)==edges
+    assert _pairs(result.ontology)=={frozenset((props['Middle'],props['Sibling']))}
+    assert not result.inverse_omission_reports
+    assert not any(d.kind=='inverse_omission' or d.severity in {'WARNING','ERROR'} for d in result.diagnostics)
+
+
 def test_relation_disjointness_emits_every_explicit_three_member_pair(run, source_json, tmp_path):
     """Rules: DK-REL-14, DK-REL-15, DK-INV-12, DK-GEN-02."""
     document=source_json('relations/hierarchy')
