@@ -27,7 +27,7 @@ The default `name` strategy favors readable identifiers. **Renaming a source ele
 
 The `id` strategy favors source-identity stability. A named resource still uses its designated source ID, not its name; changing a label does not itself select a different ID-based local name. Stability depends on retaining that designated ID and base. It is not a promise that copied/re-exported models retain the same source IDs.
 
-| Source-backed resource | Designated ID for `id` construction |
+| Generated resource | Designated ID for `id` construction |
 | --- | --- |
 | Class or classifier-owned attribute | Its own source element ID |
 | Enumeration-value individual | The literal element's own ID, without an enumeration-ID prefix |
