@@ -7,9 +7,10 @@ import pytest
 from rdflib import Graph, Literal, Namespace
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
-from tests.support.data import FIXTURES, fixture_issues, fixture_path, load_json, write_input
+from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
+                               source_element, source_elements, write_input)
 from tests.support.invocation import diagnostic_signatures
-from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph
+from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
 
 BASE = Namespace("https://example.test/model#")
@@ -27,6 +28,9 @@ VALID_BUNDLES = [
     ("ontology/organization", "input.json"), ("ontology/organization", "duplicate_views.json"),
     ("ontology/custom_assignments", "input.json"), ("ontology/explicit_structures", "input.json"),
     ("input_diagnostics/id_comparison", "input.json"),
+    ("classes/disjointness", "input.json"), ("classes/generalization_sets", "input.json"),
+    ("classes/enumerations", "input.json"), ("classes/flags", "input.json"),
+    ("higher_order/categorizers", "input.json"), ("shared/source_text", "input.json"),
 ]
 # Preserve existing harness node IDs when their canonical fixture paths move.
 VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions"}
@@ -102,11 +106,78 @@ def test_fixture_contract_register_covers_all_stored_inputs():
     assert set(FIXTURES.rglob("*.json")) == listed
 
 
-@pytest.mark.parametrize("key,filename", [("shared/core_model", "expected.ttl"), ("ontology/explicit_structures", "expected.ttl")], ids=["core_ground_assertions", "explicit_generalizations"])
+@pytest.mark.parametrize("key,filename", [("shared/core_model", "expected.ttl"), ("ontology/explicit_structures", "expected.ttl"),
+                                       ("classes/generalization_sets", "expected.ttl"), ("classes/enumerations", "expected.ttl"),
+                                       ("higher_order/categorizers", "expected.ttl")],
+                         ids=["core_ground_assertions", "explicit_generalizations", "class_set_generalizations", "enum_ground_assertions", "categorizer_ground_assertions"])
 def test_fixture_contract_turtle_expectations(key, filename):
     """Harness parsing only; each expectation is paired explicitly in its consumer."""
     expected = load_graph(fixture_path(key, filename))
     assert len(expected) > 0
+
+
+def test_fixture_contract_new_declarations_and_references_are_not_confused():
+    """Harness only: literals are declarations, repeated GS refs are references."""
+    enum = load_json("classes/enumerations")
+    assert {item["id"] for item in source_elements(enum) if item["type"] == "Literal"} == {"vPending", "vApproved", "vClosed"}
+    assert source_element(enum, "vPending")["type"] == "Literal"
+    source_element(enum, "vPending")["id"] = "vApproved"
+    assert fixture_issues(enum) == {"duplicate_id:vApproved"}
+    higher = load_json("higher_order/categorizers")
+    assert not fixture_issues(higher)  # gOne is legitimately referenced twice.
+    source_element(higher, "gsFirst")["generalizations"][0]["id"] = "missingGen"
+    assert fixture_issues(higher) == {"unresolved_reference:missingGen"}
+    assert fixture_issues(load_json("classes/enumerations")) == frozenset()  # no mutation leaks
+
+
+@pytest.mark.parametrize("defect,expected", [
+    ("literal_id", {"invalid_id"}), ("literal_collection", {"malformed_literals"}),
+    ("generalization_endpoint", {"malformed_reference"}),
+    ("categorizer_reference", {"unresolved_reference:missingCategorizer"}),
+    ("language_value", {"invalid_text:name"}), ("language_collection", {"invalid_languages"}),
+    ("numeric_order", {"invalid_order_type"}),
+], ids=["null_literal_id", "malformed_literal_collection", "failed_class_generalization", "unresolved_categorizer_audit_only", "invalid_localized_value_audit_only", "invalid_project_languages_audit_only", "exporter_order_is_string"])
+def test_fixture_contract_runtime_mutations_have_only_declared_defects(defect, expected):
+    """Harness only: invalid carriers/categorizer recovery have no behavior claim."""
+    document = load_json("higher_order/categorizers" if defect in {"generalization_endpoint", "categorizer_reference"} else "classes/enumerations")
+    if defect == "literal_id":
+        source_element(document, "vPending")["id"] = None
+    elif defect == "literal_collection":
+        source_element(document, "eStatus")["literals"] = "Pending"
+    elif defect == "generalization_endpoint":
+        source_element(document, "gOne")["specific"] = None
+    elif defect == "categorizer_reference":
+        source_element(document, "gsFirst")["categorizer"]["id"] = "missingCategorizer"
+    elif defect == "language_value":
+        source_element(document, "vPending")["name"] = {"en": 42}
+    elif defect == "language_collection":
+        document["languages"] = "en"
+    elif defect == "numeric_order":
+        source_element(document, "eStatus")["order"] = 2
+    assert fixture_issues(document) == expected
+
+
+def test_rdf_helper_rejects_broken_or_cyclic_collections():
+    """Harness only; collection reading does not impose semantic member order."""
+    from rdflib import BNode
+    head, tail = BNode(), BNode()
+    graph = Graph()
+    graph.add((head, RDF.first, BASE.one))
+    graph.add((head, RDF.rest, tail))
+    graph.add((tail, RDF.first, BASE.two))
+    graph.add((tail, RDF.rest, RDF.nil))
+    assert rdf_list(graph, head) == (BASE.one, BASE.two)
+    assert rdf_list(graph, RDF.nil) == ()
+    graph.remove((tail, RDF.rest, RDF.nil))
+    with pytest.raises(AssertionError):
+        rdf_list(graph, head)
+    graph.add((tail, RDF.rest, head))
+    with pytest.raises(AssertionError, match="Cyclic"):
+        rdf_list(graph, head)
+    graph.set((tail, RDF.rest, RDF.nil))
+    graph.add((head, RDF.first, BASE.extra))
+    with pytest.raises(AssertionError):
+        rdf_list(graph, head)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

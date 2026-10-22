@@ -1,0 +1,216 @@
+{
+  "id": "projectOne",
+  "name": "Source project <title>",
+  "description": "<p>Project & documentation.\nSecond line.</p>",
+  "type": "Project",
+  "model": {
+    "id": "projectOne_root",
+    "name": "ROOT_CONTAINER_SENTINEL",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cPerson",
+        "name": "Person",
+        "description": "<p>Description cPerson & preserved.</p>",
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "kind",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "aAge",
+            "name": "age",
+            "description": "<p>Description aAge & preserved.</p>",
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "dInt",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": null
+          },
+          {
+            "id": "aNote",
+            "name": "note",
+            "description": "<p>Description aNote & preserved.</p>",
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": null,
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": null
+          },
+          {
+            "id": "aAddress",
+            "name": "address",
+            "description": "<p>Description aAddress & preserved.</p>",
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cAddress",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": null
+          }
+        ],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOrg",
+        "name": "Organization",
+        "description": "<p>Description cOrg & preserved.</p>",
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cAddress",
+        "name": "Address",
+        "description": "<p>Description cAddress & preserved.</p>",
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "datatype",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "dInt",
+        "name": "int",
+        "description": "<p>Description dInt & preserved.</p>",
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "datatype",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "rWorks",
+        "name": "worksFor",
+        "description": "<p>Description rWorks & preserved.</p>",
+        "type": "Relation",
+        "propertyAssignments": null,
+        "stereotype": "material",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "eSource",
+            "name": "workers",
+            "description": "<p>Description eSource & preserved.</p>",
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cPerson",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          },
+          {
+            "id": "eTarget",
+            "name": "employer",
+            "description": "<p>Description eTarget & preserved.</p>",
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "cOrg",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": "NONE"
+          }
+        ]
+      },
+      {
+        "id": "eStatus",
+        "name": "Status",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "enumeration",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": [
+          {
+            "id": "vPending",
+            "name": "Pending",
+            "description": "<i>Pending & original.</i>",
+            "type": "Literal",
+            "propertyAssignments": null
+          },
+          {
+            "id": "vApproved",
+            "name": "Approved",
+            "description": "<i>Approved & original.</i>",
+            "type": "Literal",
+            "propertyAssignments": null
+          }
+        ],
+        "restrictedTo": null
+      }
+    ]
+  },
+  "diagrams": null
+}

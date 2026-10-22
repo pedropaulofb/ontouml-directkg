@@ -1,0 +1,107 @@
+{
+  "id": "enumProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "enumProject_root",
+    "name": "ROOT_CONTAINER_SENTINEL",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "eStatus",
+        "name": "Status",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "enumeration",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "pLegacy",
+            "name": "Pending",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": null,
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": null
+          }
+        ],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": [
+          {
+            "id": "vPending",
+            "name": "Pending",
+            "description": null,
+            "type": "Literal",
+            "propertyAssignments": null
+          },
+          {
+            "id": "vApproved",
+            "name": "Approved",
+            "description": null,
+            "type": "Literal",
+            "propertyAssignments": null
+          },
+          {
+            "id": "vClosed",
+            "name": "Closed",
+            "description": null,
+            "type": "Literal",
+            "propertyAssignments": null
+          }
+        ],
+        "restrictedTo": null
+      },
+      {
+        "id": "cOwner",
+        "name": "Owner",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": [
+          {
+            "id": "pStatus",
+            "name": "status",
+            "description": null,
+            "type": "Property",
+            "propertyAssignments": null,
+            "stereotype": null,
+            "isDerived": false,
+            "isReadOnly": false,
+            "isOrdered": false,
+            "cardinality": null,
+            "propertyType": {
+              "id": "eStatus",
+              "type": "Class"
+            },
+            "subsettedProperties": null,
+            "redefinedProperties": null,
+            "aggregationKind": null
+          }
+        ],
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      }
+    ]
+  },
+  "diagrams": null
+}

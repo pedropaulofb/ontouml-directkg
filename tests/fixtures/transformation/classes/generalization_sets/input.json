@@ -1,0 +1,211 @@
+{
+  "id": "setProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "setProject_root",
+    "name": "ROOT_CONTAINER_SENTINEL",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cA",
+        "name": "A",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cB",
+        "name": "B",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cC",
+        "name": "C",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cD",
+        "name": "D",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cE",
+        "name": "E",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cF",
+        "name": "F",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "gB",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cB",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cA",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gC",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cC",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cA",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gD",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cD",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cA",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gE",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cE",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cB",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gF",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cF",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cA",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gsMain",
+        "name": "gsMain",
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": null,
+        "generalizations": [
+          {
+            "id": "gB",
+            "type": "Generalization"
+          },
+          {
+            "id": "gC",
+            "type": "Generalization"
+          },
+          {
+            "id": "gD",
+            "type": "Generalization"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

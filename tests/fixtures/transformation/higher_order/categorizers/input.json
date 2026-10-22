@@ -1,0 +1,230 @@
+{
+  "id": "higherProject",
+  "name": null,
+  "description": null,
+  "type": "Project",
+  "model": {
+    "id": "higherProject_root",
+    "name": "ROOT_CONTAINER_SENTINEL",
+    "description": null,
+    "type": "Package",
+    "propertyAssignments": null,
+    "contents": [
+      {
+        "id": "cBase",
+        "name": "Base",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "category",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOne",
+        "name": "One",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "role",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cTwo",
+        "name": "Two",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "role",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOutside",
+        "name": "Outside",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "role",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cDeep",
+        "name": "Deep",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "phase",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cCategorizer",
+        "name": "Categorizer",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "type",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "cOtherCategorizer",
+        "name": "OtherCategorizer",
+        "description": null,
+        "type": "Class",
+        "propertyAssignments": null,
+        "stereotype": "type",
+        "isAbstract": false,
+        "isDerived": false,
+        "properties": null,
+        "isExtensional": null,
+        "isPowertype": null,
+        "order": null,
+        "literals": null,
+        "restrictedTo": null
+      },
+      {
+        "id": "gOne",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cOne",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cBase",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gTwo",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cTwo",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cBase",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gOutside",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cOutside",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cBase",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gDeep",
+        "name": null,
+        "description": null,
+        "type": "Generalization",
+        "propertyAssignments": null,
+        "specific": {
+          "id": "cDeep",
+          "type": "Class"
+        },
+        "general": {
+          "id": "cOutside",
+          "type": "Class"
+        }
+      },
+      {
+        "id": "gsFirst",
+        "name": "gsFirst",
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": {
+          "id": "cCategorizer",
+          "type": "Class"
+        },
+        "generalizations": [
+          {
+            "id": "gOne",
+            "type": "Generalization"
+          },
+          {
+            "id": "gTwo",
+            "type": "Generalization"
+          }
+        ]
+      },
+      {
+        "id": "gsSecond",
+        "name": "gsSecond",
+        "description": null,
+        "type": "GeneralizationSet",
+        "propertyAssignments": null,
+        "isDisjoint": false,
+        "isComplete": false,
+        "categorizer": {
+          "id": "cOtherCategorizer",
+          "type": "Class"
+        },
+        "generalizations": [
+          {
+            "id": "gOne",
+            "type": "Generalization"
+          }
+        ]
+      }
+    ]
+  },
+  "diagrams": null
+}

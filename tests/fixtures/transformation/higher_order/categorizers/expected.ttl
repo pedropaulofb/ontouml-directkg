@@ -1,0 +1,12 @@
+@prefix : <https://example.test/model#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+:cBase a owl:Class .
+:cOne a owl:Class, owl:NamedIndividual, :cCategorizer, :cOtherCategorizer ; rdfs:subClassOf :cBase .
+:cTwo a owl:Class, owl:NamedIndividual, :cCategorizer ; rdfs:subClassOf :cBase .
+:cOutside a owl:Class ; rdfs:subClassOf :cBase .
+:cDeep a owl:Class ; rdfs:subClassOf :cOutside .
+:cCategorizer a owl:Class .
+:cOtherCategorizer a owl:Class .

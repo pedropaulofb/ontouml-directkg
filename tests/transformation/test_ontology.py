@@ -143,3 +143,76 @@ def test_explicit_structures_are_mapped_without_semantic_validation(run, source_
     for identifier in ("gAlphaBeta", "gBetaGamma"):
         assert not any(result.ontology.triples((BASE[identifier], None, None)))
         assert not list(result.ontology.subjects(DCTERMS.identifier, Literal(identifier)))
+
+
+@pytest.mark.parametrize("field,predicate", [("name", RDFS.label), ("description", RDFS.comment)], ids=["project_name", "project_description"])
+@pytest.mark.parametrize("carrier", ["plain", "localized", "project_language", "override"])
+def test_project_text_is_preserved_on_ontology_with_language_resolution(run, source_json, tmp_path, field, predicate, carrier):
+    """Rules: DK-GEN-08, DK-LBL-01, DK-LBL-02, DK-IRI-09."""
+    document = source_json("shared/source_text")
+    first, second = "  <p>Project & café</p>\nOriginal.\t ", "\n<p>Projeto & original</p>  "
+    options = {}
+    if carrier in {"plain", "project_language"}:
+        document[field] = first
+        if carrier == "project_language":
+            document["languages"] = ["pt-BR"]
+        expected = {Literal(first, lang="pt-BR" if carrier == "project_language" else None)}
+    else:
+        document[field] = {"en": first, "pt-BR": second}
+        document["languages"] = ["fr", "de"]
+        if carrier == "override":
+            options["language"] = "nl"
+        expected = {Literal(first, lang="nl" if options else "en"), Literal(second, lang="nl" if options else "pt-BR")}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", **options)
+    assert result.outcome == "completed"
+    ontology = URIRef("https://example.test/model")
+    assert (ontology, RDF.type, OWL.Ontology) in result.ontology
+    lexical = {first, second}
+    assert {v for v in result.ontology.objects(ontology, predicate) if str(v) in lexical} == expected
+    for value in expected:
+        assert set(result.ontology.subjects(predicate, value)) == {ontology}
+    assert not any(BASE.projectOne in triple for triple in result.ontology)
+    assert not list(result.ontology.subjects(DCTERMS.identifier, Literal("projectOne")))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("field,predicate", [("name", RDFS.label), ("description", RDFS.comment)], ids=["project_name", "project_description"])
+@pytest.mark.parametrize("condition", ["absent", "null", "empty"])
+def test_missing_project_text_has_no_fallback_annotation_or_diagnostic(run, source_json, tmp_path, input_policy, field, predicate, condition):
+    """Rules: DK-GEN-08, DK-LBL-02, DK-DIAG-05."""
+    document = source_json("shared/base_iri")
+    # Shared single-class input has no collection-order choices or provenance.
+    for key in ("name", "description"):
+        document.pop(key, None)
+    baseline = run(path=write_input(tmp_path, document, "absent_project_text.json"), iri_strategy="id", input_policy=input_policy)
+    if condition != "absent":
+        document[field] = None if condition == "null" else ""
+    result = run(path=write_input(tmp_path, document, "sentinel_filename.json"), iri_strategy="id", input_policy=input_policy)
+    assert baseline.outcome == result.outcome == "completed"
+    ontology = URIRef("https://example.test/model")
+    assert not list(result.ontology.objects(ontology, predicate))
+    assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+
+@pytest.mark.parametrize("iri_strategy", ["name", "id"])
+def test_project_name_changes_only_ontology_label(run, source_json, tmp_path, iri_strategy):
+    """Rules: DK-GEN-08, DK-IRI-01, DK-IRI-02, DK-IRI-09."""
+    document = source_json("shared/base_iri")
+    document["name"] = "Original project"
+    first = run(path=write_input(tmp_path, document, "first.json"), iri_strategy=iri_strategy)
+    document["name"] = "Completely different project"
+    second = run(path=write_input(tmp_path, document, "renamed.json"), iri_strategy=iri_strategy)
+    assert first.outcome == second.outcome == "completed"
+    ontology = URIRef("https://example.test/model")
+    for result, text in [(first, "Original project"), (second, "Completely different project")]:
+        assert set(result.ontology.subjects(RDF.type, OWL.Ontology)) == {ontology}
+        assert set(result.ontology.objects(ontology, RDFS.label)) == {Literal(text)}
+        assert not list(result.ontology.subjects(DCTERMS.identifier, Literal(document["id"])))
+    left, right = Graph(), Graph()
+    for source, target in [(first.ontology, left), (second.ontology, right)]:
+        for triple in source:
+            if triple[:2] != (ontology, RDFS.label):
+                target.add(triple)
+    assert_graph_equal(left, right)
+    assert diagnostic_signatures(first.diagnostics) == diagnostic_signatures(second.diagnostics)

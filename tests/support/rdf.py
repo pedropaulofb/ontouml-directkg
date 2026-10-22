@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from rdflib import BNode, Graph
+from rdflib.namespace import RDF
 from rdflib.compare import graph_diff, isomorphic, to_isomorphic
 
 
@@ -44,6 +45,21 @@ def one_object(graph: Graph, subject, predicate):
     values = set(graph.objects(subject, predicate))
     assert len(values) == 1, (subject, predicate, values)
     return next(iter(values))
+
+
+def rdf_list(graph: Graph, head):
+    """Read a well-formed finite RDF collection, retaining its actual order.
+
+    Callers decide whether order is meaningful. Reject broken, branching and
+    cyclic lists instead of silently returning a convenient partial result.
+    """
+    values, seen = [], set()
+    while head != RDF.nil:
+        assert head not in seen, "Cyclic RDF collection"
+        seen.add(head)
+        values.append(one_object(graph, head, RDF.first))
+        head = one_object(graph, head, RDF.rest)
+    return tuple(values)
 
 
 def assert_selected_equal(actual: Graph, expected: Graph, predicates, unordered_predicates=()) -> None:

@@ -11,7 +11,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Mapping, Protocol
 
-from rdflib import Graph
+from rdflib import Graph, Literal, URIRef
 
 
 class ImplementationUnavailable(RuntimeError):
@@ -47,6 +47,24 @@ class Diagnostic:
 
 
 @dataclass
+class CommentMeaning:
+    """Meaning actually expressed by one produced RDF comment.
+
+    Generated flag-comment wording is not standardized. A real binding may
+    normalize its observed wording into field/value pairs, retaining the exact
+    subject and literal as evidence. Never derive these meanings from input
+    declarations or expected fixtures. Several meanings may share one comment.
+    ``field`` uses the source field name, or ``stereotype`` for ``abstract``.
+    This is a test-side reading of RDF, not a production metadata interface.
+    """
+
+    subject: URIRef
+    literal: Literal
+    field: str
+    value: bool | str
+
+
+@dataclass
 class Observation:
     """Snapshot of actual public results, including policy-driven aborts.
 
@@ -61,6 +79,7 @@ class Observation:
     diagnostics: tuple[Diagnostic, ...]
     configuration_error: Any = None
     native: Any = field(default=None, repr=False)
+    comments: tuple[CommentMeaning, ...] = ()
 
 
 def diagnostic_signatures(events):

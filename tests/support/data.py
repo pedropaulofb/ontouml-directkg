@@ -11,7 +11,8 @@ from pathlib import Path, PurePosixPath
 
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
-TOPICS = frozenset({"ontology", "iris", "properties", "input_diagnostics"})
+TOPICS = frozenset({"ontology", "iris", "properties", "input_diagnostics",
+                    "classes", "higher_order", "labels"})
 
 
 def fixture_path(key: str, filename: str = "input.json") -> Path:
@@ -23,7 +24,7 @@ def fixture_path(key: str, filename: str = "input.json") -> Path:
     elif parts[0] in TOPICS:
         path = FIXTURES.joinpath("transformation", *parts, filename).resolve()
     else:
-        raise ValueError("Unrecognized Wave 1 fixture topic: " + parts[0])
+        raise ValueError("Unrecognized fixture topic: " + parts[0])
     if not path.is_relative_to(FIXTURES):
         raise ValueError("Fixture path escapes the fixture directory")
     if not path.is_file():
@@ -41,6 +42,33 @@ def write_input(tmp_path: Path, document, filename: str = "input.json") -> Path:
     destination = tmp_path / filename
     destination.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return destination
+
+
+def source_elements(document):
+    """Walk actual declarations in the used exporter containers, not references.
+
+    This is only data traversal. It assigns no transformation meaning and does
+    not reinterpret arbitrary dictionaries or custom metadata as declarations.
+    """
+    if not isinstance(document, dict):
+        return
+    yield document
+    kind = document.get("type")
+    if kind == "Project":
+        yield from source_elements(document.get("model"))
+    for field in {"Package": ("contents",), "Class": ("properties", "literals"),
+                  "Relation": ("properties",)}.get(kind, ()):
+        children = document.get(field)
+        if isinstance(children, list):
+            for child in children:
+                yield from source_elements(child)
+
+
+def source_element(document, identifier):
+    """Select one declaration by its exact ID; fail on missing/duplicate IDs."""
+    matches = [item for item in source_elements(document) if item.get("id") == identifier]
+    assert len(matches) == 1, (identifier, matches)
+    return matches[0]
 
 
 def fixture_issues(document) -> frozenset[str]:
@@ -68,6 +96,9 @@ def fixture_issues(document) -> frozenset[str]:
                      "isDerived", "isReadOnly", "isOrdered", "cardinality", "propertyType",
                      "subsettedProperties", "redefinedProperties", "aggregationKind"},
         "Generalization": {"id", "name", "description", "type", "propertyAssignments", "specific", "general"},
+        "GeneralizationSet": {"id", "name", "description", "type", "propertyAssignments",
+                              "isDisjoint", "isComplete", "categorizer", "generalizations"},
+        "Literal": {"id", "name", "description", "type", "propertyAssignments"},
     }
 
     def reference(value):
@@ -131,6 +162,25 @@ def fixture_issues(document) -> frozenset[str]:
         if kind == "Generalization":
             reference(value.get("specific"))
             reference(value.get("general"))
+        if kind == "Class":
+            literals = value.get("literals")
+            if literals is not None and not isinstance(literals, list):
+                issues.add("malformed_literals")
+            elif isinstance(literals, list):
+                for literal in literals:
+                    visit(literal, "Literal")
+            order = value.get("order")
+            if order is not None and not isinstance(order, str):
+                issues.add("invalid_order_type")
+        if kind == "GeneralizationSet":
+            if value.get("categorizer") is not None:
+                reference(value["categorizer"])
+            members = value.get("generalizations")
+            if isinstance(members, list):
+                for target in members:
+                    reference(target)
+            elif members is not None:
+                issues.add("malformed_membership")
 
     visit(document, "Project")
     for target in references:
