@@ -19,6 +19,36 @@ FIXED_PREDICATES = {RDF.type, RDFS.domain, RDFS.range, RDFS.label, DCTERMS.ident
                     OWL.propertyDisjointWith}
 
 
+def _assert_project_description_omitted(graph, annotations):
+    """Actual source-project/fallback annotations, not all ontology comments.
+
+    The binding reads their meaning from actual output; this helper only checks
+    its RDF evidence. Independent generated metadata is outside this selection.
+    """
+    assert all(triple in graph for triple in annotations), "Description evidence is absent from the actual graph"
+    assert not annotations, "Unexpected source-project description or fabricated fallback annotation"
+
+
+def test_rdf_helper_project_description_omission_allows_independent_metadata():
+    """Harness only: actual converter/semantic-reader execution is not claimed."""
+    ontology = URIRef("urn:helper:ontology")
+    graph = Graph()
+    metadata = (ontology, RDFS.comment, Literal("The ontology contains one modeled class."))
+    graph.add(metadata)
+    _assert_project_description_omitted(graph, ())
+    assert metadata in graph  # permitted metadata remains in the observed graph
+    for text in ("", "sentinel_filename", "Fabricated project description"):
+        value = Literal(text)
+        triple = (ontology, RDFS.comment, value)
+        graph.add(triple)
+        observed = (triple,)
+        with pytest.raises(AssertionError):
+            _assert_project_description_omitted(graph, observed)
+        graph.remove(triple)
+    with pytest.raises(AssertionError):
+        _assert_project_description_omitted(graph, observed)  # reject invented RDF evidence
+
+
 def test_rdf_helper_checks_graph_identity_and_ordered_lists():
     """Harness check only; this is not coverage of a DirectKG obligation."""
     first = Graph().parse(data='@prefix : <urn:test:> . :s :p [ :q "same" ] .', format="turtle")
@@ -195,6 +225,10 @@ def test_project_text_is_preserved_on_ontology_with_language_resolution(run, sou
     assert {v for v in result.ontology.objects(ontology, predicate) if str(v) in lexical} == expected
     for value in expected:
         assert set(result.ontology.subjects(predicate, value)) == {ontology}
+    if field == "description":
+        assert set(result.project_description_output) == {
+            (ontology, RDFS.comment, value) for value in expected
+        }
     assert not any(BASE.projectOne in triple for triple in result.ontology)
     assert not list(result.ontology.subjects(DCTERMS.identifier, Literal("projectOne")))
 
@@ -214,7 +248,11 @@ def test_missing_project_text_has_no_fallback_annotation_or_diagnostic(run, sour
     result = run(path=write_input(tmp_path, document, "sentinel_filename.json"), iri_strategy="id", input_policy=input_policy)
     assert baseline.outcome == result.outcome == "completed"
     ontology = URIRef("https://example.test/model")
-    assert not list(result.ontology.objects(ontology, predicate))
+    if field == "description":
+        _assert_project_description_omitted(result.ontology, result.project_description_output)
+        assert not any(d.kind == "omitted_description" for d in result.diagnostics)
+    else:
+        assert not list(result.ontology.objects(ontology, predicate))
     assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
     assert_selected_equal(result.ontology, baseline.ontology,
                           {RDF.type, RDFS.subClassOf, OWL.equivalentClass},

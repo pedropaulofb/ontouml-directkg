@@ -3,9 +3,9 @@
 Wave 1 — Executable foundation, input policies, and general identity — received
 the forwarded independent OK for `7364ed8843c565592d4bfa550d90c218988c83ba`.
 Wave 2 — Classes, enumerations, higher-order classification, and source text —
-is resubmitted after correcting reviewer findings F1–F3 against
-`d9f03d866a354efebebc57c407f5923d1eba0506`; its new revision awaits independent
-review. Waves 3–6 remain unimplemented.
+is resubmitted after correcting F4 against
+`a36322fa87c006cece63aaadd2aa5ccd513f6087`; its new revision awaits independent
+review. The earlier F1–F3 corrections remain. Waves 3–6 remain unimplemented.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -114,6 +114,18 @@ The binding must execute the real public library and adapt only observed values:
   template where the specification fixes only meaning. The binding must
   document its actual text/field interpretation for review. Fixed classifier-
   order comments are checked directly as RDF literals instead.
+- Populate `Observation.project_description_output` with actual RDF statements
+  representing source `Project.description` annotations and
+  any text presented as a replacement for missing source-project description,
+  including erroneous empty or fabricated fallback text. Do not classify
+  independent generated metadata (for example modeled-class-count comments) as
+  a source description merely because it uses `rdfs:comment` on the ontology.
+  The positive project-description cases require the observed source-annotation
+  evidence; omission cases require its absence while allowing independent
+  metadata. A future real binding must document this interpretation from actual
+  output/interface evidence, never assume absence from the input or expected
+  outcome. The harness checks the assertion with explicit RDF/meaning samples;
+  it does not simulate a conversion or certify the unimplemented reader.
 - Populate `Observation.restricted_to_output` by reading the actual RDF for any
   statement expressing restrictedTo/nature information, including comments,
   other annotations, logical axioms, or auxiliary-resource statements. Retain

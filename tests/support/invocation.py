@@ -87,6 +87,12 @@ class Observation:
     # report every such statement (including erroneous output), never derive
     # this evidence or an empty result from source inputs/expected omissions.
     restricted_to_output: tuple[tuple[Node, Node, Node], ...] = ()
+    # Actual source-project description annotations, including erroneous empty
+    # or fabricated replacement text. Read from output/interface evidence;
+    # independent generated metadata is excluded. Never assume absence from
+    # missing source text. Positive description tests require actual evidence.
+    # This is a test-side reading, not a proposed production attribute.
+    project_description_output: tuple[tuple[Node, Node, Node], ...] = ()
 
 
 def diagnostic_signatures(events):
