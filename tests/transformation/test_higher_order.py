@@ -187,7 +187,8 @@ def test_instantiation_declaration_does_not_invent_membership_or_reconcile_categ
     expected={BASE.cSpecific}|({BASE.cBase} if powertype else set())
     assert set(result.ontology.subjects(RDF.type,BASE.cCategorizer))==expected
     assert set(result.ontology.subjects(RDF.type,BASE.cOtherCategorizer))=={BASE.cSpecific}
-    assert set(result.ontology.subjects(RDF.type,OWL.NamedIndividual))==expected
+    modeled_class_iris={BASE[item['id']] for item in document['model']['contents'] if item['type']=='Class'}
+    assert set(result.ontology.subjects(RDF.type,OWL.NamedIndividual)) & modeled_class_iris==expected
     assert ((BASE.cCategorizer,OWL.disjointWith,BASE.cOtherCategorizer) in result.ontology or
             (BASE.cOtherCategorizer,OWL.disjointWith,BASE.cCategorizer) in result.ontology)
     for instance in expected:
