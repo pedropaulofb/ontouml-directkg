@@ -17,3 +17,6 @@ repos:
         exclude: '^tests/fixtures/transformation/input_diagnostics/unprocessable/input\.json$'
       - id: check-toml
       - id: check-merge-conflict
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-illegal-windows-names
