@@ -2803,7 +2803,7 @@ All six planned waves now have artifacts. Waves 1–5 have their forwarded indep
   Wave 5 asserts the derivation/chain/mereology/instantiation interactions below;
   Wave 6 retains CLI delivery, diagnostic export and public-interface parity.
 - **Integration unavailable:** no production API/CLI exists in the inspected
-  repository. All 2002 conversion/control nodes fail clearly at that boundary.
+  repository. All 2335 conversion/control nodes fail clearly at that boundary.
   No skip/xfail, fake transformer, reasoner entailment or supplied expected graph
   substitutes for execution. A real invocation binding, including audited reads
   of actual comment/diagnostic meanings, remains necessary.
