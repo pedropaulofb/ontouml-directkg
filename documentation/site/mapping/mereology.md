@@ -1,6 +1,6 @@
 # Mereology and DKGM
 
-This page explains **specified vocabulary/import and source-relation mappings**. The repository vocabulary is a real artifact; it does not establish a working converter or settle the pending normative choice of its persistent import URI.
+This page explains **specified vocabulary/import and source-relation mappings**. The repository vocabulary is a real artifact; it does not establish a working converter or settle the pending normative choice of its persistent import URI. For registered vocabulary URLs and their HTTP resolution, see [Persistent identifiers and redirects](../reference/persistent-identifiers.md).
 
 ## Import and vocabulary identity
 

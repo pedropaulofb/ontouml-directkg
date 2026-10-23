@@ -1,6 +1,6 @@
 # Identifiers and naming
 
-This reference describes **specified identity construction**, not tested converter behavior. Identity and display text serve different purposes: an IRI can require disambiguation while its source label remains unchanged. The [control catalog](controls.md#established-controls) owns selectable values and defaults.
+This reference describes **specified identity construction**, not tested converter behavior. Identity and display text serve different purposes: an IRI can require disambiguation while its source label remains unchanged. The [control catalog](controls.md#established-controls) owns selectable values and defaults. These are IRIs **generated for converted models**; registered project and vocabulary PIDs are described separately in [Persistent identifiers and redirects](persistent-identifiers.md).
 
 ## Base and ontology IRIs
 

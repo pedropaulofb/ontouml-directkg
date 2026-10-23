@@ -30,6 +30,7 @@ nav = [
     { "Output contract" = "reference/output.md" },
     { "Controls" = "reference/controls.md" },
     { "Identifiers and naming" = "reference/identifiers.md" },
+    { "Persistent identifiers and redirects" = "reference/persistent-identifiers.md" },
     { "Labels, comments, and language" = "reference/text.md" },
     { "Diagnostics and recovery" = "reference/diagnostics.md" },
   ] },

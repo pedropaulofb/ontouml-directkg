@@ -67,28 +67,14 @@ Root `zensical.toml` owns the site configuration and navigation. `.github/workfl
 
 ## Persistent identifiers
 
-The following persistent identifiers are registered in the [official W3ID configuration](https://github.com/perma-id/w3id.org/blob/master/ids/directkg/.htaccess). The rules define their redirect behavior; registration alone does not establish that every destination is currently published or reachable.
+DirectKG registers persistent URLs under `https://w3id.org/directkg/` so its resource identifiers can remain stable when hosting destinations change. Useful entry points include:
 
-| Resource | Persistent identifier | Configured redirect destination | HTTP |
-| --- | --- | --- | --- |
-| Project homepage | `https://w3id.org/directkg/` | `https://pedropaulofb.github.io/ontouml-directkg/` | 302 |
-| Documentation | `https://w3id.org/directkg/docs` | `https://pedropaulofb.github.io/ontouml-directkg/` | 302 |
-| Git repository | `https://w3id.org/directkg/git` | `https://github.com/pedropaulofb/ontouml-directkg` | 302 |
-| PyPI distribution | `https://w3id.org/directkg/pypi` | `https://pypi.org/project/ontouml-directkg/` | 302 |
-| Latest GitHub release | `https://w3id.org/directkg/releases/latest` | `https://github.com/pedropaulofb/ontouml-directkg/releases/latest` | 302 |
-| Specific GitHub release | `https://w3id.org/directkg/releases/vX.Y.Z` | `https://github.com/pedropaulofb/ontouml-directkg/releases/tag/vX.Y.Z` | 302 |
-| Current vocabulary ontology | `https://w3id.org/directkg/vocab` | `vocabulary/latest/index.html` (HTML) or `vocabulary/latest/dkgm-vocabulary.ttl` (Turtle) | 303 |
-| Current vocabulary Turtle | `https://w3id.org/directkg/vocab/ttl` | `vocabulary/latest/dkgm-vocabulary.ttl` | 302 |
-| Current vocabulary documentation | `https://w3id.org/directkg/vocab/docs` | `vocabulary/latest/index.html` | 302 |
-| Current vocabulary specification | `https://w3id.org/directkg/vocab/spec` | `vocabulary/latest/index.html` | 302 |
-| Versioned vocabulary ontology | `https://w3id.org/directkg/vocab/X.Y.Z` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.html` (HTML) or `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.ttl` (Turtle) | 303 |
-| Versioned vocabulary Turtle | `https://w3id.org/directkg/vocab/X.Y.Z/ttl` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.ttl` | 302 |
-| Versioned vocabulary documentation | `https://w3id.org/directkg/vocab/X.Y.Z/docs` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.html` | 302 |
-| Versioned vocabulary specification | `https://w3id.org/directkg/vocab/X.Y.Z/spec` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.html` | 302 |
+- [Documentation](https://w3id.org/directkg/docs) — `https://w3id.org/directkg/docs`
+- [Source repository](https://w3id.org/directkg/git) — `https://w3id.org/directkg/git`
+- [Current DKGM ontology](https://w3id.org/directkg/vocab) — `https://w3id.org/directkg/vocab`
+- [Turtle representation](https://w3id.org/directkg/vocab/ttl) — `https://w3id.org/directkg/vocab/ttl`
 
-Vocabulary redirect destinations shown as relative paths are under `https://pedropaulofb.github.io/ontouml-directkg/`. For the two ontology identifiers (HTTP 303), an `Accept` header containing `text/turtle` selects Turtle; otherwise the rule redirects to HTML. The other routes use HTTP 302. The rules accept optional trailing slashes for the named PID paths.
-
-Release tags use `vX.Y.Z`, whereas versioned vocabulary PIDs use `X.Y.Z` without the `v`. These are version patterns, not literal release identifiers. The vocabulary's registered ontology IRI does not resolve the separate, still-pending specification decision about the converter's stable import target.
+See [Persistent identifiers and redirects](documentation/site/reference/persistent-identifiers.md) for the **canonical inventory of all 14 redirect-rule families**, vocabulary term IRIs, HTTP behavior, version patterns, and examples. The [official W3ID configuration](https://github.com/perma-id/w3id.org/blob/master/ids/directkg/.htaccess) controls the redirects; registration does not guarantee published destinations. The converter's mandatory DKGM import IRI remains a separate unresolved specification decision.
 
 ## License
 

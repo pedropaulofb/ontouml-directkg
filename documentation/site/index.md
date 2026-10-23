@@ -30,7 +30,7 @@ The website provides shared contracts, conceptual guidance, mappings, and contra
 - Follow [Classes and enumerations](mapping/classes.md), [Higher-order classification](mapping/higher-order.md), and [Attributes and datatypes](mapping/attributes-and-datatypes.md) to interpret classifier and value mappings.
 - Follow [Binary relations](mapping/relations.md), [Inverse properties](mapping/inverses.md), and [Property features](mapping/property-features.md) for relation direction, constraints, and partial property mappings.
 - Read [Derivations and material chains](mapping/derivations-and-chains.md), [Mereology and DKGM](mapping/mereology.md), and [Instantiation associations](mapping/instantiation.md) for their distinct preservation and reasoning boundaries.
-- Use [Identifiers and naming](reference/identifiers.md) and [Labels, comments, and language](reference/text.md) for identity and human-readable text.
+- Use [Identifiers and naming](reference/identifiers.md) and [Labels, comments, and language](reference/text.md) for generated identity and human-readable text; see [Persistent identifiers and redirects](reference/persistent-identifiers.md) for the registered project and vocabulary URLs.
 - Inspect [Examples](examples/index.md) for the paired source data and mapping excerpt; use [Contributing](development/contributing.md) for build, preview, and maintenance instructions.
 
 ## Relationship to other approaches
