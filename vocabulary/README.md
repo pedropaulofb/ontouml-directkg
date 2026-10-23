@@ -140,7 +140,7 @@ generates missing HTML snapshots with PyLODE's `ontpub` profile, then
 synchronizes `latest/`. It does not overwrite previously generated
 versioned HTML. The GitHub Actions workflow validates on pull requests and
 automatically commits generated representations on pushes to `main` or
-manual runs. It then calls `.github/workflows/docs.yml` with the prepared
+manual runs on `main`, after a read-only publication gate. It then calls `.github/workflows/docs.yml` with the prepared
 commit SHA. That workflow builds the Zensical documentation and includes
 both `vocabulary/latest/` and `vocabulary/versioned/` under the site's
 `vocabulary/` path in a single GitHub Pages artifact. The documentation
@@ -148,6 +148,93 @@ homepage and vocabulary pages therefore share one publisher rather than
 replacing each other's site. To serve the site, configure **Settings →
 Pages → Build and deployment → GitHub Actions**. Workflow configuration
 alone is not evidence of successful deployment.
+
+## Publication gates and historical integrity
+
+Generation and publication use the same source and HTML contracts. Publication
+adds a required Git integrity gate; the ordinary `--check-only` source interface
+remains available without Git history or HTML checks.
+
+```bash
+git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+python vocabulary/scripts/build.py --check-only --publication
+```
+
+The gate requires a complete checkout and the canonical DirectKG origin. Its
+independent historical floor is reviewed main commit
+`957a83454a3bcc9fcf73388fb2d2e2bb467a4561`, which contains the established 0.1.0
+Turtle and HTML. Fetched main must retain that commit on its first-parent history,
+and the candidate must contain fetched main. Later main snapshots extend the
+protected inventory: each versioned path is compared with its earliest bytes in
+that accepted history, including paths subsequently removed. This conservatively
+preserves the existing immutability rule for artifacts already accepted on main,
+even if a particular deployment failed.
+
+When the candidate is itself main's tip, its strict prior history supplies the
+comparison, allowing genuinely new artifacts at the tip. The pinned historical
+floor always remains protected. The gate also compares the complete source
+artifact inventory and bytes with the candidate's committed Git objects; this
+separate cleanliness check does not serve as historical evidence. Missing refs,
+shallow history, an untrusted origin, a missing anchor, stale candidates, changed
+historical bytes and removed historical files all fail rather than skipping the
+integrity check. No push-event predecessor, new state branch, publication ledger,
+release list or additional write permission is required. Workflows fetch main
+immediately before using this evidence; the read-only gate itself does not fetch
+or write Git state.
+
+For generation in publication workflows, `build.py --publication` applies the
+same historical gate before generating missing representations. Preparation then
+commits generated files locally, runs `--check-only --publication`, and only
+pushes the prepared commit if that check succeeds. Existing branch protections
+and the main-only promotion condition remain in place.
+
+Both reusable and manual documentation runs fetch full trusted history, build
+the Zensical site, copy the vocabulary artifacts, then run:
+
+```bash
+python vocabulary/scripts/build.py --check-only --publication --site site
+```
+
+This validates the actual staged RDF, HTML, version references, chains, internal
+links, fragments and embedded assets, including links relative to `latest/`.
+It checks required artifact pairs and inventories, latest/versioned equality,
+and exact source-to-site bytes. It neither repairs stale copies nor regenerates
+HTML. Historical 0.1.0 keeps its earlier presentation contract. Any required
+failure stops Pages artifact upload. No external-link availability test is part
+of this deterministic gate. GitHub Pages remains the single combined publisher.
+
+## Verification after an authorized deployment
+
+The documentation workflow's read-only `verify-publication` job runs only when
+the existing main-only Pages deployment step actually succeeded. It checks out
+the exact deployed source SHA and invokes:
+
+```bash
+python vocabulary/scripts/verify_deployment.py
+```
+
+Do not use this command to imply that a feature-branch version has been deployed.
+It performs no deployment, commits or artifact changes. The verifier first uses
+the shared local artifact contracts, then checks registered W3ID current/version
+IRIs with HTML and Turtle Accept headers, plus their explicit `/docs` and `/ttl`
+routes. Expected 303/302 locations come from the inspected W3ID configuration;
+available versions come from release files. Ordinary subsequent HTTPS redirects
+are followed with cycle/redirect bounds, and final decoded HTTP bytes must equal
+the intended artifacts. HTML media types are checked; Turtle also permits normal
+static-file fallback media types because byte equality and validated source RDF
+already establish representation identity.
+
+HTTP requests have 5-second connect and 15-second read timeouts. Each failed check
+gets at most three attempts with 1- and 2-second delays, except deterministic
+redirect errors, which fail immediately. Successfully verified target responses
+are reused for equivalent routes. Network errors, HTTP 408/429 and server errors
+are reported as external-infrastructure uncertainty (exit 2). Unavailable
+representations, incorrect redirects or content mismatches fail postdeployment
+verification (exit 1); invalid local expected artifacts fail input validation
+(exit 3). These are separate from deployment-action failures and do not label a
+temporary W3ID or Pages outage as an RDF/OWL semantic error. Verification does not
+roll back a completed deployment. Unit tests use mocked HTTP responses and do
+not establish that any real deployment has passed verification.
 
 The converter itself is not implemented yet. The vocabulary's RDF license is
 CC BY 4.0; the repository's overall software license is Apache 2.0.

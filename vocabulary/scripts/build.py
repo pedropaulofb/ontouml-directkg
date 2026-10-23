@@ -32,6 +32,10 @@ PROJECT_DOCS = URIRef("https://w3id.org/directkg/docs")
 PROJECT_REPOSITORY = URIRef("https://w3id.org/directkg/git")
 LOGO = "branding/ontouml-directkg-logo-transparent.png"
 FAVICON = "branding/favicon/favicon.svg"
+# Reviewed main before the feature waves: an independent Git object containing
+# the established 0.1.0 snapshots. Later accepted main history extends this floor.
+PUBLICATION_ANCHOR = "957a83454a3bcc9fcf73388fb2d2e2bb467a4561"
+TRUSTED_MAIN = "refs/remotes/origin/main"
 
 
 @dataclass(frozen=True)
@@ -234,8 +238,8 @@ def predecessor(file: Path, history: list[Path]) -> URIRef | None:
     return expected
 
 
-def releases() -> list[Path]:
-    directory = ROOT / "vocabulary/versioned"
+def releases(directory: Path | None = None) -> list[Path]:
+    directory = ROOT / "vocabulary/versioned" if directory is None else directory
     require(directory.is_dir(), f"Missing release directory: {directory}")
     require(not any(path.is_dir() for path in directory.iterdir()),
             "Versioned releases must be flat files, not version subdirectories")
@@ -787,8 +791,8 @@ def check_documentation(file: Path, version: str, source: Path | None = None,
                                      releases() if history is None else history)
 
 
-def check_latest(current: Path) -> None:
-    latest = ROOT / "vocabulary/latest"
+def check_latest(current: Path, latest: Path | None = None) -> None:
+    latest = ROOT / "vocabulary/latest" if latest is None else latest
     for name, original in ((LATEST_NAME, current), ("index.html", current.with_suffix(".html"))):
         copy = latest / name
         require(copy.is_file() and copy.read_bytes() == original.read_bytes(),
@@ -797,7 +801,120 @@ def check_latest(current: Path) -> None:
             "Unexpected files in latest publication directory")
 
 
-def build(base: str | None = None) -> None:
+def check_artifacts(directory: Path) -> list[Path]:
+    """Validate actual RDF/HTML bytes at either source or staged locations."""
+    for path in (directory, directory / "versioned", directory / "latest"):
+        require(path.is_dir() and not path.is_symlink(),
+                f"{path}: expected an ordinary artifact directory; observed missing directory or symlink")
+    versions = releases(directory / "versioned")
+    expected = {p.name for source in versions for p in (source, source.with_suffix(".html"))}
+    observed = {p.name for p in (directory / "versioned").iterdir()}
+    require(observed == expected,
+            f"{directory / 'versioned'}: expected complete Turtle/HTML pairs {sorted(expected)}; observed {sorted(observed)}")
+    for source in versions:
+        html = source.with_suffix(".html")
+        for path in (source, html):
+            require(path.is_file() and not path.is_symlink(),
+                    f"{path}: expected an ordinary artifact file; observed missing file or symlink")
+        validate_release(source, versions)
+        check_documentation(html, version_of(source), source, versions)
+    current = versions[-1]
+    for path in (directory / "latest").iterdir():
+        require(path.is_file() and not path.is_symlink(), f"{path}: expected an ordinary latest file")
+    check_latest(current, directory / "latest")
+    # Also validate links relative to the actual latest/ location, not only the
+    # identical bytes in versioned/. Historical HTML keeps its earlier contract.
+    check_documentation(directory / "latest/index.html", version_of(current), current, versions)
+    return versions
+
+
+def _git(*arguments: str) -> bytes:
+    result = subprocess.run(["git", *arguments], cwd=ROOT, capture_output=True)
+    require(result.returncode == 0,
+            f"Publication integrity evidence unavailable: git {' '.join(arguments)}: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
+def _artifact_tree(ref: str, *directories: str) -> dict[str, str]:
+    result = {}
+    for record in _git("ls-tree", "-r", "-z", ref, "--", *directories).split(b"\0"):
+        if record:
+            metadata, path = record.decode().split("\t", 1)
+            mode, kind, sha = metadata.split()
+            require(kind == "blob" and mode == "100644",
+                    f"{path}: expected an ordinary committed artifact; observed {mode} {kind}")
+            result[path] = sha
+    return result
+
+
+def check_publication_history() -> None:
+    """Protect the reviewed floor and snapshots previously accepted on main.
+
+    Workflows must fetch canonical origin/main with complete history first.
+    The candidate tip's new additions are allowed, while strict prior history
+    protects existing files even during a manual run on that same main tip.
+    No push-event SHA, caller-provided comparison ref, or deployment ledger is
+    needed, and a candidate's own bytes never establish historical integrity.
+    """
+    require(_git("rev-parse", "--is-shallow-repository").strip() == b"false",
+            "Publication integrity requires complete Git history; observed a shallow checkout")
+    origin = _git("config", "--get", "remote.origin.url").decode().strip().removesuffix(".git")
+    require(origin in {"https://github.com/pedropaulofb/ontouml-directkg",
+                       "git@github.com:pedropaulofb/ontouml-directkg"},
+            "Publication integrity requires the canonical DirectKG origin; observed an untrusted remote")
+    tip = _git("rev-parse", "--verify", TRUSTED_MAIN + "^{commit}").decode().strip()
+    head = _git("rev-parse", "--verify", "HEAD^{commit}").decode().strip()
+    lineage = _git("rev-list", "--first-parent", tip).decode().splitlines()
+    require(PUBLICATION_ANCHOR in lineage,
+            f"Publication integrity requires reviewed anchor {PUBLICATION_ANCHOR} on trusted main's first-parent history")
+    require(_git("merge-base", tip, head).decode().strip() == tip,
+            "Publication integrity requires a candidate containing fetched main; observed stale or unrelated source")
+    limit = _git("rev-parse", tip + "^1").decode().strip() if tip == head and tip != PUBLICATION_ANCHOR else tip
+    references = [PUBLICATION_ANCHOR, *_git("rev-list", "--first-parent", "--reverse",
+                                           f"{PUBLICATION_ANCHOR}..{limit}").decode().splitlines()]
+    protected = {}
+    for ref in references:
+        for path, sha in _artifact_tree(ref, "vocabulary/versioned").items():
+            protected.setdefault(path, sha)
+    require(bool(protected), "Publication integrity baseline contains no historical artifacts")
+    for path, sha in protected.items():
+        current = ROOT / path
+        require(current.is_file() and not current.is_symlink()
+                and current.read_bytes() == _git("cat-file", "blob", sha),
+                f"{path}: expected immutable bytes from trusted main history; observed modified or missing historical artifact")
+
+
+def check_publication(site: Path | None = None) -> None:
+    """Read-only publication gate, including the assembled site when supplied."""
+    check_publication_history()
+    vocabulary = ROOT / "vocabulary"
+    check_artifacts(vocabulary)
+    committed = _artifact_tree("HEAD", "vocabulary/latest", "vocabulary/versioned")
+    actual = {p.relative_to(ROOT).as_posix() for folder in ("latest", "versioned")
+              for p in (vocabulary / folder).iterdir()}
+    require(actual == set(committed),
+            f"{vocabulary}: expected the committed publication file inventory; observed uncommitted additions or removals")
+    for path, sha in committed.items():
+        require((ROOT / path).read_bytes() == _git("cat-file", "blob", sha),
+                f"{path}: expected exact committed source bytes; observed uncommitted publication changes")
+    if site is not None:
+        staged = site.resolve() / "vocabulary"
+        require(staged.resolve() != vocabulary.resolve(),
+                f"{staged}: expected a separate assembled site, not the authoritative source directory")
+        check_artifacts(staged)
+        staged_files = {p.relative_to(site.resolve()).as_posix()
+                        for folder in ("latest", "versioned") for p in (staged / folder).iterdir()}
+        require(staged_files == set(committed),
+                f"{staged}: expected committed vocabulary files {sorted(committed)}; observed {sorted(staged_files)}")
+        for path in committed:
+            require((site / path).read_bytes() == (ROOT / path).read_bytes(),
+                    f"{site / path}: expected authoritative source bytes; observed source-to-staged content mismatch")
+    print("Validated publication artifacts and trusted historical integrity; no files modified.")
+
+
+def build(base: str | None = None, *, publication: bool = False) -> None:
+    if publication:
+        check_publication_history()
     check_immutable(base)
     versions = releases()
     for source in versions:
@@ -830,6 +947,9 @@ if __name__ == "__main__":
     parser.add_argument("--base", help="Git commit for immutable release comparison")
     parser.add_argument("--check-only", action="store_true",
                         help="Validate existing Turtle sources without generating or publishing files")
+    parser.add_argument("--publication", action="store_true",
+                        help="Require trusted main history; with --check-only also check committed RDF/HTML/latest")
+    parser.add_argument("--site", type=Path, help="Assembled site for --check-only --publication")
     parser.add_argument("--prepare-release", choices=("patch", "minor"),
                         help="Explicitly prepare a new Turtle release from --draft; no HTML/latest changes")
     parser.add_argument("--draft", type=Path, help="Edited Turtle draft used only with --prepare-release")
@@ -842,13 +962,21 @@ if __name__ == "__main__":
         parser.error("--prepare-release requires --draft and cannot be combined with --check-only")
     if args.draft and not args.prepare_release:
         parser.error("--draft requires --prepare-release")
+    if args.site and not (args.check_only and args.publication):
+        parser.error("--site requires --check-only --publication")
+    if args.publication and (args.prepare_release or args.sources):
+        parser.error("--publication checks the complete artifact set, not a draft or selected sources")
     try:
         if args.prepare_release:
             prepare_release(args.draft, args.prepare_release, args.base)
         elif args.check_only:
-            check_sources(args.base, args.sources or None)
+            if args.publication:
+                check_immutable(args.base)
+                check_publication(args.site)
+            else:
+                check_sources(args.base, args.sources or None)
         else:
-            build(args.base)
+            build(args.base, publication=args.publication)
     except Exception as error:
         operation = "preparation" if args.prepare_release else "validation" if args.check_only else "publication"
         raise SystemExit(f"Vocabulary {operation} failed: {error}") from error

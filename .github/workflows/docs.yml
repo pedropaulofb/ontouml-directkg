@@ -26,7 +26,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Fetch trusted publication history
+        run: git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
       - name: Record the source revision
         id: source
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -35,13 +38,15 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install documentation dependencies
-        run: python -m pip install --disable-pip-version-check -r requirements-docs.txt
+        run: python -m pip install --disable-pip-version-check -r requirements-docs.txt -r vocabulary/scripts/requirements.txt
       - name: Build and validate documentation
         run: zensical build --clean --strict
       - name: Include the existing vocabulary publications
         run: |
           mkdir -p site/vocabulary
           cp -R vocabulary/latest vocabulary/versioned site/vocabulary/
+      - name: Validate the assembled publication without modifying it
+        run: python vocabulary/scripts/build.py --check-only --publication --site site
       - name: Upload only the public site
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
@@ -57,6 +62,8 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      deployed: ${{ steps.current.outputs.publish == 'true' && steps.deployment.outcome == 'success' }}
     steps:
       - name: Check the publication is still current
         id: current
@@ -79,3 +86,23 @@ jobs:
         if: steps.current.outputs.publish == 'true'
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+
+  verify-publication:
+    needs: [build, deploy]
+    if: needs.deploy.outputs.deployed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the exact deployed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.build.outputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check -r vocabulary/scripts/requirements.txt
+      - name: Verify public vocabulary representations after successful deployment
+        run: python vocabulary/scripts/verify_deployment.py
