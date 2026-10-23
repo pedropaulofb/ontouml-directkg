@@ -67,20 +67,28 @@ Root `zensical.toml` owns the site configuration and navigation. `.github/workfl
 
 ## Persistent identifiers
 
-The following **planned W3ID persistent identifiers** have HTTP 302 redirect rules configured in the [DirectKG W3ID fork](https://github.com/pedropaulofb/w3id.org/blob/add-directkg-namespace/ids/directkg/.htaccess). **They have not been merged into the official W3ID repository and are not yet operational.**
+The following persistent identifiers are registered in the [official W3ID configuration](https://github.com/perma-id/w3id.org/blob/master/ids/directkg/.htaccess). The rules define their redirect behavior; registration alone does not establish that every destination is currently published or reachable.
 
-| Resource | Planned persistent identifier | Configured redirect destination |
-| --- | --- | --- |
-| Project homepage | `https://w3id.org/directkg/` | `https://pedropaulofb.github.io/ontouml-directkg/` |
-| Documentation | `https://w3id.org/directkg/docs` | `https://pedropaulofb.github.io/ontouml-directkg/` |
-| Git repository | `https://w3id.org/directkg/git` | `https://github.com/pedropaulofb/ontouml-directkg` |
-| PyPI distribution | `https://w3id.org/directkg/pypi` | `https://pypi.org/project/ontouml-directkg/` |
-| Latest GitHub release | `https://w3id.org/directkg/releases/latest` | `https://github.com/pedropaulofb/ontouml-directkg/releases/latest` |
-| Specific GitHub release | `https://w3id.org/directkg/releases/vX.Y.Z` | `https://github.com/pedropaulofb/ontouml-directkg/releases/tag/vX.Y.Z` |
+| Resource | Persistent identifier | Configured redirect destination | HTTP |
+| --- | --- | --- | --- |
+| Project homepage | `https://w3id.org/directkg/` | `https://pedropaulofb.github.io/ontouml-directkg/` | 302 |
+| Documentation | `https://w3id.org/directkg/docs` | `https://pedropaulofb.github.io/ontouml-directkg/` | 302 |
+| Git repository | `https://w3id.org/directkg/git` | `https://github.com/pedropaulofb/ontouml-directkg` | 302 |
+| PyPI distribution | `https://w3id.org/directkg/pypi` | `https://pypi.org/project/ontouml-directkg/` | 302 |
+| Latest GitHub release | `https://w3id.org/directkg/releases/latest` | `https://github.com/pedropaulofb/ontouml-directkg/releases/latest` | 302 |
+| Specific GitHub release | `https://w3id.org/directkg/releases/vX.Y.Z` | `https://github.com/pedropaulofb/ontouml-directkg/releases/tag/vX.Y.Z` | 302 |
+| Current vocabulary ontology | `https://w3id.org/directkg/vocab` | `vocabulary/latest/index.html` (HTML) or `vocabulary/latest/dkgm-vocabulary.ttl` (Turtle) | 303 |
+| Current vocabulary Turtle | `https://w3id.org/directkg/vocab/ttl` | `vocabulary/latest/dkgm-vocabulary.ttl` | 302 |
+| Current vocabulary documentation | `https://w3id.org/directkg/vocab/docs` | `vocabulary/latest/index.html` | 302 |
+| Current vocabulary specification | `https://w3id.org/directkg/vocab/spec` | `vocabulary/latest/index.html` | 302 |
+| Versioned vocabulary ontology | `https://w3id.org/directkg/vocab/X.Y.Z` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.html` (HTML) or `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.ttl` (Turtle) | 303 |
+| Versioned vocabulary Turtle | `https://w3id.org/directkg/vocab/X.Y.Z/ttl` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.ttl` | 302 |
+| Versioned vocabulary documentation | `https://w3id.org/directkg/vocab/X.Y.Z/docs` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.html` | 302 |
+| Versioned vocabulary specification | `https://w3id.org/directkg/vocab/X.Y.Z/spec` | `vocabulary/versioned/dkgm-vocabulary-vX.Y.Z.html` | 302 |
 
-The versioned release pattern applies to stable `vX.Y.Z` tags. The documentation website, PyPI distribution, and GitHub releases must also be published before their destinations become useful. Until W3ID deployment is verified, use the existing direct repository links.
+Vocabulary redirect destinations shown as relative paths are under `https://pedropaulofb.github.io/ontouml-directkg/`. For the two ontology identifiers (HTTP 303), an `Accept` header containing `text/turtle` selects Turtle; otherwise the rule redirects to HTML. The other routes use HTTP 302. The rules accept optional trailing slashes for the named PID paths.
 
-These redirects do **not** configure dereferencing or RDF content negotiation for the distinct DirectKG Mereology Vocabulary identifier, `https://w3id.org/directkg/vocab`.
+Release tags use `vX.Y.Z`, whereas versioned vocabulary PIDs use `X.Y.Z` without the `v`. These are version patterns, not literal release identifiers. The vocabulary's registered ontology IRI does not resolve the separate, still-pending specification decision about the converter's stable import target.
 
 ## License
 
