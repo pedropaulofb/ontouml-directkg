@@ -217,7 +217,7 @@ def test_cli_exit_outcome_and_json_mirror_cover_success_recovery_abort_and_loss_
 @pytest.mark.parametrize('level',['info','warning','error'])
 @pytest.mark.parametrize('scenario',['info','warning','partial','duplicate_abort'])
 def test_console_threshold_filters_only_display_and_keeps_reports_outcomes_exit_and_graph(invoke,tmp_path,level,scenario):
-    """Rules: DK-DIAG-04, DK-DIAG-05. Also §15 console levels."""
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-IRI-04. Also §15 console levels."""
     source,options,faults=_source(tmp_path,scenario)
     observations=[]
     for selected in ('info',level):
@@ -229,9 +229,14 @@ def test_console_threshold_filters_only_display_and_keeps_reports_outcomes_exit_
     assert diagnostic_signatures(first.observation.diagnostics)==diagnostic_signatures(second.observation.diagnostics)
     allowed={'INFO','WARNING','ERROR'} if level=='info' else {'WARNING','ERROR'} if level=='warning' else {'ERROR'}
     assert diagnostic_signatures(second.console)==diagnostic_signatures([d for d in second.observation.diagnostics if d.severity in allowed])
+    class_iri=BASE.unnamedClass_C17 if scenario=='warning' else BASE.C17
+    if scenario=='warning':
+        for observed in (first.observation,second.observation):
+            assert observed.ontology is not None
+            assert (class_iri,RDF.type,OWL.Class) in observed.ontology
     if first.observation.ontology is None:assert second.observation.ontology is None
     else:
-        roots={BASE.C17,BASE.cA,BASE.cB,BASE.tFocus,BASE.sFocus,ONTOLOGY}
+        roots={class_iri,BASE.cA,BASE.cB,BASE.tFocus,BASE.sFocus,ONTOLOGY}
         types={OWL.Class,OWL.ObjectProperty,OWL.Restriction,OWL.Ontology}
         projection=lambda g:rooted_graph(g,roots,LOGICAL,type_objects=types)
         assert_graph_equal(projection(first.observation.ontology),projection(second.observation.ontology))
