@@ -179,7 +179,7 @@ def test_cli_default_controls_match_python_defaults_and_record_effective_configu
     _assert_process(process);assert process.returncode==0 and process.observation.outcome=='completed'
     for observed in (python,process.observation):
         assert observed.configuration_controls is not None
-        for key,value in DEFAULTS.items():assert observed.configuration_controls[key]==value
+        for key,value in {**DEFAULTS,'base_iri':str(BASE)}.items():assert observed.configuration_controls[key]==value
         assert observed.provenance_roles is not None and observed.provenance_roles.get('configuration')
         config=observed.provenance_roles['configuration'][0]
         assert isinstance(observed.configuration_literal,Literal) and isinstance(yaml.safe_load(str(observed.configuration_literal)),dict)

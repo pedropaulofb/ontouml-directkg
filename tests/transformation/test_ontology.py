@@ -608,11 +608,18 @@ def test_input_digests_use_exact_bytes_and_configuration_is_deterministic_in_dis
     if all(isinstance(record[1],URIRef) for record in records):assert records[0][1]!=records[1][1]
     assert records[0][2]==records[1][2]  # only the configuration literal, not whole RDF/text
     for result in results:
-        for key,value in {**PROVENANCE_DEFAULTS,'provenance':mode}.items():assert result.configuration_controls[key]==value
+        for key,value in {**PROVENANCE_DEFAULTS,'provenance':mode,'base_iri':str(BASE)}.items():assert result.configuration_controls[key]==value
     changed=source.read_bytes()+b' \n';source.write_bytes(changed)
     third=invoke.convert(source,options=options,workdir=tmp_path)
     _provenance(third,mode,changed)
     assert third.configuration_controls==results[0].configuration_controls
+    configured={**options,'iri_strategy':'id','input_policy':'best-effort','stereotype_policy':'require-known',
+                'inverse_properties':'none','stereotype_relation_naming':False,'relation_labels':'generated',
+                'material_property_chains':'preserve-conflicting-constraints','language':'fr','omit_identifiers':True}
+    fourth=invoke.convert(source,options=configured,workdir=tmp_path)
+    assert fourth.outcome=='completed'
+    _provenance(fourth,mode,changed)
+    for key,value in configured.items():assert fourth.configuration_controls[key]==value
 
 
 @pytest.mark.parametrize('mode',['embedded','sidecar'])

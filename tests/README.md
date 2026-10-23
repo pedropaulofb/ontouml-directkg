@@ -13,8 +13,10 @@ fe3eba9f46612f927c74edf52a62cdee6cb69365, verified reachable from remote main.
 Wave 5 — Derivations, material-chain interactions, mereology, and non-representation —
 received the forwarded independent OK for `786c91b8f8e446d8d67709c79f8923d600204056`,
 verified reachable from remote main. Wave 6 — Metadata, provenance, CLI delivery,
-and interface parity — is submitted for independent review. Final reconciliation
-waits for its applicable OK.
+and interface parity — received the forwarded independent OK for
+`5076be06f1f3c21e408abbed385ef93985794f44`, verified on remote main. Final
+reconciliation found a configuration-recording coverage gap; its focused
+correction within Wave 6 is submitted for review before final closure.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -327,7 +329,8 @@ The concrete stable DKGM URI is still unspecified. Import existence/no-fragment
 checks do not certify a concrete target. Detailed vocabulary/bridge checks and
 all approved wave obligations are recorded in the inventory. Wave 1–5 approvals
 do not certify Wave 6, the concrete DKGM identity, or unavailable production
-behavior. Wave 6 needs its own independent verdict before final reconciliation.
+behavior. The latest configuration-recording correction needs its own
+independent verdict before final reconciliation can close.
 
 Attribute standalone `*` recognition is asserted. Its exact restriction graph
 is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit
@@ -442,5 +445,6 @@ repeatability and checksums over actual bytes are checked separately.
 
 Run all available checks from the repository root using the commands above. The
 latest inventory records collected cases, independent passes, unavailable integration
-failures, conditional branches and unresolved normative limits. Wave 6 is submitted,
-not accepted; no baseline-complete claim is made before its independent OK.
+failures, conditional branches and unresolved normative limits. The focused
+configuration-recording correction within Wave 6 is submitted, not accepted;
+no baseline-complete claim is made before its independent OK.
