@@ -36,7 +36,7 @@ requests==2.34.2
 rich==15.0.0
 rich-click==1.9.9
 ruamel.yaml==0.19.1
-setuptools==84.0.0
+setuptools==84.1.0
 shacl-rules==0.1.5
 shellingham==1.5.4
 six==1.17.0
