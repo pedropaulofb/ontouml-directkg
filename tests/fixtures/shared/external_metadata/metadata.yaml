@@ -1,0 +1,15 @@
+title: "External Ontology Title"
+acronym: " EX  KG "
+contributor:
+  - https://example.test/people/Alice
+  - https://example.test/people/bob
+keyword:
+  - "semantic web"
+  - "São Paulo"
+source:
+  - https://example.test/citation/one
+  - https://example.test/citation/two
+landingPage:
+  - https://example.test/landing/one
+  - https://example.test/landing/two
+license: https://example.test/license/é

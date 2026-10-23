@@ -1,0 +1,15 @@
+title: Selected Title
+issued: {bad: ["IGNORED_ISSUED"]}
+modified: IGNORED_MODIFIED
+language: [xx-ignored, yy-ignored]
+theme: {unexpected: IGNORED_THEME}
+editorialNote: IGNORED_NOTE
+ontologyType: IGNORED_TYPE
+designedForTask: IGNORED_TASK
+context: IGNORED_CONTEXT
+representationStyle: IGNORED_STYLE
+iri_strategy: id
+inverse_properties: none
+relation_labels: generated
+provenance: none
+material_property_chains: preserve-conflicting-constraints

@@ -9,6 +9,8 @@ apply a newer standalone schema to the whole document.
 import json
 from pathlib import Path, PurePosixPath
 
+import yaml
+
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 TOPICS = frozenset({"ontology", "iris", "properties", "input_diagnostics", "attributes_datatypes",
@@ -19,7 +21,7 @@ def fixture_path(key: str, filename: str = "input.json") -> Path:
     parts = PurePosixPath(key).parts
     if len(parts) != 2 or any(p in {"", ".", ".."} for p in parts):
         raise ValueError("Expected <topic>/<case_slug> or shared/<fixture_slug>")
-    if parts[0] == "shared":
+    if parts[0] in {"shared", "cli"}:
         path = FIXTURES.joinpath(*parts, filename).resolve()
     elif parts[0] in TOPICS:
         path = FIXTURES.joinpath("transformation", *parts, filename).resolve()
@@ -35,6 +37,11 @@ def fixture_path(key: str, filename: str = "input.json") -> Path:
 def load_json(key: str, filename: str = "input.json") -> dict:
     """Load a new independent object; never repair invalid data."""
     return json.loads(fixture_path(key, filename).read_bytes())
+
+
+def load_yaml(key: str, filename: str = "metadata.yaml"):
+    """Read stored YAML without repairing, selecting fields or applying defaults."""
+    return yaml.safe_load(fixture_path(key, filename).read_bytes())
 
 
 def write_input(tmp_path: Path, document, filename: str = "input.json") -> Path:
