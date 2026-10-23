@@ -16,12 +16,65 @@ without changes. The current artifact uses
 `https://w3id.org/directkg/vocab/0.1.0`; relocation does not settle the
 separate specification decision about the converter's stable import target.
 
+## Read-only source validation
+
+Use the same production source validator without generating HTML, synchronizing
+`latest/`, committing files, or publishing anything:
+
+```bash
+python vocabulary/scripts/build.py --check-only
+```
+
+By default this validates every versioned Turtle source, using the existing
+numeric release discovery. To check selected versioned source files instead:
+
+```bash
+python vocabulary/scripts/build.py --check-only vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl
+```
+
+Validation failures return a nonzero status and identify the file, resource,
+predicate, expected condition, and observed problem. `--base SHA` retains the
+existing optional immutability comparison; source validation does not establish
+a new comparison baseline or change publication workflows.
+
+The source contract checks ontology/version identity, the hash namespace and
+preferred prefix, the four object properties, and the three ordered binary
+chains required by DK-GEN-04. RDF lists are checked structurally, including
+branching, cycles and termination. Other logical axioms, including incoming
+alignments and source-specific properties, are rejected by the current contract.
+Equivalent serialization order, prefix aliases, list-node identifiers, repeated
+identical statements and redundant identical chains do not change the contract.
+This is source validation, not a general OWL equivalence or consistency reasoner.
+
+Required ontology metadata is title, description, one or more creator IRIs, the
+existing CC BY 4.0 license IRI, creation/modification date-times, namespace hints
+and version fields. Identity fields, namespace hints, license and date-times are
+single-valued; textual metadata may have multiple values. Each property needs a
+nonempty English label and definition. Additional textual annotations and
+languages are allowed under the existing descriptive predicates; language tags
+are checked against RFC 5646 syntax without a network registry lookup.
+
+Date-time checks preserve original literal spelling rather than allowing parser
+normalization to hide invalid syntax. Chronology accounts for timezone offsets
+and fractional seconds. Two timezone-less values are compared as local values;
+mixed timezone presence must establish an unambiguous order across the possible
+14-hour offset range. No execution-machine timezone or build timestamp is added.
+
+`SOURCE_CONTRACTS` in `scripts/build.py` explicitly registers release `0.1.0`.
+An unregistered release fails with a request for a reviewed contract, rather
+than silently inheriting rules that might be wrong for it. Future accepted
+evolution must preserve the historical registration and deliberately add the
+applicable contract. The historical release does not acquire new metadata
+requirements. Source validation does not inspect HTML presentation or repair
+generated representations; known 0.1.0 HTML limitations do not make it fail.
+
 ## Publishing a subsequent version
 
 Add a new `dkgm-vocabulary-vX.Y.Z.ttl` file to `vocabulary/versioned/`.
 Update its version-related RDF metadata consistently; retain all earlier
 Turtle and HTML snapshots unchanged. The existing graph's semantic evolution
-requires its own accepted modeling decisions; this pipeline only publishes it.
+requires its own accepted modeling decisions and a reviewed source-validation
+contract registration; this pipeline only publishes it.
 
 Run with Python 3.12:
 
