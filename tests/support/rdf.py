@@ -155,3 +155,33 @@ def assert_selected_equal(actual: Graph, expected: Graph, predicates, unordered_
                 projected.add((subject, predicate, obj))
         return projected
     assert_graph_equal(selected(actual), selected(expected))
+
+
+def rooted_graph(graph: Graph, roots, predicates, *, type_objects=None, unordered_predicates=()):
+    """Select explicit roots and their selected blank-node connections.
+
+    Caller supplies every predicate/type and any unordered named-pair rule.
+    No entailment, domain selection, metadata classification or source mapping
+    is embedded here. Filtering also applies inside blank-node structures.
+    """
+    result, pending, seen = Graph(), list(roots), set()
+    while pending:
+        subject = pending.pop()
+        if subject in seen:
+            continue
+        seen.add(subject)
+        for _, predicate, obj in graph.triples((subject, None, None)):
+            if predicate not in predicates:
+                continue
+            if predicate == RDF.type and type_objects is not None and obj not in type_objects:
+                continue
+            if predicate in unordered_predicates:
+                if isinstance(subject, BNode) or isinstance(obj, BNode):
+                    raise ValueError("Unordered pair requires named endpoints")
+                a, b = sorted((subject, obj), key=str)
+                result.add((a, predicate, b))
+            else:
+                result.add((subject, predicate, obj))
+            if isinstance(obj, BNode):
+                pending.append(obj)
+    return result

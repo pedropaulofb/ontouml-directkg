@@ -130,7 +130,7 @@ def _instantiation_warning_and_nonrepresentation(result,categories):
 @pytest.mark.parametrize('input_policy',POLICIES)
 def test_instantiation_discard_warning_is_consolidated_and_values_do_not_leak_into_any_output(run,source_json,tmp_path,strategy,provenance,input_policy):
     """Rules: DK-INS-01, DK-INS-02, DK-INS-03, DK-HO-01, DK-HO-02, DK-DIAG-05, DK-GEN-05, DK-LBL-02, DK-GEN-10."""
-    document=source_json('higher_order/instantiation')
+    document=source_json('shared/instantiation')
     assert not fixture_issues(document)
     result=run(path=write_input(tmp_path,document),iri_strategy=strategy,provenance=provenance,input_policy=input_policy)
     assert result.outcome=='completed'
@@ -151,7 +151,7 @@ def test_instantiation_discard_warning_is_consolidated_and_values_do_not_leak_in
 @pytest.mark.parametrize('category',['identifier_only','association_name','role_names','multiplicities','characteristics','description'])
 def test_each_discarded_instantiation_category_is_reported_without_copying_its_values(run,source_json,tmp_path,category):
     """Rules: DK-INS-01, DK-INS-02, DK-DIAG-05."""
-    document=source_json('higher_order/instantiation');association=source_element(document,'rInstantiation');original=copy.deepcopy(association)
+    document=source_json('shared/instantiation');association=source_element(document,'rInstantiation');original=copy.deepcopy(association)
     association.update(name=None,description=None)
     for key in ('isAbstract','isDerived'):association.pop(key,None)
     for end in association['properties']:
@@ -177,7 +177,7 @@ def test_each_discarded_instantiation_category_is_reported_without_copying_its_v
 @pytest.mark.parametrize('input_policy',POLICIES)
 def test_instantiation_declaration_does_not_invent_membership_or_reconcile_categorizers(run,source_json,tmp_path,powertype,input_policy):
     """Rules: DK-INS-01, DK-INS-03, DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-02, DK-DIAG-02."""
-    document=source_json('higher_order/instantiation');source_element(document,'cCategorizer')['isPowertype']=powertype
+    document=source_json('shared/instantiation');source_element(document,'cCategorizer')['isPowertype']=powertype
     # These ultimate sortals are disjoint, yet the explicit categorizers
     # classify Specific under both. No consistency check may suppress either.
     source_element(document,'cCategorizer')['stereotype']='mode'

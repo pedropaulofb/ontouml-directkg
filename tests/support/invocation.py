@@ -137,6 +137,142 @@ class Observation:
     # identified by string searching; excludes category names and diagnostic
     # source-ID locators. Read actual evidence, never expected absence.
     discarded_instantiation_output: tuple[Any, ...] | None = None
+    # Actual provenance resources grouped by observed role:
+    # source, configuration, metadata, output, activity, software (DirectKG itself).
+    # Metadata means input CLAIMED AS USED, including erroneous use claims.
+    # A merely requested/failed-read entity without such a claim is not use.
+    # Do not misclassify other software agents as DirectKG itself.
+    # Never classify an input as used merely because it was requested.
+    provenance_roles: Mapping[str, tuple[Node, ...]] | None = None
+    # Normalize ONLY settings actually represented in the prov:value YAML.
+    # Keys are semantic test terms, not proposed production configuration keys.
+    configuration_controls: Mapping[str, Any] | None = None
+    configuration_format: str | None = None  # actual prov configuration format: yaml
+    configuration_literal: Literal | None = None  # actual designated prov:value, not synthesized YAML
+    software_version: str | None = None  # read the actual softwareVersion meaning, not package defaults
+    directkg_metadata_predicates: tuple[URIRef, ...] | None = None
+    # Actual annotations attributable to external selected fields, including
+    # erroneous fallback output. Independent generated metadata is excluded.
+    external_metadata_output: tuple[tuple[Node, Node, Node], ...] | None = None
+    # Actual evidence of provenance/output-artifact information, including
+    # erroneous statements in ontology and configuration. Independent reliable
+    # descriptive metadata is excluded; never presume these readers empty.
+    transformation_provenance_output: tuple[Any, ...] | None = None
+    output_artifact_output: tuple[Any, ...] | None = None
+    embedded_output_configuration: tuple[Any, ...] | None = None
+    # Actual filename/format evidence, each retained as RDF triples. These terms
+    # have no prescribed predicate spelling beyond the normative vocabulary.
+    output_filename: str | None = None
+    output_format: str | None = None  # normalized actual format: turtle
+    output_artifact_evidence: tuple[tuple[Node, Node, Node], ...] | None = None
+    delivery_failures: tuple["DeliveryFailure", ...] = ()
+    operations: tuple["Operation", ...] | None = None
+    # Actual advertised valid deliveries and actual diagnostics-report writes,
+    # identified from public results/console and instrumented I/O respectively.
+    # Do not classify every JSON file as a report or infer validity from existence.
+    valid_artifacts: tuple[Path, ...] | None = None
+    diagnostics_exports: tuple[Path, ...] | None = None
+    sidecar_writes: tuple[Path, ...] | None = None  # actual sidecars, regardless of filename spelling
+    # Actual graph snapshot after successful ontology serialization/provenance
+    # construction and immediately before file I/O. Obtain from the real I/O
+    # interception, not from fixtures or an earlier conversion-only snapshot.
+    # This permits independent metadata generated during normal output work.
+    pre_delivery_ontology: Graph | None = None
+
+
+@dataclass(frozen=True)
+class Fault:
+    """Test-only instruction to fail a REAL boundary, never a public option.
+
+    kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics.
+    operation: read, construct, serialize, create, write, enrich. Bind to an
+    observed implementation operation or standard I/O, including child-process
+    I/O for CLI cases. Do not implement a replacement transformation, pre-return
+    expected outcomes, or add production fault hooks to satisfy this protocol.
+    """
+
+    kind: str
+    operation: str
+    path: Path | None = None
+
+
+@dataclass(frozen=True)
+class Operation:
+    """Actual intercepted operation and raw trace/error evidence."""
+
+    kind: str
+    operation: str
+    path: Path | None = None
+    failed: bool = False
+    raw: Any = None
+
+
+@dataclass(frozen=True)
+class DeliveryFailure:
+    kind: str
+    destination: Path | None
+    reason: str
+    raw: Any
+    old_file_not_updated: bool | None = None
+
+
+@dataclass
+class ReportObservation:
+    raw: Any
+    diagnostics: tuple[Diagnostic, ...]
+    outcomes: tuple[str, ...]
+    # Actual shared report-schema evidence: published/native schema or inspected
+    # common report-format definition, validated against these raw file bytes.
+    # Never invent a schema identifier, infer equality from normalized events,
+    # or require identical optional member presence in two JSON instances.
+    schema: Any = None
+
+
+@dataclass
+class SerializationObservation:
+    data: bytes | None
+    failure: Any = None
+
+
+@dataclass
+class DeliveryObservation:
+    observation: Observation
+    failure: Any = None
+
+
+@dataclass
+class CLIObservation:
+    command: tuple[str, ...]
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+    observation: Observation
+    console: tuple[Diagnostic, ...]
+    # Observed conversion entry, from real instrumentation when needed; never
+    # derive this solely from the expected exit code or configuration error.
+    conversion_started: bool | None = None
+
+
+@dataclass(frozen=True)
+class Control:
+    parameter: str
+    choices: tuple[Any, ...] | None
+    default: Any
+    raw: Any  # actual help/signature/public-interface evidence
+    arity: int | None = None
+
+
+@dataclass
+class ControlSurface:
+    cli: Mapping[str, Control]
+    python: Mapping[str, Control]  # indexed by semantic test-control name
+    prohibited_features: Mapping[str, bool]  # actual observed feature presence
+    software_version: str | None = None
+    raw: Any = None
+    # Capabilities whose existence is not prescribed by a production signature.
+    # Conditional input/stream assertions must not invent entry-point support.
+    in_memory_input_supported: bool | None = None
+    stdout_supported: bool | None = None
 
 
 def diagnostic_signatures(events):
@@ -167,7 +303,7 @@ class Invocation(Protocol):
         ...
 
     def convert(
-        self, source: Path, *, options: Mapping[str, Any], workdir: Path
+        self, source: Path, *, options: Mapping[str, Any], workdir: Path, faults: tuple[Fault, ...] = ()
     ) -> Observation:
         """Execute the public library; options are TEST-side semantic controls.
 
@@ -175,6 +311,45 @@ class Invocation(Protocol):
         Do not auto-export diagnostics or repair the source. Use workdir for
         temporary execution artifacts; never write in fixture directories.
         """
+        ...
+
+    def convert_memory(self, source: Mapping[str, Any], *, options: Mapping[str, Any], workdir: Path, faults: tuple[Fault, ...] = ()) -> Observation:
+        """Use an actual supported in-memory public entry, without inventing bytes."""
+        ...
+
+    def cli(self, source: Path | None, *, options: Mapping[str, Any], workdir: Path,
+            output_path: Path | None = None, diagnostics_path: Path | None = None,
+            extra_args: tuple[str, ...] = (), faults: tuple[Fault, ...] = ()) -> CLIObservation:
+        """Run the REAL CLI subprocess; retain argv, both streams and native status.
+
+        Omitted options stay omitted. Test semantic options map to inspected
+        public flags; extra_args are literal CLI arguments. Never derive an
+        outcome from severity/exit status, or rerun Python to fabricate CLI data.
+        """
+        ...
+
+    def serialize(self, observation: Observation, *, target: str, faults: tuple[Fault, ...] = ()) -> SerializationObservation:
+        """Explicit actual public ontology/provenance serialization to bytes."""
+        ...
+
+    def deliver(self, observation: Observation, *, output_path: Path, faults: tuple[Fault, ...] = ()) -> DeliveryObservation:
+        """Actual public explicit file-delivery operation, including its failures.
+
+        Do not implement delivery eligibility, failure precedence or sidecar
+        sequencing in this test binding. Those are production assertions.
+        """
+        ...
+
+    def export_diagnostics(self, observation: Observation, path: Path, *, faults: tuple[Fault, ...] = ()) -> DeliveryObservation:
+        """Separate real Python export; normalize an actual return or exception."""
+        ...
+
+    def read_report(self, path: Path) -> ReportObservation:
+        """Read the actual JSON using its real shared format; retain all events."""
+        ...
+
+    def inspect_controls(self) -> ControlSurface:
+        """Inspect actual public help/signatures, defaults and feature availability."""
         ...
 
     def read_diagnostics(self, observation: Observation) -> tuple[Diagnostic, ...]:
@@ -205,7 +380,28 @@ class _UnboundInvocation:
             "do not substitute a transformer, skip, or xfail these assertions."
         )
 
-    def convert(self, source, *, options, workdir):
+    def convert(self, source, *, options, workdir, faults=()):
+        self._unavailable()
+
+    def convert_memory(self, source, *, options, workdir, faults=()):
+        self._unavailable()
+
+    def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
+        self._unavailable()
+
+    def serialize(self, observation, *, target, faults=()):
+        self._unavailable()
+
+    def deliver(self, observation, *, output_path, faults=()):
+        self._unavailable()
+
+    def export_diagnostics(self, observation, path, *, faults=()):
+        self._unavailable()
+
+    def read_report(self, path):
+        self._unavailable()
+
+    def inspect_controls(self):
         self._unavailable()
 
     def read_diagnostics(self, observation):

@@ -23,8 +23,12 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      pr: ${{ steps.approve.outputs.pr }}
+      sha: ${{ steps.approve.outputs.sha }}
     steps:
       - name: Approve only the successfully checked Dependabot revision
+        id: approve
         env:
           GH_TOKEN: ${{ github.token }}
           TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -141,11 +145,132 @@ jobs:
             --jq '.[] | select(.state == "APPROVED" and .user.login == "github-actions[bot]") | .commit_id')"
           if grep -Fxq "$TESTED_SHA" <<< "$approved"; then
             echo 'Current commit already approved by github-actions[bot].'
+          else
+            # Anchor the approval to the tested commit (never enable auto-merge).
+            gh api --method POST "repos/$GITHUB_REPOSITORY/pulls/$pr/reviews" \
+              -f event=APPROVE -f commit_id="$TESTED_SHA" \
+              -f body='Dependabot update: all reported PR checks passed for this commit.' \
+              --jq '.html_url'
+          fi
+
+          # Permit merging only after this specific revision is approved.
+          printf 'pr=%s\nsha=%s\n' "$pr" "$TESTED_SHA" >> "$GITHUB_OUTPUT"
+
+  merge:
+    needs: approve
+    if: >-
+      needs.approve.outputs.pr != '' &&
+      needs.approve.outputs.sha != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: read
+      checks: read
+      statuses: read
+    steps:
+      - name: Merge only the approved, still-checked Dependabot revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.approve.outputs.pr }}
+          TESTED_SHA: ${{ needs.approve.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr="$PR_NUMBER"
+
+          # Trust neither the saved job outputs nor a stale PR description.
+          current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr")"
+          if ! jq -e --arg sha "$TESTED_SHA" --arg repo "$GITHUB_REPOSITORY" '
+            .state == "open" and .draft == false and
+            .base.ref == "main" and .head.sha == $sha and
+            .head.repo.full_name == $repo and
+            .user.login == "dependabot[bot]" and .user.id == 49699333
+          ' <<< "$current" > /dev/null; then
+            echo 'PR is no longer the checked Dependabot revision; no merge.'
             exit 0
           fi
 
-          # Anchor the approval to the tested commit (never enable auto-merge).
-          gh api --method POST "repos/$GITHUB_REPOSITORY/pulls/$pr/reviews" \
-            -f event=APPROVE -f commit_id="$TESTED_SHA" \
-            -f body='Dependabot update: all reported PR checks passed for this commit.' \
-            --jq '.html_url'
+          # The preceding job must have registered (or found) a matching approval.
+          approved="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/reviews" \
+            --jq '.[] | select(.state == "APPROVED" and .user.login == "github-actions[bot]") | .commit_id')"
+          if ! grep -Fxq "$TESTED_SHA" <<< "$approved"; then
+            echo '::error::No workflow approval exists for the checked commit.'
+            exit 1
+          fi
+
+          # Recheck all currently reported checks, including external statuses.
+          gh pr checks "$pr" --repo "$GITHUB_REPOSITORY" --watch --fail-fast
+          checks="$(gh pr checks "$pr" --repo "$GITHUB_REPOSITORY" --json name,workflow,bucket)"
+          jq -e '
+            any(.[]; .name == "validate" and
+              .workflow == "Validate and publish DirectKG vocabulary" and
+              .bucket == "pass") and
+            all(.[]; .bucket == "pass" or .bucket == "skipping")
+          ' <<< "$checks" > /dev/null
+
+          # Include required contexts not yet displayed by the PR check rollup.
+          owner="$(cut -d/ -f1 <<< "$GITHUB_REPOSITORY")"
+          repo_name="$(cut -d/ -f2 <<< "$GITHUB_REPOSITORY")"
+          protection="$(gh api graphql \
+            -f query='query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                ref(qualifiedName: "refs/heads/main") {
+                  branchProtectionRule { requiredStatusChecks { context app { databaseId } } }
+                }
+              }
+            }' -f owner="$owner" -f name="$repo_name")"
+          jq -e '.errors == null and .data.repository.ref != null' <<< "$protection" > /dev/null
+          rules="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/rules/branches/main?per_page=100" | jq -s 'add')"
+          required="$(jq -n --argjson protection "$protection" --argjson rules "$rules" '
+            [
+              ($protection.data.repository.ref.branchProtectionRule.requiredStatusChecks[]? |
+                {context, integration_id: .app.databaseId}),
+              ($rules[] | select(.type == "required_status_checks") |
+                .parameters.required_status_checks[]? |
+                {context, integration_id: .integration_id})
+            ] | unique_by([.context, .integration_id])
+          ')"
+
+          runs="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/commits/$TESTED_SHA/check-runs?per_page=100" |
+            jq -s '[.[].check_runs[]] | group_by([.name, .app.id]) | map(max_by(.id))')"
+          statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$TESTED_SHA/status")"
+          if ! jq -n -e --argjson runs "$runs" --argjson statuses "$statuses" \
+            --argjson required "$required" '
+            def passed: .status == "completed" and
+              (.conclusion == "success" or .conclusion == "neutral" or .conclusion == "skipped");
+            def source_ok($req):
+              ($req.integration_id == null or $req.integration_id == -1 or
+                .app.id == $req.integration_id);
+            (any($runs[]; .name == "validate" and .conclusion == "success" and .status == "completed")) and
+            (all($runs[]; passed)) and
+            ($statuses.total_count == 0 or $statuses.state == "success") and
+            (all($required[]; . as $req |
+              (any($runs[]; .name == $req.context and source_ok($req) and passed) or
+                (($req.integration_id == null or $req.integration_id == -1) and
+                  any($statuses.statuses[]; .context == $req.context and .state == "success"))) and
+              (all($runs[] | select(.name == $req.context); passed)) and
+              (all($statuses.statuses[] | select(.context == $req.context); .state == "success"))))
+          ' > /dev/null; then
+            echo '::error::A required or reported check is missing, pending, or failing.'
+            exit 1
+          fi
+
+          # Require GitHub to report all merge requirements satisfied; never bypass rules.
+          current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr")"
+          if ! jq -e --arg sha "$TESTED_SHA" --arg repo "$GITHUB_REPOSITORY" '
+            .state == "open" and .draft == false and
+            .base.ref == "main" and .head.sha == $sha and
+            .head.repo.full_name == $repo and
+            .user.login == "dependabot[bot]" and .user.id == 49699333 and
+            .mergeable == true and .mergeable_state == "clean"
+          ' <<< "$current" > /dev/null; then
+            echo '::error::PR is stale, conflicted, or does not satisfy GitHub merge requirements.'
+            exit 1
+          fi
+
+          # GitHub enforces merge rules, while --match-head-commit prevents a head race.
+          # Squash is enabled for this repository; never request admin bypass.
+          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$TESTED_SHA"

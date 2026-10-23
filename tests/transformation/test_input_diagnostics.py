@@ -4,7 +4,7 @@ import copy
 import json
 
 import pytest
-from rdflib import Graph, Literal, Namespace
+from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
@@ -37,10 +37,10 @@ VALID_BUNDLES = [
     ("shared/binary_relation", "input.json"), ("relations/material_naming", "input.json"),
     ("relations/hierarchy", "input.json"), ("inverses/secondary_collisions", "input.json"),
     ("shared/material_pattern", "input.json"), ("relations/chain_constraints", "input.json"),
-    ("higher_order/instantiation", "input.json"),
+    ("shared/instantiation", "input.json"),
 ]
 # Preserve existing harness node IDs when their canonical fixture paths move.
-VALID_BUNDLE_IDS = {"shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions", "shared/omitted_connector": "properties_omitted_connector"}
+VALID_BUNDLE_IDS = {"shared/instantiation": "higher_order_instantiation", "shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions", "shared/omitted_connector": "properties_omitted_connector"}
 NEGATIVE_BUNDLES = [
     ("input_diagnostics/unknown_information", "input.json", {"unknown_field:waveOneUnknownField"}),
     ("input_diagnostics/unknown_information", "unknown_element.json", {"unknown_element"}),
@@ -423,3 +423,97 @@ def test_programmatic_diagnostic_access_is_complete_and_noninterfering(run, invo
     else:
         assert observed_graph is not None
         assert_graph_equal(observed_graph, before)
+
+
+from tests.support.invocation import Fault
+
+
+def _report_source(source_json,tmp_path,scenario):
+    document=source_json('shared/binary_relation' if scenario in {'partial','structural_abort'} else 'shared/base_iri')
+    options={'base_iri':str(BASE),'provenance':'none','iri_strategy':'id'};faults=()
+    if scenario=='warning':source_element(document,'C17')['name']=None;options['iri_strategy']='name'
+    elif scenario in {'partial','structural_abort'}:
+        source_element(document,'tFocus')['propertyType']=None
+        options['input_policy']='best-effort' if scenario=='partial' else 'strict'
+    elif scenario=='duplicate_abort':document['model']['contents'].append(copy.deepcopy(source_element(document,'C17')))
+    elif scenario=='provenance_abort':options['provenance']='embedded';faults=(Fault('provenance','construct'),)
+    elif scenario=='info':source_element(document,'C17').update(isDerived=True,isExtensional=True)
+    path=write_input(tmp_path,document)
+    return path,options,faults
+
+
+def _assert_report(invoke,path,observation):
+    report=invoke.read_report(path)
+    assert report.raw==json.loads(path.read_bytes())
+    assert report.schema is not None, 'Verify actual shared public report-schema evidence'
+    assert report.outcomes==(observation.outcome,)
+    assert diagnostic_signatures(report.diagnostics)==diagnostic_signatures(observation.diagnostics)
+    return report
+
+
+@pytest.mark.parametrize('scenario',['info','warning','partial','structural_abort','duplicate_abort','provenance_abort'])
+def test_python_diagnostics_export_is_explicit_complete_and_noninterfering_even_after_abort(invoke,source_json,tmp_path,scenario):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-17, DK-GEN-10. Also §15 Python export."""
+    source,options,faults=_report_source(source_json,tmp_path,scenario)
+    result=invoke.convert(source,options=options,workdir=tmp_path,faults=faults)
+    expected='completed-with-errors' if scenario=='partial' else 'aborted' if scenario.endswith('abort') else 'completed'
+    assert result.outcome==expected
+    assert result.diagnostics_exports==(), 'Python conversion must not automatically write a report'
+    before=diagnostic_signatures(result.diagnostics)
+    graph=Graph();graph+=result.ontology if result.ontology is not None else Graph()
+    assert diagnostic_signatures(invoke.read_diagnostics(result))==before
+    assert invoke.read_outcome(result)==expected
+    for filename in ('chosen-report.data','second-report.json'):
+        report_path=tmp_path/filename
+        exported=invoke.export_diagnostics(result,report_path)
+        assert exported.failure is None and report_path.is_file()
+        _assert_report(invoke,report_path,result)
+        assert diagnostic_signatures(invoke.read_diagnostics(result))==before
+        assert invoke.read_outcome(result)==expected
+        actual=invoke.read_ontology(result)
+        if expected=='aborted':assert actual is None
+        else:assert_graph_equal(actual,graph)
+    if scenario=='info':
+        for kind in ('abstractness','derived_status','extensionality'):
+            assert any(d.kind==kind and d.severity=='INFO' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('scenario',['info','partial','duplicate_abort'])
+@pytest.mark.parametrize('operation',['create','write'])
+def test_python_report_delivery_failure_is_explicit_and_preserves_diagnostics_and_output_eligibility(invoke,source_json,tmp_path,scenario,operation):
+    """Rules: DK-DIAG-04, DK-DIAG-05. Also §15 Python export."""
+    source,options,faults=_report_source(source_json,tmp_path,scenario)
+    result=invoke.convert(source,options=options,workdir=tmp_path,faults=faults)
+    before=diagnostic_signatures(result.diagnostics);outcome=result.outcome
+    graph=Graph();graph+=result.ontology if result.ontology is not None else Graph()
+    path=tmp_path/'unwritable-report.json'
+    exported=invoke.export_diagnostics(result,path,faults=(Fault('diagnostics',operation,path),))
+    assert exported.failure is not None
+    assert diagnostic_signatures(invoke.read_diagnostics(result))==before
+    assert invoke.read_outcome(result)==outcome
+    if outcome=='aborted':assert invoke.read_ontology(result) is None
+    else:
+        assert_graph_equal(invoke.read_ontology(result),graph)
+        serialized=invoke.serialize(result,target='ontology')
+        assert serialized.failure is None and serialized.data is not None
+        assert_graph_equal(Graph().parse(data=serialized.data,format='turtle'),graph)
+    assert any(op.kind=='diagnostics' and op.operation==operation and op.failed and op.raw is not None
+               for op in exported.observation.operations or ())
+
+
+@pytest.mark.parametrize('variant',['metadata.yaml','metadata/ignored/metadata.yaml','metadata/nulls/metadata.yaml',
+                                   'metadata/empties/metadata.yaml','metadata/empty_mapping/metadata.yaml','metadata/root_list/metadata.yaml','metadata/partial_invalid/metadata.yaml'],
+                         ids=['selected','ignored','nulls','empties','empty_mapping','root_list','partial_invalid'])
+def test_fixture_contract_external_yaml_shapes_are_explicit(variant):
+    """Harness only: YAML syntax/declared shape, not conversion or field validation."""
+    from tests.support.data import load_yaml
+    value=load_yaml('shared/external_metadata',variant)
+    assert isinstance(value,list if 'root_list' in variant else dict)
+    if variant=='metadata.yaml':assert set(value)=={'title','acronym','contributor','keyword','source','landingPage','license'}
+
+
+def test_fixture_contract_external_metadata_expectation_is_valid_rdf():
+    """Harness only: explicitly paired selected-field ground graph."""
+    graph=load_graph(fixture_path('ontology/external_metadata','expected.ttl'))
+    assert len(graph)==11
+    assert all(s==URIRef('https://example.test/model') for s,_,_ in graph)

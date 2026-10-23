@@ -1,0 +1,11 @@
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix mod: <https://w3id.org/mod#> .
+<https://example.test/model>
+ dcterms:title "External Ontology Title";
+ mod:acronym " EX  KG ";
+ dcterms:contributor <https://example.test/people/Alice>, <https://example.test/people/bob>;
+ dcat:keyword "semantic web", "São Paulo";
+ dcterms:source <https://example.test/citation/one>, <https://example.test/citation/two>;
+ dcat:landingPage <https://example.test/landing/one>, <https://example.test/landing/two>;
+ dcterms:license <https://example.test/license/é> .

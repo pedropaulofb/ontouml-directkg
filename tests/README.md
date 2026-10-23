@@ -11,7 +11,10 @@ verified on remote main before Wave 4. Wave 4 — Ordinary relations, named inve
 and relation hierarchies — received the forwarded independent OK for
 fe3eba9f46612f927c74edf52a62cdee6cb69365, verified reachable from remote main.
 Wave 5 — Derivations, material-chain interactions, mereology, and non-representation —
-is submitted for independent review. Wave 6 remains unimplemented.
+received the forwarded independent OK for `786c91b8f8e446d8d67709c79f8923d600204056`,
+verified reachable from remote main. Wave 6 — Metadata, provenance, CLI delivery,
+and interface parity — is submitted for independent review. Final reconciliation
+waits for its applicable OK.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -38,7 +41,7 @@ Dependencies are test-only; no production packaging is selected.
 The fixture/harness subset runs independently of production. Intentionally
 invalid source files are checked against their declared defects; one malformed
 JSON file is expected not to parse. These passes do not certify transformation
-behavior. Nine Turtle files are partial ground-triple expectations; the tenth
+behavior. Ten Turtle files are partial ground-triple expectations; one additional file
 is an ordered-chain expectation with an anonymous inverse expression. None is a
 complete conversion output. Pairings are explicit; integrity scans never infer
 input/expectation pairings from filenames or directory order.
@@ -66,8 +69,9 @@ No existing attribute JSON is newly reused across topics.
 Wave 5 adds shared/material_pattern/input.json from its first use across
 relation and property topics. Its relation-only expectation stays at
 relations/material_pattern/expected_chain.ttl, explicitly paired across bundles
-for the default relator geometry under ID mode. The chain-constraint and instantiation inputs
-remain owned by relations and higher_order respectively. Existing reused data
+for the default relator geometry under ID mode. The chain-constraint input remains relation-owned. Wave 6 promotes the byte-identical
+instantiation input to shared/instantiation/input.json because CLI now consumes it;
+all higher-order and contract consumers use that canonical file and retain their node IDs. Existing reused data
 was already canonical shared data; no further promotion is needed.
 The existing vocabulary now lives at vocabulary/latest/dkgm-vocabulary.ttl and
 vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl. Tests read both current paths
@@ -246,7 +250,7 @@ The binding must execute the real public library and adapt only observed values:
 - Bind `has_local_value_restriction_control()` to inspection of the real public
   Python controls for an optional local allValuesFrom feature. It is a test-side
   question, not a proposed production method or parameter spelling. The CLI
-  counterpart remains in Wave 6. An unavailable interface must raise the
+  counterpart is implemented in Wave 6. An unavailable interface must raise the
   integration error rather than answer from the specification.
 - Read diagnostics, outcome, and delivered graph through the actual public
   result/access mechanisms when the tests request another read. Do not return
@@ -258,8 +262,9 @@ The binding must execute the real public library and adapt only observed values:
 
 Most graph-focused requests explicitly select a supplied base and
 `provenance=none` to isolate their scoped behavior. Other controls remain omitted
-unless selected by the case. Default embedded provenance and file deliveries
-belong to the already-planned later wave; this subset does not certify them.
+unless selected by the case. Wave 6 adds default embedded provenance, explicit Python serialization/file delivery,
+and actual CLI-process assertions. Every such integration remains unexecuted until
+the real binding is available; fixture/helper passes do not certify them.
 Stored expectations are partial ground graphs or the explicitly paired ordered
 chain pattern. The generic property_chains reader retains list order and reads
 anonymous inverse expressions without inference. Checks between separate
@@ -320,9 +325,9 @@ specification changes. Its current repository copy is read without modification.
 
 The concrete stable DKGM URI is still unspecified. Import existence/no-fragment
 checks do not certify a concrete target. Detailed vocabulary/bridge checks and
-the remaining approved waves are recorded in the inventory. Wave 1–4 approvals
-do not certify Wave 5, the concrete DKGM identity, or unavailable production
-behavior. Wave 5 requires its own independent verdict before progression.
+all approved wave obligations are recorded in the inventory. Wave 1–5 approvals
+do not certify Wave 6, the concrete DKGM identity, or unavailable production
+behavior. Wave 6 needs its own independent verdict before final reconciliation.
 
 Attribute standalone `*` recognition is asserted. Its exact restriction graph
 is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit
@@ -357,3 +362,85 @@ domains/ranges and exactly one inverse-to-primary axiom without its reciprocal.
 Pairwise property disjointness is compared without fixing statement direction.
 Public-control inspection and the new semantic/report readers remain unexecuted
 until the real interface is bound; helper passes do not certify them.
+
+
+## Metadata, provenance and process binding
+
+Wave 6 adds `tests/cli/test_cli.py` at the approved location. Seven reviewed YAML
+inputs are canonical under `tests/fixtures/shared/external_metadata/`: the root
+`metadata.yaml`, plus `metadata/{ignored,nulls,empties,empty_mapping,root_list,partial_invalid}/metadata.yaml`.
+These are purpose-authored selected Catalog-field inputs, not full Catalog records.
+Both ontology and CLI behavior consume them. The relation-only and metadata-only
+expectations remain in their owning topic bundles. The partial
+`tests/fixtures/transformation/ontology/external_metadata/expected.ttl` is explicitly
+paired with shared/base_iri/input.json and shared/external_metadata/metadata.yaml;
+its eleven triples fix external enrichment only, not the complete ontology.
+Malformed YAML, missing/unreadable files and unsupported-format paths are created
+only in pytest temporary directories. No intentional malformed YAML is committed.
+The existing VP-plugin 0.5.3 provenance/format evidence in the inventory remains
+applicable to reused JSON and reviewed runtime mutations; no exporter support is added.
+PyYAML is pinned in tests/requirements.txt for test data/configuration reading.
+
+The expanded protocol in support/invocation.py still prescribes no production API.
+Bind every operation to the inspected public library or real CLI entry point:
+
+- `cli` must run a real subprocess, retain its actual argv/return status and raw
+  stdout/stderr, and read actual console/report/output evidence. Do not run a
+  second Python conversion to populate missing CLI observations. Where failure
+  removes a public file, real instrumentation may retain the actual conversion
+  result/operations; it must not infer outcomes from expected codes or severities.
+- `serialize` calls the actual public ontology/provenance serialization capability.
+  `deliver` calls actual explicit public file delivery. The binding must not supply
+  production eligibility, sequencing, fallback modes or failure precedence itself.
+  Capture pre_delivery_ontology from actual I/O interception after successful
+  serialization/provenance construction. Failure comparisons use that graph,
+  permitting independent metadata generated during normal output work.
+- `export_diagnostics` is the separate real Python operation; `read_report` retains
+  parsed JSON, every event and outcome, plus the actual shared schema/format
+  evidence validated against those bytes. Optional JSON members may differ between
+  instances. Equal normalized diagnostics alone cannot manufacture schema equality.
+- `inspect_controls` reads real help/signature/public-definition evidence. Its
+  semantic defaults account for actual flag polarity; only Python relation_labels
+  is required to have that precise spelling. Version evidence comes from the real
+  software, independently of the provenance's observed softwareVersion value.
+- A `Fault` is a test-side interception directive, never a production CLI/API option.
+  Bind it only to a real implementation operation or standard I/O, including actual
+  child-process operations. Record raw triggered-operation/error evidence. Do not
+  replace the converter, pre-return expected outcomes or add application fault hooks.
+- Provenance roles identify actual source/configuration/output/execution and DirectKG
+  software resources. Include erroneous metadata-use claims; a requested but unread
+  file entity without a successful-use claim is not classified as used metadata.
+  Do not confuse other associated agents/activities with the generating DirectKG run.
+- Read configuration_literal from the actual designated prov:value, parse that YAML,
+  and normalize only settings it really records into configuration_controls. Never
+  fill missing settings from the request, expected defaults or fixtures. Actual
+  filename/format evidence must retain produced RDF triples, and checksums come from
+  actual SPDX structures. SPDX terms were checked against https://spdx.org/rdf/terms/.
+- New omission/evidence fields must be explicitly read, not presumed empty. These
+  distinguish external contributions, independent metadata, transformation provenance,
+  output-artifact/configuration information, DirectKG metadata predicates, actual
+  diagnostic/sidecar writes and advertised valid artifacts. Existing unbound None
+  values cannot satisfy their negative assertions. Retain actual native failures.
+
+In-memory and stdout clauses are conditional on observed supported capabilities;
+no additional public input type, command syntax or entry point is invented. An
+unbound inspection raises ImplementationUnavailable before these branches can pass.
+A supported in-memory input has no invented original-file byte digest. Automatic
+sidecar writing needs a concrete output path. Capability absence is non-applicability,
+not certified execution of those clauses. An exact other-format rejection classification
+is not added to the contract. Mixed-list invalid-value rejection and independent-field
+preservation are asserted; exact valid-sibling retention is recorded as blocked for
+Architect clarification in the inventory.
+
+Graph checks isolate known source roots/types/predicates across separate executions,
+normalize only permitted unordered disjointness pairs, and follow selected blank-node
+connections for lists/restrictions. Serialization within an execution compares the
+entire observed graph by isomorphism. Named activity IRIs are comparable across runs;
+blank-node labels are graph-scoped. Optional metadata, comment wording, prefixes,
+statement order, whitespace and Turtle bytes are not frozen. Configuration YAML
+repeatability and checksums over actual bytes are checked separately.
+
+Run all available checks from the repository root using the commands above. The
+latest inventory records collected cases, independent passes, unavailable integration
+failures, conditional branches and unresolved normative limits. Wave 6 is submitted,
+not accepted; no baseline-complete claim is made before its independent OK.
