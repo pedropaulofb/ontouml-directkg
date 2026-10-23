@@ -544,7 +544,10 @@ def test_metadata_file_failure_aborts_or_omits_every_external_contribution_witho
         assert (ONTOLOGY,RDFS.label,Literal('Kept Project')) in result.ontology
         assert (ONTOLOGY,RDFS.comment,Literal('Kept Description')) in result.ontology
         _provenance(result,'embedded',source.read_bytes())
-        assert not result.provenance_roles.get('metadata',())
+        # A parsed non-mapping root fails metadata validation; it does not
+        # establish that the input artifact was never read or parsed.
+        if failure in {'missing','permission','malformed'}:
+            assert not result.provenance_roles.get('metadata',())
     if faults:assert any(op.kind=='metadata' and op.operation=='read' and op.failed and op.raw is not None for op in result.operations or ())
 
 

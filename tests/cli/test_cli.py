@@ -263,13 +263,17 @@ INVALID_ARGS=[('--unknown-directkg-option',),('--iri-strategy','INVALID'),('--in
               ('--stereotype-policy','INVALID'),('--inverse-properties','INVALID'),('--relation-labels','INVALID'),
               ('--material-property-chains',),('--material-property-chains','INVALID'),('--provenance','INVALID'),('--language',)]
 @pytest.mark.parametrize('arguments',INVALID_ARGS,ids=['unknown_option','iri_value','policy_value','stereotype_value','inverse_value','labels_value','old_boolean_chains','chains_value','provenance_value','missing_language'])
-def test_invalid_cli_invocation_has_no_conversion_outcome_ontology_or_report(invoke,tmp_path,arguments):
-    """Rules: DK-DIAG-04, DK-DIAG-05. Also §15 invalid invocation."""
+def test_invalid_cli_invocation_has_no_conversion_outcome_or_ontology(invoke,tmp_path,arguments):
+    """Rules: DK-DIAG-04, DK-DIAG-05. Also §15 invalid invocation.
+
+    Generic argument errors do not prescribe report-file behavior. Supplied-base
+    rejection has its own explicit report prohibition, checked separately.
+    """
     destination=tmp_path/'out.ttl';report=tmp_path/'report.json'
     process=invoke.cli(fixture_path('shared/base_iri'),options={'base_iri':str(BASE)},workdir=tmp_path,output_path=destination,diagnostics_path=report,extra_args=arguments)
     assert process.returncode==2 and process.conversion_started is False
     assert process.observation.outcome is None and process.observation.ontology is None
-    assert not destination.exists() and not report.exists()
+    assert not destination.exists()
     assert process.stdout or process.stderr
 
 
@@ -440,7 +444,9 @@ def test_cli_metadata_file_failures_follow_policy_and_report_delivery_precedence
     if policy=='best-effort':
         assert (BASE.Person,RDF.type,OWL.Class) in Graph().parse(destination,format='turtle')
         assert process.observation.external_metadata_output==()
-        assert process.observation.provenance_roles is not None and not process.observation.provenance_roles.get('metadata',())
+        assert process.observation.provenance_roles is not None
+        if failure in {'missing','permission','malformed'}:
+            assert not process.observation.provenance_roles.get('metadata',())
     else:assert process.observation.ontology is None and not destination.exists()
 
 
