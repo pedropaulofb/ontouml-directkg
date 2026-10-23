@@ -247,7 +247,7 @@ class ValidationTests(unittest.TestCase):
         self.validate()
 
     def test_missing_and_incorrect_property_types(self):
-        for term in build.SOURCE_CONTRACTS["0.1.0"]:
+        for term in build.SOURCE_CONTRACTS["0.1.0"].properties:
             with self.subTest(term=term):
                 self.graph.remove((term, RDF.type, OWL.ObjectProperty))
                 self.rejected("owl:ObjectProperty")

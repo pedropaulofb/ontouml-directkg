@@ -1,6 +1,7 @@
 """DirectKG vocabulary publication regression tests (independent of converter code)."""
 import importlib.util
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,7 @@ from rdflib import Graph
 BUILD_PATH = Path(__file__).resolve().parents[1] / "build.py"
 SPEC = importlib.util.spec_from_file_location("vocabulary_builder", BUILD_PATH)
 build = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = build
 SPEC.loader.exec_module(build)
 
 
@@ -21,7 +23,7 @@ class PublicationTests(unittest.TestCase):
         build.validate_release(source)
         graph = Graph().parse(source)
         self.assertGreater(len(graph), 0)
-        self.assertEqual(source.read_bytes(),
+        self.assertEqual(build.releases()[-1].read_bytes(),
                          (build.ROOT / "vocabulary/latest/dkgm-vocabulary.ttl").read_bytes())
 
     def test_numeric_version_selection(self):

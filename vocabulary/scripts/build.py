@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import calendar
+import json
 import re
 import shutil
 import subprocess
+import tempfile
+from dataclasses import dataclass
 from decimal import Decimal, localcontext
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from bs4 import BeautifulSoup
 from rdflib import BNode, Graph, Literal, Namespace, RDF, RDFS, URIRef
@@ -23,19 +28,31 @@ DKGM = Namespace(BASE + "#")
 VANN = Namespace("http://purl.org/vocab/vann/")
 ONTOLOGY = URIRef(BASE)
 LICENSE = URIRef("https://creativecommons.org/licenses/by/4.0/")
+PROJECT_DOCS = URIRef("https://w3id.org/directkg/docs")
+PROJECT_REPOSITORY = URIRef("https://w3id.org/directkg/git")
+LOGO = "branding/ontouml-directkg-logo-transparent.png"
+FAVICON = "branding/favicon/favicon.svg"
+
+
+@dataclass(frozen=True)
+class SourceContract:
+    properties: dict
+    documented: bool = False
 
 # DK-GEN-04 in the 2026-10-21 specification and the released 0.1.0 graph.
 # One table supplies both the property inventory and ordered chain expectations.
 # Register a separately reviewed contract for a future release; never silently
 # apply changed rules to historical sources or derive expectations from the input.
 SOURCE_CONTRACTS = {
-    "0.1.0": {
+    "0.1.0": SourceContract({
         DKGM.memberOf: (DKGM.memberOf, DKGM.subCollectionOf),
         DKGM.subCollectionOf: (DKGM.subCollectionOf, DKGM.subCollectionOf),
         DKGM.subQuantityOf: (DKGM.subQuantityOf, DKGM.subQuantityOf),
         DKGM.componentOf: None,
-    },
+    }),
 }
+# Descriptive additions and documentation requirements; the logical map is shared.
+SOURCE_CONTRACTS["0.1.1"] = SourceContract(SOURCE_CONTRACTS["0.1.0"].properties, documented=True)
 
 # RFC 5646 syntax, without a network-dependent language registry lookup.
 LANGUAGE_RE = re.compile(r"""
@@ -187,6 +204,36 @@ def version_of(path: Path) -> str:
     return ".".join(match.groups())
 
 
+def version_key(version: str) -> tuple[int, ...]:
+    return tuple(map(int, version.split(".")))
+
+
+def next_version(previous: str, increment: str) -> str:
+    """Calculate an explicitly selected patch/minor increment, not its policy."""
+    version_of(Path(f"{STEM}-v{previous}.ttl"))
+    require(increment in {"patch", "minor"}, "Choose a patch or minor increment")
+    major, minor, patch = version_key(previous)
+    return f"{major}.{minor}.{patch + 1}" if increment == "patch" else f"{major}.{minor + 1}.0"
+
+
+def predecessor(file: Path, history: list[Path]) -> URIRef | None:
+    """Derive history from actual release files, never from a maintained list."""
+    version = version_of(file)
+    versions = [version_of(path) for path in history]
+    require(len(versions) == len(set(versions)), f"{file}: ambiguous duplicate release versions")
+    earlier = [path for path in history if version_key(version_of(path)) < version_key(version)]
+    if not earlier:
+        return None
+    previous = max(earlier, key=lambda path: version_key(version_of(path)))
+    graph = _source_graph(previous)
+    expected = URIRef(f"{BASE}/{version_of(previous)}")
+    values = _values(previous, graph, ONTOLOGY, OWL.versionIRI, single=True)
+    _check(previous, ONTOLOGY, OWL.versionIRI, values == {expected},
+           f"the predecessor's filename-derived version IRI <{expected}>",
+           sorted(value.n3() for value in values))
+    return expected
+
+
 def releases() -> list[Path]:
     directory = ROOT / "vocabulary/versioned"
     require(directory.is_dir(), f"Missing release directory: {directory}")
@@ -196,10 +243,10 @@ def releases() -> list[Path]:
     require(bool(files), "No versioned Turtle releases found")
     for file in files:
         version_of(file)
-    return sorted(files, key=lambda file: tuple(map(int, version_of(file).split("."))))
+    return sorted(files, key=lambda file: version_key(version_of(file)))
 
 
-def validate_release(file: Path) -> None:
+def validate_release(file: Path, history: list[Path] | None = None) -> None:
     """Validate source RDF only, using its explicitly registered release contract."""
     version = version_of(file)
     graph = _source_graph(file)
@@ -224,7 +271,8 @@ def validate_release(file: Path) -> None:
     _check(file, ONTOLOGY, OWL.versionInfo, version in SOURCE_CONTRACTS,
            "an explicitly reviewed source-validation contract for this release",
            f"unregistered version {version}; register its approved contract before validation")
-    contract = SOURCE_CONTRACTS[version]
+    policy = SOURCE_CONTRACTS[version]
+    contract = policy.properties
 
     for predicate in (DCTERMS.title, DCTERMS.description):
         _text(file, ONTOLOGY, predicate, _values(file, graph, ONTOLOGY, predicate))
@@ -251,10 +299,6 @@ def validate_release(file: Path) -> None:
            "created <= modified with unambiguous timezone ordering",
            f"created={date_values[0].n3()}, modified={date_values[1].n3()}")
 
-    for node in set(graph.all_nodes()) | set(graph.predicates()):
-        if isinstance(node, URIRef) and str(node).startswith(str(DKGM)):
-            _check(file, node, RDF.type, node in contract,
-                   "one of the four approved DKGM property IRIs", node.n3())
     for term in contract:
         _check(file, term, RDF.type,
                (term, RDF.type, OWL.ObjectProperty) in graph,
@@ -262,6 +306,33 @@ def validate_release(file: Path) -> None:
                sorted(node.n3() for node in graph.objects(term, RDF.type)))
         for predicate in (RDFS.label, SKOS.definition):
             _text(file, term, predicate, _values(file, graph, term, predicate), english=True)
+
+    if policy.documented:
+        previous = predecessor(file, releases() if history is None else history)
+        values = set(graph.objects(ONTOLOGY, OWL.priorVersion))
+        expected = {previous} if previous is not None else set()
+        _check(file, ONTOLOGY, OWL.priorVersion, values == expected,
+               f"the immediately preceding release {previous}" if previous else "no predecessor",
+               sorted(value.n3() for value in values))
+        _check(file, ONTOLOGY, RDFS.seeAlso,
+               set(graph.objects(ONTOLOGY, RDFS.seeAlso)) == {PROJECT_DOCS, PROJECT_REPOSITORY},
+               "the verified project documentation and repository IRIs",
+               sorted(value.n3() for value in graph.objects(ONTOLOGY, RDFS.seeAlso)))
+        for term in contract:
+            values = _values(file, graph, term, RDFS.isDefinedBy, single=True)
+            _check(file, term, RDFS.isDefinedBy, values == {ONTOLOGY},
+                   f"the established ontology IRI <{ONTOLOGY}>",
+                   sorted(value.n3() for value in values))
+        for subject, predicate in ((ONTOLOGY, SKOS.scopeNote),
+                                   (DKGM.memberOf, SKOS.scopeNote),
+                                   (DKGM.memberOf, SKOS.example),
+                                   (DKGM.componentOf, SKOS.scopeNote)):
+            _text(file, subject, predicate, _values(file, graph, subject, predicate), english=True)
+
+    for node in set(graph.all_nodes()) | set(graph.predicates()):
+        if isinstance(node, URIRef) and str(node).startswith(str(DKGM)):
+            _check(file, node, RDF.type, node in contract,
+                   "one of the four approved DKGM property IRIs", node.n3())
 
     approved = {(ONTOLOGY, RDF.type, OWL.Ontology)}
     approved.update((term, RDF.type, OWL.ObjectProperty) for term in contract)
@@ -290,19 +361,22 @@ def validate_release(file: Path) -> None:
         VANN.preferredNamespaceUri, OWL.versionIRI, OWL.versionInfo,
         RDFS.label, RDFS.comment, RDFS.seeAlso,
     }
+    term_annotations = {RDFS.label, SKOS.definition, RDFS.comment, RDFS.seeAlso}
+    if policy.documented:
+        ontology_annotations.update({OWL.priorVersion, SKOS.scopeNote})
+        term_annotations.update({RDFS.isDefinedBy, SKOS.scopeNote, SKOS.example})
     for subject, predicate, value in graph:
         if (subject, predicate, value) in approved:
             continue
         if subject in list_nodes | {RDF.nil} and predicate == RDF.type and value == RDF.List:
             continue
         allowed = (subject == ONTOLOGY and predicate in ontology_annotations
-                   or subject in contract and predicate in {
-                       RDFS.label, SKOS.definition, RDFS.comment, RDFS.seeAlso}
+                   or subject in contract and predicate in term_annotations
                    or subject in creators and predicate == RDFS.label)
         _check(file, subject, predicate, allowed,
                "only the release contract's declarations, chains and descriptive metadata",
                value.n3())
-        if predicate in {RDFS.label, SKOS.definition, RDFS.comment}:
+        if predicate in {RDFS.label, SKOS.definition, RDFS.comment, SKOS.scopeNote, SKOS.example}:
             _text(file, subject, predicate, {value})
         elif predicate == RDFS.seeAlso:
             _check(file, subject, predicate, isinstance(value, URIRef),
@@ -319,6 +393,57 @@ def check_sources(base: str | None = None, files: list[Path] | None = None) -> N
     print(f"Validated {len(sources)} vocabulary source(s); no files generated or modified.")
 
 
+def prepare_release(draft: Path, increment: str, base: str | None = None) -> Path:
+    """Explicitly create one new source; ordinary builds never rewrite Turtle.
+
+    A maintainer edits the draft's annotations and factual modified date first.
+    Existing releases supply the next version and predecessor automatically.
+    """
+    check_immutable(base)
+    history = releases()
+    for source in history:
+        validate_release(source, history)
+    previous = history[-1]
+    version = next_version(version_of(previous), increment)
+    target = previous.with_name(f"{STEM}-v{version}.ttl")
+    require(not target.exists() and not target.with_suffix(".html").exists(),
+            f"{target}: refusing to overwrite an existing release artifact")
+    require(version in SOURCE_CONTRACTS, f"{target}: register the reviewed source contract first")
+    graph = _source_graph(draft)
+    expected = predecessor(target, history)
+    # A draft may start as a copy of the preceding release or already name the
+    # new version. Conflicting version fields are not silently repaired.
+    info = _values(draft, graph, ONTOLOGY, OWL.versionInfo, single=True).pop()
+    iri = _values(draft, graph, ONTOLOGY, OWL.versionIRI, single=True).pop()
+    _check(draft, ONTOLOGY, OWL.versionInfo,
+           isinstance(info, Literal) and info.language is None
+           and info.datatype in (None, XSD.string)
+           and str(info) in {version_of(previous), version}
+           and iri == URIRef(f"{BASE}/{info}"),
+           "a consistent preceding or prepared version IRI/information pair", f"{iri.n3()}, {info.n3()}")
+    values = set(graph.objects(ONTOLOGY, OWL.priorVersion))
+    inherited = set(_source_graph(previous).objects(ONTOLOGY, OWL.priorVersion))
+    _check(draft, ONTOLOGY, OWL.priorVersion,
+           not values or values == {expected}
+           or (str(info) == version_of(previous) and values == inherited),
+           f"no predecessor, <{expected}>, or unchanged metadata inherited from the preceding release",
+           sorted(value.n3() for value in values))
+    graph.set((ONTOLOGY, OWL.versionInfo, Literal(version)))
+    graph.set((ONTOLOGY, OWL.versionIRI, URIRef(f"{BASE}/{version}")))
+    graph.set((ONTOLOGY, OWL.priorVersion, expected))
+    graph.bind("dkgm", DKGM)
+    with tempfile.TemporaryDirectory() as temporary:
+        candidate = Path(temporary) / target.name
+        graph.serialize(candidate, format="turtle", encoding="utf-8")
+        candidate.write_bytes(candidate.read_bytes().rstrip(b"\n") + b"\n")
+        validate_release(candidate, history)
+        # Exclusive creation also protects against a concurrent preparer.
+        with target.open("xb") as output:
+            output.write(candidate.read_bytes())
+    print(f"Prepared {target}; priorVersion={expected}; no HTML or latest files generated.")
+    return target
+
+
 def check_immutable(base: str | None) -> None:
     """Previously committed versioned artifacts must not be changed or removed."""
     if not base or set(base) == {"0"}:
@@ -333,7 +458,183 @@ def check_immutable(base: str | None) -> None:
                 f"Immutable release file changed or removed: {path}; create a new release")
 
 
-def customize_documentation(output: Path, source: Path) -> None:
+def _link(soup, href, text):
+    link = soup.new_tag("a", href=str(href))
+    link.string = text
+    return link
+
+
+def _paragraphs(soup, container, values):
+    container.clear()
+    for value in sorted(set(values), key=lambda value: value.n3()):
+        paragraph = soup.new_tag("p")
+        if value.language:
+            paragraph["lang"] = value.language
+        paragraph.string = str(value)
+        container.append(paragraph)
+
+
+def _rows(table, predicate):
+    return [link.find_parent("tr") for link in table.select("th a[href]")
+            if link["href"] == str(predicate)]
+
+
+def _term_row(soup, table, predicate, title):
+    rows = _rows(table, predicate)
+    require(len(rows) <= 1, f"Ambiguous generated property row: {predicate}")
+    if rows:
+        return rows[0].find("td")
+    row = soup.new_tag("tr")
+    header = soup.new_tag("th")
+    header.append(_link(soup, predicate, title))
+    row.append(header)
+    cell = soup.new_tag("td")
+    row.append(cell)
+    table.append(row)
+    return cell
+
+
+def _sections(soup, graph, file):
+    sections = {}
+    for entity in soup.select(".property.entity"):
+        iri = entity.select_one("table tr td code")
+        require(iri is not None, f"{file}: property section has no IRI")
+        term = URIRef(iri.get_text(strip=True))
+        require(term not in sections and entity.get("id"),
+                f"{file}: missing or duplicate property anchor for {term}")
+        sections[term] = entity
+    expected = set(graph.subjects(RDF.type, OWL.ObjectProperty))
+    require(set(sections) == expected, f"{file}: property sections must match {sorted(map(str, expected))}")
+    return sections
+
+
+def _metadata_field(soup, predicate, file):
+    links = soup.select(f'#metadata dt a[href="{predicate}"]')
+    require(len(links) == 1, f"{file}: missing or ambiguous HTML metadata {predicate}")
+    field = links[0].find_parent("dt").find_next_sibling("dd")
+    require(field is not None, f"{file}: missing HTML metadata value for {predicate}")
+    return field
+
+
+def _asset_data(path, media_type):
+    return f"data:{media_type};base64," + base64.b64encode((ROOT / path).read_bytes()).decode("ascii")
+
+
+def _navigation(version):
+    # These routes are registered in perma-id/w3id.org/ids/directkg/.htaccess.
+    return {
+        "Project documentation": str(PROJECT_DOCS),
+        "Source repository": str(PROJECT_REPOSITORY),
+        "Ontology IRI": BASE,
+        "Current Turtle": f"{BASE}/ttl",
+        "Version IRI": f"{BASE}/{version}",
+        "Version Turtle": f"{BASE}/{version}/ttl",
+    }
+
+
+def _snapshot_versions(version, history):
+    # Frozen HTML lists releases known at its preparation, never future versions.
+    return sorted({version, *(version_of(path) for path in history
+                              if version_key(version_of(path)) <= version_key(version))},
+                  key=version_key)
+
+
+def _chains(file, graph, term):
+    return sorted({_chain(file, graph, term, head)[0]
+                   for head in graph.objects(term, OWL.propertyChainAxiom)})
+
+
+def _term_reference(term):
+    return "dkgm:" + str(term).removeprefix(str(DKGM))
+
+
+def _customize_current(soup, graph, source, history):
+    """Small, source-derived additions to the existing PyLODE layout."""
+    version = version_of(source)
+    sections = _sections(soup, graph, source)
+    for term, entity in sections.items():
+        table = entity.find("table")
+        # PyLODE combines definitions and comments in Description. Keep the
+        # independent comments there; Definition already has its dedicated row.
+        descriptions = _rows(table, DCTERMS.description)
+        comments = set(graph.objects(term, RDFS.comment))
+        if comments:
+            _paragraphs(soup, _term_row(soup, table, DCTERMS.description, "Description"), comments)
+        else:
+            for row in descriptions:
+                row.decompose()
+        for predicate, title in ((SKOS.scopeNote, "Scope Note"), (SKOS.example, "Example")):
+            values = set(graph.objects(term, predicate))
+            if values:
+                _paragraphs(soup, _term_row(soup, table, predicate, title), values)
+        chains = _chains(source, graph, term)
+        if chains:
+            cell = _term_row(soup, table, OWL.propertyChainAxiom, "Property Chain Axiom")
+            cell.clear()
+            for operands in chains:
+                paragraph = soup.new_tag("p")
+                for index, prop in enumerate((*operands, term)):
+                    if index:
+                        paragraph.append(" ⊑ " if index == len(operands) else " ∘ ")
+                    link = _link(soup, "#" + sections[prop]["id"], _term_reference(prop))
+                    paragraph.append(link)
+                cell.append(paragraph)
+
+    metadata = soup.select_one("#metadata")
+    field = _metadata_field(soup, DCTERMS.creator, source)
+    field.clear()
+    for creator in sorted(graph.objects(ONTOLOGY, DCTERMS.creator)):
+        labels = sorted(str(value) for value in graph.objects(creator, RDFS.label))
+        paragraph = soup.new_tag("p")
+        paragraph.append(_link(soup, creator, "; ".join(labels) if labels else str(creator)))
+        if labels:
+            paragraph.append(f" ({creator})")
+        field.append(paragraph)
+    # PyLODE does not consistently include ontology scope notes in metadata.
+    existing = metadata.select(f'dt a[href="{SKOS.scopeNote}"]')
+    if existing:
+        field = _metadata_field(soup, SKOS.scopeNote, source)
+    else:
+        wrapper = soup.new_tag("div")
+        header = soup.new_tag("dt")
+        header.append(_link(soup, SKOS.scopeNote, "Scope Notes"))
+        wrapper.append(header)
+        field = soup.new_tag("dd")
+        wrapper.append(field)
+        metadata.find("dl").append(wrapper)
+    _paragraphs(soup, field, graph.objects(ONTOLOGY, SKOS.scopeNote))
+
+    brand = _link(soup, PROJECT_DOCS, "")
+    brand["id"] = "dkgm-brand"
+    image = soup.new_tag("img", src=_asset_data(LOGO, "image/png"), alt="OntoUML DirectKG",
+                         width="1308", height="887",
+                         style="width:260px; max-width:100%; height:auto;")
+    brand.append(image)
+    metadata.insert(0, brand)
+    for icon in soup.select('link[rel~="icon"]'):
+        icon.decompose()
+    soup.head.append(soup.new_tag("link", rel="icon", type="image/svg+xml",
+                                 href=_asset_data(FAVICON, "image/svg+xml")))
+    soup.head.append(soup.new_tag("link", rel="alternate", type="text/turtle",
+                                 href=f"{BASE}/{version}/ttl", title=f"DKGM {version} Turtle"))
+    navigation = soup.new_tag("nav", id="dkgm-navigation", attrs={"aria-label": "DirectKG resources"})
+    links = soup.new_tag("ul")
+    for title, href in _navigation(version).items():
+        item = soup.new_tag("li")
+        item.append(_link(soup, href, title))
+        links.append(item)
+    navigation.append(links)
+    versions = soup.new_tag("p", id="dkgm-versions")
+    versions.append("Versions in this snapshot: ")
+    for index, available in enumerate(_snapshot_versions(version, history)):
+        if index:
+            versions.append(" · ")
+        versions.append(_link(soup, f"{BASE}/{available}/docs", available))
+    navigation.append(versions)
+    metadata.find("h1").insert_after(navigation)
+
+
+def customize_documentation(output: Path, source: Path, history: list[Path] | None = None) -> None:
     """Reuse the reference repository's source-derived SKOS definitions in PyLODE."""
     graph = Graph().parse(source, format="turtle")
     soup = BeautifulSoup(output.read_text(encoding="utf-8"), "html.parser")
@@ -368,10 +669,109 @@ def customize_documentation(output: Path, source: Path) -> None:
         anchor = defined_by.find_parent("tr") if defined_by else table.find("tr")
         require(anchor is not None, "PyLODE property block has no table rows")
         anchor.insert_after(row)
+    if SOURCE_CONTRACTS[version_of(source)].documented:
+        _customize_current(soup, graph, source, releases() if history is None else history)
     output.write_text(str(soup), encoding="utf-8")
 
 
-def check_documentation(file: Path, version: str) -> None:
+def _check_text_display(file, subject, predicate, container, values):
+    require(container is not None, f"{file}: missing HTML field {subject} / {predicate}")
+    expected = sorted((str(value), (value.language or "").lower()) for value in set(values))
+    actual = sorted((p.get_text(), p.get("lang", "").lower()) for p in container.find_all("p"))
+    _check(file, subject, predicate, actual == expected,
+           f"source-derived HTML text {expected}", actual)
+
+
+def _check_current_documentation(file, soup, source, history):
+    graph = _source_graph(source)
+    version = version_of(source)
+    sections = _sections(soup, graph, file)
+    for term, entity in sections.items():
+        table = entity.find("table")
+        for predicate in (SKOS.definition, RDFS.comment, SKOS.scopeNote, SKOS.example):
+            values = set(graph.objects(term, predicate))
+            rows = _rows(table, DCTERMS.description if predicate == RDFS.comment else predicate)
+            require(len(rows) == (1 if values else 0), f"{file}: missing or ambiguous {term} / {predicate}")
+            if values:
+                _check_text_display(file, term, predicate, rows[0].find("td"), values)
+        defined_by = _rows(table, RDFS.isDefinedBy)
+        require(len(defined_by) == 1 and
+                [a.get("href") for a in defined_by[0].select("td a")] == [str(ONTOLOGY)],
+                f"{file}: incorrect HTML isDefinedBy for {term}")
+        chains = _chains(source, graph, term)
+        rows = _rows(table, OWL.propertyChainAxiom)
+        require(len(rows) == (1 if chains else 0), f"{file}: missing or unexpected property-chain display for {term}")
+        if chains:
+            cell = rows[0].find("td")
+            paragraphs = cell.find_all("p") if cell else []
+            require(len(paragraphs) == len(chains), f"{file}: empty or missing property-chain values for {term}")
+            for paragraph, operands in zip(paragraphs, chains):
+                references = (*operands, term)
+                expected = [("#" + sections[prop]["id"], _term_reference(prop)) for prop in references]
+                actual = [(a.get("href"), a.get_text()) for a in paragraph.find_all("a")]
+                text = " ∘ ".join(_term_reference(prop) for prop in operands) + " ⊑ " + _term_reference(term)
+                _check(file, term, OWL.propertyChainAxiom,
+                       actual == expected and paragraph.get_text() == text,
+                       f"{text}; references {expected}", f"{paragraph.get_text()}; references {actual}")
+    for creator in graph.objects(ONTOLOGY, DCTERMS.creator):
+        field = _metadata_field(soup, DCTERMS.creator, file)
+        matches = field.find_all("a", href=str(creator))
+        labels = sorted(str(value) for value in graph.objects(creator, RDFS.label))
+        expected = "; ".join(labels) if labels else str(creator)
+        require(len(matches) == 1 and matches[0].get_text() == expected
+                and str(creator) in matches[0].parent.get_text(),
+                f"{file}: creator name/identifier mismatch for {creator}")
+    _check_text_display(file, ONTOLOGY, SKOS.scopeNote,
+                        _metadata_field(soup, SKOS.scopeNote, file), graph.objects(ONTOLOGY, SKOS.scopeNote))
+    for predicate in (OWL.priorVersion, RDFS.seeAlso):
+        expected = set(map(str, graph.objects(ONTOLOGY, predicate)))
+        field = _metadata_field(soup, predicate, file)
+        require({a.get("href") for a in field.find_all("a")} == expected,
+                f"{file}: incorrect HTML metadata links for {predicate}")
+    brand = soup.select("#dkgm-brand")
+    require(len(brand) == 1 and brand[0].get("href") == str(PROJECT_DOCS), f"{file}: missing project logo link")
+    image = brand[0].find("img")
+    require(image is not None and image.get("src") == _asset_data(LOGO, "image/png")
+            and image.get("alt") == "OntoUML DirectKG"
+            and image.get("width") == "1308" and image.get("height") == "887"
+            and image.get("style") == "width:260px; max-width:100%; height:auto;",
+            f"{file}: missing, incorrect or distorted DirectKG logo")
+    icons = soup.select('link[rel~="icon"]')
+    require(len(icons) == 1 and icons[0].get("href") == _asset_data(FAVICON, "image/svg+xml")
+            and icons[0].get("type") == "image/svg+xml", f"{file}: incorrect DirectKG favicon")
+    alternate = soup.select('link[rel~="alternate"][type="text/turtle"]')
+    require(len(alternate) == 1 and alternate[0].get("href") == f"{BASE}/{version}/ttl",
+            f"{file}: incorrect version-specific Turtle alternate link")
+    navigation = soup.select_one("#dkgm-navigation")
+    require(navigation is not None, f"{file}: missing project navigation")
+    actual = [(a.get_text(), a.get("href")) for a in navigation.select("ul a")]
+    require(actual == list(_navigation(version).items()), f"{file}: incorrect project/representation navigation")
+    versions = soup.select_one("#dkgm-versions")
+    expected = [(v, f"{BASE}/{v}/docs") for v in _snapshot_versions(version, history)]
+    require(versions is not None and [(a.get_text(), a.get("href")) for a in versions.find_all("a")] == expected,
+            f"{file}: incorrect available-version navigation")
+    scripts = soup.select('script[type="application/ld+json"]')
+    require(bool(scripts), f"{file}: missing PyLODE JSON-LD")
+    for script in scripts:
+        json.loads(script.string or "")
+    ids = [tag["id"] for tag in soup.select("[id]")]
+    require(len(ids) == len(set(ids)), f"{file}: duplicate HTML anchors")
+    for element in soup.select("a[href], img[src], link[href]"):
+        href = element.get("href", element.get("src", ""))
+        url = urlsplit(href)
+        require(url.scheme != "file", f"{file}: local file URL {href}")
+        if url.scheme or url.netloc:
+            continue
+        target = (file.parent / unquote(url.path)).resolve() if url.path else file
+        require(target.is_file(), f"{file}: broken local resource {href}")
+        if url.fragment and target.suffix == ".html":
+            target_soup = soup if target == file else BeautifulSoup(target.read_text(), "html.parser")
+            require(target_soup.find(id=unquote(url.fragment)) is not None,
+                    f"{file}: broken HTML anchor {href}")
+
+
+def check_documentation(file: Path, version: str, source: Path | None = None,
+                        history: list[Path] | None = None) -> None:
     soup = BeautifulSoup(file.read_text(encoding="utf-8"), "html.parser")
     for predicate, expected in (
         (OWL.versionIRI, f"{BASE}/{version}"),
@@ -382,36 +782,45 @@ def check_documentation(file: Path, version: str) -> None:
         field = labels[0].find_parent("dt").find_next_sibling("dd")
         require(field is not None and field.get_text(strip=True) == expected,
                 f"{file.name}: PyLODE version metadata does not match {version}")
+    if SOURCE_CONTRACTS[version].documented:
+        _check_current_documentation(file, soup, source or file.with_suffix(".ttl"),
+                                     releases() if history is None else history)
+
+
+def check_latest(current: Path) -> None:
+    latest = ROOT / "vocabulary/latest"
+    for name, original in ((LATEST_NAME, current), ("index.html", current.with_suffix(".html"))):
+        copy = latest / name
+        require(copy.is_file() and copy.read_bytes() == original.read_bytes(),
+                f"{copy}: latest representation differs from highest release {original.name}")
+    require({p.name for p in latest.iterdir()} == {LATEST_NAME, "index.html"},
+            "Unexpected files in latest publication directory")
 
 
 def build(base: str | None = None) -> None:
     check_immutable(base)
     versions = releases()
     for source in versions:
-        validate_release(source)
+        validate_release(source, versions)
+    for source in versions:
         html = source.with_suffix(".html")
         if not html.exists():
             temporary = source.with_suffix(".tmp.html")
             try:
                 subprocess.run(["pylode", str(source), "-p", "ontpub",
                                 "-c", "true", "-o", str(temporary)], check=True)
-                customize_documentation(temporary, source)
-                check_documentation(temporary, version_of(source))
+                customize_documentation(temporary, source, versions)
+                check_documentation(temporary, version_of(source), source, versions)
                 temporary.replace(html)
             finally:
                 temporary.unlink(missing_ok=True)
-        check_documentation(html, version_of(source))
+        check_documentation(html, version_of(source), source, versions)
     current = versions[-1]
     latest = ROOT / "vocabulary/latest"
     latest.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(current, latest / LATEST_NAME)
     shutil.copyfile(current.with_suffix(".html"), latest / "index.html")
-    require((latest / LATEST_NAME).read_bytes() == current.read_bytes(),
-            "Latest Turtle differs from highest release")
-    require((latest / "index.html").read_bytes() == current.with_suffix(".html").read_bytes(),
-            "Latest HTML differs from highest release")
-    require({p.name for p in latest.iterdir()} == {LATEST_NAME, "index.html"},
-            "Unexpected files in latest publication directory")
+    check_latest(current)
     print(f"Validated {len(versions)} release(s); latest={version_of(current)}; "
           "Pages artifact: vocabulary/latest/")
 
@@ -421,16 +830,25 @@ if __name__ == "__main__":
     parser.add_argument("--base", help="Git commit for immutable release comparison")
     parser.add_argument("--check-only", action="store_true",
                         help="Validate existing Turtle sources without generating or publishing files")
+    parser.add_argument("--prepare-release", choices=("patch", "minor"),
+                        help="Explicitly prepare a new Turtle release from --draft; no HTML/latest changes")
+    parser.add_argument("--draft", type=Path, help="Edited Turtle draft used only with --prepare-release")
     parser.add_argument("sources", nargs="*", type=Path,
                         help="Versioned Turtle sources for --check-only (default: all releases)")
     args = parser.parse_args()
     if args.sources and not args.check_only:
         parser.error("Explicit source files require --check-only")
+    if args.prepare_release and (args.check_only or not args.draft):
+        parser.error("--prepare-release requires --draft and cannot be combined with --check-only")
+    if args.draft and not args.prepare_release:
+        parser.error("--draft requires --prepare-release")
     try:
-        if args.check_only:
+        if args.prepare_release:
+            prepare_release(args.draft, args.prepare_release, args.base)
+        elif args.check_only:
             check_sources(args.base, args.sources or None)
         else:
             build(args.base)
     except Exception as error:
-        operation = "validation" if args.check_only else "publication"
+        operation = "preparation" if args.prepare_release else "validation" if args.check_only else "publication"
         raise SystemExit(f"Vocabulary {operation} failed: {error}") from error

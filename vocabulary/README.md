@@ -10,11 +10,17 @@ is promoted automatically to:
 - `vocabulary/latest/dkgm-vocabulary.ttl` — exact copy of that release's Turtle.
 - `vocabulary/latest/index.html` — exact copy of that release's PyLODE documentation.
 
-The existing `0.1.0` source and ontology version identifiers are preserved
-without changes. The current artifact uses
-`https://w3id.org/directkg/vocab` and
-`https://w3id.org/directkg/vocab/0.1.0`; relocation does not settle the
-separate specification decision about the converter's stable import target.
+The existing `0.1.0` Turtle and HTML are preserved without changes. This branch
+prepares `0.1.1` and updates its local `latest/` copies; it does not deploy them.
+The ontology IRI remains `https://w3id.org/directkg/vocab`, with term namespace
+`https://w3id.org/directkg/vocab#` and new version IRI
+`https://w3id.org/directkg/vocab/0.1.1`. This does not settle the separate
+specification decision about the converter's stable import target.
+
+The patch increment corrects the documentation and adds descriptive discovery
+metadata, scope notes and examples. No terms, definitions or logical axioms
+change. Although SemVer permits flexibility below 1.0.0, a minor increment is
+unnecessary for this correction of the existing vocabulary's presentation.
 
 ## Read-only source validation
 
@@ -60,7 +66,10 @@ and fractional seconds. Two timezone-less values are compared as local values;
 mixed timezone presence must establish an unambiguous order across the possible
 14-hour offset range. No execution-machine timezone or build timestamp is added.
 
-`SOURCE_CONTRACTS` in `scripts/build.py` explicitly registers release `0.1.0`.
+`SOURCE_CONTRACTS` in `scripts/build.py` explicitly registers releases `0.1.0`
+and `0.1.1`, sharing the same property/chain inventory. The latter also requires
+term `rdfs:isDefinedBy`, verified project links, focused English scope notes and
+examples, and `owl:priorVersion` derived from the actual preceding release.
 An unregistered release fails with a request for a reviewed contract, rather
 than silently inheriting rules that might be wrong for it. Future accepted
 evolution must preserve the historical registration and deliberately add the
@@ -68,13 +77,55 @@ applicable contract. The historical release does not acquire new metadata
 requirements. Source validation does not inspect HTML presentation or repair
 generated representations; known 0.1.0 HTML limitations do not make it fail.
 
-## Publishing a subsequent version
+## Explicit source preparation
 
-Add a new `dkgm-vocabulary-vX.Y.Z.ttl` file to `vocabulary/versioned/`.
-Update its version-related RDF metadata consistently; retain all earlier
-Turtle and HTML snapshots unchanged. The existing graph's semantic evolution
-requires its own accepted modeling decisions and a reviewed source-validation
-contract registration; this pipeline only publishes it.
+Edit a separate Turtle draft containing the approved annotations and an accurate
+`dcterms:modified` date-time. Retain the original creation date and creator/license
+metadata. Register the reviewed release contract, then explicitly select its
+patch or minor increment:
+
+```bash
+python vocabulary/scripts/build.py --prepare-release patch --draft /path/to/edited-draft.ttl
+```
+
+Preparation validates existing sources, calculates the next version numerically,
+and derives the immediate predecessor's version IRI from discovered release files.
+It sets the draft's version fields and `owl:priorVersion` in a **new** versioned
+Turtle file. A draft may identify either the preceding or prepared version. An
+unchanged predecessor inherited from a copy of the preceding release is advanced
+automatically; conflicting or ambiguous values are rejected. Existing Turtle or
+HTML targets are never overwritten, and failed source validation creates no
+release. The input draft, historical files, HTML and `latest/` stay unchanged.
+Ordinary builds and `--check-only` never maintain or repair Turtle metadata.
+
+This is a local preparation operation, not a GitHub release or deployment.
+For `0.1.1`, it derives `https://w3id.org/directkg/vocab/0.1.0` as predecessor.
+
+## Generated documentation
+
+The existing PyLODE `ontpub` profile is retained. Focused postprocessing reads
+definitions, independent comments, scope notes, examples and ordered property
+chains from the source graph. Chain expressions link both operands and their
+conclusion to term anchors. Creator names are read from the existing creator
+labels and shown beside their identifiers. PyLODE's JSON-LD remains intact.
+
+The existing transparent PNG logo and SVG favicon under `branding/` are embedded
+unchanged as data URLs, making the standalone HTML independent of asset paths.
+Only the logo's proportional size is styled; the PyLODE layout is retained.
+Navigation uses routes verified against `perma-id/w3id.org/ids/directkg/.htaccess`:
+project docs, repository, ontology, current Turtle, and this version's IRI/Turtle.
+The Turtle alternate link always identifies the snapshot's own version, including
+when the same HTML is copied to `latest/`. Version navigation is generated from
+discovered releases up to that snapshot's version; immutable pages do not acquire
+future entries.
+
+New-contract HTML is checked against its source graph for term sections, exact
+annotation text, chains and references, creator attribution, branding, navigation,
+Turtle alternate links, JSON-LD presence, unique anchors and local resources.
+Historical `0.1.0` HTML retains its earlier validation contract. Builds check that
+`latest/` representations equal the highest versioned artifacts byte for byte.
+
+## Building representations locally
 
 Run with Python 3.12:
 
