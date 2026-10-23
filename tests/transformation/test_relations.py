@@ -941,7 +941,7 @@ def test_derived_flag_neither_creates_nor_suppresses_an_explicit_material_chain(
     assert result.outcome=='completed'
     assert bool(property_chains(result.ontology,BASE.tMaterial))==connector
     meanings=[c for c in result.comments if c.subject==BASE.tMaterial and c.field=='isDerived']
-    assert {c.value for c in meanings}=={derived}
+    assert {(c.context,c.value) for c in meanings}=={('relation',derived),('source_end',False),('target_end',False)}
     assert all((c.subject,RDFS.comment,c.literal) in result.ontology for c in meanings)
     if derived:
         events=[d for d in result.diagnostics if d.kind=='derived_status']
