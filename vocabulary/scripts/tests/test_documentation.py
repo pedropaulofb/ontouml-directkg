@@ -57,6 +57,60 @@ class DocumentationTests(unittest.TestCase):
         self.check()
         build.check_documentation(SOURCE.with_suffix(".html"), VERSION, SOURCE)
 
+    def test_navigation_uses_local_pills_and_available_versions(self):
+        links = self.soup.select("#dkgm-navigation ul a")
+        self.assertEqual([a.get_text() for a in links],
+                         ["Docs", "GitHub", "Ontology", "Latest Turtle", "Version 0.1.1", "Turtle 0.1.1"])
+        self.assertTrue(all("dkgm-pill" in a.get("class", []) for a in links))
+        self.assertTrue(all(not a.find("img") for a in links))
+        style = self.soup.select_one("style#dkgm-navigation-styles").get_text()
+        self.assertIn("flex-wrap: wrap", style)
+        self.assertIn(":focus-visible", style)
+        self.assertNotIn("@import", style)
+        self.assertNotIn("url(", style)
+        versions = self.soup.select_one("#dkgm-versions")
+        self.assertEqual(versions.contents[0], "Available versions: ")
+        self.assertEqual([a.get_text() for a in versions.find_all("a")], ["0.1.0", "0.1.1"])
+        self.check()
+
+    def test_orphaned_commas_removed_without_removing_cardinalities(self):
+        soup = BeautifulSoup(self.raw_html, "html.parser")
+        self.assertEqual(len(build._orphaned_list_separators(soup)), 3)
+        cardinality = soup.new_tag("span", attrs={"class": "cardinality"})
+        cardinality.string = "1..*"
+        soup.select_one("#content").append(cardinality)
+        nested_separator = soup.new_tag("span", attrs={"class": "cardinality"})
+        nested_separator.string = ","
+        soup.select_one(".property.entity td").append(nested_separator)
+        self.page.write_text(str(soup), encoding="utf-8")
+        build.customize_documentation(self.page, SOURCE)
+        processed = BeautifulSoup(self.page.read_text(), "html.parser")
+        self.assertFalse(build._orphaned_list_separators(processed))
+        self.assertEqual([span.get_text() for span in processed.select("span.cardinality")],
+                         [",", "1..*"])
+        self.assertFalse(build._orphaned_list_separators(self.soup))
+
+    def test_orphaned_comma_reappearance_fails_validation(self):
+        separator = self.soup.new_tag("span", attrs={"class": "cardinality"})
+        separator.string = ","
+        self.soup.select_one("#content").append(separator)
+        self.reject("orphaned comma separators")
+
+    def test_missing_pill_presentation_and_old_version_label_fail(self):
+        original = str(self.soup)
+        for change in ("stylesheet", "pill", "version label", "empty versions"):
+            with self.subTest(change=change):
+                self.soup = BeautifulSoup(original, "html.parser")
+                if change == "stylesheet":
+                    self.soup.select_one("#dkgm-navigation-styles").decompose()
+                elif change == "pill":
+                    del self.soup.select_one("#dkgm-navigation ul a")["class"]
+                elif change == "version label":
+                    self.soup.select_one("#dkgm-versions").contents[0].replace_with("Versions in this snapshot: ")
+                else:
+                    self.soup.select_one("#dkgm-versions").clear()
+                self.reject("pill styling|available-version navigation")
+
     def test_three_displayed_chains_match_rdf_lists_and_conclusions(self):
         for conclusion, head in self.graph.subject_objects(OWL.propertyChainAxiom):
             operands = list(Collection(self.graph, head))

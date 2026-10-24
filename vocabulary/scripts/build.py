@@ -56,13 +56,23 @@ IDENTIFIER_CORRECTION = {
         "83876e698f5b66144cd7589b3fc1f5b3d4b5288c094310733711ccb137f05b48"),
 }
 
+# Owner-authorized presentation update (2026-10-25): resource pills, the clearer
+# version label, and removal of orphaned PyLODE separators. No RDF changes.
+PRESENTATION_CORRECTION = {
+    "vocabulary/versioned/dkgm-vocabulary-v0.1.1.html": (
+        "8da6f80659c8a5a9801475435fe53df63a2fcdbbc1e3f52c203b9771058ce688",
+        "51d0830b9972b64ea54f6d7b515c8506cbe35b0a62e223c56e406578d5013809"),
+}
+
 
 def historical_bytes_match(path: str, original: bytes, current: bytes) -> bool:
-    """Keep accepted snapshots frozen, except the exact approved correction."""
-    correction = IDENTIFIER_CORRECTION.get(path)
-    if correction and hashlib.sha256(original).hexdigest() == correction[0]:
-        return hashlib.sha256(current).hexdigest() == correction[1]
-    return current == original
+    """Keep snapshots frozen, following only exact owner-approved corrections."""
+    expected = hashlib.sha256(original).hexdigest()
+    for corrections in (IDENTIFIER_CORRECTION, PRESENTATION_CORRECTION):
+        correction = corrections.get(path)
+        if correction and expected == correction[0]:
+            expected = correction[1]
+    return hashlib.sha256(current).hexdigest() == expected
 
 
 def check_identifier_text(file: Path, text: str) -> None:
@@ -564,12 +574,12 @@ def _asset_data(path, media_type):
 def _navigation(version):
     # These routes are registered in perma-id/w3id.org/ids/directkg/.htaccess.
     return {
-        "Project documentation": str(PROJECT_DOCS),
-        "Source repository": str(PROJECT_REPOSITORY),
-        "Ontology IRI": BASE,
-        "Current Turtle": f"{BASE}/ttl",
-        "Version IRI": f"{BASE}/{version}",
-        "Version Turtle": f"{BASE}/{version}/ttl",
+        "Docs": str(PROJECT_DOCS),
+        "GitHub": str(PROJECT_REPOSITORY),
+        "Ontology": BASE,
+        "Latest Turtle": f"{BASE}/ttl",
+        f"Version {version}": f"{BASE}/{version}",
+        f"Turtle {version}": f"{BASE}/{version}/ttl",
     }
 
 
@@ -578,6 +588,78 @@ def _snapshot_versions(version, history):
     return sorted({version, *(version_of(path) for path in history
                               if version_key(version_of(path)) <= version_key(version))},
                   key=version_key)
+
+
+def _customize_navigation(soup, version, history):
+    for existing in soup.select("#dkgm-navigation, #dkgm-navigation-styles"):
+        existing.decompose()
+    style = soup.new_tag("style", id="dkgm-navigation-styles")
+    style.string = """
+        #dkgm-navigation { margin: 1.25rem 0 1.75rem; }
+        #dkgm-navigation ul {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            padding: 0;
+            margin: 0;
+            list-style: none;
+        }
+        #dkgm-navigation ul li { margin: 0; }
+        #dkgm-navigation a.dkgm-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: .45rem .85rem;
+            border: 1px solid #b7cce0;
+            border-radius: 999px;
+            background: #f0f6fc;
+            color: #17456e;
+            font-size: .875rem;
+            font-weight: 600;
+            line-height: 1.4;
+            text-decoration: none;
+        }
+        #dkgm-navigation a.dkgm-pill:visited { color: #17456e; }
+        #dkgm-navigation a.dkgm-pill:hover {
+            background: #deecf8;
+            border-color: #6e97ba;
+        }
+        #dkgm-navigation a.dkgm-pill:focus-visible {
+            outline: 3px solid #005a9c;
+            outline-offset: 3px;
+        }
+        #dkgm-versions { margin: .8rem 0 0; font-size: .875rem; }
+    """
+    soup.head.append(style)
+    navigation = soup.new_tag("nav", id="dkgm-navigation", attrs={"aria-label": "DirectKG resources"})
+    links = soup.new_tag("ul")
+    for title, href in _navigation(version).items():
+        item = soup.new_tag("li")
+        link = _link(soup, href, title)
+        link["class"] = ["dkgm-pill"]
+        item.append(link)
+        links.append(item)
+    navigation.append(links)
+    versions = soup.new_tag("p", id="dkgm-versions")
+    versions.append("Available versions: ")
+    for index, available in enumerate(_snapshot_versions(version, history)):
+        if index:
+            versions.append(" · ")
+        versions.append(_link(soup, f"{BASE}/{available}/docs", available))
+    navigation.append(versions)
+    soup.select_one("#metadata h1").insert_after(navigation)
+
+
+def _orphaned_list_separators(soup):
+    # PyLODE leaks comma-only separator spans directly into #content when
+    # rendering property-chain list nodes. Preserve nested list separators and
+    # actual cardinality values, including those inside property tables.
+    return [span for span in soup.select("#content > span.cardinality")
+            if span.string is not None and span.get_text(strip=True) == ","]
+
+
+def _remove_orphaned_list_separators(soup):
+    for span in _orphaned_list_separators(soup):
+        span.decompose()
 
 
 def _chains(file, graph, term):
@@ -658,21 +740,8 @@ def _customize_current(soup, graph, source, history):
                                  href=_asset_data(FAVICON, "image/svg+xml")))
     soup.head.append(soup.new_tag("link", rel="alternate", type="text/turtle",
                                  href=f"{BASE}/{version}/ttl", title=f"DKGM {version} Turtle"))
-    navigation = soup.new_tag("nav", id="dkgm-navigation", attrs={"aria-label": "DirectKG resources"})
-    links = soup.new_tag("ul")
-    for title, href in _navigation(version).items():
-        item = soup.new_tag("li")
-        item.append(_link(soup, href, title))
-        links.append(item)
-    navigation.append(links)
-    versions = soup.new_tag("p", id="dkgm-versions")
-    versions.append("Versions in this snapshot: ")
-    for index, available in enumerate(_snapshot_versions(version, history)):
-        if index:
-            versions.append(" · ")
-        versions.append(_link(soup, f"{BASE}/{available}/docs", available))
-    navigation.append(versions)
-    metadata.find("h1").insert_after(navigation)
+    _customize_navigation(soup, version, history)
+    _remove_orphaned_list_separators(soup)
 
 
 def customize_documentation(output: Path, source: Path, history: list[Path] | None = None) -> None:
@@ -787,10 +856,15 @@ def _check_current_documentation(file, soup, source, history):
     require(navigation is not None, f"{file}: missing project navigation")
     actual = [(a.get_text(), a.get("href")) for a in navigation.select("ul a")]
     require(actual == list(_navigation(version).items()), f"{file}: incorrect project/representation navigation")
+    require(all("dkgm-pill" in a.get("class", []) for a in navigation.select("ul a"))
+            and soup.select_one("style#dkgm-navigation-styles") is not None,
+            f"{file}: missing self-contained navigation pill styling")
     versions = soup.select_one("#dkgm-versions")
     expected = [(v, f"{BASE}/{v}/docs") for v in _snapshot_versions(version, history)]
-    require(versions is not None and [(a.get_text(), a.get("href")) for a in versions.find_all("a")] == expected,
+    require(versions is not None and versions.contents and versions.contents[0] == "Available versions: "
+            and [(a.get_text(), a.get("href")) for a in versions.find_all("a")] == expected,
             f"{file}: incorrect available-version navigation")
+    require(not _orphaned_list_separators(soup), f"{file}: orphaned comma separators in generated HTML")
     scripts = soup.select('script[type="application/ld+json"]')
     require(bool(scripts), f"{file}: missing PyLODE JSON-LD")
     for script in scripts:

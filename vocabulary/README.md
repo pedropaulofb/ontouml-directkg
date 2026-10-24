@@ -122,6 +122,12 @@ when the same HTML is copied to `latest/`. Version navigation is generated from
 discovered releases up to that snapshot's version; immutable pages do not acquire
 future entries.
 
+The resource links use locally styled text pills with wrapping and a visible
+keyboard-focus outline. The release links are labeled **Available versions**.
+Postprocessing removes only PyLODE's orphaned comma-only separator spans directly
+under the content container, preserving actual cardinality annotations and
+separators inside property tables.
+
 New-contract HTML is checked against its source graph for term sections, exact
 annotation text, chains and references, creator attribution, branding, navigation,
 Turtle alternate links, JSON-LD presence, unique anchors and local resources.
@@ -170,18 +176,20 @@ independent historical floor is reviewed main commit
 Turtle and HTML. Fetched main must retain that commit on its first-parent history,
 and the candidate must contain fetched main. Later main snapshots extend the
 protected inventory: each versioned path is compared with its earliest bytes in
-that accepted history, including paths subsequently removed. The sole exception
-is `IDENTIFIER_CORRECTION` in `scripts/build.py`: four path-specific, pinned
-SHA-256 before/after pairs for the authorized 0.1.0/0.1.1 identity correction.
-Each old snapshot accepts only its exact migrated bytes; the old bytes themselves
-are no longer accepted. Comparisons starting from corrected bytes require exact
+that accepted history, including paths subsequently removed. The approved exceptions
+are narrowly pinned in `scripts/build.py`. `IDENTIFIER_CORRECTION` contains four
+path-specific SHA-256 before/after pairs for the authorized 0.1.0/0.1.1 identity correction.
+`PRESENTATION_CORRECTION` adds one exact 0.1.1 HTML before/after pair for the
+owner-approved 2026-10-25 navigation and stray-comma fix. These corrections are
+applied in order, so older baselines require the final approved bytes; obsolete
+intermediate HTML cannot be restored. All other comparisons require exact
 equality. No runtime flag or caller-selected ref grants a general overwrite
 permission. Other paths and later changes retain the existing byte protections,
 even if a particular deployment failed.
 
 When the candidate is itself main's tip, its strict prior history supplies the
 comparison, allowing genuinely new artifacts at the tip. The pinned historical
-floor remains protected, with only the exact correction described above. The gate also compares the complete source
+floor remains protected, with only the exact corrections described above. The gate also compares the complete source
 artifact inventory and bytes with the candidate's committed Git objects; this
 separate cleanliness check does not serve as historical evidence. Missing refs,
 shallow history, an untrusted origin, a missing anchor, stale candidates, changed

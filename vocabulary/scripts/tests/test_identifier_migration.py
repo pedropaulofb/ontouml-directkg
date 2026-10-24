@@ -27,7 +27,7 @@ def original_bytes(path):
 
 
 class IdentifierMigrationTests(unittest.TestCase):
-    def test_only_identifiers_change_in_both_retained_releases(self):
+    def test_identity_correction_and_approved_presentation_are_exact(self):
         self.assertEqual(build.BASE, CANONICAL)
         self.assertEqual(set(build.IDENTIFIER_CORRECTION), {
             f'vocabulary/versioned/dkgm-vocabulary-v{version}.{suffix}'
@@ -37,10 +37,17 @@ class IdentifierMigrationTests(unittest.TestCase):
                 original = original_bytes(name)
                 current = (REPOSITORY / name).read_bytes()
                 self.assertEqual(hashlib.sha256(original).hexdigest(), before)
-                self.assertEqual(hashlib.sha256(current).hexdigest(), after)
+                migrated = original.replace(FORMER.encode(), CANONICAL.encode())
+                self.assertEqual(hashlib.sha256(migrated).hexdigest(), after)
                 # Exact byte comparison protects all annotations, axioms, dates,
-                # embedded assets, and historical presentation beyond identity.
-                self.assertEqual(current, original.replace(FORMER.encode(), CANONICAL.encode()))
+                # and assets. Only the separately pinned 0.1.1 HTML presentation
+                # correction may follow the accepted identity correction.
+                presentation = build.PRESENTATION_CORRECTION.get(name)
+                if presentation:
+                    self.assertEqual(presentation[0], after)
+                    self.assertEqual(hashlib.sha256(current).hexdigest(), presentation[1])
+                else:
+                    self.assertEqual(current, migrated)
                 if name.endswith('.ttl'):
                     expected = Graph().parse(data=original.decode().replace(FORMER, CANONICAL), format='turtle')
                     self.assertTrue(isomorphic(Graph().parse(data=current, format='turtle'), expected))
@@ -62,6 +69,22 @@ class IdentifierMigrationTests(unittest.TestCase):
                                             (original + b'\n', current)):
                     self.assertFalse(build.historical_bytes_match(name, baseline, candidate))
                 self.assertFalse(build.historical_bytes_match('vocabulary/versioned/unlisted.ttl', original, current))
+
+    def test_presentation_correction_is_exact_and_keeps_history_protected(self):
+        name = 'vocabulary/versioned/dkgm-vocabulary-v0.1.1.html'
+        self.assertEqual(set(build.PRESENTATION_CORRECTION), {name})
+        migrated = original_bytes(name).replace(FORMER.encode(), CANONICAL.encode())
+        current = (REPOSITORY / name).read_bytes()
+        before, after = build.PRESENTATION_CORRECTION[name]
+        self.assertEqual(hashlib.sha256(migrated).hexdigest(), before)
+        self.assertEqual(hashlib.sha256(current).hexdigest(), after)
+        self.assertNotEqual(before, after)
+        self.assertTrue(build.historical_bytes_match(name, migrated, current))
+        for baseline, candidate in ((migrated, migrated), (migrated, current + b'\n'),
+                                    (current, migrated), (current, current + b'\n')):
+            with self.subTest(baseline=hashlib.sha256(baseline).hexdigest()):
+                self.assertFalse(build.historical_bytes_match(name, baseline, candidate))
+        self.assertFalse(build.historical_bytes_match(name + '.other', migrated, current))
 
     def test_all_rdf_representations_declare_exact_ontology_version_and_terms(self):
         vocabulary = REPOSITORY / 'vocabulary'
