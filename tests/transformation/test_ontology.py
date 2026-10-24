@@ -13,6 +13,7 @@ from tests.support.rdf import assert_contains, assert_graph_equal, assert_select
 
 
 BASE = Namespace("https://example.test/model#")
+DKGM_ONTOLOGY = URIRef("https://w3id.org/directkg/vocab/dkgm")
 POLICIES = ["strict", "tolerant", "best-effort"]
 FIXED_PREDICATES = {RDF.type, RDFS.domain, RDFS.range, RDFS.label, DCTERMS.identifier,
                     RDFS.subClassOf, RDFS.subPropertyOf, OWL.inverseOf,
@@ -127,16 +128,14 @@ def test_core_asserted_domain_graph(run, source_path):
 def test_generated_ontology_has_import_even_without_mereology(run, input_policy):
     """Rules: DK-GEN-01, DK-GEN-04, DK-IRI-01.
 
-    Only import existence and its no-fragment boundary are asserted. The exact
-    stable DKGM target remains blocked; an arbitrary import is not certified
-    as the accepted DKGM URI by this test.
+    The 2026-10-24 identity decision fixes the exact unversioned DKGM target.
     """
     result = run("shared/base_iri", input_policy=input_policy)
     assert result.outcome == "completed"
     ontology = URIRef("https://example.test/model")
     assert (ontology, RDF.type, OWL.Ontology) in result.ontology
     imports = set(result.ontology.objects(ontology, OWL.imports))
-    assert imports
+    assert DKGM_ONTOLOGY in imports
     assert any(isinstance(target, URIRef) and urlsplit(str(target)).scheme and not urlsplit(str(target)).fragment and not str(target).endswith("#") for target in imports)
 
 
@@ -292,17 +291,24 @@ def test_project_name_changes_only_ontology_label(run, source_json, tmp_path, ir
     assert diagnostic_signatures(first.diagnostics) == diagnostic_signatures(second.diagnostics)
 
 
-@pytest.mark.parametrize('resource',['vocabulary/latest/dkgm-vocabulary.ttl','vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl'],
-                         ids=['latest_vocabulary','versioned_vocabulary'])
+@pytest.mark.parametrize('resource',['vocabulary/latest/dkgm-vocabulary.ttl','vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl',
+                                     'vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl'],
+                         ids=['latest_vocabulary','versioned_vocabulary','versioned_0_1_1_vocabulary'])
 def test_existing_mereology_vocabulary_has_relative_identity_complete_generic_axioms_and_no_gufo_alignment(resource):
     """Rules: DK-GEN-04.
 
-    Read-only conformance of the actual resource, not proof that its concrete
-    URI has been adopted. No network redirect/version-pinning expectation.
+    Read-only conformance of the actual resource to the accepted concrete URI,
+    namespace and retained release versions. No network resolution claim.
     """
     graph=load_graph(Path(__file__).resolve().parents[2]/resource)
     ontologies=set(graph.subjects(RDF.type,OWL.Ontology));assert len(ontologies)==1
     ontology=next(iter(ontologies));assert isinstance(ontology,URIRef) and not urlsplit(str(ontology)).fragment
+    assert ontology == DKGM_ONTOLOGY
+    version = '0.1.0' if 'v0.1.0' in resource else '0.1.1'
+    assert set(graph.objects(ontology,OWL.versionIRI)) == {URIRef(str(DKGM_ONTOLOGY)+'/'+version)}
+    vann=Namespace('http://purl.org/vocab/vann/')
+    assert set(graph.objects(ontology,vann.preferredNamespacePrefix)) == {Literal('dkgm')}
+    assert set(graph.objects(ontology,vann.preferredNamespaceUri)) == {Literal(str(DKGM_ONTOLOGY)+'#')}
     terms={name:URIRef(str(ontology)+'#'+name) for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf')}
     for term in terms.values():
         assert (term,RDF.type,OWL.ObjectProperty) in graph
@@ -326,6 +332,7 @@ def test_generated_ontology_uses_observed_core_import_without_copying_generic_ax
     result=run(key,iri_strategy='id')
     assert result.outcome=='completed'
     ontology=URIRef('https://example.test/model');u=result.mereology_import
+    assert u == DKGM_ONTOLOGY
     assert isinstance(u,URIRef) and not urlsplit(str(u)).fragment
     assert (ontology,OWL.imports,u) in result.ontology
     for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf'):
@@ -333,8 +340,7 @@ def test_generated_ontology_uses_observed_core_import_without_copying_generic_ax
         assert (term,RDF.type,OWL.ObjectProperty) not in result.ontology
         assert (term,RDF.type,OWL.AsymmetricProperty) not in result.ontology
         assert not list(result.ontology.objects(term,OWL.propertyChainAxiom))
-    # This identifies the actual import from binding/publication evidence. The
-    # concrete accepted U and external redirect behavior remain blocked.
+    # Read actual import evidence; external redirect behavior is a separate check.
 
 
 def test_rdf_helper_property_chains_keep_order_and_anonymous_direction():

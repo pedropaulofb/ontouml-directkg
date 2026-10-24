@@ -19,7 +19,7 @@ Before conversion, validate the supplied, effective, and derived ontology IRIs a
 
 For example, relative `my-model` is rejected. `https://example.org/model#part` is itself an absolute IRI, but the delimiter rule would produce invalid `https://example.org/model#part#`; reject the configuration rather than repairing it. Rejection applies under every input policy before conversion: CLI code `2`, programmatic Python signaling, and no ontology, transformation outcome, or conversion-diagnostics report. The Python exception class is unspecified.
 
-There is no independent ontology-IRI control. This derivation neither changes entity identity nor selects the imported DKGM vocabulary's still-unresolved persistent identity. See [Ontology header](output.md#ontology-header).
+There is no independent ontology-IRI control. This derivation does not change entity identity; the imported DKGM vocabulary has its separately accepted persistent identity under DK-GEN-04. See [Ontology header](output.md#ontology-header).
 
 ## Strategy and renaming
 

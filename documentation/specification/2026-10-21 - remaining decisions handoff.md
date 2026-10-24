@@ -90,17 +90,16 @@ DK-DIAG-03 already prevents both directional properties when required relation e
 
 **Decisions needed:**
 
-- Select the concrete stable `dkgm` ontology URI `U`.
-- Determine the remaining `owl:versionIRI` policy for the reusable vocabulary and generated ontologies.
+- Determine remaining ontology-versioning matters outside the accepted DKGM `U/X.Y.Z` pattern, including generated-ontology versioning.
 - Decide whether canonicalized in-memory source digests are supported at all; if supported, define the canonical representation and distinguish its digest from an exact-file-byte digest.
 
-**Constraints and resolved boundary:** DK-GEN-04 requires a stable latest-version import target `U`, without a fragment, and derives the property namespace as `U#`. Selecting the concrete URI must not replace that policy with a pinned-release import. DK-IRI-01 derives the generated ontology IRI from the effective entity base and establishes no independent ontology-IRI control. Project labels, external metadata, provenance modes, and file-byte digest boundaries are governed by DK-GEN-08–11.
+**Constraints and resolved boundary:** DK-GEN-04 requires a stable latest-version import target `U`, without a fragment, and derives the property namespace as `U#`. The project-owner decision of 2026-10-24 selects `U = https://w3id.org/directkg/vocab/dkgm` and DKGM version IRIs `U/X.Y.Z`; versions 0.1.0 and 0.1.1 retain their numbers during the authorized pre-release identity correction. Generated imports remain unversioned. DK-IRI-01 derives the generated ontology IRI from the effective entity base and establishes no independent ontology-IRI control. Project labels, external metadata, provenance modes, and file-byte digest boundaries are governed by DK-GEN-08–11.
 
-**Why it matters:** A mandatory import still contains a placeholder. Version identity affects consumers without selecting a new entity namespace. A canonical in-memory digest needs a defined identity claim and cannot masquerade as a digest of unavailable original file bytes.
+**Why it matters:** The mandatory import now has an accepted concrete target. Remaining version-identity decisions must preserve that target and its hash namespace. A canonical in-memory digest needs a defined identity claim and cannot masquerade as a digest of unavailable original file bytes.
 
-**Alternatives and trade-offs — non-normative:** Choose a durable controlled stable URI compatible with the accepted hash namespace; no concrete candidate is recorded as accepted in the available state. Compare explicit version identity with deliberate omission where no reliable version exists. For in-memory source digests, retain the current exclusion or adopt a separately specified canonical representation. The handoff selects none of these alternatives.
+**Alternatives and trade-offs — non-normative:** Compare explicit version identity with deliberate omission where no reliable version exists. For in-memory source digests, retain the current exclusion or adopt a separately specified canonical representation. These remaining alternatives are not selected by the identifier migration.
 
-**Next discussion and dependencies:** Select public vocabulary identity/versioning without prescribing deployment tooling. The in-memory question does not block accepted file-based provenance: DK-GEN-10 requires exact input bytes and, in sidecar mode, final serialized ontology bytes. Absence of an explicitly excluded original-file digest for in-memory input is not a required-provenance failure. Source canonicalization and a guarantee of byte-identical Turtle output are different questions; check the complete session serialization transfer before discussing their interaction.
+**Next discussion and dependencies:** Discuss only the remaining versioning matters; the concrete DKGM identity and its established version-IRI pattern are selected. The in-memory question does not block accepted file-based provenance: DK-GEN-10 requires exact input bytes and, in sidecar mode, final serialized ontology bytes. Absence of an explicitly excluded original-file digest for in-memory input is not a required-provenance failure. Source canonicalization and a guarantee of byte-identical Turtle output are different questions; check the complete session serialization transfer before discussing their interaction.
 
 ## Public output and diagnostics
 
@@ -150,7 +149,7 @@ DK-DIAG-04–05 and §15 already establish structured Python diagnostics, separa
 
 ## Dependencies and retained evidence anchors
 
-RD-02 and ODI-IRI share identity failures. RD-04's profile claim depends on the relevant remaining semantic mappings; its report contract depends on residual recovery and the restored failure decisions. RD-05's concrete vocabulary identity can be discussed independently of source-digest canonicalization. Source-scope evidence checks precede any new mapping discussion. This is a dependency description, not an accepted implementation order.
+RD-02 and ODI-IRI share identity failures. RD-04's profile claim depends on the relevant remaining semantic mappings; its report contract depends on residual recovery and the restored failure decisions. RD-05's remaining versioning matters can be discussed independently of source-digest canonicalization. Source-scope evidence checks precede any new mapping discussion. This is a dependency description, not an accepted implementation order.
 
 The following anchors are retained from the supplied prior issues and baseline. They identify research starting points, not fresh inspection or proof that all relevant files were examined during this reconciliation:
 

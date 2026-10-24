@@ -1074,6 +1074,7 @@ def test_mereology_uses_primary_direction_generic_bridge_and_primary_only_assert
     source,target=(BASE.cB,BASE.cA) if reverse else (BASE.cA,BASE.cB)
     _direction(result.ontology,BASE.tFocus,source,target)
     u=result.mereology_import
+    assert u == URIRef('https://w3id.org/directkg/vocab/dkgm')
     assert isinstance(u,URIRef) and '#' not in str(u)
     generic=URIRef(str(u)+'#'+stereotype)
     assert (BASE.tFocus,RDFS.subPropertyOf,generic) in result.ontology
@@ -1099,6 +1100,7 @@ def test_compatible_source_mereologies_do_not_create_arbitrary_source_chains_or_
     document['model']['contents'].append(other)
     result=run(path=write_input(tmp_path,document),iri_strategy='id',material_property_chains=mode)
     assert result.outcome=='completed'
+    assert result.mereology_import == URIRef('https://w3id.org/directkg/vocab/dkgm')
     generic=URIRef(str(result.mereology_import)+'#subQuantityOf')
     for prop in (BASE.tFocus,BASE.tNext):
         assert (prop,RDFS.subPropertyOf,generic) in result.ontology

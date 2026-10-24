@@ -31,7 +31,7 @@ Every generated ontology imports the **complete** reusable DKGM mereology vocabu
 
 The import target is the stable URI representing the vocabulary's latest version, without the property's `#` namespace suffix. It is not pinned to a vocabulary release or replaced by an address obtained by following a redirect. Resolving the same import later can therefore bring in changed imported axioms without changing the generated ontology file.
 
-**The concrete stable URI remains unspecified by the normative baseline.** The existing repository vocabulary uses a concrete address, but that artifact does not establish acceptance of that address as the final import target. No deployable placeholder import is supplied here. [Mereology and DKGM](../mapping/mereology.md#import-and-vocabulary-identity) owns the identity pattern, artifact discrepancy, generic chains, and source-specific bridges.
+**The accepted concrete import target is `https://w3id.org/directkg/vocab/dkgm`.** [Mereology and DKGM](../mapping/mereology.md#import-and-vocabulary-identity) owns the `U`/`U#` relationship, concrete header example, generic chains, and source-specific bridges.
 
 A nonempty source `Project.name` supplies an ontology `rdfs:label`; a nonempty supported `Project.description` supplies an ontology `rdfs:comment`, following source-language rules. Their absence does not generate fallback text or a diagnostic solely for that condition. They do not select ontology identity. An explicitly supplied external title supplements the project name using its separate metadata predicate rather than replacing the source label.
 

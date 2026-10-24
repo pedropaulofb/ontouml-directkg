@@ -10,14 +10,16 @@ is promoted automatically to:
 - `vocabulary/latest/dkgm-vocabulary.ttl` — exact copy of that release's Turtle.
 - `vocabulary/latest/index.html` — exact copy of that release's PyLODE documentation.
 
-The existing `0.1.0` Turtle and HTML are preserved without changes. This branch
-prepares `0.1.1` and updates its local `latest/` copies; it does not deploy them.
-The ontology IRI remains `https://w3id.org/directkg/vocab`, with term namespace
-`https://w3id.org/directkg/vocab#` and new version IRI
-`https://w3id.org/directkg/vocab/0.1.1`. This does not settle the separate
-specification decision about the converter's stable import target.
+The project-owner decision of **2026-10-24** authorizes a one-time pre-release
+identity correction of the existing `0.1.0` and `0.1.1` Turtle/HTML files in place.
+Their version numbers, metadata and logical axioms are retained; no new release
+is created. The canonical ontology and converter import IRI is `https://w3id.org/directkg/vocab/dkgm`,
+with term namespace `https://w3id.org/directkg/vocab/dkgm#` and preferred prefix `dkgm`.
+Version IRIs are `https://w3id.org/directkg/vocab/dkgm/0.1.0` and `https://w3id.org/directkg/vocab/dkgm/0.1.1`.
+`latest/` remains an exact copy of the highest release, `0.1.1`. No legacy
+vocabulary or term aliases are retained. Source changes do not deploy them.
 
-The patch increment corrects the documentation and adds descriptive discovery
+The existing `0.1.1` patch increment corrected the documentation and added descriptive discovery
 metadata, scope notes and examples. No terms, definitions or logical axioms
 change. Although SemVer permits flexibility below 1.0.0, a minor increment is
 unnecessary for this correction of the existing vocabulary's presentation.
@@ -99,7 +101,7 @@ release. The input draft, historical files, HTML and `latest/` stay unchanged.
 Ordinary builds and `--check-only` never maintain or repair Turtle metadata.
 
 This is a local preparation operation, not a GitHub release or deployment.
-For `0.1.1`, it derives `https://w3id.org/directkg/vocab/0.1.0` as predecessor.
+For `0.1.1`, it derives `https://w3id.org/directkg/vocab/dkgm/0.1.0` as predecessor.
 
 ## Generated documentation
 
@@ -112,7 +114,8 @@ labels and shown beside their identifiers. PyLODE's JSON-LD remains intact.
 The existing transparent PNG logo and SVG favicon under `branding/` are embedded
 unchanged as data URLs, making the standalone HTML independent of asset paths.
 Only the logo's proportional size is styled; the PyLODE layout is retained.
-Navigation uses routes verified against `perma-id/w3id.org/ids/directkg/.htaccess`:
+Navigation uses the `/vocab/dkgm` routes prepared in the W3ID migration branch
+(`pedropaulofb/w3id.org`, `feat/directkg-dkgm-pid`), pending upstream integration:
 project docs, repository, ontology, current Turtle, and this version's IRI/Turtle.
 The Turtle alternate link always identifies the snapshot's own version, including
 when the same HTML is copied to `latest/`. Version navigation is generated from
@@ -122,7 +125,8 @@ future entries.
 New-contract HTML is checked against its source graph for term sections, exact
 annotation text, chains and references, creator attribution, branding, navigation,
 Turtle alternate links, JSON-LD presence, unique anchors and local resources.
-Historical `0.1.0` HTML retains its earlier validation contract. Builds check that
+Historical `0.1.0` HTML retains its earlier presentation contract; all releases
+check the exact ontology/property identities and embedded JSON-LD ontology IRI. Builds check that
 `latest/` representations equal the highest versioned artifacts byte for byte.
 
 ## Building representations locally
@@ -138,7 +142,8 @@ python -m unittest discover -s vocabulary/scripts/tests -v
 The build validates metadata and release immutability (with `--base SHA`),
 generates missing HTML snapshots with PyLODE's `ontpub` profile, then
 synchronizes `latest/`. It does not overwrite previously generated
-versioned HTML. The GitHub Actions workflow validates on pull requests and
+versioned HTML. The GitHub Actions workflow validates on the migration feature
+branch and on pull requests, and
 automatically commits generated representations on pushes to `main` or
 manual runs on `main`, after a read-only publication gate. It then calls `.github/workflows/docs.yml` with the prepared
 commit SHA. That workflow builds the Zensical documentation and includes
@@ -166,13 +171,18 @@ independent historical floor is reviewed main commit
 Turtle and HTML. Fetched main must retain that commit on its first-parent history,
 and the candidate must contain fetched main. Later main snapshots extend the
 protected inventory: each versioned path is compared with its earliest bytes in
-that accepted history, including paths subsequently removed. This conservatively
-preserves the existing immutability rule for artifacts already accepted on main,
+that accepted history, including paths subsequently removed. The sole exception
+is `IDENTIFIER_CORRECTION` in `scripts/build.py`: four path-specific, pinned
+SHA-256 before/after pairs for the authorized 0.1.0/0.1.1 identity correction.
+Each old snapshot accepts only its exact migrated bytes; the old bytes themselves
+are no longer accepted. Comparisons starting from corrected bytes require exact
+equality. No runtime flag or caller-selected ref grants a general overwrite
+permission. Other paths and later changes retain the existing byte protections,
 even if a particular deployment failed.
 
 When the candidate is itself main's tip, its strict prior history supplies the
 comparison, allowing genuinely new artifacts at the tip. The pinned historical
-floor always remains protected. The gate also compares the complete source
+floor remains protected, with only the exact correction described above. The gate also compares the complete source
 artifact inventory and bytes with the candidate's committed Git objects; this
 separate cleanliness check does not serve as historical evidence. Missing refs,
 shallow history, an untrusted origin, a missing anchor, stale candidates, changed
@@ -199,9 +209,29 @@ This validates the actual staged RDF, HTML, version references, chains, internal
 links, fragments and embedded assets, including links relative to `latest/`.
 It checks required artifact pairs and inventories, latest/versioned equality,
 and exact source-to-site bytes. It neither repairs stale copies nor regenerates
-HTML. Historical 0.1.0 keeps its earlier presentation contract. Any required
+HTML. Historical 0.1.0 keeps its earlier presentation contract plus the shared
+identity checks. Any required
 failure stops Pages artifact upload. No external-link availability test is part
 of this deterministic gate. GitHub Pages remains the single combined publisher.
+
+## Coordinated W3ID validation
+
+The W3ID source changes are in the existing fork, on `feat/directkg-dkgm-pid`,
+based on upstream `master`. Only `ids/directkg/.htaccess` changes. The former
+`/vocab` routes are withdrawn under the explicit pre-release decision; no aliases
+or replacement resource are introduced. Upstream acceptance remains a separate
+review step. Project navigation routes and representation targets are unchanged.
+
+Validate all required paths, optional slashes, negotiation defaults, release
+patterns, retired paths and unrelated project rules against that actual file:
+
+```bash
+python vocabulary/scripts/tests/check_w3id_routes.py ../w3id.org/ids/directkg/.htaccess
+# Add --baseline /path/to/upstream.htaccess to compare unchanged project rules.
+```
+
+This is a static rule check, not a live HTTP test. Run the W3ID repository checker
+and Apache checks separately using its contribution instructions.
 
 ## Verification after an authorized deployment
 
@@ -215,9 +245,9 @@ python vocabulary/scripts/verify_deployment.py
 
 Do not use this command to imply that a feature-branch version has been deployed.
 It performs no deployment, commits or artifact changes. The verifier first uses
-the shared local artifact contracts, then checks registered W3ID current/version
+the shared local artifact contracts, then checks W3ID current/version
 IRIs with HTML and Turtle Accept headers, plus their explicit `/docs` and `/ttl`
-routes. Expected 303/302 locations come from the inspected W3ID configuration;
+routes. Expected 303/302 locations follow the coordinated `/vocab/dkgm` W3ID rules;
 available versions come from release files. Ordinary subsequent HTTPS redirects
 are followed with cycle/redirect bounds, and final decoded HTTP bytes must equal
 the intended artifacts. HTML media types are checked; Turtle also permits normal

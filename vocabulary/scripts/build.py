@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import calendar
+import hashlib
 import json
 import re
 import shutil
@@ -20,7 +21,7 @@ from rdflib.namespace import DCTERMS, OWL, SKOS, XSD
 from rdflib.plugins.parsers.notation3 import RDFSink, SinkParser
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE = "https://w3id.org/directkg/vocab"
+BASE = "https://w3id.org/directkg/vocab/dkgm"
 STEM = "dkgm-vocabulary"
 RELEASE_RE = re.compile(r"dkgm-vocabulary-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\.ttl")
 LATEST_NAME = "dkgm-vocabulary.ttl"
@@ -36,6 +37,40 @@ FAVICON = "branding/favicon/favicon.svg"
 # the established 0.1.0 snapshots. Later accepted main history extends this floor.
 PUBLICATION_ANCHOR = "957a83454a3bcc9fcf73388fb2d2e2bb467a4561"
 TRUSTED_MAIN = "refs/remotes/origin/main"
+
+# Owner-authorized, one-time pre-release identity correction (2026-10-24).
+# Only these exact old/new SHA-256 pairs may cross the historical byte gate.
+# Neither a flag nor a caller-selected baseline can authorize another rewrite.
+IDENTIFIER_CORRECTION = {
+    "vocabulary/versioned/dkgm-vocabulary-v0.1.0.html": (
+        "37abf99060ad5df98d65a987fe7bda731fe4467d54cac839c36b9fd805431d56",
+        "1f721c9a82e653efda083d33e2f37a2f57da7f4e5836d706f37840b9b96866fe"),
+    "vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl": (
+        "fe2584bfe4f6caf10fa3f4d717655bfdf1e30c817b82c93c37a2ff8a1b6c3e29",
+        "73b823f1a317143109f51fa459278caac55feff17cbba6963cf247c6ccd16cf8"),
+    "vocabulary/versioned/dkgm-vocabulary-v0.1.1.html": (
+        "e7c8d15819ee80d0709dbc9ba23bbb089bded92cfc609a87847f00a0c501cc9b",
+        "8da6f80659c8a5a9801475435fe53df63a2fcdbbc1e3f52c203b9771058ce688"),
+    "vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl": (
+        "3de368ca6e772e0e6fb9cc3a08555c7e823642e17d2e617919c4823a568c0bc3",
+        "83876e698f5b66144cd7589b3fc1f5b3d4b5288c094310733711ccb137f05b48"),
+}
+
+
+def historical_bytes_match(path: str, original: bytes, current: bytes) -> bool:
+    """Keep accepted snapshots frozen, except the exact approved correction."""
+    correction = IDENTIFIER_CORRECTION.get(path)
+    if correction and hashlib.sha256(original).hexdigest() == correction[0]:
+        return hashlib.sha256(current).hexdigest() == correction[1]
+    return current == original
+
+
+def check_identifier_text(file: Path, text: str) -> None:
+    """Reject former DKGM identities in RDF and HTML, including embedded JSON-LD."""
+    former = re.escape(BASE.removesuffix("/dkgm"))
+    boundary = r'''[#/?"'<>\s]'''
+    obsolete = re.search(former + rf"(?={boundary}|$)(?!/dkgm(?:{boundary}|$))", text)
+    require(obsolete is None, f"{file}: obsolete DKGM identifier in publication artifact")
 
 
 @dataclass(frozen=True)
@@ -253,6 +288,7 @@ def releases(directory: Path | None = None) -> list[Path]:
 def validate_release(file: Path, history: list[Path] | None = None) -> None:
     """Validate source RDF only, using its explicitly registered release contract."""
     version = version_of(file)
+    check_identifier_text(file, file.read_text(encoding="utf-8"))
     graph = _source_graph(file)
     ontologies = set(graph.subjects(RDF.type, OWL.Ontology))
     _check(file, ONTOLOGY, RDF.type, ontologies == {ONTOLOGY},
@@ -458,7 +494,8 @@ def check_immutable(base: str | None) -> None:
     for path in paths:
         original = subprocess.check_output(["git", "show", f"{base}:{path}"], cwd=ROOT)
         current = ROOT / path
-        require(current.is_file() and current.read_bytes() == original,
+        require(current.is_file() and not current.is_symlink()
+                and historical_bytes_match(path, original, current.read_bytes()),
                 f"Immutable release file changed or removed: {path}; create a new release")
 
 
@@ -776,7 +813,20 @@ def _check_current_documentation(file, soup, source, history):
 
 def check_documentation(file: Path, version: str, source: Path | None = None,
                         history: list[Path] | None = None) -> None:
+    check_identifier_text(file, file.read_text(encoding="utf-8"))
     soup = BeautifulSoup(file.read_text(encoding="utf-8"), "html.parser")
+    ontology = soup.select_one("#metadata code")
+    require(ontology is not None and ontology.get_text(strip=True) == BASE,
+            f"{file}: incorrect HTML ontology identity")
+    terms = {node.get_text(strip=True) for node in soup.select(".property.entity tr td code")}
+    require(terms == set(map(str, SOURCE_CONTRACTS[version].properties)),
+            f"{file}: incorrect HTML property identities in property sections")
+    scripts = soup.select('script[type="application/ld+json"]')
+    require(bool(scripts), f"{file}: missing PyLODE JSON-LD")
+    for script in scripts:
+        data = json.loads(script.string or "")
+        require(isinstance(data, list) and any(item.get("@id") == BASE for item in data),
+                f"{file}: incorrect JSON-LD ontology identity")
     for predicate, expected in (
         (OWL.versionIRI, f"{BASE}/{version}"),
         (OWL.versionInfo, version),
@@ -880,7 +930,7 @@ def check_publication_history() -> None:
     for path, sha in protected.items():
         current = ROOT / path
         require(current.is_file() and not current.is_symlink()
-                and current.read_bytes() == _git("cat-file", "blob", sha),
+                and historical_bytes_match(path, _git("cat-file", "blob", sha), current.read_bytes()),
                 f"{path}: expected immutable bytes from trusted main history; observed modified or missing historical artifact")
 
 

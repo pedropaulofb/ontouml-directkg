@@ -1,25 +1,33 @@
 # Mereology and DKGM
 
-This page explains **specified vocabulary/import and source-relation mappings**. The repository vocabulary is a real artifact; it does not establish a working converter or settle the pending normative choice of its persistent import URI. For registered vocabulary URLs and their HTTP resolution, see [Persistent identifiers and redirects](../reference/persistent-identifiers.md).
+This page explains **specified vocabulary/import and source-relation mappings**. The repository vocabulary is a real artifact; the accepted import URI is fixed below. Production converter behavior remains unverified. For registered vocabulary URLs and their HTTP resolution, see [Persistent identifiers and redirects](../reference/persistent-identifiers.md).
 
 ## Import and vocabulary identity
 
 Every generated ontology must import the **complete reusable DirectKG mereology vocabulary**, even when its source model has no covered mereological relation. The four generic properties and three accepted generic chains belong to that imported vocabulary. Do not copy them into each generated ontology or publish a model-specific subset instead.
 
-The current specification uses symbolic `U` for the stable ontology URI representing the vocabulary's latest version. **Its concrete value remains unselected.** `U` has no fragment component; append `#` for the property namespace. These are symbolic identifier patterns, not runnable Turtle imports:
+The specification fixes `U = https://w3id.org/directkg/vocab/dkgm` as the stable ontology URI representing the vocabulary's latest version. `U` has no fragment component; append `#` for the property namespace `https://w3id.org/directkg/vocab/dkgm#`:
 
 | Resource | Identity pattern |
 | --- | --- |
 | Vocabulary ontology and mandatory import target | `U` |
 | Generic properties | `U#memberOf`, `U#subCollectionOf`, `U#subQuantityOf`, `U#componentOf` |
 
-Import the stable `U`, without the namespace's appended `#` or a property name. Do not pin a generated import to a vocabulary release or substitute the document address reached by a redirect. Redirecting to a newer document changes neither ontology identity nor property IRIs. Other version-IRI matters remain unspecified by this baseline.
+Import the stable `U`, without the namespace's appended `#` or a property name. Do not pin a generated import to a vocabulary release or substitute the document address reached by a redirect. Redirecting to a newer document changes neither ontology identity nor property IRIs. DKGM version IRIs use `U/X.Y.Z`; generated-ontology versioning remains a separate decision.
 
 Resolving an unchanged generated ontology's import against a later vocabulary version can bring in changed imported axioms. Its import alone therefore does not record which version was current at conversion time.
 
-### Existing artifact and unresolved decision
+### Canonical vocabulary and import
 
-The inspected [repository Turtle artifact](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/vocabulary/latest/dkgm-vocabulary.ttl) uses ontology URI `https://w3id.org/directkg/vocab` and namespace `https://w3id.org/directkg/vocab#`. Its relocation/publication does not select that address as the converter's accepted final import target. An accepted identity decision and normative integration are still needed before documenting a deployable converter import with that concrete URI. No placeholder import is offered as executable output here.
+The [repository Turtle artifact](https://github.com/pedropaulofb/ontouml-directkg/blob/main/vocabulary/latest/dkgm-vocabulary.ttl) declares ontology URI `https://w3id.org/directkg/vocab/dkgm` and namespace `https://w3id.org/directkg/vocab/dkgm#`. The accepted mandatory import is illustrated by:
+
+```turtle
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+<https://example.org/model> a owl:Ontology ;
+    owl:imports <https://w3id.org/directkg/vocab/dkgm> .
+```
+
+This header illustrates the accepted contract; it is not executed converter output. Both existing vocabulary releases, 0.1.0 and 0.1.1, use the corrected identities. The pre-release correction preserves their versions and axioms.
 
 The core vocabulary remains independent of gUFO. It neither imports gUFO nor adds equivalence, subproperty, or other alignment axioms between these generic terms and gUFO as part of this mapping. The generic terms are vocabulary resources, not JSON/metamodel mirrors or source-specific properties with a particular model's class domains/ranges.
 
@@ -34,7 +42,7 @@ An eligible ordinary class-to-class relation carrying one of the recognized ster
 | `subQuantityOf` | `dkgm:subQuantityOf` |
 | `componentOf` | `dkgm:componentOf` |
 
-Here `dkgm:` is the **symbolic `U#` namespace**. The bridge is `Primary rdfs:subPropertyOf Generic`, not replacement or merging of source relations. Each covered primary property is also explicitly an `owl:AsymmetricProperty`. Asymmetry entails irreflexivity, so no separate irreflexivity declaration is required. Do not additionally declare its generated named inverse asymmetric solely from this stereotype; the inverse relationship already entails the corresponding consequence.
+Here `dkgm:` is the **`U#` namespace**, `https://w3id.org/directkg/vocab/dkgm#`. The bridge is `Primary rdfs:subPropertyOf Generic`, not replacement or merging of source relations. Each covered primary property is also explicitly an `owl:AsymmetricProperty`. Asymmetry entails irreflexivity, so no separate irreflexivity declaration is required. Do not additionally declare its generated named inverse asymmetric solely from this stereotype; the inverse relationship already entails the corresponding consequence.
 
 The recognized stereotype alone selects the bridge. Use the already established **primary direction**, even when it fails to express the author's intended part–whole orientation. Do not use `aggregationKind` to determine eligibility/direction, repair or reverse the relation, substitute a named/anonymous inverse, or create an inverse solely for the bridge. Source-specific naming, identity, domains/ranges, inverses, multiplicities, and generalizations retain their independently applicable mappings.
 
@@ -64,4 +72,4 @@ These imports, generic chains, bridges, and source-specific asymmetry are part o
 
 ---
 
-Governing rules: DK-GEN-04; DK-REL-19; DK-CLS-01; DK-PROP-04; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-GEN-04; DK-REL-19; DK-CLS-01; DK-PROP-04; baseline consolidated: **2026-10-21**, with the **2026-10-24** accepted DKGM identity correction; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).

@@ -75,6 +75,7 @@ class WorkflowTests(unittest.TestCase):
                     self.assert_documentation_gate(workflow)
 
     def test_vocabulary_generation_and_promotion_are_gated(self):
+        self.assertIn('feat/dkgm-identifier-migration', self.vocabulary['on']['push']['branches'])
         jobs = self.vocabulary["jobs"]
         validate = jobs["validate"]["steps"]
         self.command(validate, FETCH)

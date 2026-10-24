@@ -79,10 +79,12 @@ instantiation input to shared/instantiation/input.json because CLI now consumes 
 all higher-order and contract consumers use that canonical file and retain their node IDs. Existing reused data
 was already canonical shared data; no further promotion is needed.
 The existing vocabulary now lives at vocabulary/latest/dkgm-vocabulary.ttl and
-vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl. Tests read both current paths
+vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl, with 0.1.1 also covered.
+Tests read these paths
 without modifying them; the plan's older root-resource pathname is not copied
-or restored. Those resource checks test relative URI/namespace relationships
-and axioms, not adoption of their concrete URI or external redirect behavior.
+or restored. Those resource checks test the accepted exact ontology IRI
+`https://w3id.org/directkg/vocab/dkgm`, its `U#` namespace, version IRIs and axioms.
+External redirect behavior remains separate.
 
 ## Actual invocation binding
 
@@ -328,11 +330,13 @@ No test-path exceptions are introduced. The structure document's canonical
 relocation is deferred: the governing Test Engineer instruction prohibits
 specification changes. Its current repository copy is read without modification.
 
-The concrete stable DKGM URI is still unspecified. Import existence/no-fragment
-checks do not certify a concrete target. Detailed vocabulary/bridge checks and
-all approved wave obligations are recorded in the inventory. Independent review
-approvals do not certify the concrete DKGM identity or unavailable production
-behavior. All six waves and the latest configuration-recording correction have
+The project-owner identity decision of 2026-10-24 fixes the stable DKGM URI to
+`https://w3id.org/directkg/vocab/dkgm` and retains `U#` for terms. Import and
+bridge assertions now require that exact identity; the three existing Turtle
+representations are checked independently of production. These assertions do not
+certify unavailable converter behavior or live HTTP resolution. Detailed
+vocabulary/bridge checks and approved wave obligations remain in the inventory.
+All six waves and the latest configuration-recording correction have
 their applicable forwarded OKs; no wave remains under review.
 
 Attribute standalone `*` recognition is asserted. Its exact restriction graph

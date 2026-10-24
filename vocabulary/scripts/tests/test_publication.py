@@ -63,7 +63,7 @@ class PublicationTests(unittest.TestCase):
             page.write_text('''<html><head></head><body>
 <div id="metadata"><h1>Vocabulary</h1></div>
 <div class="property entity"><table><tr><th>IRI</th>
-<td><code>https://w3id.org/directkg/vocab#memberOf</code></td>
+<td><code>https://w3id.org/directkg/vocab/dkgm#memberOf</code></td>
 </tr></table></div></body></html>''')
             build.customize_documentation(page, source)
             soup = BeautifulSoup(page.read_text(), "html.parser")
@@ -80,7 +80,7 @@ class PublicationTests(unittest.TestCase):
             source = build.ROOT / "vocabulary/versioned/dkgm-vocabulary-v0.1.0.ttl"
             shutil.copyfile(source, vdir / source.name)
             html = vdir / "dkgm-vocabulary-v0.1.0.html"
-            html.write_text('<dl><dt><a href="http://www.w3.org/2002/07/owl#versionIRI">Version Iri</a></dt><dd>https://w3id.org/directkg/vocab/0.1.0</dd><dt><a href="http://www.w3.org/2002/07/owl#versionInfo">Version Info</a></dt><dd>0.1.0</dd></dl>')
+            shutil.copyfile(source.with_suffix('.html'), html)
             original = html.read_bytes()
             with patch.object(build, "ROOT", root), patch.object(build.subprocess, "run") as invoke:
                 build.build()

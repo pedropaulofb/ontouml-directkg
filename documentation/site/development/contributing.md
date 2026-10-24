@@ -70,7 +70,7 @@ python -m pip install -r vocabulary/scripts/requirements.txt
 python -m unittest discover -s vocabulary/scripts/tests -v
 ```
 
-See the [vocabulary maintenance instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/vocabulary/README.md) before any vocabulary release work. Its publication tests and existing vocabulary URI do not resolve the converter's [pending DKGM import identity](../mapping/mereology.md#import-and-vocabulary-identity). DK-CONF-04 establishes no separate coverage threshold or detailed testing framework requirement.
+See the [vocabulary maintenance instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/vocabulary/README.md) before any vocabulary release work, including the narrowly scoped pre-release identity correction. The [accepted DKGM import identity](../mapping/mereology.md#import-and-vocabulary-identity) is fixed; publication tests do not certify unavailable converter behavior or live resolution. DK-CONF-04 establishes no separate coverage threshold or detailed testing framework requirement.
 
 ---
 

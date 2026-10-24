@@ -44,7 +44,7 @@ Both untyped attributes remain `owl:DatatypeProperty` with their respective owne
 
 The Turtle excerpt includes only those class/property declarations, labels, and domains. It omits the ontology header, including its required DKGM import and Project label, and the applicable classifier-order/flag comments. For example, retained `isAbstract: false` declarations still have the accepted comment/INFO treatment; the excerpt does not show those comments or claim an empty diagnostic report. Provenance is disabled for this illustration. No execution-specific provenance, diagnostic JSON, or byte-exact result is fabricated.
 
-The unresolved concrete [DKGM import URI](../mapping/mereology.md#import-and-vocabulary-identity) prevents supplying a finalized complete header here. The `.ttl` file is therefore a parseable mapping excerpt, **not a complete conversion result or deployable ontology**. Prefix spelling, statement order, and whitespace are illustrative; see [Graph and text stability](../reference/output.md#graph-and-text-stability).
+The accepted concrete [DKGM import URI](../mapping/mereology.md#import-and-vocabulary-identity) is shown in the mereology header example. This `.ttl` file retains its focused scope as a parseable mapping excerpt, **not a complete conversion result or deployable ontology**. Prefix spelling, statement order, and whitespace are illustrative; see [Graph and text stability](../reference/output.md#graph-and-text-stability).
 
 ## Downloadable pairs
 

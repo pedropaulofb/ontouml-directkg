@@ -71,10 +71,10 @@ DirectKG registers persistent URLs under `https://w3id.org/directkg/` so its res
 
 - [Documentation](https://w3id.org/directkg/docs) — `https://w3id.org/directkg/docs`
 - [Source repository](https://w3id.org/directkg/git) — `https://w3id.org/directkg/git`
-- [Current DKGM ontology](https://w3id.org/directkg/vocab) — `https://w3id.org/directkg/vocab`
-- [Turtle representation](https://w3id.org/directkg/vocab/ttl) — `https://w3id.org/directkg/vocab/ttl`
+- [Current DKGM ontology](https://w3id.org/directkg/vocab/dkgm) — `https://w3id.org/directkg/vocab/dkgm`
+- [Turtle representation](https://w3id.org/directkg/vocab/dkgm/ttl) — `https://w3id.org/directkg/vocab/dkgm/ttl`
 
-See [Persistent identifiers and redirects](documentation/site/reference/persistent-identifiers.md) for the **canonical inventory of all 14 redirect-rule families**, vocabulary term IRIs, HTTP behavior, version patterns, and examples. The [official W3ID configuration](https://github.com/perma-id/w3id.org/blob/master/ids/directkg/.htaccess) controls the redirects; registration does not guarantee published destinations. The converter's mandatory DKGM import IRI remains a separate unresolved specification decision.
+See [Persistent identifiers and redirects](documentation/site/reference/persistent-identifiers.md) for the **canonical inventory of all 14 redirect-rule families**, vocabulary term IRIs, HTTP behavior, version patterns, and examples. The [official W3ID configuration](https://github.com/perma-id/w3id.org/blob/master/ids/directkg/.htaccess) controls the redirects; registration does not guarantee published destinations. The accepted mandatory DKGM import is `https://w3id.org/directkg/vocab/dkgm`. The new DKGM routes await review and integration of the coordinated W3ID branch; these source changes do not establish live availability.
 
 ## License
 
