@@ -2,7 +2,7 @@ name: Validate and publish DirectKG vocabulary
 
 on:
   push:
-    branches: [main, feat/dkgm-identifier-migration]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:

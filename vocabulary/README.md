@@ -142,8 +142,7 @@ python -m unittest discover -s vocabulary/scripts/tests -v
 The build validates metadata and release immutability (with `--base SHA`),
 generates missing HTML snapshots with PyLODE's `ontpub` profile, then
 synchronizes `latest/`. It does not overwrite previously generated
-versioned HTML. The GitHub Actions workflow validates on the migration feature
-branch and on pull requests, and
+versioned HTML. The GitHub Actions workflow validates on pull requests and
 automatically commits generated representations on pushes to `main` or
 manual runs on `main`, after a read-only publication gate. It then calls `.github/workflows/docs.yml` with the prepared
 commit SHA. That workflow builds the Zensical documentation and includes
