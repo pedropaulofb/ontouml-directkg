@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ontouml-directkg"
+version = "0.0.0.dev1"
+description = "Domain-oriented OntoUML to RDF/OWL conversion (baseline implementation in progress)"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["rdflib==7.6.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ontouml_directkg*"]
+namespaces = false
