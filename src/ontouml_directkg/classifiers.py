@@ -96,8 +96,8 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
                 prefix = resolved[identifier]
                 for element in enumeration.values:
                     selected = naming_text(element.data.get("name"))
-                    resolved[element.data["id"]] = (prefix + "_" + normalize_name(selected) if selected is not None
-                                                     else escape_id(element.data["id"]))
+                    if selected is not None:
+                        resolved[element.data["id"]] = prefix + "_" + normalize_name(selected)
             candidates = resolved
             if not changed:
                 break
