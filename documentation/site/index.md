@@ -10,12 +10,6 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 The website provides shared contracts, conceptual guidance, mappings, and contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and available development checks. Getting started and generated API pages remain pending their implementation prerequisites; navigation links only to pages that exist.
 
-## Authorship and independence
-
-OntoUML DirectKG was independently conceived and developed by **[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)**, its sole creator, author, and developer. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
-
-The project is a personal contribution to the OntoUML community and its broader ecosystem. It is **not an official OntoUML project, tool, or implementation**, and it is not endorsed by the OntoUML maintainers.
-
 ## Scope at a glance
 
 | Question | Accepted boundary |
@@ -46,3 +40,13 @@ DirectKG aims for a comparatively lightweight graph of domain concepts and relat
 ---
 
 Governing source: §§2–3; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+## License
+
+The repository includes the [Apache License 2.0](https://github.com/pedropaulofb/ontouml-directkg/blob/main/LICENSE). The [mereology vocabulary](https://github.com/pedropaulofb/ontouml-directkg/blob/main/vocabulary/latest/dkgm-vocabulary.ttl) separately declares **CC BY 4.0** in its RDF metadata.
+
+## Authorship and independence
+
+OntoUML DirectKG was independently conceived and developed by **[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)**, its sole creator, author, and developer. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
+
+The project is a personal contribution to the OntoUML community and its broader ecosystem. It is **not an official OntoUML project, tool, or implementation**, and it is not endorsed by the OntoUML maintainers.
