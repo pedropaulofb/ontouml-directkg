@@ -1,4 +1,4 @@
-"""BI-W1 class declarations; richer classifier mappings remain explicit gaps."""
+"""Local class identity, declarations, annotations and stereotype disjointness."""
 
 from itertools import combinations
 
@@ -6,7 +6,9 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from .annotations import TextAnnotations
+from .datatypes import datatype_key
 from .diagnostics import DiagnosticCollector
+from .enumerations import Enumeration
 from .identity import escape_id, missing_name, naming_text, normalize_name, resolve_name_collisions
 from .source import SourceElement, SourceIndex
 
@@ -18,7 +20,7 @@ _GROUPS = (
 )
 
 
-def wave1_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
+def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
     """Refuse later-wave constructs instead of silently omitting required output.
 
     NotImplementedError identifies unfinished implementation, not a new input
@@ -28,8 +30,13 @@ def wave1_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
     for element in index.elements:
         data = element.data
         kind = data["type"]
-        if kind in {"Project", "Package"}:
+        if kind in {"Project", "Package", "Generalization", "GeneralizationSet"}:
             continue
+        if kind == "Literal":
+            owner = index.declarations.get(element.owner)
+            if owner is not None and owner.data.get("stereotype") == "enumeration":
+                continue
+            raise NotImplementedError("Literal declarations outside enumerations have no assigned baseline mapping")
         if kind != "Class":
             raise NotImplementedError(f"{kind} transformation belongs to a later baseline wave")
         identifier = data.get("id")
@@ -39,30 +46,27 @@ def wave1_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
             identifier.encode("utf-8")
         except UnicodeError as exc:
             raise NotImplementedError("Invalid source-ID recovery requires the deferred Architect decision") from exc
-        if data.get("stereotype") in {"datatype", "enumeration"}:
-            raise NotImplementedError("Datatype/enumeration classification belongs to BI-W2")
-        if data.get("order") is not None or data.get("isExtensional") is not None:
-            raise NotImplementedError("Classifier order/extensionality annotations belong to BI-W2")
-        for flag in ("isAbstract", "isDerived"):
+        for flag in ("isAbstract", "isDerived", "isExtensional", "isPowertype"):
             if data.get(flag) is not None and type(data[flag]) is not bool:
-                raise NotImplementedError("Malformed class-flag recovery is outside BI-W1")
+                raise NotImplementedError("Malformed class-flag recovery is outside the decided baseline")
+        order = data.get("order")
+        if order is not None and (isinstance(order, bool) or not isinstance(order, (str, int, float))):
+            raise NotImplementedError("Malformed classifier-order recovery is outside the decided baseline")
+        if data.get("stereotype") == "datatype" and datatype_key(data.get("name")) is not None:
+            continue
         classes.append(element)
-    # Recognized class pairs requiring later disjointness must not be returned
-    # as completed while their required axioms are still unimplemented.
-    for left, right in combinations(classes, 2):
-        a, b = left.data.get("stereotype"), right.data.get("stereotype")
-        ga = next((n for n, group in enumerate(_GROUPS) if a in group), None)
-        gb = next((n for n, group in enumerate(_GROUPS) if b in group), None)
-        if (a in _ULTIMATE and b in _ULTIMATE) or (ga is not None and gb is not None and ga != gb):
-            raise NotImplementedError("Stereotype-based class disjointness belongs to BI-W2")
     return tuple(classes)
 
 
-def emit_classes(graph: Graph, classes: tuple[SourceElement, ...], base: str, strategy: str,
-                 omit_identifiers: bool, text: TextAnnotations, diagnostics: DiagnosticCollector) -> None:
-    """Allocate class identities before emitting actual OWL declarations/text."""
+def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[Enumeration, ...],
+                       base: str, strategy: str) -> dict[str, URIRef]:
+    """Resolve classes first, then value prefixes and shared source collisions.
+
+    A value can collide with a class. If that suffixes an enumeration class,
+    rebuild its value candidates from the newly resolved class name before
+    finishing. Names only acquire collision suffixes; source order is irrelevant.
+    """
     candidates = {}
-    fallbacks = set()
     for element in classes:
         identifier = element.data["id"]
         if strategy == "id":
@@ -71,22 +75,55 @@ def emit_classes(graph: Graph, classes: tuple[SourceElement, ...], base: str, st
             selected = naming_text(element.data.get("name"))
             if selected is None:
                 candidates[identifier] = "unnamedClass_" + escape_id(identifier, whole_local_name=False)
-                fallbacks.add(identifier)
             else:
                 candidates[identifier] = normalize_name(selected)
     if strategy == "name":
         candidates = resolve_name_collisions(candidates)
-    elif len(set(candidates.values())) != len(candidates):
+        for enumeration in enumerations:
+            prefix = candidates[enumeration.source.data["id"]]
+            for element in enumeration.values:
+                selected = naming_text(element.data.get("name"))
+                candidates[element.data["id"]] = (prefix + "_" + normalize_name(selected) if selected is not None
+                                                   else escape_id(element.data["id"]))
+        while True:
+            resolved = resolve_name_collisions(candidates)
+            changed = False
+            for enumeration in enumerations:
+                identifier = enumeration.source.data["id"]
+                if resolved[identifier] == candidates[identifier]:
+                    continue
+                changed = True
+                prefix = resolved[identifier]
+                for element in enumeration.values:
+                    selected = naming_text(element.data.get("name"))
+                    resolved[element.data["id"]] = (prefix + "_" + normalize_name(selected) if selected is not None
+                                                     else escape_id(element.data["id"]))
+            candidates = resolved
+            if not changed:
+                break
+    else:
+        for enumeration in enumerations:
+            for element in enumeration.values:
+                candidates[element.data["id"]] = escape_id(element.data["id"])
+    if len(set(candidates.values())) != len(candidates):
         raise NotImplementedError("Exceptional escaped-ID collision disposition requires an Architect decision")
+    return {identifier: URIRef(base + candidate) for identifier, candidate in candidates.items()}
+
+
+def emit_classes(graph: Graph, classes: tuple[SourceElement, ...], resources: dict[str, URIRef], strategy: str,
+                 omit_identifiers: bool, text: TextAnnotations, diagnostics: DiagnosticCollector) -> None:
+    """Emit actual OWL declarations/text only for classifiers with local targets."""
+    if strategy == "name" and not omit_identifiers:
+        for identifier, subject in resources.items():
+            graph.add((subject, DCTERMS.identifier, Literal(identifier)))
     for element in classes:
         data = element.data
         identifier = data["id"]
-        subject = URIRef(base + candidates[identifier])
+        subject = resources[identifier]
         graph.add((subject, RDF.type, OWL.Class))
         text.describe(graph, subject, data)
-        if strategy == "name" and not omit_identifiers:
-            graph.add((subject, DCTERMS.identifier, Literal(identifier)))
-        if identifier in fallbacks or (strategy == "id" and missing_name(data.get("name"))):
+        if ((strategy == "name" and naming_text(data.get("name")) is None)
+                or (strategy == "id" and missing_name(data.get("name")))):
             diagnostics.add("WARNING", "MISSING_CLASS_NAME",
                             f"Class {identifier!r}, stereotype {data.get('stereotype')!r}, has no usable "
                             + ("name-based IRI name." if strategy == "name" else "source name."),
@@ -111,3 +148,25 @@ def emit_classes(graph: Graph, classes: tuple[SourceElement, ...], base: str, st
                 diagnostics.add("INFO", "DERIVED_STATUS_ANNOTATION",
                                 "isDerived=true is preserved as an annotation; the annotation itself supplies no derivation rule.",
                                 "Class and annotation retained.", (element.location,))
+        extensional = data.get("isExtensional")
+        if type(extensional) is bool:
+            graph.add((subject, RDFS.comment, Literal(f"OntoUML class isExtensional: {str(extensional).lower()}.", lang="en")))
+            if extensional:
+                diagnostics.add("INFO", "EXTENSIONALITY_ANNOTATION",
+                                "isExtensional=true is preserved as an annotation; its essential-parthood semantics are not enforced.",
+                                "Class and annotation retained without additional logical axioms.", (element.location,))
+        order = data.get("order")
+        if order is not None:
+            value = "orderless (*)" if order == "*" else str(order)
+            graph.add((subject, RDFS.comment, Literal(f"OntoUML classifier order: {value}.", lang="en")))
+
+
+def emit_stereotype_disjointness(graph: Graph, classes: tuple[SourceElement, ...],
+                                 resources: dict[str, URIRef]) -> None:
+    """Assert exactly the direct stereotype pairs, using one orientation each."""
+    for left, right in combinations(sorted(classes, key=lambda element: element.data["id"]), 2):
+        a, b = left.data.get("stereotype"), right.data.get("stereotype")
+        ga = next((n for n, group in enumerate(_GROUPS) if a in group), None)
+        gb = next((n for n, group in enumerate(_GROUPS) if b in group), None)
+        if (a in _ULTIMATE and b in _ULTIMATE) or (ga is not None and gb is not None and ga != gb):
+            graph.add((resources[left.data["id"]], OWL.disjointWith, resources[right.data["id"]]))

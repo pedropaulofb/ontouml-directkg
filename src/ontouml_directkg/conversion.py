@@ -1,4 +1,4 @@
-"""Public orchestration/result boundary for the approved BI-W1 increment."""
+"""Public orchestration/result boundary for the approved baseline increments."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,8 +7,10 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from .annotations import TextAnnotations
-from .classifiers import emit_classes, wave1_classes
+from .classifiers import allocate_resources, baseline_classes, emit_classes, emit_stereotype_disjointness
 from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConversion, export_report
+from .enumerations import collect_enumerations, emit_enumerations
+from .generalizations import emit_generalizations
 from .identity import ConfigurationError, select_base
 from .source import check_stereotypes, index_project, read_project
 
@@ -48,9 +50,9 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             input_policy: str = "tolerant", stereotype_policy: str = "allow-custom",
             language: str | None = None, omit_identifiers: bool = False,
             provenance: str = "embedded") -> ConversionResult:
-    """Convert a supported class-only VP-plugin 0.5.3 JSON file into real RDF.
+    """Convert a supported classifier-only VP-plugin 0.5.3 JSON file into RDF.
 
-    BI-W1 callers must explicitly select ``provenance="none"``. Embedded/sidecar
+    Early baseline callers must explicitly select ``provenance="none"``. Embedded/sidecar
     provenance belongs to BI-W6; the normative embedded default is retained but
     raises NotImplementedError until implemented, without silently downgrading.
     Later-wave model constructs likewise raise NotImplementedError and return
@@ -80,7 +82,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             raise ConfigurationError("language must be one valid language tag") from exc
     if provenance != "none":
         raise NotImplementedError("Provenance generation, including the embedded default, belongs to BI-W6; "
-                                  "explicitly request provenance='none' for BI-W1")
+                                  "explicitly request provenance='none' for early baseline increments")
     diagnostics = DiagnosticCollector()
     if base_iri is None:
         diagnostics.add("WARNING", "PLACEHOLDER_BASE",
@@ -90,7 +92,9 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         project = read_project(Path(source), diagnostics)
         index = index_project(project, diagnostics, input_policy)
         check_stereotypes(index, diagnostics, stereotype_policy)
-        classes = wave1_classes(index)
+        classes = baseline_classes(index)
+        enumerations = collect_enumerations(classes, diagnostics, input_policy)
+        resources = allocate_resources(classes, enumerations, base, iri_strategy)
         text = TextAnnotations(project, language, diagnostics)
         graph = Graph(bind_namespaces="none")
         for prefix, namespace in (("", base), ("rdf", RDF), ("rdfs", RDFS), ("owl", OWL),
@@ -100,7 +104,10 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         graph.add((ontology, RDF.type, OWL.Ontology))
         graph.add((ontology, OWL.imports, DKGM_ONTOLOGY))
         text.describe(graph, ontology, project)
-        emit_classes(graph, classes, base, iri_strategy, omit_identifiers, text, diagnostics)
+        emit_classes(graph, classes, resources, iri_strategy, omit_identifiers, text, diagnostics)
+        emit_stereotype_disjointness(graph, classes, resources)
+        emit_enumerations(graph, enumerations, resources, iri_strategy, text, diagnostics)
+        emit_generalizations(graph, index, resources, diagnostics, input_policy)
     except _AbortConversion:
         return ConversionResult(None, "aborted", tuple(diagnostics.events))
     outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"

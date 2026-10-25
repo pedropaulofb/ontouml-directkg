@@ -81,6 +81,16 @@ class SourceIndex:
         return element
 
 
+def input_error(diagnostics: DiagnosticCollector, policy: str, code: str,
+                message: str, sources: tuple[SourceLocation, ...], recovery: str) -> None:
+    """Apply the established structural-error policy, retaining ERROR severity."""
+    abort = policy != "best-effort"
+    diagnostics.add("ERROR", code, message,
+                    "Conversion aborted; no ontology is delivered." if abort else recovery, sources)
+    if abort:
+        raise _AbortConversion
+
+
 def _non_json_constant(value: str) -> None:
     raise ValueError(f"{value} is not a JSON value")
 
@@ -141,10 +151,19 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
             children = value.get(field)
             if children is None:
                 continue
+            enumeration_values = (kind == "Class" and value.get("stereotype") == "enumeration"
+                                  and field == "literals")
+            # DK-DIAG-13 owns these malformed lists/values. Preserve the raw
+            # collection for that mapping while indexing every Literal
+            # declaration that can participate in fatal duplicate-ID checking.
+            if enumeration_values and not isinstance(children, list):
+                continue
             if not isinstance(children, list):
                 raise NotImplementedError("Malformed declaration-container recovery is outside BI-W1")
             child_kind = "Property" if field == "properties" else "Literal" if field == "literals" else None
             for number, child in enumerate(children):
+                if enumeration_values and (not isinstance(child, dict) or child.get("type") != "Literal"):
+                    continue
                 visit(child, f"{path}.{field}[{number}]", identifier if field != "contents" else None, child_kind)
 
     visit(project, "$")
