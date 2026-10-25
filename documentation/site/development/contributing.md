@@ -16,7 +16,7 @@ Archived specifications, unresolved-decision records, prompts, and observed impl
 
 ## Documentation maintenance
 
-Public sources live in `documentation/site/`. Internal specifications and prompts remain under `documentation/specification/`, outside the website build root. Root `zensical.toml` owns navigation and the `site/` output directory. Keep generated HTML out of committed sources.
+Public sources live in `documentation/site/`. Internal specifications live in `documentation/specification/`, and AI workflow prompts live in `documentation/prompts/`. Both remain outside the website build root. Root `zensical.toml` owns navigation and the `site/` output directory. Keep generated HTML out of committed sources.
 
 Update the existing content owner: [Controls](../reference/controls.md) for selectable behavior/defaults, [Diagnostics](../reference/diagnostics.md) for policies/outcomes, [CLI](../guides/cli.md) for exit codes, [Identifiers](../reference/identifiers.md) for identity, and the relevant mapping/metadata page for its transformation detail. Link from related pages rather than copying canonical tables or algorithms.
 
