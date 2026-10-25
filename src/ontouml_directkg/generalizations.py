@@ -39,8 +39,11 @@ def _relation_set(index: SourceIndex, element: SourceElement) -> bool:
     if not isinstance(members, list):
         return False
     for reference in members:
-        member = index.declarations.get(reference.get("id")) if isinstance(reference, dict) and isinstance(reference.get("id"), str) else None
-        if member is not None and member.data["type"] == "Generalization" and _relation_generalization(index, member):
+        try:
+            member = index.resolve(reference)
+        except KeyError:
+            continue
+        if member.data["type"] == "Generalization" and _relation_generalization(index, member):
             return True
     return False
 
