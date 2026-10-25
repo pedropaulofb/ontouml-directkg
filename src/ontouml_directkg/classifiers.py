@@ -9,7 +9,7 @@ from .annotations import TextAnnotations
 from .datatypes import datatype_key
 from .diagnostics import DiagnosticCollector
 from .enumerations import Enumeration
-from .identity import escape_id, missing_name, naming_text, normalize_name, resolve_name_collisions
+from .identity import class_name_candidate, escape_id, missing_name, naming_text, normalize_name, resolve_name_collisions
 from .source import SourceElement, SourceIndex
 
 _ULTIMATE = frozenset({"collective", "kind", "mode", "quality", "quantity", "relator", "type"})
@@ -32,6 +32,11 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
         kind = data["type"]
         if kind in {"Project", "Package", "Generalization", "GeneralizationSet"}:
             continue
+        if kind == "Property":
+            owner = index.declarations.get(element.owner)
+            if owner is not None and owner.data["type"] == "Class":
+                continue
+            raise NotImplementedError("Association-end property mapping belongs to BI-W4")
         if kind == "Literal":
             owner = index.declarations.get(element.owner)
             if owner is not None and owner.data.get("stereotype") == "enumeration":
@@ -59,7 +64,7 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
 
 
 def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[Enumeration, ...],
-                       base: str, strategy: str) -> dict[str, URIRef]:
+                       base: str, strategy: str, property_candidates: dict[str, str] | None = None) -> dict[str, URIRef]:
     """Resolve classes first, then value prefixes and shared source collisions.
 
     A value can collide with a class. If that suffixes an enumeration class,
@@ -72,19 +77,20 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
         if strategy == "id":
             candidates[identifier] = escape_id(identifier)
         else:
-            selected = naming_text(element.data.get("name"))
-            if selected is None:
-                candidates[identifier] = "unnamedClass_" + escape_id(identifier, whole_local_name=False)
-            else:
-                candidates[identifier] = normalize_name(selected)
+            candidates[identifier] = class_name_candidate(identifier, element.data.get("name"))
     if strategy == "name":
+        candidates.update(property_candidates or {})
+        for enumeration in enumerations:
+            for element in enumeration.values:
+                if naming_text(element.data.get("name")) is None:
+                    candidates[element.data["id"]] = escape_id(element.data["id"])
         candidates = resolve_name_collisions(candidates)
         for enumeration in enumerations:
             prefix = candidates[enumeration.source.data["id"]]
             for element in enumeration.values:
                 selected = naming_text(element.data.get("name"))
-                candidates[element.data["id"]] = (prefix + "_" + normalize_name(selected) if selected is not None
-                                                   else escape_id(element.data["id"]))
+                if selected is not None:
+                    candidates[element.data["id"]] = prefix + "_" + normalize_name(selected)
         while True:
             resolved = resolve_name_collisions(candidates)
             changed = False
@@ -102,6 +108,7 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
             if not changed:
                 break
     else:
+        candidates.update(property_candidates or {})
         for enumeration in enumerations:
             for element in enumeration.values:
                 candidates[element.data["id"]] = escape_id(element.data["id"])

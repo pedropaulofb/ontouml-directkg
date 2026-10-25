@@ -12,6 +12,7 @@ from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConvers
 from .enumerations import collect_enumerations, emit_enumerations
 from .generalizations import emit_generalizations
 from .identity import ConfigurationError, select_base
+from .properties import attribute_candidates, collect_attributes, emit_attribute_references, emit_attributes
 from .source import check_stereotypes, index_project, read_project
 
 DKGM_ONTOLOGY = URIRef("https://w3id.org/directkg/vocab/dkgm")
@@ -50,7 +51,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             input_policy: str = "tolerant", stereotype_policy: str = "allow-custom",
             language: str | None = None, omit_identifiers: bool = False,
             provenance: str = "embedded") -> ConversionResult:
-    """Convert a supported classifier-only VP-plugin 0.5.3 JSON file into RDF.
+    """Convert a supported classifier/attribute VP-plugin 0.5.3 JSON file into RDF.
 
     Early baseline callers must explicitly select ``provenance="none"``. Embedded/sidecar
     provenance belongs to BI-W6; the normative embedded default is retained but
@@ -94,7 +95,9 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         check_stereotypes(index, diagnostics, stereotype_policy)
         classes = baseline_classes(index)
         enumerations = collect_enumerations(classes, diagnostics, input_policy)
-        resources = allocate_resources(classes, enumerations, base, iri_strategy)
+        attributes = collect_attributes(index, classes, diagnostics, input_policy)
+        resources = allocate_resources(classes, enumerations, base, iri_strategy,
+                                       attribute_candidates(attributes, iri_strategy))
         text = TextAnnotations(project, language, diagnostics)
         graph = Graph(bind_namespaces="none")
         for prefix, namespace in (("", base), ("rdf", RDF), ("rdfs", RDFS), ("owl", OWL),
@@ -108,6 +111,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         emit_stereotype_disjointness(graph, classes, resources)
         emit_enumerations(graph, enumerations, resources, iri_strategy, text, diagnostics)
         emit_generalizations(graph, index, resources, diagnostics, input_policy)
+        emit_attributes(graph, attributes, resources, iri_strategy, text, diagnostics, input_policy)
+        emit_attribute_references(graph, index, attributes, resources, diagnostics, input_policy)
     except _AbortConversion:
         return ConversionResult(None, "aborted", tuple(diagnostics.events))
     outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"

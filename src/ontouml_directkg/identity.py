@@ -137,6 +137,12 @@ def missing_name(value: object) -> bool:
     raise NotImplementedError("Malformed name-carrier recovery is outside BI-W1")
 
 
+def class_name_candidate(identifier: str, name: object) -> str:
+    """Return the class candidate before collision suffixes, also used as qualifier."""
+    selected = naming_text(name)
+    return normalize_name(selected) if selected is not None else "unnamedClass_" + escape_id(identifier, whole_local_name=False)
+
+
 def resolve_name_collisions(candidates: dict[str, str]) -> dict[str, str]:
     """Suffix every colliding member deterministically, including new collisions.
 
