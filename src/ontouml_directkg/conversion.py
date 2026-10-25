@@ -10,9 +10,11 @@ from .annotations import TextAnnotations
 from .classifiers import allocate_resources, baseline_classes, emit_classes, emit_stereotype_disjointness
 from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConversion, export_report
 from .enumerations import collect_enumerations, emit_enumerations
-from .generalizations import emit_generalizations
+from .generalizations import emit_generalizations, emit_relation_generalizations
 from .identity import ConfigurationError, select_base
-from .properties import attribute_candidates, collect_attributes, emit_attribute_references, emit_attributes
+from .inverses import allocate_inverses
+from .properties import PropertyExpressions, collect_attributes, emit_attributes, emit_property_references, property_candidates
+from .relations import collect_relations, emit_relations, relation_names
 from .source import check_stereotypes, index_project, read_project
 
 DKGM_ONTOLOGY = URIRef("https://w3id.org/directkg/vocab/dkgm")
@@ -50,8 +52,10 @@ class ConversionResult:
 def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: str = "name",
             input_policy: str = "tolerant", stereotype_policy: str = "allow-custom",
             language: str | None = None, omit_identifiers: bool = False,
+            inverse_properties: str = "all", no_stereotype_relation_naming: bool = False,
+            relation_labels: str = "source-only", material_property_chains: str = "none",
             provenance: str = "embedded") -> ConversionResult:
-    """Convert a supported classifier/attribute VP-plugin 0.5.3 JSON file into RDF.
+    """Convert supported classifier/attribute/binary-relation VP-plugin 0.5.3 JSON.
 
     Early baseline callers must explicitly select ``provenance="none"``. Embedded/sidecar
     provenance belongs to BI-W6; the normative embedded default is retained but
@@ -68,12 +72,18 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     choices = {"iri_strategy": (iri_strategy, {"name", "id"}),
                "input_policy": (input_policy, {"strict", "tolerant", "best-effort"}),
                "stereotype_policy": (stereotype_policy, {"require-known", "allow-missing", "allow-custom"}),
+               "inverse_properties": (inverse_properties, {"all", "informed", "named", "none"}),
+               "relation_labels": (relation_labels, {"source-only", "generated"}),
+               "material_property_chains": (material_property_chains,
+                                            {"none", "omit-conflicting-constraints", "preserve-conflicting-constraints"}),
                "provenance": (provenance, {"none", "embedded", "sidecar"})}
     for name, (value, allowed) in choices.items():
         if not isinstance(value, str) or value not in allowed:
             raise ConfigurationError(f"Invalid {name}: expected one of {', '.join(sorted(allowed))}")
     if type(omit_identifiers) is not bool:
         raise ConfigurationError("omit_identifiers must be a boolean")
+    if type(no_stereotype_relation_naming) is not bool:
+        raise ConfigurationError("no_stereotype_relation_naming must be a boolean")
     if language is not None:
         try:
             if not isinstance(language, str) or not language:
@@ -84,6 +94,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     if provenance != "none":
         raise NotImplementedError("Provenance generation, including the embedded default, belongs to BI-W6; "
                                   "explicitly request provenance='none' for early baseline increments")
+    if material_property_chains != "none":
+        raise NotImplementedError("Material-property-chain generation belongs to BI-W5")
     diagnostics = DiagnosticCollector()
     if base_iri is None:
         diagnostics.add("WARNING", "PLACEHOLDER_BASE",
@@ -95,13 +107,22 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         check_stereotypes(index, diagnostics, stereotype_policy)
         classes = baseline_classes(index)
         enumerations = collect_enumerations(classes, diagnostics, input_policy)
+        relations, groundings, omitted = collect_relations(index, classes, diagnostics, input_policy)
         attributes = collect_attributes(index, classes, diagnostics, input_policy)
+        names, lexical = relation_names(relations, groundings, iri_strategy, relation_labels,
+                                       no_stereotype_relation_naming, diagnostics)
+        claims: set[str] = set()
+        candidates = property_candidates(attributes, iri_strategy,
+            {relation.target_end.data["id"]: (names[relation.target_end.data["id"]], relation.domain)
+             for relation in relations}, claims)
         resources = allocate_resources(classes, enumerations, base, iri_strategy,
-                                       attribute_candidates(attributes, iri_strategy))
+                                       candidates, claims)
+        inverses = allocate_inverses(relations, resources, base, iri_strategy, inverse_properties, claims)
+        resources.update(inverses)
         text = TextAnnotations(project, language, diagnostics)
         graph = Graph(bind_namespaces="none")
         for prefix, namespace in (("", base), ("rdf", RDF), ("rdfs", RDFS), ("owl", OWL),
-                                  ("xsd", XSD), ("dcterms", DCTERMS)):
+                                  ("xsd", XSD), ("dcterms", DCTERMS), ("dkgm", str(DKGM_ONTOLOGY) + "#")):
             graph.bind(prefix, namespace)
         ontology = URIRef(ontology_iri)
         graph.add((ontology, RDF.type, OWL.Ontology))
@@ -112,7 +133,16 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         emit_enumerations(graph, enumerations, resources, iri_strategy, text, diagnostics)
         emit_generalizations(graph, index, resources, diagnostics, input_policy)
         emit_attributes(graph, attributes, resources, iri_strategy, text, diagnostics, input_policy)
-        emit_attribute_references(graph, index, attributes, resources, diagnostics, input_policy)
+        ends = {end.data["id"]: (relation.target_end.data["id"], reverse)
+                for relation in relations for end, reverse in ((relation.source_end, True), (relation.target_end, False))}
+        expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted)
+        emit_relations(graph, relations, resources, inverses, lexical, relation_labels, text,
+                       diagnostics, input_policy, expressions)
+        emit_relation_generalizations(graph, index,
+            {relation.source.data["id"]: resources[relation.target_end.data["id"]] for relation in relations},
+            {relation.source.data["id"]: inverses[relation.source_end.data["id"]]
+             for relation in relations if relation.source_end.data["id"] in inverses}, diagnostics, input_policy)
+        emit_property_references(graph, index, expressions, diagnostics, input_policy)
     except _AbortConversion:
         return ConversionResult(None, "aborted", tuple(diagnostics.events))
     outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"

@@ -30,13 +30,8 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
     for element in index.elements:
         data = element.data
         kind = data["type"]
-        if kind in {"Project", "Package", "Generalization", "GeneralizationSet"}:
+        if kind in {"Project", "Package", "Generalization", "GeneralizationSet", "Relation", "Property"}:
             continue
-        if kind == "Property":
-            owner = index.declarations.get(element.owner)
-            if owner is not None and owner.data["type"] == "Class":
-                continue
-            raise NotImplementedError("Association-end property mapping belongs to BI-W4")
         if kind == "Literal":
             owner = index.declarations.get(element.owner)
             if owner is not None and owner.data.get("stereotype") == "enumeration":
@@ -64,7 +59,8 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
 
 
 def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[Enumeration, ...],
-                       base: str, strategy: str, property_candidates: dict[str, str] | None = None) -> dict[str, URIRef]:
+                       base: str, strategy: str, property_candidates: dict[str, str] | None = None,
+                       claimed_names: set[str] | None = None) -> dict[str, URIRef]:
     """Resolve classes first, then value prefixes and shared source collisions.
 
     A value can collide with a class. If that suffixes an enumeration class,
@@ -84,6 +80,8 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
             for element in enumeration.values:
                 if naming_text(element.data.get("name")) is None:
                     candidates[element.data["id"]] = escape_id(element.data["id"])
+        if claimed_names is not None:
+            claimed_names.update(candidates.values())
         candidates = resolve_name_collisions(candidates)
         for enumeration in enumerations:
             prefix = candidates[enumeration.source.data["id"]]
@@ -92,6 +90,8 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
                 if selected is not None:
                     candidates[element.data["id"]] = prefix + "_" + normalize_name(selected)
         while True:
+            if claimed_names is not None:
+                claimed_names.update(candidates.values())
             resolved = resolve_name_collisions(candidates)
             changed = False
             for enumeration in enumerations:
@@ -114,6 +114,8 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
                 candidates[element.data["id"]] = escape_id(element.data["id"])
     if len(set(candidates.values())) != len(candidates):
         raise NotImplementedError("Exceptional escaped-ID collision disposition requires an Architect decision")
+    if claimed_names is not None:
+        claimed_names.update(candidates.values())
     return {identifier: URIRef(base + candidate) for identifier, candidate in candidates.items()}
 
 

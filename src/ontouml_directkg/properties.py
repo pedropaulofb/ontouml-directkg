@@ -3,7 +3,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 
-from rdflib import Graph, Literal, URIRef
+from rdflib import BNode, Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 from .annotations import TextAnnotations
@@ -33,8 +33,10 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
         if data["type"] != "Property":
             continue
         owner = index.declarations.get(element.owner)
+        if owner is not None and owner.data["type"] == "Relation":
+            continue
         if owner is None or owner.data["type"] != "Class":
-            raise NotImplementedError("Association-end property mapping belongs to BI-W4")
+            raise NotImplementedError("Attribute ownership cannot be resolved under the decided baseline")
         if element.owner not in generated_classes:
             raise NotImplementedError("Attribute ownership without a generated local class is outside the decided baseline")
         identifier = data.get("id")
@@ -80,22 +82,30 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
     return tuple(attributes)
 
 
-def attribute_candidates(attributes: tuple[Attribute, ...], strategy: str) -> dict[str, str]:
-    """Qualify colliding source-backed attributes before final shared collisions."""
-    candidates = {}
+def property_candidates(attributes: tuple[Attribute, ...], strategy: str,
+                        additional: dict[str, tuple[str, SourceElement]] | None = None,
+                        claimed_names: set[str] | None = None) -> dict[str, str]:
+    """Qualify attributes and ordinary primaries together, before shared collisions."""
+    entries = dict(additional or {})
     groups = defaultdict(list)
     for attribute in attributes:
         data = attribute.source.data
         selected = naming_text(data.get("name")) if strategy == "name" else None
         candidate = normalize_name(selected) if selected is not None else escape_id(data["id"])
-        candidates[data["id"]] = candidate
-        groups[candidate].append(attribute)
+        entries[data["id"]] = (candidate, attribute.owner)
+    candidates = {identifier: candidate for identifier, (candidate, _) in entries.items()}
+    if claimed_names is not None:
+        claimed_names.update(candidates.values())
+    for identifier, (candidate, owner) in entries.items():
+        groups[candidate].append((identifier, owner))
     if strategy == "name":
         for candidate, group in groups.items():
             if len(group) > 1:
-                for attribute in group:
-                    owner = attribute.owner.data
-                    candidates[attribute.source.data["id"]] = candidate + "_" + class_name_candidate(owner["id"], owner.get("name"))
+                for identifier, source in group:
+                    owner = source.data
+                    candidates[identifier] = candidate + "_" + class_name_candidate(owner["id"], owner.get("name"))
+    if claimed_names is not None:
+        claimed_names.update(candidates.values())
     return candidates
 
 
@@ -144,33 +154,74 @@ def emit_attributes(graph: Graph, attributes: tuple[Attribute, ...], resources: 
         emit_attribute_multiplicity(graph, domain, subject, bounds)
 
 
-def emit_attribute_references(graph: Graph, index: SourceIndex, attributes: tuple[Attribute, ...],
-                               resources: dict[str, URIRef], diagnostics: DiagnosticCollector, policy: str) -> None:
-    generated = {attribute.source.data["id"] for attribute in attributes}
-    for attribute in attributes:
-        element = attribute.source
+class PropertyExpressions:
+    """Resolve actual generated properties, creating anonymous inverses only on demand."""
+
+    def __init__(self, graph: Graph, attributes: tuple[Attribute, ...],
+                 resources: dict[str, URIRef], ends: dict[str, tuple[str, bool]],
+                 inverses: dict[str, URIRef], omitted_relations: set[str]) -> None:
+        self.graph, self.resources = graph, resources
+        self.attributes = {attribute.source.data["id"] for attribute in attributes}
+        self.ends, self.inverses, self.omitted = ends, inverses, omitted_relations
+        self.anonymous: dict[str, BNode] = {}
+
+    def resolve(self, element: SourceElement, *, emit_inverse: bool = True) -> URIRef | BNode | None:
+        identifier = element.data["id"]
+        if identifier in self.attributes:
+            return self.resources[identifier]
+        if element.owner in self.omitted:
+            return None
+        if identifier not in self.ends:
+            raise KeyError("Required underlying property transformation did not generate an expression")
+        primary_id, reverse = self.ends[identifier]
+        primary = self.resources[primary_id]
+        if not reverse:
+            return primary
+        if identifier in self.inverses:
+            return self.inverses[identifier]
+        if primary_id not in self.anonymous:
+            self.anonymous[primary_id] = BNode()
+        if emit_inverse:
+            self.graph.add((self.anonymous[primary_id], OWL.inverseOf, primary))
+        return self.anonymous[primary_id]
+
+
+def emit_property_references(graph: Graph, index: SourceIndex, expressions: PropertyExpressions,
+                              diagnostics: DiagnosticCollector, policy: str) -> None:
+    for element in index.elements:
+        if element.data["type"] != "Property":
+            continue
+        if all(element.data.get(field) is None or element.data[field] == []
+               for field in ("subsettedProperties", "redefinedProperties")):
+            continue
+        try:
+            subject = expressions.resolve(element, emit_inverse=False)
+        except KeyError:
+            # Its underlying transformation already reported the failure.
+            continue
+        if subject is None:
+            continue
         for field in ("subsettedProperties", "redefinedProperties"):
             references = element.data.get(field)
             if references is None:
                 continue
             if not isinstance(references, list):
                 input_error(diagnostics, policy, "INVALID_PROPERTY_REFERENCES",
-                            f"Attribute {field} is not a reference collection.", (element.location,),
-                            "Affected reference collection omitted; independent attribute mappings retained.")
+                            f"Property {field} is not a reference collection.", (element.location,),
+                            "Affected reference collection omitted; independent property mappings retained.")
                 continue
             for reference in references:
                 try:
                     target = index.resolve(reference)
                     if target.data["type"] != "Property":
                         raise KeyError("Reference does not identify a UML Property")
-                    owner = index.declarations.get(target.owner)
-                    if owner is not None and owner.data["type"] == "Relation":
-                        raise NotImplementedError("Association-end reference expressions belong to BI-W4")
-                    if target.data["id"] not in generated:
-                        raise KeyError("Required underlying attribute transformation did not generate a property")
+                    superproperty = expressions.resolve(target, emit_inverse=False)
                 except KeyError as exc:
                     input_error(diagnostics, policy, "UNRESOLVED_PROPERTY_REFERENCE",
-                                f"Attribute {field} reference {reference!r} cannot supply a property expression: {exc}.",
-                                (element.location,), "Affected inclusion omitted; other explicit references and attribute mappings retained.")
+                                f"Property {field} reference {reference!r} cannot supply a property expression: {exc}.",
+                                (element.location,), "Affected inclusion omitted; other explicit references and property mappings retained.")
                     continue
-                graph.add((resources[element.data["id"]], RDFS.subPropertyOf, resources[target.data["id"]]))
+                if superproperty is not None:
+                    expressions.resolve(element)
+                    expressions.resolve(target)
+                    graph.add((subject, RDFS.subPropertyOf, superproperty))

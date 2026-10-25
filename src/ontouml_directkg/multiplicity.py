@@ -21,12 +21,12 @@ def _number(text: str) -> int | None:
     return int(text) if re.fullmatch(r"[0-9]+", text) else None
 
 
-def parse_attribute_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
-                                 policy: str) -> Multiplicity:
+def _parse_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
+                        policy: str, context: str) -> Multiplicity:
     """Normalize only accepted lexical forms and retain valid independent bounds."""
     if "cardinality" not in source.data:
         diagnostics.add("WARNING", "MISSING_CARDINALITY",
-                        "Attribute cardinality field is absent; no explicit multiplicity is available.",
+                        f"{context} cardinality field is absent; no explicit multiplicity is available.",
                         "Property retained without a default cardinality restriction.", (source.location,))
         return Multiplicity()
     value = source.data["cardinality"]
@@ -52,13 +52,24 @@ def parse_attribute_multiplicity(source: SourceElement, diagnostics: DiagnosticC
                 valid = low is not None and (high is not None or upper == "*")
     if not valid:
         input_error(diagnostics, policy, "INVALID_CARDINALITY",
-                    f"Attribute cardinality {value!r} is not wholly translatable under the accepted syntax.",
+                    f"{context} cardinality {value!r} is not wholly translatable under the accepted syntax.",
                     (source.location,),
                     "Property retained; only independently valid numeric bounds are preserved, without guessed bounds.")
     return parsed
 
 
-def emit_attribute_multiplicity(graph: Graph, owner: URIRef, property_iri: URIRef,
+def parse_attribute_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
+                                 policy: str) -> Multiplicity:
+    return _parse_multiplicity(source, diagnostics, policy, "Attribute")
+
+
+def parse_relation_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
+                                policy: str) -> Multiplicity:
+    result = _parse_multiplicity(source, diagnostics, policy, "Relation end")
+    return Multiplicity() if result.standalone_star else result
+
+
+def emit_attribute_multiplicity(graph: Graph, owner: URIRef, property_iri: URIRef | BNode,
                                 bounds: Multiplicity) -> None:
     """Use unqualified necessary restrictions; ranges remain global axioms."""
     if bounds.standalone_star:
