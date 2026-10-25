@@ -10,6 +10,12 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 The website provides shared contracts, conceptual guidance, mappings, and contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and available development checks. Getting started and generated API pages remain pending their implementation prerequisites; navigation links only to pages that exist.
 
+## Authorship and independence
+
+OntoUML DirectKG was independently conceived and developed by **[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)**, its sole creator, author, and developer. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
+
+The project is a personal contribution to the OntoUML community and its broader ecosystem. It is **not an official OntoUML project, tool, or implementation**, and it is not endorsed by the OntoUML maintainers.
+
 ## Scope at a glance
 
 | Question | Accepted boundary |
