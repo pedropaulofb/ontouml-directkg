@@ -11,9 +11,27 @@ from .diagnostics import DiagnosticCollector
 from .source import SourceElement, SourceIndex, input_error
 
 
-def _relation_generalization(element: SourceElement) -> bool:
-    return any(isinstance(element.data.get(field), dict)
-               and element.data[field].get("type") == "Relation" for field in ("specific", "general"))
+def _relation_generalization(index: SourceIndex, element: SourceElement) -> bool:
+    """Route by available declarations; mapping still validates every reference."""
+    references = [element.data.get(field) for field in ("specific", "general")]
+    kinds = set()
+    for reference in references:
+        try:
+            endpoint = index.resolve(reference)
+        except KeyError:
+            continue
+        if endpoint.data["type"] in {"Class", "Relation"}:
+            kinds.add(endpoint.data["type"])
+    if not kinds:
+        for reference in references:
+            identifier = reference.get("id") if isinstance(reference, dict) else None
+            endpoint = index.declarations.get(identifier) if isinstance(identifier, str) else None
+            if endpoint is not None and endpoint.data["type"] in {"Class", "Relation"}:
+                kinds.add(endpoint.data["type"])
+    if kinds:
+        return "Relation" in kinds
+    return any(isinstance(reference, dict) and reference.get("type") == "Relation"
+               for reference in references)
 
 
 def _relation_set(index: SourceIndex, element: SourceElement) -> bool:
@@ -22,7 +40,7 @@ def _relation_set(index: SourceIndex, element: SourceElement) -> bool:
         return False
     for reference in members:
         member = index.declarations.get(reference.get("id")) if isinstance(reference, dict) and isinstance(reference.get("id"), str) else None
-        if member is not None and member.data["type"] == "Generalization" and _relation_generalization(member):
+        if member is not None and member.data["type"] == "Generalization" and _relation_generalization(index, member):
             return True
     return False
 
@@ -35,7 +53,7 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
     for element in index.elements:
         if element.data["type"] != "Generalization":
             continue
-        if _relation_generalization(element):
+        if _relation_generalization(index, element):
             continue
         identifier = element.data.get("id")
         if not isinstance(identifier, str) or not identifier:
@@ -165,7 +183,7 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
     declared = {}
     mapped = set()
     for element in index.elements:
-        if element.data["type"] != "Generalization" or not _relation_generalization(element):
+        if element.data["type"] != "Generalization" or not _relation_generalization(index, element):
             continue
         identifier = element.data.get("id")
         if not isinstance(identifier, str) or not identifier:
@@ -222,7 +240,7 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                             "Completeness omitted; surviving explicit-specific disjointness and independent mappings retained.")
                 complete = False
                 continue
-            if not _relation_generalization(member):
+            if not _relation_generalization(index, member):
                 raise NotImplementedError("Mixed class/relation set membership remains unspecified")
             identifier = member.data["id"]
             if identifier in seen:
