@@ -32,7 +32,7 @@ def datatype_key(name: object) -> str | None:
     key = unicodedata.normalize("NFKC", selected).strip().casefold()
     for prefix in ("xsd:", str(XSD).casefold()):
         if key.startswith(prefix):
-            key = key[len(prefix):]
-            break
+            local = re.sub(r"[\s_-]+", "", key[len(prefix):])
+            return local if local in PRIMITIVES else None
     key = re.sub(r"[\s_-]+", "", key)
     return key if key in PRIMITIVES or key == "void" else None
