@@ -64,8 +64,19 @@ def main(argv: list[str] | None = None) -> int:
             artifacts = {output}
             if args.provenance == "sidecar":
                 artifacts.add(output.with_name(output.stem + ".provenance.ttl"))
-            if args.diagnostics_file.resolve() in artifacts:
-                parser.error("The diagnostics file must have a different path from the ontology and provenance files")
+            report = args.diagnostics_file
+            seen = set()
+            while True:
+                # Atomic Turtle delivery replaces the final directory entry,
+                # so check every report alias before following its next link.
+                report = report.parent.resolve() / report.name
+                if report in artifacts:
+                    parser.error("The diagnostics file must have a different path from the ontology and provenance files")
+                if report in seen or not report.is_symlink():
+                    break
+                seen.add(report)
+                target = report.readlink()
+                report = target if target.is_absolute() else report.parent / target
         except (OSError, ValueError, RuntimeError):
             # Unavailable destinations are reported by the actual delivery
             # operation, rather than changing its defined failure classification.
