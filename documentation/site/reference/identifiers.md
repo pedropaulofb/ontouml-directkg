@@ -125,7 +125,9 @@ This **JSON field-fragment illustration** is not a complete VP-plugin input and 
 
 The naming input is `Person`, regardless of JSON key order. Both applicable labels remain preserved with their [language treatment](text.md#language-resolution). A usable value under the empty language key would sort first; for tagging, that key supplies no local language.
 
-Neither the user language override nor `Project.languages` selects or reorders candidates. Primitive recognition uses the same selected original text and [bounded registry lookup](../mapping/attributes-and-datatypes.md#primitive-registry) under both IRI strategies. Generated primary-relation fallback labels also use the applicable lexical candidate under either strategy, before IRI-specific artifacts; ID-based IRI construction itself remains unchanged.
+!!! note "Language overrides do not select naming text"
+
+    Neither the user language override nor `Project.languages` selects or reorders candidates. Primitive recognition uses the same selected original text and [bounded registry lookup](../mapping/attributes-and-datatypes.md#primitive-registry) under both IRI strategies. Generated primary-relation fallback labels also use the applicable lexical candidate under either strategy, before IRI-specific artifacts; ID-based IRI construction itself remains unchanged.
 
 Multiple localized values alone produce no additional diagnostic or new control. For inverse eligibility, a role is present when **any** value contains a non-whitespace character; successful ASCII normalization is not required merely to count it as present. Inverse eligibility and inverse-specific naming retain their own rules.
 
