@@ -51,7 +51,9 @@ The accepted mappings use explicit source structures. They do not promise genera
 
 ## Validation boundary
 
-DirectKG is a transformation, not an OntoUML semantic validator. It does not check classifier-order appropriateness, reconcile higher-order classification sources, repair relation orientation, or reject otherwise transformable structures merely because the resulting ontology may be inconsistent.
+!!! warning "Conversion does not validate OntoUML semantics"
+
+    DirectKG is a transformation, not an OntoUML semantic validator. It does not check classifier-order appropriateness, reconcile higher-order classification sources, repair relation orientation, or reject otherwise transformable structures merely because the resulting ontology may be inconsistent.
 
 Structural processability remains necessary. Malformed JSON, unresolved required references, or untransformable endpoints are different from semantic disagreements. Their continuation or abortion follows the accepted policies. Duplicate declaration IDs within the transformation/reference-resolution scope require abortion under every input policy. See [Structural requirements](../reference/input.md#structural-requirements).
 

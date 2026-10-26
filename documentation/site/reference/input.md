@@ -48,7 +48,9 @@ See [Labels, comments, and language](text.md) for the text targets and exclusion
 
 Accepted mappings require source elements and their necessary references to be structurally resolvable. For an ordinary relation undergoing directional-property generation, both classifier endpoints and the required association-end IDs must be valid before either primary or inverse property is generated. A resolved relation-valued endpoint has a different mapping boundary from a null, malformed, or unresolved endpoint.
 
-For separate declarations participating in accepted mappings or required reference resolution, decoded JSON ID strings are compared exactly: no trimming, normalization, or case folding. A duplicate declaration ID is fatal under **every** input policy, even when the declarations have identical contents or unrelated fragments could be transformed. Selecting a declaration, merging declarations, or assigning replacement IDs is prohibited. Ordinary repeated reference objects pointing to one declaration are not duplicate declarations.
+!!! warning "Duplicate declaration IDs abort under every input policy"
+
+    For separate declarations participating in accepted mappings or required reference resolution, decoded JSON ID strings are compared exactly: no trimming, normalization, or case folding. A duplicate declaration ID is fatal under **every** input policy, even when the declarations have identical contents or unrelated fragments could be transformed. Selecting a declaration, merging declarations, or assigning replacement IDs is prohibited. Ordinary repeated reference objects pointing to one declaration are not duplicate declarations.
 
 Other structural failures follow their applicable recovery rules. `best-effort` does not authorize inventing missing information or delivering syntactically invalid RDF. It also does not authorize continuation after a stereotype condition rejected by the separate stereotype policy. See [Controls](controls.md#control-boundaries) for the policy boundaries.
 

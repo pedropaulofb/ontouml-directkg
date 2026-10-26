@@ -29,7 +29,9 @@ These are namespace illustrations, not published ontology addresses. The [base c
 
 Every generated ontology imports the **complete** reusable DKGM mereology vocabulary, including when no covered mereological relation occurs. Its four generic properties and three accepted generic chains remain in the imported vocabulary; they are not copied into each generated ontology or reduced to a model-specific subset.
 
-The import target is the stable URI representing the vocabulary's latest version, without the property's `#` namespace suffix. It is not pinned to a vocabulary release or replaced by an address obtained by following a redirect. Resolving the same import later can therefore bring in changed imported axioms without changing the generated ontology file.
+!!! warning "Imported axioms can change without changes to the output file"
+
+    The import target is the stable URI representing the vocabulary's latest version, without the property's `#` namespace suffix. It is not pinned to a vocabulary release or replaced by an address obtained by following a redirect. Resolving the same import later can therefore bring in changed imported axioms without changing the generated ontology file.
 
 **The accepted concrete import target is `https://w3id.org/directkg/vocab/dkgm`.** [Mereology and DKGM](../mapping/mereology.md#import-and-vocabulary-identity) owns the `U`/`U#` relationship, concrete header example, generic chains, and source-specific bridges.
 
