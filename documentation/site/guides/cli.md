@@ -56,7 +56,9 @@ An ontology-file failure reports ERROR with destination, available reason, and f
 
 A sidecar failure reports ERROR and failed delivery independently of input policy. Retain successfully delivered ontology output, without modifying its graph, deleting it solely for the sidecar failure, or switching provenance mode. Attempt requested diagnostics export after recording the failure.
 
-Neither failed ontology nor failed sidecar writes may leave a partial file presented as valid output. If an older destination remains, report that it was **not updated for the current execution**.
+!!! warning "A remaining file may be outdated"
+
+    Neither failed ontology nor failed sidecar writes may leave a partial file presented as valid output. If an older destination remains, the CLI must report that it was **not updated for the current execution**.
 
 A requested diagnostics-file creation/write failure requires a console error identifying destination and available reason, with code `4`. The underlying transformation outcome, severities, and ontology-output eligibility remain unchanged. If conversion already aborted, report-write failure must not replace or conceal its transformation diagnostics. Recovery from an unwritable destination is not prescribed.
 
