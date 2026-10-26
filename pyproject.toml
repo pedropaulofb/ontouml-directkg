@@ -9,7 +9,10 @@ description = "Domain-oriented OntoUML to RDF/OWL conversion (baseline implement
 requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-dependencies = ["rdflib==7.6.0"]
+dependencies = ["rdflib==7.6.0", "PyYAML==6.0.3"]
+
+[project.scripts]
+ontouml-directkg = "ontouml_directkg.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

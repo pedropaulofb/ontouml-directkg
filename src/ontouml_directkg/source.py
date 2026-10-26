@@ -95,10 +95,14 @@ def _non_json_constant(value: str) -> None:
     raise ValueError(f"{value} is not a JSON value")
 
 
-def read_project(path: Path, diagnostics: DiagnosticCollector) -> dict:
+def read_project(path: Path, diagnostics: DiagnosticCollector, *,
+                 captured_bytes: list[bytes] | None = None) -> dict:
     """Read the source once; inability to process a document always aborts."""
     try:
-        document = json.loads(path.read_bytes(), parse_constant=_non_json_constant)
+        content = path.read_bytes()
+        if captured_bytes is not None:
+            captured_bytes.append(content)
+        document = json.loads(content, parse_constant=_non_json_constant)
     except (OSError, ValueError, UnicodeError) as exc:
         diagnostics.add("ERROR", "UNPROCESSABLE_DOCUMENT", f"Cannot process source JSON {path}: {exc}",
                         "Conversion aborted; no ontology is delivered.")
