@@ -28,7 +28,9 @@ For material–relator derivations, the following exporter limitation and condit
 
 **Derivation multiplicities can express meaningful OntoUML constraints, but the current mapping does not preserve them** (E04 / DK-REL-08).
 
-The inspected VP-plugin **0.5.3 association-class export path** creates derivation ends with default cardinality `"1"` instead of extracting independently specified connector-end multiplicities. Consequently, those exported values are not reliable evidence of the original author's intended derivation constraints. They must not be presented as faithfully captured multiplicities or transformed as ordinary relation-end restrictions for the connector.
+!!! warning "Exported derivation multiplicities do not establish author intent"
+
+    The inspected VP-plugin **0.5.3 association-class export path** creates derivation ends with default cardinality `"1"` instead of extracting independently specified connector-end multiplicities. Consequently, those exported values are not reliable evidence of the original author's intended derivation constraints. They must not be presented as faithfully captured multiplicities or transformed as ordinary relation-end restrictions for the connector.
 
 The accepted future objective is conditional: **if the exporter gains reliable preservation of author-specified derivation multiplicities, support should be added in future DirectKG versions supporting that exporter version**. This objective neither selects future transformation semantics/output representation nor promises a release or delivery date. It does not change the current mapping automatically. The loss is not evidence that the constraints lack meaning or should remain unsupported permanently.
 
@@ -91,7 +93,9 @@ Omitting a chain does not itself suppress or modify its classes, material proper
 
 ## OWL compatibility
 
-**A property chain does not inherently violate OWL 2 DL.** OWL 2 DL does require simple object properties in cardinality restrictions and property-disjointness axioms. A chain makes its conclusion property non-simple; applicable inverse and hierarchy relationships can propagate that status. Combining axioms can therefore put output outside OWL 2 DL, cause a reasoner to reject the ontology, or cause it to disregard unsupported axioms (E07–E08 / DK-DIAG-07; DK-REL-15).
+!!! warning "Combining chains and constraints can affect reasoner compatibility"
+
+    **A property chain does not inherently violate OWL 2 DL.** OWL 2 DL does require simple object properties in cardinality restrictions and property-disjointness axioms. A chain makes its conclusion property non-simple; applicable inverse and hierarchy relationships can propagate that status. Combining axioms can therefore put output outside OWL 2 DL, cause a reasoner to reject the ontology, or cause it to disregard unsupported axioms (E07–E08 / DK-DIAG-07; DK-REL-15).
 
 ### Targeted constraint treatment
 

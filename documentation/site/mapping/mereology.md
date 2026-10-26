@@ -44,7 +44,9 @@ An eligible ordinary class-to-class relation carrying one of the recognized ster
 
 Here `dkgm:` is the **`U#` namespace**, `https://w3id.org/directkg/vocab/dkgm#`. The bridge is `Primary rdfs:subPropertyOf Generic`, not replacement or merging of source relations. Each covered primary property is also explicitly an `owl:AsymmetricProperty`. Asymmetry entails irreflexivity, so no separate irreflexivity declaration is required. Do not additionally declare its generated named inverse asymmetric solely from this stereotype; the inverse relationship already entails the corresponding consequence.
 
-The recognized stereotype alone selects the bridge. Use the already established **primary direction**, even when it fails to express the author's intended part–whole orientation. Do not use `aggregationKind` to determine eligibility/direction, repair or reverse the relation, substitute a named/anonymous inverse, or create an inverse solely for the bridge. Source-specific naming, identity, domains/ranges, inverses, multiplicities, and generalizations retain their independently applicable mappings.
+!!! warning "Source orientation is retained even when unintended"
+
+    The recognized stereotype alone selects the bridge. Use the already established **primary direction**, even when it fails to express the author's intended part–whole orientation. Do not use `aggregationKind` to determine eligibility/direction, repair or reverse the relation, substitute a named/anonymous inverse, or create an inverse solely for the bridge. Source-specific naming, identity, domains/ranges, inverses, multiplicities, and generalizations retain their independently applicable mappings.
 
 `isExtensional` adds no mereological logical axioms beyond its [comment mapping](classes.md#class-declarations-preserved-as-comments). Read-only and aggregation declarations similarly have [comment-only preservation](property-features.md#read-only-and-aggregation-comments); they do not redefine this mapping's orientation.
 
