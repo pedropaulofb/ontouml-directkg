@@ -20,7 +20,11 @@ For each conversion that runs, expose exactly one transformation outcome: `compl
 
 Structured access must retain **every diagnostic actually produced**, including severity, meaning, and applicable source information. It remains available after a policy-driven abort, including duplicate-ID abortion, for everything produced before termination. Do not derive success solely from a quiet console or treat every ERROR as proof that conversion aborted.
 
-An aborted conversion must not deliver its accumulated ontology through Python. A completed `best-effort` conversion can deliver permitted partial output despite retained ERROR diagnostics. There is no selected result-versus-exception mechanism for making those distinctions.
+!!! note "Output eligibility depends on the outcome"
+
+    An aborted conversion must not deliver its accumulated ontology through Python. A completed `best-effort` conversion can deliver permitted partial output despite retained ERROR diagnostics.
+
+The specification does not prescribe whether the API communicates these outcomes through return values or exceptions.
 
 Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. Exact runtime diagnostic codes, required-field matrices, and report schemas are not invented here.
 
