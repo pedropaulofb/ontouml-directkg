@@ -163,7 +163,15 @@ class PropertyExpressions:
         self.graph, self.resources = graph, resources
         self.attributes = {attribute.source.data["id"] for attribute in attributes}
         self.ends, self.inverses, self.omitted = ends, inverses, omitted_relations
-        self.anonymous: dict[str, BNode] = {}
+        self.anonymous: dict[URIRef, BNode] = {}
+
+    def anonymous_inverse(self, primary: URIRef, *, emit_inverse: bool = True) -> BNode:
+        """Use the primary backwards without allocating or selecting a named inverse."""
+        if primary not in self.anonymous:
+            self.anonymous[primary] = BNode()
+        if emit_inverse:
+            self.graph.add((self.anonymous[primary], OWL.inverseOf, primary))
+        return self.anonymous[primary]
 
     def resolve(self, element: SourceElement, *, emit_inverse: bool = True) -> URIRef | BNode | None:
         identifier = element.data["id"]
@@ -179,11 +187,7 @@ class PropertyExpressions:
             return primary
         if identifier in self.inverses:
             return self.inverses[identifier]
-        if primary_id not in self.anonymous:
-            self.anonymous[primary_id] = BNode()
-        if emit_inverse:
-            self.graph.add((self.anonymous[primary_id], OWL.inverseOf, primary))
-        return self.anonymous[primary_id]
+        return self.anonymous_inverse(primary, emit_inverse=emit_inverse)
 
 
 def emit_property_references(graph: Graph, index: SourceIndex, expressions: PropertyExpressions,

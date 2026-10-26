@@ -8,6 +8,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from .annotations import TextAnnotations
 from .classifiers import allocate_resources, baseline_classes, emit_classes, emit_stereotype_disjointness
+from .chains import emit_material_chains
 from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConversion, export_report
 from .enumerations import collect_enumerations, emit_enumerations
 from .generalizations import emit_generalizations, emit_relation_generalizations
@@ -94,8 +95,6 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     if provenance != "none":
         raise NotImplementedError("Provenance generation, including the embedded default, belongs to BI-W6; "
                                   "explicitly request provenance='none' for early baseline increments")
-    if material_property_chains != "none":
-        raise NotImplementedError("Material-property-chain generation belongs to BI-W5")
     diagnostics = DiagnosticCollector()
     if base_iri is None:
         diagnostics.add("WARNING", "PLACEHOLDER_BASE",
@@ -143,6 +142,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             {relation.source.data["id"]: inverses[relation.source_end.data["id"]]
              for relation in relations if relation.source_end.data["id"] in inverses}, diagnostics, input_policy)
         emit_property_references(graph, index, expressions, diagnostics, input_policy)
+        emit_material_chains(graph, relations, groundings, attributes, expressions,
+                             material_property_chains, diagnostics)
     except _AbortConversion:
         return ConversionResult(None, "aborted", tuple(diagnostics.events))
     outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"

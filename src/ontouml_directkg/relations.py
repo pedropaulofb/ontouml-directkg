@@ -100,8 +100,7 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
                     pattern = (relation.data.get("stereotype"), classifier.data.get("stereotype"))
                     if pattern in {("material", "relator"), ("material", "mode")}:
                         recognized = True
-                        if pattern[1] == "relator":
-                            groundings[relation.data["id"]][classifier.data["id"]] = classifier
+                        groundings[relation.data["id"]][classifier.data["id"]] = classifier
                     elif pattern == ("comparative", "quality"):
                         recognized = True
                         diagnostics.add("WARNING", "UNSUPPORTED_COMPARATIVE_DERIVATION",
@@ -180,7 +179,8 @@ def relation_names(relations: tuple[Relation, ...], groundings: dict[str, tuple[
             elif not disable_stereotypes:
                 stereotype = source.data.get("stereotype")
                 if stereotype == "material":
-                    grounds = groundings.get(source.data["id"], ())
+                    grounds = tuple(ground for ground in groundings.get(source.data["id"], ())
+                                    if ground.data.get("stereotype") == "relator")
                     selected = naming_text(grounds[0].data.get("name")) if len(grounds) == 1 else None
                     if selected is not None:
                         normalized = normalize_name(selected)
