@@ -20,7 +20,7 @@ Check for a relevant existing issue first. For bug reports, include steps to rep
 
 The repository uses the **Apache License 2.0**, which permits use, modification, and redistribution, including commercial use, subject to its terms. See [LICENSE](LICENSE).
 
-The [mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) separately declares **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
+The [mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) adopts the **Creative Commons Attribution 4.0 International (CC BY 4.0)** license.
 
 ## Maintenance
 
