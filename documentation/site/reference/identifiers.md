@@ -50,7 +50,7 @@ This is lexical processing, not terminology repair. Do not translate, singulariz
 
 Established naming rules and type-specific fallbacks take priority. In name mode, an unnamed or unusably named class uses `unnamedClass_<escaped-source-id>`, without its stereotype in that synthetic name or an invented label. Transformation continues with a nonfatal warning identifying available element type, ID, stereotype, and generated IRI. In ID mode an unnamed class uses its source ID while retaining the type-specific unnamed-source warning.
 
-For an otherwise transformable source-backed resource still lacking a usable name-based candidate after applicable fallbacks, reuse its existing ID-strategy candidate **if its designated ID is usable**. This resource-specific fallback retains ID escaping, digit protection, collision handling, and source-backed precedence; it does not switch the configured strategy.
+For an otherwise transformable source-backed resource still lacking a usable name-based candidate after applicable fallbacks, reuse its existing ID-strategy candidate **if its designated ID meets the [source-ID requirements](input.md#structural-requirements)**. This resource-specific fallback retains ID escaping, digit protection, collision handling, and source-backed precedence; it does not switch the configured strategy.
 
 Enumeration literals use this generic fallback with their own IDs. They do not gain an `unnamedLiteral_` prefix. Keep any source-authored label even if it cannot supply an ASCII naming candidate; do not invent a label for an unnamed value. A fallback-preserved literal still counts as successfully transformed for [enumeration closure and inequality](../mapping/classes.md#enumerations-and-closure).
 
@@ -136,3 +136,5 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 ---
 
 Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).

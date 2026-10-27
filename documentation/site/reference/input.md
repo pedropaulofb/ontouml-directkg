@@ -48,6 +48,10 @@ See [Labels, comments, and language](text.md) for the text targets and exclusion
 
 Accepted mappings require source elements and their necessary references to be structurally resolvable. For an ordinary relation undergoing directional-property generation, both classifier endpoints and the required association-end IDs must be valid before either primary or inverse property is generated. A resolved relation-valued endpoint has a different mapping boundary from a null, malformed, or unresolved endpoint.
 
+Within the existing scope of accepted mappings and required reference resolution, source IDs are opaque strings. An `id` field is **missing** when absent. A supplied ID is **invalid** when null, not a JSON string, empty (`""`), or not encodable as UTF-8. Accept every other string unchanged, including whitespace-only strings. Do not trim, normalize, case-fold, coerce, or invent replacement IDs.
+
+Missing and invalid IDs follow the existing [structural-error policies](diagnostics.md#policies-and-precedence). The duplicate-ID abort rule below remains unchanged.
+
 !!! warning "Duplicate declaration IDs abort under every input policy"
 
     For separate declarations participating in accepted mappings or required reference resolution, decoded JSON ID strings are compared exactly: no trimming, normalization, or case folding. A duplicate declaration ID is fatal under **every** input policy, even when the declarations have identical contents or unrelated fragments could be transformed. Selecting a declaration, merging declarations, or assigning replacement IDs is prohibited. Ordinary repeated reference objects pointing to one declaration are not duplicate declarations.
@@ -71,3 +75,5 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 ---
 
 Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).
