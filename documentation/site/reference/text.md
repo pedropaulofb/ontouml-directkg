@@ -85,7 +85,9 @@ Relation/end comments must distinguish whether each value belongs to the relatio
 
 When no eligible local target exists, omit the comment. Do not create a resource, redirect the comment onto a shared XSD datatype or generic DKGM term, or use another target solely to preserve the flag. Absent/null `isDerived` does not imply either Boolean value.
 
-The flag alone supplies no derivation rule, property chain, equivalence, calculation, or other extra logical constraint, and does not suppress ordinary transformation. For example, derived `age` does not authorize inventing a calculation from a birth date. Independently accepted explicit derivation connectors retain their own mappings.
+!!! note "A derived flag does not supply a derivation rule"
+
+    The flag alone supplies no derivation rule, property chain, equivalence, calculation, or other extra logical constraint, and does not suppress ordinary transformation. For example, derived `age` does not authorize inventing a calculation from a birth date. Independently accepted explicit derivation connectors retain their own mappings.
 
 `true` requires a nonfatal INFO **only when its derived-status comment is generated**, identifying the element and explaining that annotation preservation supplies no derivation rule. This limitation alone is not a warning. Do not claim an independently applicable explicit derivation mapping was omitted if it was applied. `false`, or a flag lacking an eligible target, produces no diagnostic solely for that condition; other independently required diagnostics remain.
 

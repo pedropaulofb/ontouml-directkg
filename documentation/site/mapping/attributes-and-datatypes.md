@@ -52,7 +52,9 @@ The downloadable [classes-and-attributes example](../examples/index.md#classes-a
 
 VP `void` means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). Keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available.
 
-Do not substitute an XSD datatype, `rdfs:Literal`, `owl:Nothing`, `owl:bottomDataProperty`, `xsd:anySimpleType`, `xsd:anyAtomicType`, or an invented empty datatype for `void`. In particular, `void` does not mean that the attribute must have no values. Its warning and unsupported status distinguish it from null typing; both preserve the property's otherwise applicable mappings.
+!!! warning "The void type does not prohibit values"
+
+    Do not substitute an XSD datatype, `rdfs:Literal`, `owl:Nothing`, `owl:bottomDataProperty`, `xsd:anySimpleType`, `xsd:anyAtomicType`, or an invented empty datatype for `void`. In particular, `void` does not mean that the attribute must have no values. Its warning and unsupported status distinguish it from null typing; both preserve the property's otherwise applicable mappings.
 
 ## Cardinalities and structured datatypes
 
