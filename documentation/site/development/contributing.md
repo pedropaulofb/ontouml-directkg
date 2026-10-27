@@ -1,5 +1,11 @@
 # Contributing
 
+Community contributions to OntoUML DirectKG are welcome. Use [GitHub Issues](https://github.com/pedropaulofb/ontouml-directkg/issues) to report problems, ask project-related questions, or suggest improvements, and [Pull Requests](https://github.com/pedropaulofb/ontouml-directkg/pulls) to contribute documentation, fixes, or new functionality. See the [complete contribution guide](https://github.com/pedropaulofb/ontouml-directkg/blob/28b05b60e725dab3366a8019deb031626d9ab22d/CONTRIBUTING.md) for practical guidance.
+
+The software uses the [Apache License 2.0](https://github.com/pedropaulofb/ontouml-directkg/blob/28b05b60e725dab3366a8019deb031626d9ab22d/LICENSE). The [mereology vocabulary](https://github.com/pedropaulofb/ontouml-directkg/blob/28b05b60e725dab3366a8019deb031626d9ab22d/vocabulary/latest/dkgm-vocabulary.ttl) adopts the [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) license.
+
+OntoUML DirectKG is independently maintained as a personal side project. The maintainer welcomes constructive feedback and works to address issues, review contributions, and maintain and improve the project as time and resources permit. Response times and continuous support are not guaranteed.
+
 The repository currently contains documentation, the mereology vocabulary and its publication tools, and development tests. It has no production conversion library, CLI, or supported installation mechanism at the consulted revision. The checks below concern the available repository material.
 
 ## Contributing
