@@ -77,8 +77,6 @@ Preservation depends on the construct, rather than on conversion completing with
 | Mereology | The complete vocabulary is imported independently of material-chain settings; source-specific direction remains authoritative and the stable import URI is `https://w3id.org/directkg/vocab/dkgm`. | [Mereology and DKGM](../mapping/mereology.md) |
 | Instantiation declarations | A declaration supplies no concrete instance links; discarded association values cannot reappear in output, provenance, or diagnostic payloads. | [Instantiation associations](../mapping/instantiation.md) |
 
-This index is conceptual guidance. Pending topic pages and their explicit explanation obligations are not claimed as delivered by naming them here.
-
 ## Reasoner and profile expectations
 
 No general OWL profile or consistency guarantee is established. Even a `completed` transformation can preserve a semantically problematic source or make deliberate partial mappings.
