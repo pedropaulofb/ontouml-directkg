@@ -82,6 +82,10 @@ The repository includes the [Apache License 2.0](LICENSE). The [mereology vocabu
 
 ## Authorship and independence
 
-OntoUML DirectKG was independently conceived and developed by **[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)**, its sole creator, author, and developer. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
+**[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)** is the creator, author, and developer of OntoUML DirectKG. He developed the conceptual and technical design of the OntoUML-to-RDF/OWL transformation, including its semantic decisions and intended behavior. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
+
+The software implementation and technical documentation were created with substantial assistance from **OpenAI Codex through ChatGPT**, under his direction, supervision, and review. He retains responsibility for the transformation design, project decisions, and oversight of AI-assisted outputs.
+
+The [development prompt index](documentation/site/development/contributing.md#ai-assisted-development-and-prompts) links to the published workflow instructions in [`documentation/prompts/`](documentation/prompts/).
 
 The project is a personal contribution to the OntoUML community and its broader ecosystem. It is **not an official OntoUML project, tool, or implementation**, and it is not endorsed by the OntoUML maintainers.
