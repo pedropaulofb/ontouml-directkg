@@ -1,6 +1,6 @@
 # Python guide
 
-This guide describes **specified integration capabilities**, not a working API. No public production modules, imports, signatures, result objects, or exception classes exist at the consulted revision. Runnable calls and source-generated API reference content remain conditional on implementation; no placeholder imports are used here.
+This guide describes **specified integration capabilities**, not a working API. No public production modules, imports, signatures, result objects, or exception classes exist at the consulted revision. Runnable calls and source-generated API reference content remain conditional on implementation.
 
 ## Conversion and configuration
 
@@ -26,7 +26,7 @@ Structured access must retain **every diagnostic actually produced**, including 
 
 The specification does not prescribe whether the API communicates these outcomes through return values or exceptions.
 
-Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. Exact runtime diagnostic codes, required-field matrices, and report schemas are not invented here.
+Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. Exact runtime diagnostic codes, required-field matrices, and report schemas remain unspecified.
 
 Requested ontology-file creation/write failure, after successful ontology serialization and construction of any required provenance, must be exposed programmatically with diagnostics still accessible. It does not alter the established outcome or graph. A failed write cannot be presented as a valid delivered ontology; an older destination left in place must be identified as not updated. Other unresolved output failures remain outside that specifically accepted failure policy.
 
@@ -48,7 +48,7 @@ Automatic sidecar writing requires a concrete ontology output path; do not inven
 
 Failure to construct required provenance in an enabled mode aborts before ontology delivery under every input policy. In contrast, a later sidecar serialization/create/write failure leaves successfully written ontology output available and must be explicitly exposed as failed delivery. Do not silently change mode, modify the ontology graph to compensate, or report fully successful delivery. No new sidecar may be delivered for an ontology file whose delivery failed.
 
-The [metadata/provenance failure reference](metadata-and-provenance.md#failure-boundaries) owns construction-versus-delivery detail. CLI process codes are owned by [Exit codes and delivery failures](cli.md#exit-codes-and-delivery-failures); they are not invented Python exception classes or return codes.
+See the [metadata/provenance failure reference](metadata-and-provenance.md#failure-boundaries) for construction-versus-delivery details and [Exit codes and delivery failures](cli.md#exit-codes-and-delivery-failures) for CLI process codes. These codes do not prescribe Python exception classes or return codes.
 
 ---
 

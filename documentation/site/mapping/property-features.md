@@ -27,7 +27,7 @@ An explicit `p1 redefines p0` reference in `redefinedProperties` uses the same e
 
 Subsetting and redefinition remain distinct UML relationships despite their shared DirectKG representation. A redefinition alone does not generate `owl:equivalentProperty`, contextual value equality, property merging/replacement, new domain/range axioms, or copied/additional cardinality restrictions. Independently applicable declarations, domains, ranges, cardinalities, and relation-generalization mappings remain in force.
 
-This limitation is explained here rather than turned into a new runtime warning. A structurally processable redefinition mapped as specified requires **no warning solely for being a partial translation**. Other applicable diagnostics, including unresolved-reference or underlying-transformation errors, still apply. A quiet conversion does not establish complete contextual preservation.
+A structurally processable redefinition mapped as specified requires **no warning solely for being a partial translation**. Other applicable diagnostics, including unresolved-reference or underlying-transformation errors, still apply. A quiet conversion does not establish complete contextual preservation.
 
 ## Read-only and aggregation comments
 

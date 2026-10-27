@@ -4,7 +4,7 @@ This guide explains the **specified command-line contract**. At the consulted re
 
 ## Invocation
 
-Executable names, positional arguments, input/output invocation mechanics, and a default output destination remain unavailable or unspecified. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) owns established option spellings, values, and defaults; it does not establish an executable.
+Executable names, positional arguments, input/output invocation mechanics, and a default output destination remain unavailable or unspecified. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults; it does not establish an executable.
 
 For an eventual verified invocation, prepare an export satisfying the [input contract](../reference/input.md), select effective controls from that catalog, and interpret the result using the separate transformation and delivery contracts below. Do not infer additional format, prefix, sorting, qualified-cardinality, or independent ontology-IRI switches.
 
@@ -24,7 +24,7 @@ The report is a **mirror of produced diagnostics**, not an inventory of every po
 
 ## Exit codes and delivery failures
 
-Transformation outcome and requested-file delivery are separate. `completed-with-errors` can deliver permitted partial output; error severity alone does not establish abortion. INFO and WARNING alone do not require a nonzero status. This table owns the complete accepted CLI code mapping within its stated scope (§15).
+Transformation outcome and requested-file delivery are separate. `completed-with-errors` can deliver permitted partial output; error severity alone does not establish abortion. INFO and WARNING alone do not require a nonzero status. The table below lists the complete accepted CLI code mapping within its stated scope (§15).
 
 | Code | Specified condition |
 | --- | --- |
@@ -48,7 +48,7 @@ Code `2` concerns rejection before conversion, rather than a competing transform
 
 Required-provenance **construction** failure under `embedded` or `sidecar` aborts before ontology delivery under every input policy: code `3`, overridden by `4` if requested diagnostics delivery also fails. Once provenance is constructed, failure to serialize/create/write its sidecar is instead a **delivery** failure using `5`; keep the successfully written ontology. See [Failure boundaries](metadata-and-provenance.md#failure-boundaries).
 
-Code `6` covers the stated ontology-file creation/write stage. Other ontology-output failures, including serialization failures outside that resolved scope, and unexpected runtime failures have no additional code mapping selected here. Do not extend `4` to unspecified diagnostic-export failure mechanisms or present `0` as successful delivery after a specified delivery failure.
+Code `6` covers the stated ontology-file creation/write stage. Other ontology-output failures, including serialization failures outside that resolved scope, and unexpected runtime failures have no additional specified code mapping. Do not extend `4` to unspecified diagnostic-export failure mechanisms or present `0` as successful delivery after a specified delivery failure.
 
 ### Reporting and retained results
 
@@ -73,7 +73,7 @@ The following are **contract illustrations, not observed executions**:
 | Ontology written; requested sidecar cannot be written | Outcome unchanged, code `5`; ontology retained |
 | Ontology destination cannot be written after serialization/provenance construction | Outcome unchanged, code `6`; no new sidecar; code `4` if requested diagnostics writing also fails |
 
-No concrete filenames, report payloads, or delivery success in these illustrations are claimed as converter output. The [Python guide](python.md) explains equivalent transformation capabilities and its separate export/access contract.
+The [Python guide](python.md) explains equivalent transformation capabilities and its separate export/access contract.
 
 ---
 

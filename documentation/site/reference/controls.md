@@ -21,13 +21,13 @@ This is the canonical catalog of **specified controls and defaults**. No product
 | `--diagnostics-file` | Complete caller-selected output-file path | Not supplied; no CLI diagnostics file | Export every diagnostic actually produced to JSON, including those hidden by console filtering and those produced before an accepted abort. For conversions that run, export is attempted even after specified artifact-delivery failures. Supplied-base rejection produces no conversion-diagnostics report. |
 | `--console-level` | `info`, `warning`, `error` | `info` | Display INFO/WARNING/ERROR, WARNING/ERROR, or ERROR, respectively. Filter console presentation only; retain every produced diagnostic for collection, programmatic access, and requested JSON export. |
 
-See [Identifiers and naming](identifiers.md) and [Labels, comments, and language](text.md) for the available identity/text explanations. See [Inverse properties](../mapping/inverses.md) for eligibility and construction, and [Derivations and material chains](../mapping/derivations-and-chains.md) for chain eligibility, ambiguity, and constraint treatment. [Metadata and provenance](../guides/metadata-and-provenance.md) owns its accepted whitelist and failure boundaries; [Diagnostics and recovery](diagnostics.md) owns policies, outcomes, and diagnostic conditions.
+See [Identifiers and naming](identifiers.md) and [Labels, comments, and language](text.md) for the available identity/text explanations. See [Inverse properties](../mapping/inverses.md) for eligibility and construction, and [Derivations and material chains](../mapping/derivations-and-chains.md) for chain eligibility, ambiguity, and constraint treatment. [Metadata and provenance](../guides/metadata-and-provenance.md) describes its accepted whitelist and failure boundaries; [Diagnostics and recovery](diagnostics.md) explains policies, outcomes, and diagnostic conditions.
 
 ## Interface parity
 
 Every established ontology-transformation control must be available through both CLI and Python, with equivalent selectable behaviors, identical defaults, and the same transformation effects. Equivalent effective configurations invoke the same accepted transformation rules. This does not promise identical execution provenance across separate runs.
 
-The specification fixes the Python parameter `relation_labels`, with values `"source-only"` and `"generated"` and default `"source-only"`. Most other Python parameter names, configuration representations, function signatures, return types, and exception classes remain unspecified. A negative CLI flag need not dictate Python spelling or polarity. No Python call is fabricated here.
+The specification fixes the Python parameter `relation_labels`, with values `"source-only"` and `"generated"` and default `"source-only"`. Most other Python parameter names, configuration representations, function signatures, return types, and exception classes remain unspecified. A negative CLI flag need not dictate Python spelling or polarity.
 
 Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same report schema/content contract as the CLI. Python conversion does not automatically write that file. Exact report member names and runtime diagnostic codes remain unspecified.
 
@@ -63,7 +63,7 @@ Transformation outcome remains distinct from delivery failure. See [CLI exit cod
 
 ### Controls that are not established
 
-No independent ontology-IRI, format-selection, prefix-selection, sorting/canonicalization, qualified-relation-cardinality, or reverse-cardinality-omission control is established. The redundant local `owl:allValuesFrom` option has been removed. No generic mereology-specific control is specified. These boundaries must not be filled with guessed switches or Python parameters.
+No independent ontology-IRI, format-selection, prefix-selection, sorting/canonicalization, qualified-relation-cardinality, or reverse-cardinality-omission control is established. The redundant local `owl:allValuesFrom` option has been removed. No generic mereology-specific control is specified.
 
 ---
 

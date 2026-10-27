@@ -84,7 +84,7 @@ When enabled, provenance records the following without selecting resource-IRI te
 | File content digest | SPDX checksum structure using SHA-256 |
 | Concrete output file, sidecar mode only | Separate entity linked to ontology by `dcterms:isFormatOf`, with filename, serialization format, checksum, and generation relationship |
 
-The configuration entity contains a **deterministically serialized YAML string** under `prov:value`, identified by `dcterms:format`. Record effective transformation settings, including defaults, subject to the embedded-output-file exclusion below. Configuration keys inside this literal are data, not RDF predicates. No concrete serialized configuration example or runtime version/timestamp is fabricated here.
+The configuration entity contains a **deterministically serialized YAML string** under `prov:value`, identified by `dcterms:format`. Record effective transformation settings, including defaults, subject to the embedded-output-file exclusion below. Configuration keys inside this literal are data, not RDF predicates.
 
 Descriptive citations through `dcterms:source` differ from execution inputs actually processed through `prov:used`. Do not treat every cited source as an execution input.
 

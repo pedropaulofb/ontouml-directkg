@@ -8,7 +8,7 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 **These pages describe accepted intended behavior.** At the reviewed repository revision, `9e52a66af43e39b374d0a642298b1117d12be4d8`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
 
-The website provides shared contracts, conceptual guidance, mappings, and contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and available development checks. Getting started and generated API pages remain pending their implementation prerequisites; navigation links only to pages that exist.
+The website provides shared contracts, conceptual guidance, mappings, and contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and available development checks. Getting started and generated API pages remain pending their implementation prerequisites.
 
 ## Scope at a glance
 
@@ -35,7 +35,7 @@ The website provides shared contracts, conceptual guidance, mappings, and contra
 
 ## Relationship to other approaches
 
-DirectKG aims for a comparatively lightweight graph of domain concepts and relations. It does not adopt gUFO imports or its UFO-based representation merely because gUFO is a related approach. It also avoids reproducing the source JSON's serialization machinery. This simplification does not authorize inventing semantics or discarding information beyond the accepted rules.
+DirectKG aims for a comparatively lightweight graph of domain concepts and relations. It does not adopt gUFO imports or its UFO-based representation merely because gUFO is a related approach. It also avoids reproducing the source JSON's serialization machinery. Simplification follows the accepted mapping rules without introducing additional semantics or omitting information beyond those rules.
 
 ---
 
