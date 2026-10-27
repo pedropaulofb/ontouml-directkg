@@ -47,6 +47,8 @@ The repository includes the [Apache License 2.0](https://github.com/pedropaulofb
 
 ## Authorship and independence
 
-OntoUML DirectKG was independently conceived and developed by **[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)**, its sole creator, author, and developer. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
+The OntoUML-to-RDF/OWL transformation was designed by **[Pedro Paulo Favato Barcelos](https://w3id.org/pedropaulofb)**, the project's creator, author, and developer. Profiles: [GitHub](https://github.com/pedropaulofb), [ORCID](https://orcid.org/0000-0003-2736-7817), and [LinkedIn](https://www.linkedin.com/in/pedro-paulo-favato-barcelos/).
+
+Implementation and technical documentation were created with substantial assistance from **OpenAI Codex through ChatGPT**, under his direction, supervision, and review. He retains responsibility for project decisions and oversight. See [AI-assisted development and prompts](development/contributing.md#ai-assisted-development-and-prompts) for the published workflow instructions.
 
 The project is a personal contribution to the OntoUML community and its broader ecosystem. It is **not an official OntoUML project, tool, or implementation**, and it is not endorsed by the OntoUML maintainers.

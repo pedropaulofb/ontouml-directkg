@@ -20,6 +20,12 @@ Use the current accepted sources before changing a documented behavior:
 
 Archived specifications, unresolved-decision records, prompts, and observed implementation behavior do not silently amend the accepted baseline. Bring a material conflict to the project owner with the exact passages and revision. Keep accepted intended behavior, verified functionality, and pending implementation-dependent guidance distinct.
 
+## AI-assisted development and prompts
+
+For human and AI responsibilities, see [Authorship and independence](../index.md#authorship-and-independence). Published workflow instructions are available in [`documentation/prompts/`](https://github.com/pedropaulofb/ontouml-directkg/tree/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts).
+
+These files contain role instructions, not a complete history of development prompts or conversations. They do not identify which prompt revision produced each artifact.
+
 ## Documentation maintenance
 
 Public sources live in `documentation/site/`. Internal specifications live in `documentation/specification/`, and AI workflow prompts live in `documentation/prompts/`. Both remain outside the website build root. Root `zensical.toml` owns navigation and the `site/` output directory. Keep generated HTML out of committed sources.
