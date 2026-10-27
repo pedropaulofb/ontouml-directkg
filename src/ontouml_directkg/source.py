@@ -41,6 +41,20 @@ _STEREOTYPES = {"Class": CLASS_STEREOTYPES, "Relation": _RELATION_STEREOTYPES,
                 "Property": frozenset({"begin", "end"})}
 
 
+def _identifier_problem(data: dict) -> str | None:
+    """Check opaque source IDs without changing their decoded strings (RD-02)."""
+    if "id" not in data:
+        return "Source identifier is missing: the id field is absent."
+    identifier = data["id"]
+    if not isinstance(identifier, str) or not identifier:
+        return "Source identifier is invalid: expected a nonempty JSON string."
+    try:
+        identifier.encode("utf-8")
+    except UnicodeError:
+        return "Source identifier is invalid: the string cannot be encoded as UTF-8."
+    return None
+
+
 @dataclass(frozen=True)
 class SourceElement:
     """A declaration/container with its actual source location and optional owner."""
@@ -72,8 +86,11 @@ class SourceIndex:
         """
         if not isinstance(reference, dict) or set(reference) != {"id", "type"}:
             raise KeyError("Malformed source reference")
+        problem = _identifier_problem(reference)
+        if problem is not None:
+            raise KeyError(problem)
         identifier = reference["id"]
-        if not isinstance(identifier, str) or identifier not in self.declarations:
+        if identifier not in self.declarations:
             raise KeyError("Unresolved source reference")
         element = self.declarations[identifier]
         if reference["type"] != element.data["type"]:
@@ -145,7 +162,7 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
         if extra:
             unknown(f"Unrecognized input fields on {kind}: {', '.join(extra)}.", element)
         identifier = value.get("id")
-        if kind not in {"Project", "Package"} and isinstance(identifier, str) and identifier:
+        if kind not in {"Project", "Package"} and _identifier_problem(value) is None:
             declarations.setdefault(identifier, []).append(element)
         if kind == "Project":
             visit(value["model"], path + ".model", expected="Package")
@@ -177,7 +194,34 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
                             "Conversion aborted; competing declarations are not selected, merged or renamed.",
                             tuple(item.location for item in competing))
             raise _AbortConversion
-    return SourceIndex(project, tuple(elements), {key: values[0] for key, values in declarations.items()})
+
+    # Check duplicates before omitting an invalid declaration or its owned
+    # contents. Literal and relation-end recovery already belongs to their
+    # mapping collectors (DK-CLS-11 and DK-DIAG-03), not this traversal.
+    relation_ids = {element.data["id"] for values in declarations.values()
+                    for element in values if element.data["type"] == "Relation"}
+    omitted: list[str] = []
+    retained = []
+    for element in elements:
+        if any(element.path.startswith(path + ".") for path in omitted):
+            continue
+        kind = element.data["type"]
+        relation_end = (kind == "Property" and isinstance(element.owner, str)
+                        and element.owner in relation_ids)
+        if kind not in {"Project", "Package", "Literal"} and not relation_end:
+            problem = _identifier_problem(element.data)
+            if problem is not None:
+                input_error(diagnostics, input_policy,
+                            "MISSING_SOURCE_ID" if "id" not in element.data else "INVALID_SOURCE_ID",
+                            problem, (element.location,),
+                            "Affected declaration and output requiring its ownership omitted; independent mappings retained.")
+                omitted.append(element.path)
+                continue
+        retained.append(element)
+    retained_paths = {element.path for element in retained}
+    return SourceIndex(project, tuple(retained),
+                       {key: values[0] for key, values in declarations.items()
+                        if values[0].path in retained_paths})
 
 
 def check_stereotypes(index: SourceIndex, diagnostics: DiagnosticCollector, policy: str) -> None:
