@@ -195,14 +195,22 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
                             tuple(item.location for item in competing))
             raise _AbortConversion
 
-    # Check duplicates before omitting an invalid declaration or its owned
-    # contents. Literal and relation-end recovery already belongs to their
-    # mapping collectors (DK-CLS-11 and DK-DIAG-03), not this traversal.
-    relation_ids = {element.data["id"] for values in declarations.values()
-                    for element in values if element.data["type"] == "Relation"}
+    return SourceIndex(project, tuple(elements), {key: values[0] for key, values in declarations.items()})
+
+
+def apply_identifier_policy(index: SourceIndex, diagnostics: DiagnosticCollector,
+                            input_policy: str) -> SourceIndex:
+    """Recover identifiers after the full source passes DK-DIAG-06's check.
+
+    Filtering must not hide a rejected stereotype on an omitted declaration
+    or its owned elements. Duplicate checking precedes this recovery as well.
+    Literal and relation-end recovery remains in their mapping collectors.
+    """
+    relation_ids = {identifier for identifier, element in index.declarations.items()
+                    if element.data["type"] == "Relation"}
     omitted: list[str] = []
     retained = []
-    for element in elements:
+    for element in index.elements:
         if any(element.path.startswith(path + ".") for path in omitted):
             continue
         kind = element.data["type"]
@@ -219,9 +227,9 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
                 continue
         retained.append(element)
     retained_paths = {element.path for element in retained}
-    return SourceIndex(project, tuple(retained),
-                       {key: values[0] for key, values in declarations.items()
-                        if values[0].path in retained_paths})
+    return SourceIndex(index.project, tuple(retained),
+                       {key: element for key, element in index.declarations.items()
+                        if element.path in retained_paths})
 
 
 def check_stereotypes(index: SourceIndex, diagnostics: DiagnosticCollector, policy: str) -> None:
