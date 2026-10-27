@@ -24,7 +24,7 @@ The warning's traceability and content have a strict boundary:
 
 Discarded values cannot reappear in RDF/OWL, provenance metadata, annotations, alternative resources, or diagnostic payloads. Retaining the source ID solely to locate the diagnostic is allowed; it is not an OWL representation of the association or a basis for minting one.
 
-The console form, when visible under its selected threshold, and persistent JSON describe the same underlying diagnostic event and respect the same content boundary. Their presentation formats may differ. No concrete JSON schema or runtime diagnostic code is selected here. Console filtering does not remove the produced warning from complete diagnostic access/export.
+The console form, when visible under its selected threshold, and persistent JSON describe the same underlying diagnostic event and respect the same content boundary. Their presentation formats may differ. No concrete JSON schema or runtime diagnostic code is specified. Console filtering does not remove the produced warning from complete diagnostic access/export.
 
 The warning makes information loss visible; it does not preserve the association-level semantics. See [Presentation and persistence](../reference/controls.md#presentation-and-persistence-do-not-change-transformation-outcomes) for the diagnostic boundary and [Preservation boundaries](../concepts/semantics.md#preservation-boundaries) for the limitation index.
 
