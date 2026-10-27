@@ -16,16 +16,7 @@ Archived specifications, unresolved-decision records, prompts, and observed impl
 
 ## AI-assisted development and prompts
 
-For human and AI responsibilities, see [Authorship and independence](../index.md#authorship-and-independence). Published workflow instructions are available in [`documentation/prompts/`](https://github.com/pedropaulofb/ontouml-directkg/tree/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts):
-
-| Workflow | Published role instructions |
-| --- | --- |
-| Technical advice | [Adviser](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/adviser-01-initialize-and-operate.md) |
-| Design study and decision discussion | [Prerequisite study](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/architect-01-prerequisite-study.md), [project-state loading](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/architect-02-load-project-state.md), [Architect protocol](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/architect-03-operating-protocol.md), and [open-issues handoff](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/architect-99-session-open-issues-handoff.md) |
-| Specification consolidation | [Documenter](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/documenter-01-initialize-and-operate.md) and [consolidation handoff](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/documenter-99-session-consolidated-specification.md) |
-| Implementation and review | [Implementation Creator](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/implementation-engineer-01-initialize-and-operate.md) and [Implementation Validator](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/implementation-reviewer-01-initialize-and-operate.md) |
-| Tests and review | [Test Engineer](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/test-engineer-01-initialize-and-operate.md) and [Test Reviewer](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/test-reviewer-01-initialize-and-operate.md) |
-| Technical documentation and review | [Documentation Engineer](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/documentation-engineer-01-initialize-and-operate.md) and [Documentation Validator](https://github.com/pedropaulofb/ontouml-directkg/blob/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts/documentation-reviewer-01-initialize-and-operate.md) |
+For human and AI responsibilities, see [Authorship and independence](../index.md#authorship-and-independence). Published workflow instructions are available in [`documentation/prompts/`](https://github.com/pedropaulofb/ontouml-directkg/tree/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts).
 
 These files contain role instructions, not a complete history of development prompts or conversations. They do not identify which prompt revision produced each artifact.
 
