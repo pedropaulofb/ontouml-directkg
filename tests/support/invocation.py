@@ -472,6 +472,8 @@ _DIAGNOSTIC_KINDS = {
     "MISSING_NAME": "missing_name", "GENERIC_ID_FALLBACK": "generic_id_fallback",
     "MISSING_STEREOTYPE": "missing_stereotype", "UNRECOGNIZED_STEREOTYPE": "unrecognized_stereotype",
     "UNKNOWN_INFORMATION": "unknown_information", "UNPROCESSABLE_DOCUMENT": "unprocessable_document",
+    "MATERIAL_CHAIN_COMPATIBILITY": "chain_compatibility", "MATERIAL_CHAIN_AMBIGUITY": "chain_ambiguity",
+    "EXTENSIONALITY_ANNOTATION": "extensionality",
 }
 
 
@@ -497,6 +499,24 @@ def _observed_diagnostics(events):
             facts.add("not_logically_enforced")
         if "missing descriptive name" in wording:
             facts.add("missing_name")
+        if event.code == "MATERIAL_CHAIN_COMPATIBILITY":
+            effect = event.effect.casefold()
+            if "does not guarantee owl 2 dl" in wording or "owl 2 dl conformance is not guaranteed" in wording:
+                facts.add("not_dl_guarantee")
+            if "omission policy applied" in effect:
+                facts.add("omission_policy_applied")
+            if "omitted affected" in effect:
+                if "cardinality restrictions" in effect: facts.add("cardinalities_omitted")
+                if "property-disjointness axioms" in effect: facts.add("property_disjointness_omitted")
+            if "constraints preserved" in effect:
+                facts.add("constraints_preserved")
+            if "may place the output outside owl 2 dl" in wording:
+                facts.add("possible_owl_dl_incompatibility")
+        if event.code == "MATERIAL_CHAIN_AMBIGUITY":
+            if "multiple matching" in wording:
+                facts.add("ambiguous_correspondence")
+            if "same-class material endpoints cannot be assigned uniquely" in wording:
+                facts.add("same_class_occurrences_unassigned")
         ids = tuple(source.identifier for source in event.sources if source.identifier is not None)
         observed.append(Diagnostic(
             event.severity, _DIAGNOSTIC_KINDS[event.code], event.message + " " + event.effect,

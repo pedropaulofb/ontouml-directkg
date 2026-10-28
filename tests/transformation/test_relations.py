@@ -1,13 +1,14 @@
 """Ordinary relation naming, labels, cardinalities and explicit hierarchies."""
 
 import copy
+from pathlib import Path
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
-from tests.support.rdf import (assert_contains, cardinality_facts, load_graph,
-                               necessary_restrictions, one_subject, property_chains)
+from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
+                               necessary_restrictions, one_subject, property_chains, property_expression)
 
 BASE = Namespace('https://example.test/model#')
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -836,17 +837,33 @@ def test_ambiguity_on_either_pattern_side_is_nonfatal_and_retains_constraints(ru
 
 @pytest.mark.parametrize('aggregation',['NONE','SHARED','COMPOSITE'])
 @pytest.mark.parametrize('stereotype',['material','mediation',None],ids=['ordinary_material','ordinary_mediation','missing_relation_stereotype'])
-def test_aggregation_flags_do_not_create_a_mereology_bridge_or_asymmetry(run,source_json,tmp_path,aggregation,stereotype):
-    """Rules: DK-REL-19, DK-PROP-04, DK-CLS-01, DK-DIAG-06."""
+def test_aggregation_flags_preserve_independent_stereotype_axioms(run,source_json,tmp_path,aggregation,stereotype):
+    """Rules: DK-REL-01, DK-REL-19, DK-GEN-04, DK-PROP-04, DK-CLS-01, DK-DIAG-06.
+
+    RD-17 adds mediation asymmetry independently of aggregation/extensionality.
+    Compare actual graphs with and without the flags, excluding comments only.
+    """
     document=source_json('shared/binary_relation');source_element(document,'rFocus')['stereotype']=stereotype
     source_element(document,'sFocus')['aggregationKind']=aggregation
     source_element(document,'cA')['isExtensional']=True
+    baseline=copy.deepcopy(document)
+    source_element(baseline,'sFocus')['aggregationKind']='NONE'
+    source_element(baseline,'cA')['isExtensional']=False
+    unflagged=run(path=write_input(tmp_path,baseline,'unflagged.json'),iri_strategy='id',stereotype_policy='allow-missing')
     result=run(path=write_input(tmp_path,document),iri_strategy='id',stereotype_policy='allow-missing')
-    assert result.outcome=='completed';_direction(result.ontology)
-    generics={URIRef(str(result.mereology_import)+'#'+name) for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf')}
+    assert result.outcome==unflagged.outcome=='completed';_direction(result.ontology)
+    generic_base='https://w3id.org/directkg/vocab/dkgm'
+    assert (None,OWL.imports,URIRef(generic_base)) in result.ontology
+    generics={URIRef(generic_base+'#'+name) for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf')}
     assert not generics & set(result.ontology.objects(BASE.tFocus,RDFS.subPropertyOf))
-    assert (BASE.tFocus,RDF.type,OWL.AsymmetricProperty) not in result.ontology
-    assert not result.flag_semantic_output
+    graphs=[]
+    for observed in (unflagged,result):
+        graph=Graph()
+        for triple in observed.ontology:
+            if triple[1]!=RDFS.comment:graph.add(triple)
+        graphs.append(graph)
+    assert_graph_equal(*graphs)
+    assert ((BASE.tFocus,RDF.type,OWL.AsymmetricProperty) in result.ontology)==(stereotype=='mediation')
 
 
 @pytest.mark.parametrize('grounding',GROUNDINGS)
@@ -1125,3 +1142,244 @@ def test_material_chain_modes_keep_name_strategy_source_identity_and_use_anonymo
         expected=(('inverse',mapped['tLeft']),mapped['tRight'])
         assert property_chains(result.ontology,mapped['tMaterial'])==({expected} if mode!='none' else set())
         assert result.unrepresented_connector_output==(), "Bind the actual connector-output reader"
+
+
+# RD-17's five additions. These checks read asserted RDF only: they neither
+# repair endpoint roles nor compute a replacement conversion or OWL closure.
+ADDITIONAL_CHARACTERISTICS=[
+    pytest.param('characterization','kind','mode',OWL.AsymmetricProperty,id='characterization'),
+    pytest.param('mediation','relator','kind',OWL.AsymmetricProperty,id='mediation'),
+    pytest.param('participational','event','event',OWL.AsymmetricProperty,id='participational'),
+    pytest.param('externalDependence','mode','kind',OWL.IrreflexiveProperty,id='external_dependence'),
+]
+
+
+def _expression_pairs(graph):
+    # propertyDisjointWith is an unordered pair; anonymous inverses are read
+    # through their actual owl:inverseOf edge, never through blank-node labels.
+    return {frozenset((property_expression(graph,a),property_expression(graph,b)))
+            for a,b in graph.subject_objects(OWL.propertyDisjointWith)}
+
+
+@pytest.mark.parametrize('stereotype,source_kind,target_kind,characteristic',ADDITIONAL_CHARACTERISTICS)
+@pytest.mark.parametrize('reverse',[False,True],ids=['primary_forward','primary_reverse'])
+def test_additional_relation_characteristics_preserve_primary_direction(run,source_json,tmp_path,stereotype,source_kind,target_kind,characteristic,reverse):
+    """Rules: DK-REL-01, DK-GEN-03, DK-INV-01, DK-INV-04; RD-17 additions 1, 4–5."""
+    document=source_json('shared/binary_relation')
+    source_element(document,'cA')['stereotype']=source_kind
+    source_element(document,'cB')['stereotype']=target_kind
+    source_element(document,'rFocus')['stereotype']=stereotype
+    if reverse:
+        ends=source_element(document,'rFocus')['properties']
+        ends[0]['propertyType'],ends[1]['propertyType']=ends[1]['propertyType'],ends[0]['propertyType']
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all')
+    assert result.outcome=='completed'
+    _direction(result.ontology,BASE.tFocus,BASE.cB if reverse else BASE.cA,BASE.cA if reverse else BASE.cB)
+    _chain_inverse(result.ontology,BASE.sFocus,BASE.tFocus)
+    assert (BASE.tFocus,RDF.type,characteristic) in result.ontology
+
+
+PAIR_INVERSES=[
+    pytest.param('all',None,None,True,True,'id',id='all_without_information'),
+    pytest.param('none','role','count',False,False,'id',id='none_with_information'),
+    pytest.param('named','role',None,True,False,'id',id='named_mixed'),
+    pytest.param('named',None,None,False,False,'id',id='named_without_roles'),
+    pytest.param('informed','role',None,True,False,'id',id='informed_role_only'),
+    pytest.param('informed',None,'count',False,True,'id',id='informed_count_only'),
+    pytest.param('informed',None,None,False,False,'id',id='informed_without_information'),
+    pytest.param('none',None,None,False,False,'name',id='name_strategy_without_inverses'),
+]
+
+
+@pytest.mark.parametrize('inverse_mode,left_info,right_info,left_named,right_named,strategy',PAIR_INVERSES)
+@pytest.mark.parametrize('left_reverse,right_reverse',[(False,False),(True,False),(False,True),(True,True)],
+                         ids=['both_primary','reverse_characterization','reverse_external','reverse_both'])
+def test_feature_disjointness_selects_aligned_expressions_without_forcing_named_inverses(run,source_json,tmp_path,inverse_mode,left_info,right_info,left_named,right_named,strategy,left_reverse,right_reverse):
+    """Rules: DK-REL-01, DK-INV-01, DK-INV-04, DK-REL-09, DK-PROP-03, DK-GEN-03, DK-IRI-02; RD-17 additions 2–4."""
+    document=source_json('shared/material_pattern');_grounding(document,'mode')
+    contents=document['model']['contents']
+    for identifier in ('rMaterial','rDerivation','rUnrelated'):contents.remove(source_element(document,identifier))
+    for key,info,reverse in [('Left',left_info,left_reverse),('Right',right_info,right_reverse)]:
+        ends=source_element(document,'r'+key)['properties']
+        ends[0].update(name='inverse'+key if info=='role' else None,cardinality='1' if info=='count' else None)
+        ends[1]['cardinality']=None
+        if reverse:ends[0]['propertyType'],ends[1]['propertyType']=ends[1]['propertyType'],ends[0]['propertyType']
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy=strategy,inverse_properties=inverse_mode)
+    assert result.outcome=='completed'
+    graph=result.ontology
+    feature=_primary(result,'cGround',strategy)
+    expected=[];named_resources=set()
+    primaries={key:_primary(result,'t'+key,strategy) for key in ('Left','Right')}
+    for key,reverse,named,endpoint in [('Left',left_reverse,left_named,'cA'),('Right',right_reverse,right_named,'cB')]:
+        primary=primaries[key];other=_primary(result,endpoint,strategy)
+        _direction(graph,primary,other if reverse else feature,feature if reverse else other)
+        inverse=_primary(result,'s'+key,strategy) if named else None
+        assert {node for node in graph.subjects(OWL.inverseOf,primary) if isinstance(node,URIRef)}==({inverse} if named else set())
+        if named:
+            _chain_inverse(graph,inverse,primary);named_resources.add(inverse)
+        expected.append(primary if not reverse else inverse if named else ('inverse',primary))
+    assert {node for node in graph.subjects(RDF.type,OWL.ObjectProperty)
+            if isinstance(node,URIRef) and str(node).startswith(str(BASE))}==set(primaries.values())|named_resources
+    assert not list(graph.triples((None,OWL.propertyChainAxiom,None)))
+    assert _expression_pairs(graph)=={frozenset(expected)}
+
+
+@pytest.mark.parametrize('variant',[
+    'without_material','without_derivation','multiple_matches','names_only','subclass_feature','superclass_feature',
+    'ambiguous_characterization','ambiguous_external','no_feature','failed_characterization','failed_external'])
+def test_feature_pairing_uses_exact_successful_role_identity_independently_of_chain_eligibility(run,source_json,tmp_path,variant):
+    """Rules: DK-REL-01, DK-REL-07, DK-INV-04, DK-GEN-02, DK-DIAG-02, DK-DIAG-03, DK-DIAG-05; §3.4; RD-17 additions 2, 5."""
+    document=source_json('shared/material_pattern');_grounding(document,'mode')
+    contents=document['model']['contents'];expected={frozenset((BASE.tLeft,BASE.tRight))}
+    if variant=='without_material':
+        for identifier in ('rMaterial','rDerivation'):contents.remove(source_element(document,identifier))
+    elif variant=='without_derivation':contents.remove(source_element(document,'rDerivation'))
+    elif variant=='multiple_matches':
+        for key in ('Left','Right'):
+            extra=copy.deepcopy(source_element(document,'r'+key));extra['id']='r'+key+'Extra'
+            extra['properties'][0]['id']='s'+key+'Extra';extra['properties'][1]['id']='t'+key+'Extra'
+            contents.append(extra)
+        expected={frozenset((BASE[a],BASE[b])) for a in ('tLeft','tLeftExtra') for b in ('tRight','tRightExtra')}
+    elif variant in {'names_only','subclass_feature','superclass_feature'}:
+        source_element(document,'cExtra').update(stereotype='mode',name=source_element(document,'cGround')['name'])
+        source_element(document,'sRight')['propertyType']['id']='cExtra'
+        if variant!='names_only':
+            a,b=('cExtra','cGround') if variant=='subclass_feature' else ('cGround','cExtra')
+            contents.append({'id':'gFeature','name':None,'description':None,'type':'Generalization','propertyAssignments':None,
+                             'specific':{'id':a,'type':'Class'},'general':{'id':b,'type':'Class'}})
+        expected=set()
+    elif variant in {'ambiguous_characterization','ambiguous_external'}:
+        source_element(document,'cA' if variant=='ambiguous_characterization' else 'cB')['stereotype']='mode'
+        expected=set()
+    elif variant=='no_feature':
+        source_element(document,'cGround')['stereotype']='kind'
+        contents.remove(source_element(document,'rDerivation'));expected=set()
+    else:
+        source_element(document,'sLeft' if variant=='failed_characterization' else 'sRight')['propertyType']['id']='missingFeature'
+        expected=set()
+    failed=variant.startswith('failed_')
+    assert fixture_issues(document)==(frozenset({'unresolved_reference:missingFeature'}) if failed else frozenset())
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='none',
+               input_policy='best-effort' if failed else 'strict',material_property_chains='preserve-conflicting-constraints')
+    assert result.outcome==('completed-with-errors' if failed else 'completed')
+    graph=result.ontology
+    for key,endpoint in [('Left','cA'),('Right','cB')]:
+        missing=variant==('failed_characterization' if key=='Left' else 'failed_external')
+        assert ((BASE['t'+key],RDF.type,OWL.ObjectProperty) in graph)==(not missing)
+        if not missing:_direction(graph,BASE['t'+key],BASE.cExtra if key=='Right' and variant in {'names_only','subclass_feature','superclass_feature'} else BASE.cGround,BASE[endpoint])
+    if variant in {'without_material','without_derivation','multiple_matches','names_only','subclass_feature','superclass_feature','no_feature'} or failed:
+        assert not list(graph.triples((None,OWL.propertyChainAxiom,None)))
+    if failed:assert any(d.severity=='ERROR' for d in result.diagnostics)
+    else:assert not any(d.severity=='ERROR' for d in result.diagnostics)
+    assert _expression_pairs(graph)==expected
+
+
+@pytest.mark.parametrize('grounding',GROUNDINGS)
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+def test_chain_body_participation_does_not_suppress_compatible_relation_additions(run,source_json,tmp_path,grounding,mode):
+    """Rules: DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-INV-01, DK-INV-04; RD-17 additions 1–5."""
+    document=source_json('shared/material_pattern');_grounding(document,grounding)
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all',material_property_chains=mode)
+    assert result.outcome=='completed';graph=result.ontology
+    assert property_chains(graph,BASE.tMaterial)==({(('inverse',BASE.tLeft),BASE.tRight)} if mode!='none' else set())
+    for key,target in [('Left','cA'),('Right','cB')]:
+        _direction(graph,BASE['t'+key],BASE.cGround,BASE[target]);_chain_inverse(graph,BASE['s'+key],BASE['t'+key])
+        _counts(graph,BASE.cGround,BASE['t'+key],{('exact',1)})
+    _counts(graph,BASE.cA,BASE.tMaterial,set() if mode=='omit-conflicting-constraints' else {('min',2),('max',5)})
+    _counts(graph,BASE.cB,BASE.sMaterial,set() if mode=='omit-conflicting-constraints' else {('exact',1)})
+    _counts(graph,BASE.cA,BASE.tUnrelated,{('exact',4)})
+    assert (BASE.tLeft,RDF.type,OWL.AsymmetricProperty) in graph
+    assert (BASE.tRight,RDF.type,OWL.IrreflexiveProperty if grounding=='mode' else OWL.AsymmetricProperty) in graph
+    assert _expression_pairs(graph)==({frozenset((BASE.tLeft,BASE.tRight))} if grounding=='mode' else set())
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+@pytest.mark.parametrize('case',[
+    'characterization','external_dependence','mediation','participational','inverse_named','inverse_anonymous','below_non_simple'])
+def test_new_relation_axioms_apply_simplicity_per_axiom_without_repairing_existing_constraints(run,source_json,tmp_path,mode,case):
+    """Rules: DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-11, DK-REL-14, DK-REL-15, DK-INV-01, DK-INV-04, DK-INV-12, DK-PROP-03, DK-DIAG-02; §3.4; RD-17 additions 3–5."""
+    document=source_json('relations/chain_constraints');_grounding(document,'mode')
+    source_element(document,'rPeer')['stereotype']='mediation'
+    source_element(document,'rPeerTwo')['stereotype']='participational'
+    inverse_mode='none' if case=='inverse_anonymous' else 'all'
+    target={'characterization':'Left','external_dependence':'Right','mediation':'Peer','participational':'PeerTwo',
+            'inverse_named':'Left','inverse_anonymous':'Left','below_non_simple':None}[case]
+    inverse_case=case.startswith('inverse_')
+    if inverse_case:
+        ends=source_element(document,'rLeft')['properties']
+        ends[0]['propertyType'],ends[1]['propertyType']=ends[1]['propertyType'],ends[0]['propertyType']
+        source_element(document,'sMaterial')['subsettedProperties']=[{'id':'sLeft','type':'Property'}]
+    else:
+        specific,general=('rLeft','rGrand') if case=='below_non_simple' else ('rGrand','r'+target)
+        document['model']['contents'].append({'id':'gAddition','name':None,'description':None,'type':'Generalization','propertyAssignments':None,
+                                              'specific':{'id':specific,'type':'Relation'},'general':{'id':general,'type':'Relation'}})
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode)
+    assert result.outcome=='completed';graph=result.ontology
+    first=BASE.tLeft if inverse_case else ('inverse',BASE.tLeft)
+    assert property_chains(graph,BASE.tMaterial)==({(first,BASE.tRight)} if mode!='none' else set())
+    if inverse_case:
+        reverse_material=BASE.sMaterial if inverse_mode=='all' else ('inverse',BASE.tMaterial)
+        reverse_left=BASE.sLeft if inverse_mode=='all' else ('inverse',BASE.tLeft)
+        assert (reverse_material,reverse_left) in {(property_expression(graph,a),property_expression(graph,b)) for a,b in graph.subject_objects(RDFS.subPropertyOf)}
+    else:
+        assert (BASE['t'+specific[1:]],RDFS.subPropertyOf,BASE['t'+general[1:]]) in graph
+    affected={'Material','Super','Grand'}|({target} if target else set()) if mode!='none' else set()
+    # Preserve the established REL-07/15 policies, even when preservation leaves
+    # existing non-simple cardinalities/disjointness in the output.
+    omitted=affected if mode=='omit-conflicting-constraints' else set()
+    for key in ('Material','Super','Grand','Peer','PeerTwo','Left','Right'):
+        domain,range_=(('cA','cGround') if inverse_case else ('cGround','cA')) if key=='Left' else ('cGround','cB') if key=='Right' else ('cA','cB')
+        _direction(graph,BASE['t'+key],BASE[domain],BASE[range_])
+        if inverse_mode=='all':_chain_inverse(graph,BASE['s'+key],BASE['t'+key])
+        else:assert not {node for node in graph.subjects(OWL.inverseOf,BASE['t'+key]) if isinstance(node,URIRef)}
+        expected={('min',2),('max',5)} if key=='Material' else {('exact',1 if key in {'Left','Right'} else 2)}
+        _counts(graph,BASE[domain],BASE['t'+key],set() if key in omitted else expected)
+        reverse=BASE['s'+key] if inverse_mode=='all' else ('inverse',BASE['t'+key])
+        _counts(graph,BASE[range_],reverse,set() if key in omitted else {('exact',1)})
+    _counts(graph,BASE.cA,BASE.tUnrelated,{('exact',4)})
+    expected_pairs={frozenset((BASE[prefix+a],BASE[prefix+b]))
+                    for prefix in (['t','s'] if inverse_mode=='all' else ['t'])
+                    for a,b in [('Material','Peer'),('Material','PeerTwo'),('Peer','PeerTwo')]
+                    if not ({a,b}&omitted)}
+    established_properties={BASE[prefix+key] for prefix in ('t','s') for key in ('Material','Peer','PeerTwo')}
+    assert {pair for pair in _expression_pairs(graph) if pair<=established_properties}==expected_pairs
+    if not ({'Left','Right'}&affected):
+        aligned_left=(BASE.sLeft if inverse_mode=='all' else ('inverse',BASE.tLeft)) if inverse_case else BASE.tLeft
+        expected_pairs.add(frozenset((aligned_left,BASE.tRight)))
+    # Per-axiom expectation: an incompatible new declaration cannot suppress a
+    # compatible addition on another property or remove an established axiom.
+    for key,characteristic in [('Left',OWL.AsymmetricProperty),('Right',OWL.IrreflexiveProperty),
+                               ('Peer',OWL.AsymmetricProperty),('PeerTwo',OWL.AsymmetricProperty)]:
+        assert ((BASE['t'+key],RDF.type,characteristic) in graph)==(key not in affected)
+    assert _expression_pairs(graph)==expected_pairs
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES)
+def test_imported_non_simple_superproperties_do_not_suppress_simple_source_additions_or_mereology(run,source_json,tmp_path,mode):
+    """Rules: DK-REL-01, DK-REL-07, DK-REL-14, DK-REL-19, DK-GEN-04, DK-INV-04; RD-17 additions 4–5."""
+    document=source_json('shared/material_pattern');_grounding(document,'mode')
+    source_element(document,'rUnrelated')['stereotype']='subCollectionOf'
+    document['model']['contents'].append({'id':'gMereology','name':None,'description':None,'type':'Generalization','propertyAssignments':None,
+                                          'specific':{'id':'rLeft','type':'Relation'},'general':{'id':'rUnrelated','type':'Relation'}})
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='none',material_property_chains=mode)
+    assert result.outcome=='completed';graph=result.ontology
+    imported=URIRef('https://w3id.org/directkg/vocab/dkgm');generic=URIRef(str(imported)+'#subCollectionOf')
+    assert (None,OWL.imports,imported) in graph
+    vocabulary=load_graph(Path(__file__).resolve().parents[2]/'vocabulary/latest/dkgm-vocabulary.ttl')
+    assert property_chains(vocabulary,generic)=={(generic,generic)}
+    assert not property_chains(graph,generic)
+    assert (BASE.tLeft,RDFS.subPropertyOf,BASE.tUnrelated) in graph
+    assert (BASE.tUnrelated,RDFS.subPropertyOf,generic) in graph
+    _direction(graph,BASE.tLeft,BASE.cGround,BASE.cA);_direction(graph,BASE.tRight,BASE.cGround,BASE.cB)
+    _direction(graph,BASE.tUnrelated,BASE.cA,BASE.cExtra)
+    _counts(graph,BASE.cA,BASE.tUnrelated,{('exact',4)})
+    assert property_chains(graph,BASE.tMaterial)==({(('inverse',BASE.tLeft),BASE.tRight)} if mode!='none' else set())
+    assert (BASE.tUnrelated,RDF.type,OWL.AsymmetricProperty) in graph
+    assert (BASE.tLeft,RDF.type,OWL.AsymmetricProperty) in graph
+    assert (BASE.tRight,RDF.type,OWL.IrreflexiveProperty) in graph
+    assert _expression_pairs(graph)=={frozenset((BASE.tLeft,BASE.tRight))}

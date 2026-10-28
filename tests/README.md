@@ -521,4 +521,28 @@ F1 corrects the six CLI error-case parameters' unsupported literal-prefix/stream
 assertion. They now require an observed ERROR event through the adapter. Outcome,
 report and ontology assertions, all node IDs and fixtures are unchanged.
 The first submission at 29bf885cdf6390aafdd07a54d1e71988e1b54fc9 received NOT OK;
-the F1 correction is submitted for independent re-review of the same RD-02 target.
+the F1 correction at e9b608894985dab43abb46a6bedca7d91c5b9652 subsequently received the forwarded independent OK. RD-02 is closed.
+
+
+## RD-17 relation additions: test-first execution
+
+The accepted five-addition decision is submitted as one increment under the existing
+structure. No production/specification/vocabulary changes or new stored fixtures.
+Coverage and exact nodes are in coverage.md's RD-17 section; nine canonical
+aggregation rows there now describe mediation asymmetry independently of flags.
+
+The actual file-conversion binding additionally interprets the inspected production
+MATERIAL_CHAIN_COMPATIBILITY, MATERIAL_CHAIN_AMBIGUITY and EXTENSIONALITY_ANNOTATION
+codes. Facts are read only from actual messages/effects and sources; raw native
+events remain available. This extends diagnostic adaptation only. No new public
+API, transformer, OWL simplicity evaluator or empty advanced-evidence default is
+supplied by the adapter. Advanced readers remain unavailable as documented above.
+
+With Python 3.12.14 and pinned requirements, collection found 2612 nodes: 81 new
+cases and nine necessary aggregation-function node renames. The focused command
+in coverage.md executed 90 cases: 14 passed, 76 failed at missing RD-17 addition
+assertions in the current transformer. All reached baseline RDF preconditions
+passed. The previous combined 324-case regression selection passed. No skips or
+xfails were introduced; the full suite and remaining unbound capabilities were not
+executed. These are valid test-first production failures, not an accepted review
+verdict or a passing implementation claim.
