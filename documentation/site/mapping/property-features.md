@@ -46,6 +46,34 @@ These annotations do not enforce read-only access or add aggregation logic. They
 
 Comment preservation supports human inspection, without guaranteeing machine-readable reconstruction or round-tripping. DK-PROP-04 establishes no additional diagnostic solely for preserving these comments; ordering has its separate INFO rule below. Generated explanatory text does not acquire source-language propagation or the source-language override. See [Language resolution](../reference/text.md#language-resolution).
 
+## Boundary stereotype comments
+
+Preserve each explicitly supplied, recognized `begin` or `end` property stereotype through an **English `rdfs:comment` identifying the declared stereotype**, when its eligible property is successfully generated.
+
+| Source occurrence | Comment target and context |
+| --- | --- |
+| Supported attribute carrying `begin` or `end` | Its generated attribute property |
+| Source end of an eligible ordinary relation carrying `begin` or `end` | Its generated primary relation property; identify the source association end |
+| Target end of an eligible ordinary relation carrying `begin` or `end` | Its generated primary relation property; identify the target association end |
+
+If both association ends carry covered stereotypes, preserve both occurrences. Placement remains independent of named-inverse generation.
+
+These comments **preserve boundary-stereotype declarations without enforcing temporal semantics**. They introduce no additional logical axioms or temporal validation. Naming, property kind, range, cardinality, and inverse mappings remain unchanged. In particular, an [untyped attribute](attributes-and-datatypes.md#untyped-and-void) retains its datatype-property, owner-domain, and applicable cardinality mappings without a guessed range.
+
+Do not infer either stereotype from names, supply a missing `begin`/`end` counterpart, or reconstruct stereotype information discarded by the exporter. Preserve only the recognized stereotype explicitly supplied in supported input.
+
+This **specification illustration** assumes an attribute explicitly carrying `begin` and shows only its generated comment. The wording is illustrative, and no converter execution is claimed:
+
+```turtle
+@prefix : <https://example.org/events#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:startTime rdfs:comment
+    "Declared OntoUML property stereotype: begin."@en .
+```
+
+These generated English comments retain their language under the [generated-text rules](../reference/text.md#language-resolution), including when a source-language override is supplied. This preservation alone introduces **no runtime diagnostic**; existing diagnostic conditions, including ordering's separate INFO requirement, remain unchanged. See [Diagnostic silence](../reference/diagnostics.md#deliberate-silence-and-restricted-payloads).
+
 ## Ordering without ordered values
 
 For each supported `isOrdered: true` occurrence, preserve an ordering-declaration comment on the attribute property or the relation's **primary** property. Relation comments identify the source or target end; if both are ordered, preserve both occurrences. No inverse is required or created solely for this purpose.
@@ -59,3 +87,5 @@ Derived status, both true and false, has its distinct [cross-cutting comment map
 ---
 
 Governing rules: DK-PROP-03–05; §§3.3–3.4; DK-GEN-02; DK-INV-04; DK-DIAG-18; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).

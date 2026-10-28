@@ -6,6 +6,8 @@ This page explains **accepted intended mappings**, not verified converter behavi
 
 An eligible ordinary binary relation with resolved classifier endpoints becomes a distinct IRI-identified `owl:ObjectProperty`. Its domain is the source-end classifier and its range is the target-end classifier. Relations with relation-valued endpoints follow the [specialized connector boundary](#relation-valued-endpoints) instead. Attributes retain their separate [type mappings](attributes-and-datatypes.md#property-kinds-and-ranges).
 
+For an eligible ordinary relation, explicit recognized `begin` or `end` stereotypes on its association ends follow [boundary stereotype comment placement](property-features.md#boundary-stereotype-comments): identify each source/target occurrence on the successfully generated primary property, independently of named-inverse generation. The relation's logical mappings remain unchanged.
+
 Under name-based identity, choose the primary property's lexical candidate in this order:
 
 1. Usable relation name.
@@ -174,3 +176,5 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 Governing rules: DK-REL-01–06, 09–17, 20; DK-GEN-03; DK-INV-12; DK-DIAG-07, 09–12, 14; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
+
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).

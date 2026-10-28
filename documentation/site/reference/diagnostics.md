@@ -118,7 +118,7 @@ These are the nonfatal INFO conditions in DK-DIAG-14–18; the limitation alone 
 
 Package/diagram/presentation omission, recognized custom `propertyAssignments`, and `restrictedTo` omission add no diagnostic solely for their presence/omission, including under `strict`. They do not become unknown-input errors; independent structural failures still apply.
 
-Expected named-inverse omission under `informed`/`named` produces no warning, INFO, or element-level report. Missing named inverses for otherwise applicable specialization, disjointness pairs, or singleton reverse inclusion omit those extra inverse axioms without warnings or forced inverses. Structurally processable redefinition adds no runtime warning solely for its [partial translation](../mapping/property-features.md#partial-redefinition). Read-only/aggregation comment preservation establishes no additional event solely for that preservation.
+Expected named-inverse omission under `informed`/`named` produces no warning, INFO, or element-level report. Missing named inverses for otherwise applicable specialization, disjointness pairs, or singleton reverse inclusion omit those extra inverse axioms without warnings or forced inverses. Structurally processable redefinition adds no runtime warning solely for its [partial translation](../mapping/property-features.md#partial-redefinition). Read-only/aggregation comment preservation and [explicit `begin`/`end` comment preservation](../mapping/property-features.md#boundary-stereotype-comments) establish no additional event solely for preserving those comments.
 
 Discarded instantiation-association data instead requires **one consolidated warning**: source ID as locator, available type, lost categories, and output effect. Do not copy discarded name/role/multiplicity/other values into JSON, console payloads, provenance, or substitute resources. This content restriction still applies when the warning is mirrored; see [Discarded association information](../mapping/instantiation.md#discarded-association-information).
 
@@ -170,3 +170,5 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 ---
 
 Governing rules: DK-DIAG-01–19; §3.4; §15; DK-GEN-09–10; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).

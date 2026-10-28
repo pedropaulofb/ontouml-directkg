@@ -18,6 +18,8 @@ An enumeration-valued attribute therefore links to enumeration individuals rathe
 
 `isDerived` does not suppress ordinary attribute transformation; its [comment mapping](../reference/text.md#derived-status-comments) is separate. Supported `isReadOnly: true` and `isOrdered: true` declarations also have comment mappings, with INFO for each preserved ordering occurrence. Those comments do not implement read-only enforcement or ordered property values. See [Property features](property-features.md#read-only-and-aggregation-comments) and its [ordering explanation](property-features.md#ordering-without-ordered-values).
 
+Explicit recognized `begin` and `end` stereotypes have [boundary stereotype comment preservation](property-features.md#boundary-stereotype-comments). They do not select a temporal datatype or change the existing typing, range, or cardinality mapping.
+
 ## Primitive registry
 
 The **complete current primitive registry contains nine entries**. VP `void` is recognized separately and is not a tenth primitive mapping.
@@ -108,3 +110,5 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 ---
 
 Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
