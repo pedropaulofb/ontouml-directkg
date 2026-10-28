@@ -567,3 +567,22 @@ controls failed at the intended assertions. Exact nodes, fixture paths, commands
 and limits are recorded in coverage.md's F1/F2 subsection. Full suite and unbound
 capabilities were not executed. This is submitted for independent re-review,
 not accepted.
+
+
+### RD-17 F3 correction
+
+The reviewer confirmed F1/F2 resolved but rejected b04d3215884af60fbef52a7507e70be85a08278f
+for missing newly generated domain properties in the bounded logical comparison.
+Its nine aggregation parameters now include every subject of incoming domain/range
+statements to either modeled class, without filtering property names or namespaces.
+Selected logical output is still compared isomorphically; independent metadata
+may vary. Existing direction, bridge and asymmetry assertions remain unchanged.
+
+The same 2614 nodes are collected. Expanded RD-17 results remain 16 passed and
+76 production omissions; the previous 324-case regression selection passes.
+The demonstrated extra-property insertion now fails all nine parameters at the
+comparison. Domain-only, range-only and anonymous variants each fail six; timestamp
+variation remains allowed. Prior logical-restriction and F2-asymmetry controls
+remain sensitive. Exact evidence and inventory entries are in coverage.md's F3
+subsection. No fixture, adapter, helper or production change; independent verdict
+pending. Full suite and unbound capabilities were not executed.

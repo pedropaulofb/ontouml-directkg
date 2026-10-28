@@ -842,6 +842,7 @@ def test_aggregation_flags_preserve_independent_stereotype_axioms(run,source_jso
 
     RD-17 adds mediation asymmetry independently of aggregation/extensionality.
     Compare asserted logical subgraphs rooted at the modeled classes/properties.
+    Include properties found through incoming domain/range links to the classes.
     Independently generated descriptive metadata is outside this comparison.
     """
     document=source_json('shared/binary_relation');source_element(document,'rFocus')['stereotype']=stereotype
@@ -868,8 +869,14 @@ def test_aggregation_flags_preserve_independent_stereotype_axioms(run,source_jso
                    OWL.AsymmetricProperty,OWL.IrreflexiveProperty,OWL.ReflexiveProperty,
                    OWL.SymmetricProperty,OWL.TransitiveProperty,OWL.FunctionalProperty,
                    OWL.InverseFunctionalProperty}
-    graphs=[rooted_graph(observed.ontology,{BASE.cA,BASE.cB,BASE.tFocus,BASE.sFocus},
-                         predicates,type_objects=logical_types) for observed in (unflagged,result)]
+    graphs=[]
+    for observed in (unflagged,result):
+        graph=observed.ontology
+        roots={BASE.cA,BASE.cB,BASE.tFocus,BASE.sFocus}
+        for classifier in (BASE.cA,BASE.cB):
+            for predicate in (RDFS.domain,RDFS.range):
+                roots.update(graph.subjects(predicate,classifier))
+        graphs.append(rooted_graph(graph,roots,predicates,type_objects=logical_types))
     assert_graph_equal(*graphs)
     assert ((BASE.tFocus,RDF.type,OWL.AsymmetricProperty) in result.ontology)==(stereotype=='mediation')
 
