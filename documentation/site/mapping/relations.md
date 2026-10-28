@@ -46,6 +46,51 @@ An unnamed `material` relation without a usable target role instead attempts its
 
 Original relation/target-role labels and descriptions have their [separate text rules](../reference/text.md#labels-and-descriptions); lexical identity is not a substitute for a label. Primary-property IDs use the target association-end ID under ID-based construction, as specified in [Strategy and renaming](../reference/identifiers.md#strategy-and-renaming).
 
+## Additional relation axioms
+
+The following additions apply to successfully mapped primary `owl:ObjectProperty` resources, subject to the [compatibility check for each addition](#compatibility-of-each-addition):
+
+| Recognized relation stereotype | Additional declaration on the primary property |
+| --- | --- |
+| `characterization` | `rdf:type owl:AsymmetricProperty` |
+| `mediation` | `rdf:type owl:AsymmetricProperty` |
+| `participational` | `rdf:type owl:AsymmetricProperty` |
+| `externalDependence` | `rdf:type owl:IrreflexiveProperty` |
+
+Each declaration preserves the primary property's actual direction. Asymmetry excludes a pair together with its reverse; irreflexivity excludes relating an individual to itself.
+
+### Characterization and external dependence
+
+Pair every successfully mapped `characterization` relation with every successfully mapped `externalDependence` relation whose feature endpoint resolves to the **same source class in the feature role of both relations**. Match exact source-class identifiers, without discovering further pairs through inheritance or names. No material relation, derivation connector, or property chain is required. Multiple matching characterizations or external-dependence relations produce all eligible pairs rather than disqualifying the pattern.
+
+If a feature endpoint cannot be identified unambiguously, omit the affected new disjointness axiom while retaining the ordinary mappings.
+
+For each eligible pair, select expressions directed **from the feature to its bearer and external dependency**, respectively. Use a primary property when already aligned; when reversal is needed, use its corresponding generated named inverse, or an anonymous `ObjectInverseOf(primary)` expression when no named inverse exists. This [inverse-expression selection](inverses.md#direction-and-anonymous-inverses) preserves both primary directions and never forces named-inverse generation or changes the selected inverse mode.
+
+Emit pairwise `owl:propertyDisjointWith` between the aligned expressions when compatible. This prevents the same feature–individual pair from belonging to both properties; it does not declare their endpoint classes disjoint.
+
+The following **specification illustration**, not observed converter output, assumes an eligible pair with primary `isCharacterizedBy` directed bearer → feature, primary `externallyDependsOn` directed feature → dependency, named inverses disabled, and simple participating expressions considering the full hierarchy and import closure. It shows selected axioms only; other required ontology output is omitted.
+
+```turtle
+@prefix : <https://example.org/dependence#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+:isCharacterizedBy a owl:ObjectProperty, owl:AsymmetricProperty .
+:externallyDependsOn a owl:ObjectProperty, owl:IrreflexiveProperty .
+[ owl:inverseOf :isCharacterizedBy ]
+    owl:propertyDisjointWith :externallyDependsOn .
+```
+
+### Compatibility of each addition
+
+Assess **each proposed new axiom separately** against its applicable OWL 2 DL restrictions, considering the generated property hierarchy, inverse relationships, and import closure, including the [mandatory DKGM import](mereology.md#import-and-vocabulary-identity). Asymmetry and irreflexivity require a simple participating property expression; paired disjointness requires **both** expressions to be simple. A property used only in a chain body is not non-simple solely because of that use.
+
+Omit a new axiom that fails its simplicity condition; retain other compatible additions. For example, a non-simple characterization expression excludes its new asymmetry declaration and a disjointness pair using it, but does not exclude an otherwise compatible external-dependence irreflexivity declaration.
+
+This gate applies in **all three material-chain modes**, including `none` and `preserve-conflicting-constraints`. Emitting a chain alone does not suppress these additions, and preservation mode does not override their gate. Assess whether a proposed addition introduces an additional violation; do not require the existing ontology to satisfy an overall OWL 2 DL guarantee.
+
+The additions leave established cardinality, [relation-set disjointness](#generalization-and-disjointness), [source-specific mereology](mereology.md#source-specific-properties), and imported vocabulary mappings and their omission/preservation policies unchanged. Do not remove other accepted axioms to accommodate the five additions. This introduces no semantic validation, consistency checking, source-model repair, or overall OWL 2 DL guarantee. The OWL definitions are in [W3C OWL 2 Structural Specification, §§11.1–11.2](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
+
 ## Relation cardinalities
 
 The **target-end** multiplicity constrains source-class instances through the primary property. The **source-end** multiplicity constrains target-class instances through the inverse direction. Both become necessary conditions using `rdfs:subClassOf`, not exhaustive class definitions.
@@ -127,3 +172,5 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 ---
 
 Governing rules: DK-REL-01–06, 09–17, 20; DK-GEN-03; DK-INV-12; DK-DIAG-07, 09–12, 14; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).

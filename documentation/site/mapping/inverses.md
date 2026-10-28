@@ -41,9 +41,10 @@ The example's untagged source label assumes no explicit override, local language
 | --- | --- |
 | Reverse-side ordinary relation cardinality | Corresponding named inverse when generated; anonymous inverse of the primary otherwise |
 | Source association end in explicit UML subsetting/redefinition | Corresponding named inverse when generated; anonymous inverse of the primary otherwise |
+| Feature-facing expression in characterization–external-dependence disjointness | Primary when already aligned; otherwise its generated named inverse, or an anonymous inverse of the primary when none is generated |
 | Backward material-chain step | **Always an anonymous inverse of the primary**, even when a named inverse exists |
 
-These uses do not force named inverse generation, and do not establish anonymous-inverse mappings for other transformations. An unsupported connector cannot gain an inverse through this permission. See [Relation cardinalities](relations.md#relation-cardinalities), [Subsetting](property-features.md#subsetting), and [Material-chain modes](derivations-and-chains.md#material-chain-modes).
+These uses do not force named inverse generation, and do not establish anonymous-inverse mappings for other transformations. An unsupported connector cannot gain an inverse through this permission. See [Relation cardinalities](relations.md#relation-cardinalities), [Subsetting](property-features.md#subsetting), [Characterization and external dependence](relations.md#characterization-and-external-dependence), and [Material-chain modes](derivations-and-chains.md#material-chain-modes).
 
 ## Inverse naming
 
@@ -85,3 +86,5 @@ This required mirroring is specific to relation generalizations. UML `subsets` a
 ---
 
 Governing rules: DK-INV-01–12; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–06, 10; DK-CONF-02; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).

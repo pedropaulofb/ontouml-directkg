@@ -40,11 +40,13 @@ This exporter limitation is specific evidence recorded by the governing specific
 
 The [canonical controls](../reference/controls.md#established-controls) define `--material-property-chains`, with default `none`. The mode controls only accepted material–relator and material–mode chains, not the [imported generic mereology chains](mereology.md#generic-chains-and-direction).
 
-| Mode | Material chains | Treatment of otherwise applicable cardinality/disjointness mappings |
+| Mode | Material chains | Treatment of existing cardinality/relation-set disjointness mappings |
 | --- | --- | --- |
 | `none` | None | Retain independently applicable mappings; no compatibility notice solely for disabling chains |
 | `omit-conflicting-constraints` | Every eligible, unambiguous chain | Omit only specified constraints on expressions made non-simple by chains actually emitted, including propagated effects |
 | `preserve-conflicting-constraints` | Every eligible, unambiguous chain | Preserve otherwise applicable cardinalities and property-disjointness axioms, including affected ones |
+
+The five [additional relation axioms](relations.md#compatibility-of-each-addition) have a separate per-axiom compatibility gate in every mode. Preservation mode does not override that gate, and emitting material chains alone does not suppress the additions. Existing cardinality, relation-set disjointness, mereology, and import policies retain their established behavior.
 
 Preservation mode does not promise full OntoUML semantics or complete source-model preservation. Omission mode does not guarantee OWL 2 DL conformance. Pattern eligibility, source-element transformation, direction, and ambiguity rules remain the same for both generating modes.
 
@@ -56,7 +58,7 @@ For a **mode-grounded** material relation with distinct endpoint class IDs, requ
 
 In either case, compose the path from the material property's **source to target** and use that primary material property as conclusion. A path step following an ordinary property's primary direction uses it directly; a backward step always uses an **anonymous inverse of the primary property**, even if a named inverse exists. Chain construction never forces named inverse generation.
 
-The following **specification illustration** assumes material `worksFor` from `Person` to `Organization`, grounded in relator `Employment`; exactly one mediation named `employee` from `Employment` to `Person` and another named `employer` from `Employment` to `Organization`; a chain-generating mode; and name-based identity without collisions using entity base `https://example.org/employment#`. Named inverse mode is immaterial to this chain representation. The parseable excerpt shows the ordered chain and ordinary property declarations, not executed output. Class declarations, restrictions, text, identifiers, ontology header/import, and provenance are omitted.
+The following **specification illustration** assumes material `worksFor` from `Person` to `Organization`, grounded in relator `Employment`; exactly one mediation named `employee` from `Employment` to `Person` and another named `employer` from `Employment` to `Organization`; both mediation properties simple considering the full hierarchy and import closure; a chain-generating mode; and name-based identity without collisions using entity base `https://example.org/employment#`. Named inverse mode is immaterial to this chain representation. The parseable excerpt shows the ordered chain and ordinary property declarations, not executed output. Class declarations, restrictions, text, identifiers, ontology header/import, and provenance are omitted.
 
 ```turtle
 @prefix : <https://example.org/employment#> .
@@ -67,15 +69,15 @@ The following **specification illustration** assumes material `worksFor` from `P
     rdfs:domain :Person ;
     rdfs:range :Organization ;
     owl:propertyChainAxiom ( [ owl:inverseOf :employee ] :employer ) .
-:employee a owl:ObjectProperty ;
+:employee a owl:ObjectProperty, owl:AsymmetricProperty ;
     rdfs:domain :Employment ;
     rdfs:range :Person .
-:employer a owl:ObjectProperty ;
+:employer a owl:ObjectProperty, owl:AsymmetricProperty ;
     rdfs:domain :Employment ;
     rdfs:range :Organization .
 ```
 
-The first list member traverses `employee` backwards from person to employment; the second follows `employer` to organization. Swapping the RDF-list members would change the axiom. This excerpt does not assert that every chain body property becomes non-simple.
+The first list member traverses `employee` backwards from person to employment; the second follows `employer` to organization. Swapping the RDF-list members would change the axiom. The mediation properties are simple under the stated assumptions, so their compatible [asymmetry declarations](relations.md#additional-relation-axioms) apply despite the emitted chain. Participation in a chain body alone does not make a property non-simple.
 
 ## Ambiguity
 
@@ -120,3 +122,5 @@ No emitted material chain means no notice triggered solely by this rule. The not
 ---
 
 Governing rules: DK-REL-07–08, 15, 18; DK-DIAG-07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
