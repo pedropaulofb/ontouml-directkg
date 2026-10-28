@@ -58,7 +58,7 @@ def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy,
         assert not any(d.severity == "ERROR" for d in report.diagnostics)
     else:
         assert any(d.severity == "ERROR" for d in report.diagnostics)
-        assert b"[ERROR]" in process.stderr
+        assert any(event.severity == "ERROR" for event in process.console)
         if expected_outcome == "aborted":
             assert not destination.exists()
             assert process.observation.ontology is None

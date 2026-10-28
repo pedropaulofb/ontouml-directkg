@@ -120,7 +120,14 @@ Facts come only from actual wording and locators: aborted effect; competing-decl
 wording with at least two reported sources; annotation preservation; no additional
 logical enforcement; missing descriptive name. Raw native events are retained.
 
-Unmapped diagnostic meanings, fault injection, console-event normalization,
+For the F1 correction, console severity is read from actual captured stdout and
+stderr records, recognizing the inspected bracket headers and colon headers
+(such as ERROR:). Each event retains its raw bytes and originating stream.
+No event or severity is inferred from JSON reports, exit status or source inputs.
+Only severity, message and raw evidence are bound on console events; accessing
+category/source/fact details raises ImplementationUnavailable.
+
+Unmapped diagnostic meanings, fault injection, detailed console normalization,
 existing-destination delivery and other protocol operations remain explicitly
 unbound. Observation fields without actual readers raise ImplementationUnavailable
 instead of exposing dataclass empty/false defaults. The contract below describes
@@ -509,3 +516,9 @@ found 2531 nodes: all 2426 baseline IDs and 105 new IDs, with none removed.
 Exact commands, branches and fixture paths are in coverage.md's RD-02 section.
 The execution environment was interrupted and restored; focused tests and
 collection were repeated after restoration. No full-suite run is claimed.
+
+F1 corrects the six CLI error-case parameters' unsupported literal-prefix/stream
+assertion. They now require an observed ERROR event through the adapter. Outcome,
+report and ontology assertions, all node IDs and fixtures are unchanged.
+The first submission at 29bf885cdf6390aafdd07a54d1e71988e1b54fc9 received NOT OK;
+the F1 correction is submitted for independent re-review of the same RD-02 target.

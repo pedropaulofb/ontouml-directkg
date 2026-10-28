@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from collections import Counter
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any, Mapping, Protocol
@@ -433,7 +434,34 @@ class _BasicObservation(_BoundFieldsOnly, Observation):
 
 
 class _ReportProcess(_BoundFieldsOnly, CLIObservation):
-    _available_fields = frozenset({"command", "returncode", "stdout", "stderr", "observation"})
+    _available_fields = frozenset({"command", "returncode", "stdout", "stderr", "observation", "console"})
+
+
+class _ConsoleDiagnostic(_BoundFieldsOnly, Diagnostic):
+    _available_fields = frozenset({"severity", "message", "raw"})
+
+
+def _observed_console(stdout, stderr):
+    """Read severity from actual console records on either captured stream.
+
+    Renderer spellings belong here, not in behavioral assertions. Retain each
+    raw byte record and its stream; do not obtain events from JSON or exit codes.
+    Source/category/fact interpretation remains explicitly unbound.
+    """
+    header = re.compile(rb"^[ \t]*(?:\[(INFO|WARNING|ERROR)\]|(INFO|WARNING|ERROR):)[ \t]*",
+                        re.MULTILINE | re.IGNORECASE)
+    events = []
+    for stream, data in (("stdout", stdout), ("stderr", stderr)):
+        matches = list(header.finditer(data))
+        for index, match in enumerate(matches):
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(data)
+            raw = data[match.start():end]
+            events.append(_ConsoleDiagnostic(
+                (match.group(1) or match.group(2)).decode("ascii").upper(),
+                "console", raw.decode("utf-8", errors="replace"),
+                raw={"stream": stream, "data": raw},
+            ))
+    return tuple(events)
 
 
 _DIAGNOSTIC_KINDS = {
@@ -539,7 +567,8 @@ class _DirectKGInvocation(_UnboundInvocation):
         report = self.read_report(diagnostics_path)
         graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
         observed = _BasicObservation(graph, report.outcomes[0], report.diagnostics, native=report.raw)
-        return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr, observed, ())
+        return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
+                              observed, _observed_console(completed.stdout, completed.stderr))
 
 
 def get_invocation() -> Invocation:

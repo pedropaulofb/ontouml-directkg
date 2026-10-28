@@ -3,7 +3,7 @@
 **Behavioral authority:** `documentation/specification/2026-10-21 - specification handoff.md`, consolidated 2026-10-21, at commit `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 **Organizational authority:** `documentation/specification/2026-10-21 - test suite structure.md`, v2, same commit; the project owner supplied the matching corrected attachment for incremental work.
 **Accepted incremental authority:** RD-02 — Minimal opaque source identifiers, Alternative A; exact explicitly accepted formalization forwarded by the project owner, applied with the initial consolidated baseline. No supersession, new dependent-output recovery or exceptional escaped-ID collision disposition is asserted.
-**Incremental review:** RD-02 test change submitted for independent review; no verdict yet.
+**Incremental review:** first RD-02 submission `29bf885cdf6390aafdd07a54d1e71988e1b54fc9` received NOT OK for F1; the same decision is resubmitted with its F1 correction, pending independent verdict.
 **Provenance:** user-approved six-wave plan. Wave 1 was expressly authorized; forwarded independent OK verdicts successively authorized Waves 2–6 and final reconciliation. The 2026-10-24 project-owner decision subsequently fixes the concrete DKGM identity under DK-GEN-04.
 **Review status:** Waves 1/2/3 accepted by forwarded independent OK verdicts for `7364ed8843c565592d4bfa550d90c218988c83ba`, `196d16b056668f3292e8309d545e6aaa49c90497` and `f915ba0a3aaee70588fe115d23d992242180c226`, each verified reachable from remote main. Wave 4 received forwarded independent OK for fe3eba9f46612f927c74edf52a62cdee6cb69365, verified reachable from remote main. Wave 5 received forwarded independent OK for `786c91b8f8e446d8d67709c79f8923d600204056`, verified reachable from remote main. Wave 6 received the forwarded independent OK for `5076be06f1f3c21e408abbed385ef93985794f44`; its effective-configuration correction received the forwarded independent OK for `7d1035cc746bbe381a4c0b436012fd07b8b97721`, verified on remote main. All six waves and their latest corrections are accepted. Final reconciliation is complete within the accepted testable scope, subject to the explicit clarification and execution limits below.
 
@@ -91,14 +91,48 @@ node IDs retain their existing inventory entries: duplicate abortion/repeated re
 whitespace distinction/byte escaping/raw identifiers, enumeration fallback/partial
 closure, unprocessable/unknown input and the input-policy default.
 
+### F1 correction — console severity observation
+
+**Finding disposition:** substantiated and corrected. The six non_utf8/duplicate
+CLI parameters no longer require the literal [ERROR] prefix or stderr. They
+assert an ERROR-severity event interpreted by the replaceable invocation adapter
+from actual stdout/stderr. Raw byte records and their stream are retained.
+No console event is inferred from JSON reports, outcomes or exit codes. Detailed
+console category/source/fact readers remain explicitly unavailable. All existing
+outcome, report, exit-code and ontology-delivery assertions remain unchanged.
+
+**Authority:** DK-DIAG-04 and §15 require the console error meaning; structure v2
+§6 assigns presentation adaptation to the invocation boundary. No production or
+specification change, new decision, fixture, node ID or structural exception.
+**Prior reviewed SHA:** `29bf885cdf6390aafdd07a54d1e71988e1b54fc9`.
+
+**Validation:** the affected function passed all nine cases; the existing combined
+selection passed 324; collection retained exactly 2531 nodes. Using the same
+Python/PYTHONPATH setup as above:
+
+```bash
+python -m pytest --rootdir=. -q tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report --tb=short -p no:cacheprovider
+python -m pytest --rootdir=. --collect-only -q tests -p no:cacheprovider
+```
+
+The combined command above was repeated with `-p no:cacheprovider`.
+Temporary capture experiments executed the real six error-case CLI conversions
+and unchanged artifact assertions: ERROR: instead of [ERROR] passed six cases;
+moving the captured diagnostics to stdout also passed six; suppressing console
+capture while retaining real return codes/reports/ontologies caused exactly six
+expected failures at the corrected console assertion. Raw-event bytes/stream
+provenance and rejection of unbound console detail reads were checked as well.
+These are test-side sensitivity experiments, not production failures or new tests.
+The full suite and remaining unbound capabilities were not executed.
+
 | Exact pytest node ID | Normative references | Case keys and exact input paths | Assertion branch and decision |
 | --- | --- | --- | --- |
-| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[duplicate-best-effort]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
-| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[duplicate-strict]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
-| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[duplicate-tolerant]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
-| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[non_utf8-best-effort]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
-| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[non_utf8-strict]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
-| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[non_utf8-tolerant]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
+| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[duplicate-best-effort]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. F1: assert adapter-observed console ERROR from either stream; retain raw evidence without prescribing a prefix. RD-02. |
+| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[duplicate-strict]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. F1: assert adapter-observed console ERROR from either stream; retain raw evidence without prescribing a prefix. RD-02. |
+| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[duplicate-tolerant]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. F1: assert adapter-observed console ERROR from either stream; retain raw evidence without prescribing a prefix. RD-02. |
+| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[non_utf8-best-effort]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. F1: assert adapter-observed console ERROR from either stream; retain raw evidence without prescribing a prefix. RD-02. |
+| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[non_utf8-strict]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. F1: assert adapter-observed console ERROR from either stream; retain raw evidence without prescribing a prefix. RD-02. |
+| `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[non_utf8-tolerant]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. F1: assert adapter-observed console ERROR from either stream; retain raw evidence without prescribing a prefix. RD-02. |
 | `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[whitespace-best-effort]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
 | `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[whitespace-strict]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
 | `tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report[whitespace-tolerant]` | DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. | Keys: `shared/base_iri`. Paths: `tests/fixtures/shared/base_iri/input.json` | Actual CLI and JSON/Turtle: whitespace ID completed/0; non-UTF-8 ID abort/3 or best-effort completed-with-errors/1; duplicate always abort/3; ERROR mirror and output eligibility. RD-02. |
