@@ -1,14 +1,17 @@
 """Replaceable binding to REAL DirectKG interfaces.
 
 The dataclasses below are a test-side observation format, not a proposed public
-API. No production package, entry point or signature exists at the pinned
-baseline. Replace ``get_invocation`` and implement this protocol when one exists.
+API. The RD-02 binding below covers actual file conversion, public result reads
+and fresh-file CLI JSON reports. Other capabilities remain explicitly unbound.
 Never populate observations from expected fixtures or implement mappings here.
 """
 
 from dataclasses import dataclass, field
 from collections import Counter
+import json
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any, Mapping, Protocol
 
 from rdflib import Graph, Literal, URIRef
@@ -374,10 +377,9 @@ class _UnboundInvocation:
 
     def _unavailable(self) -> None:
         raise ImplementationUnavailable(
-            "DirectKG integration unavailable: main at the inspected baseline "
-            "contains no production Python implementation or verified public "
-            "entry point. Bind tests/support/invocation.py to the real interface; "
-            "do not substitute a transformer, skip, or xfail these assertions."
+            "This adapter operation is not yet bound to the real DirectKG interface. "
+            "RD-02 binds basic file conversion, result reads and fresh-file CLI reports; "
+            "do not substitute a transformer, skip, or xfail other operations."
         )
 
     def convert(self, source, *, options, workdir, faults=()):
@@ -414,6 +416,132 @@ class _UnboundInvocation:
         self._unavailable()
 
 
+class _BoundFieldsOnly:
+    """Partial bindings must not turn unread evidence into empty/false results."""
+
+    def __getattribute__(self, name):
+        if name in type(self).__dataclass_fields__ and name not in type(self)._available_fields:
+            raise ImplementationUnavailable(f"Observation reader {name!r} is not bound in RD-02")
+        return object.__getattribute__(self, name)
+
+    def __repr__(self):
+        return f"{type(self).__name__}(available={sorted(type(self)._available_fields)!r})"
+
+
+class _BasicObservation(_BoundFieldsOnly, Observation):
+    _available_fields = frozenset({"ontology", "outcome", "diagnostics", "configuration_error", "native"})
+
+
+class _ReportProcess(_BoundFieldsOnly, CLIObservation):
+    _available_fields = frozenset({"command", "returncode", "stdout", "stderr", "observation"})
+
+
+_DIAGNOSTIC_KINDS = {
+    "MISSING_SOURCE_ID": "missing_id", "INVALID_SOURCE_ID": "invalid_id",
+    "FAILED_RELATION": "failed_relation", "DUPLICATE_SOURCE_ID": "duplicate_id",
+    "UNTRANSFORMABLE_ENUMERATION_VALUE": "invalid_enumeration_value",
+    "ABSTRACTNESS_ANNOTATION": "abstractness", "MISSING_CLASS_NAME": "missing_name",
+    "MISSING_NAME": "missing_name", "GENERIC_ID_FALLBACK": "generic_id_fallback",
+    "MISSING_STEREOTYPE": "missing_stereotype", "UNRECOGNIZED_STEREOTYPE": "unrecognized_stereotype",
+    "UNKNOWN_INFORMATION": "unknown_information", "UNPROCESSABLE_DOCUMENT": "unprocessable_document",
+}
+
+
+def _observed_diagnostics(events):
+    """Read inspected production fields; retain every event and its raw object.
+
+    Unmapped diagnostic codes fail explicitly. Facts below come only from the
+    actual message/effect and source locators, never from an input or request.
+    """
+    observed = []
+    for event in events:
+        if event.code not in _DIAGNOSTIC_KINDS:
+            raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
+        wording = (event.message + " " + event.effect).casefold()
+        facts = set()
+        if "aborted" in event.effect.casefold():
+            facts.add("conversion_aborted")
+        if event.code == "DUPLICATE_SOURCE_ID" and len(event.sources) >= 2 and "competing declarations" in wording:
+            facts.add("competing_declarations")
+        if "preserved as an annotation" in wording:
+            facts.add("preserved_as_annotation")
+        if "not additionally enforced" in wording:
+            facts.add("not_logically_enforced")
+        if "missing descriptive name" in wording:
+            facts.add("missing_name")
+        ids = tuple(source.identifier for source in event.sources if source.identifier is not None)
+        observed.append(Diagnostic(
+            event.severity, _DIAGNOSTIC_KINDS[event.code], event.message + " " + event.effect,
+            source_ids=ids,
+            source_types=tuple(source.element_type for source in event.sources if source.element_type is not None),
+            generated_iris=() if event.generated_iri is None else (event.generated_iri,),
+            facts=frozenset(facts), raw=event, identified_sources=ids,
+        ))
+    return tuple(observed)
+
+
+class _DirectKGInvocation(_UnboundInvocation):
+    """Minimal RD-02 wiring; no conversion, recovery or output rules live here."""
+
+    def convert(self, source, *, options, workdir, faults=()):
+        if faults:
+            self._unavailable()
+        try:
+            from ontouml_directkg import ConfigurationError, convert
+        except ImportError as exc:
+            raise ImplementationUnavailable("Install the actual DirectKG package before conversion tests") from exc
+        request = dict(options)
+        if "stereotype_relation_naming" in request:
+            request["no_stereotype_relation_naming"] = not request.pop("stereotype_relation_naming")
+        try:
+            result = convert(source, **request)
+        except ConfigurationError as exc:
+            return _BasicObservation(None, None, (), configuration_error=exc)
+        return _BasicObservation(result.ontology, result.outcome, _observed_diagnostics(result.diagnostics), native=result)
+
+    def read_diagnostics(self, observation):
+        return _observed_diagnostics(observation.native.diagnostics)
+
+    def read_outcome(self, observation):
+        return observation.native.outcome
+
+    def read_ontology(self, observation):
+        return observation.native.ontology
+
+    def read_report(self, path):
+        from ontouml_directkg.diagnostics import Diagnostic as NativeDiagnostic, SourceLocation, export_report
+        payload = json.loads(Path(path).read_bytes())
+        events = tuple(NativeDiagnostic(**{**entry, "sources": tuple(SourceLocation(**s) for s in entry["sources"])})
+                       for entry in payload["diagnostics"])
+        # The actual shared writer and its actual dataclasses are the inspected
+        # report-format definition, not an invented JSON schema identifier.
+        return ReportObservation(payload, _observed_diagnostics(events), (payload["outcome"],),
+                                 schema=(export_report, NativeDiagnostic, SourceLocation))
+
+    def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
+        if (faults or extra_args or source is None or output_path is None or diagnostics_path is None
+                or Path(output_path).exists() or Path(diagnostics_path).exists()):
+            self._unavailable()
+        command = [sys.executable, "-m", "ontouml_directkg", str(source), "--output", str(output_path),
+                   "--diagnostics-file", str(diagnostics_path)]
+        for name, value in options.items():
+            if name == "stereotype_relation_naming":
+                if not value:
+                    command.append("--no-stereotype-relation-naming")
+            elif name in {"omit_identifiers", "no_stereotype_relation_naming"}:
+                if value:
+                    command.append("--" + name.replace("_", "-"))
+            else:
+                command.extend(("--" + name.replace("_", "-"), str(value)))
+        completed = subprocess.run(command, cwd=workdir, capture_output=True, check=False)
+        # Missing reports are a visible failure, never reconstructed by running
+        # Python again, guessing an outcome or creating a hidden report.
+        report = self.read_report(diagnostics_path)
+        graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
+        observed = _BasicObservation(graph, report.outcomes[0], report.diagnostics, native=report.raw)
+        return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr, observed, ())
+
+
 def get_invocation() -> Invocation:
-    """The only production-binding selection point; currently explicitly unbound."""
-    return _UnboundInvocation()
+    """Use real public file conversion; unbound capabilities still fail clearly."""
+    return _DirectKGInvocation()

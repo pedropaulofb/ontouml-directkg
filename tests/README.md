@@ -19,7 +19,10 @@ recording correction received the forwarded independent OK for
 `7d1035cc746bbe381a4c0b436012fd07b8b97721`, verified on remote main.
 All six waves and their latest corrections are accepted. Baseline generation is
 complete within the accepted testable scope; unresolved specification questions
-and unavailable production execution remain explicitly recorded below.
+and historical production-execution limits remain explicitly recorded below.
+Incremental RD-02 — Minimal opaque source identifiers, Alternative A — follows
+the explicitly accepted formalization and corrected structure attachment supplied
+by the project owner. Its test change is submitted for independent review.
 Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
@@ -32,7 +35,7 @@ Use an isolated Python environment if desired. The observed environment is
 Python 3.12; this does not establish production Python-version support.
 
 ```bash
-python -m pip install -r tests/requirements.txt
+python -m pip install -e . -r tests/requirements.txt
 python -m pytest --rootdir=. --collect-only -q tests
 python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper or existing_mereology_vocabulary'
 python -m pytest --rootdir=. -q tests --tb=short
@@ -41,7 +44,8 @@ python -m pytest --rootdir=. -q tests --tb=short
 For a focused run, replace `tests` with a repository-relative module or node
 listed in `coverage.md`, keeping `--rootdir=.`. Running inside a test subdirectory
 is not the supported convention. No pytest configuration is currently needed.
-Dependencies are test-only; no production packaging is selected.
+tests/requirements.txt contains test dependencies. Bound conversion/process tests
+also use the actual package from pyproject.toml; fixture/helper checks remain independent.
 
 The fixture/harness subset runs independently of production. Intentionally
 invalid source files are checked against their declared defects; one malformed
@@ -88,16 +92,44 @@ External redirect behavior remains separate.
 
 ## Actual invocation binding
 
-**Unbound:** the inspected repository has no production Python code, public
-entry point, CLI command, or diagnostic API. Every conversion call currently
-raises `tests.support.invocation.ImplementationUnavailable`. This is an ordinary
-test failure, never a pass, skip or expected failure. No fake converter is used.
+**RD-02 scoped binding:** inspected against production at
+`f9b55c997e5e3e0ed001d2231774d1a225599b7a`. The adapter calls the actual public
+`ontouml_directkg.convert(source, **options)` and retains its native ConversionResult,
+ontology, outcome and all produced diagnostics. Public result reads use that
+object's actual attributes. Omitted controls stay omitted; the semantic positive
+stereotype_relation_naming control maps to the inspected negative Python parameter.
 
-`tests/support/invocation.py` is the only implementation-dependent binding point.
-Its protocol/dataclasses are test-side observation formats, **not proposed
-production signatures, return types, exception classes, diagnostic codes or JSON
-keys**. Once a real interface exists, implement the binding there and record the
-verified public imports/calls here. Tests and fixtures keep their locations.
+The CLI binding runs the real `sys.executable -m ontouml_directkg` subprocess
+with --output and --diagnostics-file. It requires fresh destinations and an explicitly
+requested report, then reads the actual report and delivered Turtle. It never
+reruns Python to manufacture CLI observations. read_report uses the actual shared
+export_report/Diagnostic/SourceLocation format and retains raw decoded JSON and
+those inspected format-definition objects; no JSON schema identifier is invented.
+
+Native diagnostic severity, source IDs/types and generated IRI are copied from
+actual fields; message and effect are retained together. Reported IDs also supply
+identified_sources. The inspected code/category mapping is:
+MISSING_SOURCE_ID/INVALID_SOURCE_ID → missing_id/invalid_id;
+FAILED_RELATION → failed_relation; DUPLICATE_SOURCE_ID → duplicate_id;
+UNTRANSFORMABLE_ENUMERATION_VALUE → invalid_enumeration_value;
+ABSTRACTNESS_ANNOTATION → abstractness; MISSING_CLASS_NAME/MISSING_NAME → missing_name;
+GENERIC_ID_FALLBACK → generic_id_fallback;
+MISSING_STEREOTYPE/UNRECOGNIZED_STEREOTYPE → missing_stereotype/unrecognized_stereotype;
+UNKNOWN_INFORMATION → unknown_information; UNPROCESSABLE_DOCUMENT → unprocessable_document.
+Facts come only from actual wording and locators: aborted effect; competing-declaration
+wording with at least two reported sources; annotation preservation; no additional
+logical enforcement; missing descriptive name. Raw native events are retained.
+
+Unmapped diagnostic meanings, fault injection, console-event normalization,
+existing-destination delivery and other protocol operations remain explicitly
+unbound. Observation fields without actual readers raise ImplementationUnavailable
+instead of exposing dataclass empty/false defaults. The contract below describes
+remaining bindings; RD-02 does not claim full-suite execution or complete adapter
+coverage. No skip, xfail, fake transformer or expected graph supplies observations.
+
+`tests/support/invocation.py` remains the only implementation-dependent boundary.
+Its protocol/dataclasses are test-side formats, not production API requirements.
+Extend bindings only from inspected real interfaces.
 
 The binding must execute the real public library and adapt only observed values:
 
@@ -450,15 +482,30 @@ blank-node labels are graph-scoped. Optional metadata, comment wording, prefixes
 statement order, whitespace and Turtle bytes are not frozen. Configuration YAML
 repeatability and checksums over actual bytes are checked separately.
 
-Run all available checks from the repository root using the commands above. The
-latest inventory records collected cases, independent passes, unavailable integration
+The following reconciliation results are historical baseline evidence. Run
+available checks from the repository root using the commands above. The
+inventory records collected cases, independent passes, unavailable integration
 failures, conditional branches and unresolved normative limits. Final reconciliation
 on 2026-10-23 verified all 2425 collected node IDs, 59 fixture paths, prescribed
 test locations and applicable review approvals. The independent subset passed
-90 checks: 88 fixture/helper checks and two existing-vocabulary checks. The latest
+90 checks: 88 fixture/helper checks and two existing-vocabulary checks. The baseline
 full run on the reviewed test contents passed those same 90 checks and failed
 2335 cases exclusively with ImplementationUnavailable, with no errors or skips.
 No test defect remains identified. These results complete baseline generation
 within the accepted testable scope; they do not certify production behavior or
 resolve the recorded Architect questions. Binding the real implementation and
 testing later accepted decisions belong to subsequent work.
+
+## RD-02 execution evidence
+
+No stored fixture changes. Complete existing models are mutated in their topical
+modules. write_input's opt-in ensure_ascii=True passes escaped lone surrogates
+through JSON to production, rather than failing in test setup. Fixture checks now
+reject non-UTF-8-encodable IDs without normalizing valid opaque strings.
+
+The decision selection passed 129 cases, including 24 existing failed-end cases;
+104 additional regressions and 91 independent checks also passed. Collection
+found 2531 nodes: all 2426 baseline IDs and 105 new IDs, with none removed.
+Exact commands, branches and fixture paths are in coverage.md's RD-02 section.
+The execution environment was interrupted and restored; focused tests and
+collection were repeated after restoration. No full-suite run is claimed.

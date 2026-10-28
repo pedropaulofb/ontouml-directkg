@@ -44,10 +44,10 @@ def load_yaml(key: str, filename: str = "metadata.yaml"):
     return yaml.safe_load(fixture_path(key, filename).read_bytes())
 
 
-def write_input(tmp_path: Path, document, filename: str = "input.json") -> Path:
+def write_input(tmp_path: Path, document, filename: str = "input.json", *, ensure_ascii: bool = False) -> Path:
     """Materialize a reviewed test's small mutation in its pytest temp directory."""
     destination = tmp_path / filename
-    destination.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    destination.write_text(json.dumps(document, ensure_ascii=ensure_ascii, indent=2) + "\n", encoding="utf-8")
     return destination
 
 
@@ -76,6 +76,17 @@ def source_element(document, identifier):
     matches = [item for item in source_elements(document) if item.get("id") == identifier]
     assert len(matches) == 1, (identifier, matches)
     return matches[0]
+
+
+def _valid_identifier(value):
+    """Fixture-authoring check for RD-02's opaque strings; never repair data."""
+    if not isinstance(value, str) or value == "":
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeError:
+        return False
+    return True
 
 
 def fixture_issues(document) -> frozenset[str]:
@@ -127,7 +138,7 @@ def fixture_issues(document) -> frozenset[str]:
         for key in set(value) - fields[kind]:
             issues.add("unknown_field:" + key)
         identifier = value.get("id")
-        if not isinstance(identifier, str) or identifier == "":
+        if not _valid_identifier(identifier):
             issues.add("invalid_id")
         elif kind not in {"Project", "Package"}:
             if identifier in declarations:
@@ -192,7 +203,7 @@ def fixture_issues(document) -> frozenset[str]:
     visit(document, "Project")
     for target in references:
         identifier = target.get("id")
-        if not isinstance(identifier, str):
+        if not _valid_identifier(identifier):
             issues.add("invalid_reference_id")
         elif identifier not in declarations:
             issues.add("unresolved_reference:" + identifier)

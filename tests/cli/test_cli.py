@@ -18,6 +18,57 @@ ONTOLOGY=URIRef('https://example.test/model')
 PROV=Namespace('http://www.w3.org/ns/prov#')
 METADATA='shared/external_metadata'
 POLICIES=['strict','tolerant','best-effort']
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", ["whitespace", "non_utf8", "duplicate"])
+def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy, condition):
+    """Rules: DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. RD-02 Alternative A."""
+    document = load_json("shared/base_iri")
+    focus = source_element(document, "C17")
+    if condition == "whitespace":
+        focus["id"] = "\t\n"
+    elif condition == "non_utf8":
+        focus["id"] = "\ud800"
+    else:
+        document["model"]["contents"].append(copy.deepcopy(focus))
+    source = write_input(tmp_path, document, ensure_ascii=True)
+    destination = tmp_path / "actual.ttl"
+    report_path = tmp_path / "actual.json"
+    process = invoke.cli(source, options={"base_iri": str(BASE), "iri_strategy": "id",
+                                        "provenance": "none", "input_policy": input_policy},
+                         workdir=tmp_path, output_path=destination, diagnostics_path=report_path)
+    assert process.command and isinstance(process.stdout, bytes) and isinstance(process.stderr, bytes)
+    assert report_path.is_file()
+    report = invoke.read_report(report_path)
+    assert report.raw == json.loads(report_path.read_bytes())
+    if condition == "whitespace":
+        expected_outcome, expected_code = "completed", 0
+    elif condition == "non_utf8" and input_policy == "best-effort":
+        expected_outcome, expected_code = "completed-with-errors", 1
+    else:
+        expected_outcome, expected_code = "aborted", 3
+    assert process.returncode == expected_code
+    assert process.observation.outcome == expected_outcome
+    assert report.outcomes == (expected_outcome,)
+    assert diagnostic_signatures(report.diagnostics) == diagnostic_signatures(process.observation.diagnostics)
+    if condition == "whitespace":
+        graph = Graph().parse(destination, format="turtle")
+        assert set(graph.subjects(RDF.type, OWL.Class)) == {BASE._x09_x0A}
+        assert not any(d.severity == "ERROR" for d in report.diagnostics)
+    else:
+        assert any(d.severity == "ERROR" for d in report.diagnostics)
+        assert b"[ERROR]" in process.stderr
+        if expected_outcome == "aborted":
+            assert not destination.exists()
+            assert process.observation.ontology is None
+        else:
+            graph = Graph().parse(destination, format="turtle")
+            assert not list(graph.subjects(RDF.type, OWL.Class))
+        if condition == "duplicate":
+            assert any(d.kind == "duplicate_id" for d in report.diagnostics)
+
+
 DEFAULTS={'iri_strategy':'name','input_policy':'tolerant','stereotype_policy':'allow-custom','inverse_properties':'all',
           'material_property_chains':'none','relation_labels':'source-only','omit_identifiers':False,
           'stereotype_relation_naming':True,'provenance':'embedded'}

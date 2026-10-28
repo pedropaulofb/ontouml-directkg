@@ -121,6 +121,69 @@ def test_ids_use_injective_byte_escaping(run, identifier, local):
     assert len(expected) == len(ESCAPED_IDS)
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("iri_strategy", ["name", "id"])
+@pytest.mark.parametrize("unnamed", [False, True], ids=["named", "name_fallbacks"])
+def test_opaque_identifiers_preserve_references_and_resource_identity(run, source_json, tmp_path,
+                                                                   input_policy, iri_strategy, unnamed):
+    """Rules: DK-IRI-02, DK-IRI-04, DK-IRI-05, DK-IRI-06, DK-IRI-09, DK-GEN-03, DK-DIAG-05, DK-CONF-02; §3.4. RD-02 Alternative A."""
+    document = source_json("shared/core_model")
+    replacements = {
+        "cPerson": " \t\n", "cOrg": "\u00a0", "cAddress": " e\u0301 ", "dInt": "INT",
+        "aAge": "CaseID", "aNote": "caseID", "aAddress": "not-a-uuid",
+        "rWorks": " \t", "eSource": "\r", "eTarget": "  ",
+    }
+    if unnamed:
+        document["model"]["contents"][0]["name"] = None
+        document["model"]["contents"][0]["properties"][1]["name"] = None
+
+    def replace_ids(value):
+        if isinstance(value, dict):
+            if isinstance(value.get("id"), str) and value["id"] in replacements:
+                value["id"] = replacements[value["id"]]
+            for member in value.values():
+                replace_ids(member)
+        elif isinstance(value, list):
+            for member in value:
+                replace_ids(member)
+
+    replace_ids(document)  # declarations and their existing reference objects change together
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
+    assert result.outcome == "completed"
+    assert not any(d.severity == "ERROR" for d in result.diagnostics)
+    graph = result.ontology
+    if iri_strategy == "id":
+        targets = {key: BASE[local] for key, local in {
+            "cPerson": "_x20_x09_x0A", "cOrg": "_xC2_xA0", "cAddress": "_x20e_xCC_x81_x20",
+            "aAge": "CaseID", "aNote": "caseID", "aAddress": "not_x2Da_x2Duuid",
+            "eSource": "_x0D", "eTarget": "_x20_x20",
+        }.items()}
+    else:
+        targets = {key: one_subject(graph, RDFS.label, Literal(label)) for key, label in {
+            "cOrg": "Organization", "cAddress": "Address", "aAge": "age",
+            "aAddress": "address", "eSource": "workers", "eTarget": "worksFor",
+        }.items()}
+        targets["cPerson"] = BASE.unnamedClass__x20_x09_x0A if unnamed else one_subject(graph, RDFS.label, Literal("Person"))
+        targets["aNote"] = BASE.caseID if unnamed else one_subject(graph, RDFS.label, Literal("note"))
+    assert len(set(targets.values())) == 8
+    assert set(graph.subjects(RDF.type, OWL.Class)) == {targets[key] for key in ("cPerson", "cOrg", "cAddress")}
+    for key in ("aAge", "aNote"):
+        assert (targets[key], RDF.type, OWL.DatatypeProperty) in graph
+        assert (targets[key], RDFS.domain, targets["cPerson"]) in graph
+    assert (targets["aAge"], RDFS.range, XSD.int) in graph
+    assert (targets["aAddress"], RDFS.range, targets["cAddress"]) in graph
+    assert (targets["eTarget"], RDFS.domain, targets["cPerson"]) in graph
+    assert (targets["eTarget"], RDFS.range, targets["cOrg"]) in graph
+    assert (targets["eSource"], OWL.inverseOf, targets["eTarget"]) in graph
+    for key, target in targets.items():
+        if iri_strategy == "name":
+            assert set(graph.subjects(DCTERMS.identifier, Literal(replacements[key]))) == {target}
+            assert set(graph.objects(target, DCTERMS.identifier)) == {Literal(replacements[key])}
+        else:
+            assert not list(graph.objects(target, DCTERMS.identifier))
+
+
 def test_id_strategy_is_independent_of_source_names(run, source_json, tmp_path):
     """Rules: DK-IRI-02, DK-IRI-05, DK-CONF-01, DK-CONF-03."""
     document = source_json("iris/id_escaping")

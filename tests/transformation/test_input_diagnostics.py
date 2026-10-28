@@ -46,7 +46,8 @@ NEGATIVE_BUNDLES = [
     ("input_diagnostics/unknown_information", "unknown_element.json", {"unknown_element"}),
 ] + [("input_diagnostics/duplicates", variant + ".json", {"duplicate_id:" + identifier for identifier in identifiers}) for variant, identifiers in DUPLICATES.items()]
 FAILED_ENDS = ["missing_source_id", "null_source_id", "empty_source_id", "numeric_source_id",
-               "missing_target_id", "null_source_type", "unresolved_target_type", "malformed_target_type"]
+               "missing_target_id", "null_source_type", "unresolved_target_type", "malformed_target_type",
+               "non_utf8_source_id", "non_utf8_target_id", "non_utf8_endpoint_reference"]
 STEREOTYPE_TARGETS = ["class", "relation", "attribute", "source_end", "target_end"]
 FIXED_PREDICATES = {RDF.type, RDFS.domain, RDFS.range, RDFS.label, DCTERMS.identifier,
                     RDFS.subClassOf, RDFS.subPropertyOf, OWL.inverseOf,
@@ -82,6 +83,12 @@ def _break_end(document, defect):
         target["propertyType"] = {"id": "missingClass", "type": "Class"}
     elif defect == "malformed_target_type":
         target["propertyType"] = "cOrg"
+    elif defect == "non_utf8_source_id":
+        source["id"] = "\ud800"
+    elif defect == "non_utf8_target_id":
+        target["id"] = "\udfff"
+    elif defect == "non_utf8_endpoint_reference":
+        target["propertyType"]["id"] = "\ud800"
     else:
         raise AssertionError("Unlisted governed defect: " + defect)
 
@@ -232,7 +239,7 @@ def test_failed_relation_never_delivers_either_direction(run, source_json, tmp_p
     document = source_json("shared/core_model")
     _break_end(document, defect)
     assert fixture_issues(document)
-    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    result = run(path=write_input(tmp_path, document, ensure_ascii=True), iri_strategy="id", input_policy=input_policy)
     assert result.configuration_error is None
     assert any(d.severity == "ERROR" for d in result.diagnostics)
     if input_policy != "best-effort":
@@ -305,6 +312,83 @@ def test_ids_differing_only_by_surrounding_whitespace_remain_distinct(run, input
     assert set(result.ontology.subjects(RDF.type, OWL.Class)) == expected
     assert (BASE.C17, RDFS.label, Literal("Original")) in result.ontology
     assert (BASE._x20C17_x20, RDFS.label, Literal("Spaced")) in result.ontology
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("iri_strategy", ["name", "id"])
+@pytest.mark.parametrize("state,value", [
+    pytest.param("missing", None, id="absent"),
+    pytest.param("supplied", None, id="null"),
+    pytest.param("supplied", "", id="empty"),
+    pytest.param("supplied", 17, id="number"),
+    pytest.param("supplied", True, id="boolean"),
+    pytest.param("supplied", ["C17"], id="array"),
+    pytest.param("supplied", {"value": "C17"}, id="object"),
+    pytest.param("supplied", "\ud800", id="high_surrogate"),
+    pytest.param("supplied", "\udfff", id="low_surrogate"),
+])
+def test_invalid_declaration_identifiers_follow_input_policy(run, invoke, source_json, tmp_path,
+                                                           input_policy, iri_strategy, state, value):
+    """Rules: DK-IRI-04, DK-IRI-05, DK-DIAG-04, DK-DIAG-05; §3.4. RD-02 Alternative A."""
+    document = source_json("shared/base_iri")
+    focus = source_element(document, "C17")
+    independent = copy.deepcopy(focus)
+    independent.update(id="cIndependent", name="Independent")
+    document["model"]["contents"].append(independent)
+    if state == "missing":
+        del focus["id"]
+    else:
+        focus["id"] = value
+    assert fixture_issues(document) == {"invalid_id"}
+    path = write_input(tmp_path, document, ensure_ascii=True)
+    assert json.loads(path.read_bytes()) == document  # escaped JSON still carries the exact bad value
+    result = run(path=path, iri_strategy=iri_strategy, input_policy=input_policy)
+    assert result.configuration_error is None
+    assert any(d.severity == "ERROR" for d in result.diagnostics)
+    assert diagnostic_signatures(invoke.read_diagnostics(result)) == diagnostic_signatures(result.diagnostics)
+    assert invoke.read_outcome(result) == result.outcome
+    assert invoke.read_ontology(result) is result.ontology
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted"
+        assert result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        survivor = BASE.cIndependent if iri_strategy == "id" else BASE.Independent
+        assert set(result.ontology.subjects(RDF.type, OWL.Class)) == {survivor}
+        assert (survivor, RDFS.label, Literal("Independent")) in result.ontology
+        assert not list(result.ontology.subjects(RDFS.label, Literal("Person")))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", ["duplicate", "missing_class_stereotype", "custom_owned_stereotype"])
+def test_invalid_ids_do_not_bypass_existing_abort_rules(run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-DIAG-05, DK-DIAG-06, DK-CONF-02; §3.4. RD-02 Alternative A."""
+    if condition == "duplicate":
+        document = source_json("shared/base_iri")
+        focus = source_element(document, "C17")
+        independent = copy.deepcopy(focus)
+        independent.update(id="cIndependent", name="Independent")
+        document["model"]["contents"] += [independent, copy.deepcopy(independent)]
+        focus["id"] = None
+        options = {}
+        expected_kind = "duplicate_id"
+    else:
+        document = source_json("shared/core_model")
+        focus = source_element(document, "cPerson")
+        if condition == "missing_class_stereotype":
+            focus["stereotype"] = None
+            options = {"stereotype_policy": "require-known"}
+            expected_kind = "missing_stereotype"
+        else:
+            source_element(document, "aAge")["stereotype"] = "customPropertyStereotype"
+            options = {"stereotype_policy": "allow-missing"}
+            expected_kind = "unrecognized_stereotype"
+        focus["id"] = None
+    assert "invalid_id" in fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), input_policy=input_policy, **options)
+    assert result.outcome == "aborted"
+    assert result.ontology is None
+    assert any(d.kind == expected_kind and d.severity == "ERROR" for d in result.diagnostics)
 
 
 @pytest.mark.parametrize("target", STEREOTYPE_TARGETS)

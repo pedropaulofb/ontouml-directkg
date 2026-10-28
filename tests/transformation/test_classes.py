@@ -447,6 +447,34 @@ def test_literal_id_strategy_uses_own_escaped_id_without_enum_prefix(run, source
 
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("iri_strategy", ["name", "id"])
+@pytest.mark.parametrize("identifier", [pytest.param(" \t", id="whitespace"), pytest.param("\ud800", id="non_utf8")])
+def test_enumeration_opaque_identifier_processability(run, source_json, tmp_path, input_policy, iri_strategy, identifier):
+    """Rules: DK-IRI-04, DK-IRI-05, DK-IRI-08, DK-IRI-09, DK-CLS-10, DK-CLS-11, DK-DIAG-05, DK-DIAG-13; §3.4. RD-02 Alternative A."""
+    document = source_json("classes/enumerations")
+    source_element(document, "vPending").update(id=identifier, name=None)
+    valid = identifier == " \t"
+    assert fixture_issues(document) == (frozenset() if valid else {"invalid_id"})
+    result = run(path=write_input(tmp_path, document, ensure_ascii=True), iri_strategy=iri_strategy, input_policy=input_policy)
+    if not valid and input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        assert any(d.severity == "ERROR" for d in result.diagnostics)
+        return
+    enum = BASE.eStatus if iri_strategy == "id" else BASE.Status
+    others = {BASE.vApproved, BASE.vClosed} if iri_strategy == "id" else {BASE.Status_Approved, BASE.Status_Closed}
+    values = others | ({BASE._x20_x09} if valid else set())
+    _assert_values(result.ontology, enum, values, complete=valid)
+    assert result.outcome == ("completed" if valid else "completed-with-errors")
+    if valid:
+        assert not any(d.severity == "ERROR" for d in result.diagnostics)
+        assert not list(result.ontology.objects(BASE._x20_x09, RDFS.label))
+        expected_ids = {Literal(identifier)} if iri_strategy == "name" else set()
+        assert set(result.ontology.objects(BASE._x20_x09, DCTERMS.identifier)) == expected_ids
+    else:
+        assert any(d.severity == "ERROR" for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("iri_strategy", ["name", "id"])
 @pytest.mark.parametrize("condition", ["absent", "null", "empty", "whitespace", "punctuation", "non_ascii", "localized_unusable"])
 def test_literal_generic_fallback_is_nonfatal_and_counts_as_complete(run, source_json, tmp_path, input_policy, iri_strategy, condition):
     """Rules: DK-IRI-08, DK-IRI-04, DK-IRI-10, DK-CLS-10, DK-CLS-11, DK-DIAG-13, DK-LBL-01."""
