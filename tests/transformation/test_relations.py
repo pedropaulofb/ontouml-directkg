@@ -8,7 +8,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
-                               necessary_restrictions, one_subject, property_chains, property_expression)
+                               necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
 BASE = Namespace('https://example.test/model#')
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -838,10 +838,11 @@ def test_ambiguity_on_either_pattern_side_is_nonfatal_and_retains_constraints(ru
 @pytest.mark.parametrize('aggregation',['NONE','SHARED','COMPOSITE'])
 @pytest.mark.parametrize('stereotype',['material','mediation',None],ids=['ordinary_material','ordinary_mediation','missing_relation_stereotype'])
 def test_aggregation_flags_preserve_independent_stereotype_axioms(run,source_json,tmp_path,aggregation,stereotype):
-    """Rules: DK-REL-01, DK-REL-19, DK-GEN-04, DK-PROP-04, DK-CLS-01, DK-DIAG-06.
+    """Rules: DK-REL-01, DK-REL-19, DK-GEN-04, DK-GEN-11, DK-PROP-04, DK-CLS-01, DK-DIAG-06.
 
     RD-17 adds mediation asymmetry independently of aggregation/extensionality.
-    Compare actual graphs with and without the flags, excluding comments only.
+    Compare asserted logical subgraphs rooted at the modeled classes/properties.
+    Independently generated descriptive metadata is outside this comparison.
     """
     document=source_json('shared/binary_relation');source_element(document,'rFocus')['stereotype']=stereotype
     source_element(document,'sFocus')['aggregationKind']=aggregation
@@ -856,12 +857,19 @@ def test_aggregation_flags_preserve_independent_stereotype_axioms(run,source_jso
     assert (None,OWL.imports,URIRef(generic_base)) in result.ontology
     generics={URIRef(generic_base+'#'+name) for name in ('memberOf','subCollectionOf','subQuantityOf','componentOf')}
     assert not generics & set(result.ontology.objects(BASE.tFocus,RDFS.subPropertyOf))
-    graphs=[]
-    for observed in (unflagged,result):
-        graph=Graph()
-        for triple in observed.ontology:
-            if triple[1]!=RDFS.comment:graph.add(triple)
-        graphs.append(graph)
+    predicates={RDF.type,RDFS.domain,RDFS.range,RDFS.subClassOf,RDFS.subPropertyOf,
+                OWL.inverseOf,OWL.equivalentClass,OWL.equivalentProperty,OWL.disjointWith,
+                OWL.propertyDisjointWith,OWL.onProperty,OWL.cardinality,OWL.minCardinality,
+                OWL.maxCardinality,OWL.qualifiedCardinality,OWL.minQualifiedCardinality,
+                OWL.maxQualifiedCardinality,OWL.onClass,OWL.onDataRange,OWL.someValuesFrom,
+                OWL.allValuesFrom,OWL.hasValue,OWL.hasSelf,OWL.intersectionOf,OWL.unionOf,
+                OWL.complementOf,OWL.oneOf,OWL.propertyChainAxiom,RDF.first,RDF.rest}
+    logical_types={OWL.Class,OWL.ObjectProperty,OWL.DatatypeProperty,OWL.Restriction,
+                   OWL.AsymmetricProperty,OWL.IrreflexiveProperty,OWL.ReflexiveProperty,
+                   OWL.SymmetricProperty,OWL.TransitiveProperty,OWL.FunctionalProperty,
+                   OWL.InverseFunctionalProperty}
+    graphs=[rooted_graph(observed.ontology,{BASE.cA,BASE.cB,BASE.tFocus,BASE.sFocus},
+                         predicates,type_objects=logical_types) for observed in (unflagged,result)]
     assert_graph_equal(*graphs)
     assert ((BASE.tFocus,RDF.type,OWL.AsymmetricProperty) in result.ontology)==(stereotype=='mediation')
 
@@ -1383,3 +1391,29 @@ def test_imported_non_simple_superproperties_do_not_suppress_simple_source_addit
     assert (BASE.tLeft,RDF.type,OWL.AsymmetricProperty) in graph
     assert (BASE.tRight,RDF.type,OWL.IrreflexiveProperty) in graph
     assert _expression_pairs(graph)=={frozenset((BASE.tLeft,BASE.tRight))}
+
+
+@pytest.mark.parametrize('mode',CHAIN_MODES[1:])
+def test_existing_mereological_asymmetry_survives_non_simple_material_superproperty(run,source_json,tmp_path,mode):
+    """Rules: DK-REL-07, DK-REL-09, DK-REL-11, DK-REL-14, DK-REL-19, DK-GEN-04, DK-INV-04; RD-17 addition 5."""
+    document=source_json('shared/material_pattern')
+    source_element(document,'rUnrelated')['stereotype']='componentOf'
+    document['model']['contents'].append({'id':'gMereology','name':None,'description':None,'type':'Generalization','propertyAssignments':None,
+                                          'specific':{'id':'rMaterial','type':'Relation'},'general':{'id':'rUnrelated','type':'Relation'}})
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all',material_property_chains=mode)
+    assert result.outcome=='completed';graph=result.ontology
+    # This actual chain and specialization make the source-specific mereology
+    # property non-simple; it is not merely below a non-simple generic property.
+    assert property_chains(graph,BASE.tMaterial)=={(('inverse',BASE.tLeft),BASE.tRight)}
+    assert (BASE.tMaterial,RDFS.subPropertyOf,BASE.tUnrelated) in graph
+    assert (BASE.tUnrelated,RDFS.subPropertyOf,URIRef('https://w3id.org/directkg/vocab/dkgm#componentOf')) in graph
+    _direction(graph,BASE.tMaterial,BASE.cA,BASE.cB);_direction(graph,BASE.tUnrelated,BASE.cA,BASE.cExtra)
+    _chain_inverse(graph,BASE.sUnrelated,BASE.tUnrelated)
+    omitted=mode=='omit-conflicting-constraints'
+    _counts(graph,BASE.cA,BASE.tMaterial,set() if omitted else {('min',2),('max',5)})
+    _counts(graph,BASE.cB,BASE.sMaterial,set() if omitted else {('exact',1)})
+    _counts(graph,BASE.cA,BASE.tUnrelated,set() if omitted else {('exact',4)})
+    _counts(graph,BASE.cExtra,BASE.sUnrelated,set() if omitted else {('exact',1)})
+    _counts(graph,BASE.cGround,BASE.tLeft,{('exact',1)});_counts(graph,BASE.cGround,BASE.tRight,{('exact',1)})
+    assert (BASE.tUnrelated,RDF.type,OWL.AsymmetricProperty) in graph

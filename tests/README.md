@@ -538,7 +538,7 @@ events remain available. This extends diagnostic adaptation only. No new public
 API, transformer, OWL simplicity evaluator or empty advanced-evidence default is
 supplied by the adapter. Advanced readers remain unavailable as documented above.
 
-With Python 3.12.14 and pinned requirements, collection found 2612 nodes: 81 new
+Initial submission validation with Python 3.12.14 and pinned requirements found 2612 nodes: 81 new
 cases and nine necessary aggregation-function node renames. The focused command
 in coverage.md executed 90 cases: 14 passed, 76 failed at missing RD-17 addition
 assertions in the current transformer. All reached baseline RDF preconditions
@@ -546,3 +546,24 @@ passed. The previous combined 324-case regression selection passed. No skips or
 xfails were introduced; the full suite and remaining unbound capabilities were not
 executed. These are valid test-first production failures, not an accepted review
 verdict or a passing implementation claim.
+
+
+### RD-17 F1/F2 correction
+
+Initial submission 4b91d83661b2071cfc205671b7bd3f93275f1978 received NOT OK.
+The same decision is resubmitted after narrowing aggregation equality to rooted
+logical RDF (allowing independently generated descriptive metadata) and adding
+one source-mereology preservation pattern in both chain-enabled modes. The
+existing source asymmetry must survive actual non-simplicity; established
+cardinality omission/preservation remains independently asserted. No adapter,
+RDF-helper, fixture or production change is needed.
+
+Collection now contains 2614 nodes: the previous 2612 are unchanged, plus two
+preservation parameters. Changed cases: 8 passed and 3 existing production
+failures; expanded decision selection: 16 passed, 76 production omissions;
+previous combined regression selection: 324 passed. Six timestamp-variation
+observations passed; six logical-change and two asymmetry-removal negative
+controls failed at the intended assertions. Exact nodes, fixture paths, commands
+and limits are recorded in coverage.md's F1/F2 subsection. Full suite and unbound
+capabilities were not executed. This is submitted for independent re-review,
+not accepted.
