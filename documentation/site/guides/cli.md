@@ -8,7 +8,7 @@ Every CLI transformation requires a concrete [OntoUML JSON input file](../refere
 
 Executable names, exact argument syntax, output invocation mechanics, and a default output destination remain unavailable or unspecified at the consulted revision. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults; it does not establish an executable.
 
-The accepted `--ontology-version-iri IRI` option supplies an [optional ontology-header version identifier](../reference/output.md#optional-ontology-version-iri), while retaining the base-derived ontology IRI. This specified addition is not yet exposed by the [inspected CLI](../reference/controls.md#interface-parity).
+The accepted `--ontology-version-iri IRI` option supplies an [optional ontology-header version identifier](../reference/output.md#optional-ontology-version-iri), while retaining the base-derived ontology IRI. The [inspected CLI parser](../reference/controls.md#interface-parity) declares this option.
 
 For an eventual verified invocation, prepare an export satisfying the [input contract](../reference/input.md), select effective controls from that catalog, and interpret the result using the separate transformation and delivery contracts below. Do not infer additional format, prefix, sorting, qualified-cardinality, or independent ontology-IRI switches.
 

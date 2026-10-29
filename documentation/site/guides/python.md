@@ -10,7 +10,7 @@ Python and CLI must expose every established ontology-transformation control wit
 
 Use [Controls](../reference/controls.md#established-controls) as the canonical inventory, including metadata and provenance. Python need not copy CLI flag spelling, representation, or negative-flag polarity. The exception is the specifically prescribed parameter name `relation_labels`, with accepted values `"source-only"` and `"generated"`, default `"source-only"`. This requirement does not establish the containing function's name or signature.
 
-An equivalent optional Python control must accept a caller-supplied [ontology version IRI](../reference/output.md#optional-ontology-version-iri), with the same emission and absence behavior as the CLI control. Its parameter name is not prescribed, and the [inspected API](../reference/controls.md#interface-parity) does not yet expose this addition.
+An equivalent optional Python control must accept a caller-supplied [ontology version IRI](../reference/output.md#optional-ontology-version-iri), with the same emission and absence behavior as the CLI control. Its parameter name is not prescribed by the specification; the [inspected conversion signature](../reference/controls.md#interface-parity) declares this optional control.
 
 An integrator's conceptual sequence is to prepare a [supported JSON file](../reference/input.md), supply its file path, choose effective transformation settings, request conversion through the eventual verified API, inspect its outcome and diagnostics, and consume only eligible ontology output. Exact Python input parameter names, function signatures, and output representations are not prescribed here; this sequence is not executable code.
 

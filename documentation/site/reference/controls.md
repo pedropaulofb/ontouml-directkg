@@ -30,7 +30,7 @@ Every established ontology-transformation control must be available through both
 
 The specification fixes the Python parameter `relation_labels`, with values `"source-only"` and `"generated"` and default `"source-only"`. Most other Python parameter names, configuration representations, function signatures, return types, and exception classes remain unspecified. A negative CLI flag need not dictate Python spelling or polarity.
 
-RD-05 requires an optional Python equivalent of `--ontology-version-iri`; its parameter name is not prescribed. This accepted CLI/API addition is not yet exposed by the CLI parser or public conversion signature in the [inspected source at `7e53a2392f4447b0cc68e5a72d40ceb168023483`](https://github.com/pedropaulofb/ontouml-directkg/tree/7e53a2392f4447b0cc68e5a72d40ceb168023483/src/ontouml_directkg).
+RD-05 requires an optional Python equivalent of `--ontology-version-iri`; its parameter name is not prescribed by the specification. The CLI parser and public conversion signature declare this control in the [inspected source at `794dd121661245a7a59a91a64d48bb5310a89b74`](https://github.com/pedropaulofb/ontouml-directkg/tree/794dd121661245a7a59a91a64d48bb5310a89b74/src/ontouml_directkg).
 
 Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same report schema/content contract as the CLI. Python conversion does not automatically write that file. Exact report member names and runtime diagnostic codes remain unspecified.
 
