@@ -266,6 +266,10 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
                             "is not additionally enforced through OWL logical constraints.",
                             "Primary property and comment retained.", (source.location,))
         for occurrence, context, owner in ((start, "source", range_), (end, "target", domain)):
+            stereotype = occurrence.data.get("stereotype")
+            if stereotype in {"begin", "end"}:
+                graph.add((primary, RDFS.comment, Literal(
+                    f"Declared OntoUML property stereotype on the {context} association end: {stereotype}.", lang="en")))
             if occurrence.data.get("isReadOnly") is True:
                 graph.add((primary, RDFS.comment,
                            Literal(f"OntoUML source metadata: the {context} association end is read-only.", lang="en")))

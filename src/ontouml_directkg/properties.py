@@ -123,6 +123,10 @@ def emit_attributes(graph: Graph, attributes: tuple[Attribute, ...], resources: 
         elif value_type is not None:
             graph.add((subject, RDFS.range, value_type))
         text.describe(graph, subject, data)
+        stereotype = data.get("stereotype")
+        if stereotype in {"begin", "end"}:
+            graph.add((subject, RDFS.comment,
+                       Literal(f"Declared OntoUML property stereotype: {stereotype}.", lang="en")))
         if strategy == "name" and naming_text(data.get("name")) is None:
             diagnostics.add("WARNING", "GENERIC_ID_FALLBACK",
                             "Attribute has no usable name-based candidate; its own source ID supplies the IRI.",
