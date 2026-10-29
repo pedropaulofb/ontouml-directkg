@@ -383,6 +383,16 @@ class Invocation(Protocol):
         """
         ...
 
+    def read_historical_dependence_annotations(self, observation: Observation, source: Path) -> tuple[tuple[Node, Node, Node], ...]:
+        """Read additional stereotype-declaration annotations in actual RDF.
+
+        Source-authored text and independent flag comments are not stereotype
+        preservation. Retain raw triples for any interpreted output; unknown
+        annotations require a verified interpretation, never assumed absence.
+        This scoped test-side reader is not a production Python interface.
+        """
+        ...
+
 
 class _UnboundInvocation:
     def has_relation_cardinality_control(self, feature):
@@ -432,6 +442,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_property_stereotype_comments(self, observation):
+        self._unavailable()
+
+    def read_historical_dependence_annotations(self, observation, source):
         self._unavailable()
 
 
@@ -493,6 +506,7 @@ _DIAGNOSTIC_KINDS = {
     "MATERIAL_CHAIN_COMPATIBILITY": "chain_compatibility", "MATERIAL_CHAIN_AMBIGUITY": "chain_ambiguity",
     "EXTENSIONALITY_ANNOTATION": "extensionality",
     "VOID_DATATYPE": "void_datatype", "ORDERING_ANNOTATION": "ordering",
+    "RELATION_NAMING": "relation_naming", "MISSING_RELATION_NAME": "missing_name",
 }
 
 
@@ -603,6 +617,81 @@ class _DirectKGInvocation(_UnboundInvocation):
                     "RD-18 comment meaning is not bound for this observed RDF statement; "
                     f"inspect and adapt its actual wording: {(subject, RDFS.comment, literal)!r}"
                 )
+        return ()
+
+    def read_historical_dependence_annotations(self, observation, source):
+        """Audit the current producer's actual annotation forms for absence.
+
+        No historical-dependence annotation is currently produced. Recognize
+        source descriptions from the actual input and inspected independent
+        flag wording, not a search for the stereotype's spelling. Audit other
+        RDF predicates as well, so an unfamiliar annotation/auxiliary structure
+        cannot silently earn an empty result. Positive/unknown forms remain
+        unavailable until their actual meanings can be inspected and bound.
+        Labels/identifiers on domain resources are checked directly by the
+        topical assertions; unfamiliar auxiliary labels remain unavailable.
+        """
+        from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
+
+        descriptions, names, identifiers = set(), set(), set()
+        def read_descriptions(value):
+            if isinstance(value, dict):
+                if isinstance(value.get("id"), str): identifiers.add(value["id"])
+                name = value.get("name")
+                if isinstance(name, str): names.add(name)
+                elif isinstance(name, dict): names.update(name.values())
+                description = value.get("description")
+                if isinstance(description, str): descriptions.add(description)
+                elif isinstance(description, dict): descriptions.update(description.values())
+                for key, child in value.items():
+                    if key != "propertyAssignments": read_descriptions(child)
+            elif isinstance(value, list):
+                for child in value: read_descriptions(child)
+        read_descriptions(json.loads(Path(source).read_bytes()))
+        flag_forms = (
+            r"OntoUML (?:class|attribute|relation|source association end|target association end) "
+            r"(?:isAbstract|isDerived): (?:true|false)\.",
+            r"OntoUML source metadata: (?:this attribute|the (?:source|target) association end) "
+            r"(?:is read-only|is ordered|has (?:shared|composite) aggregation)\.",
+            r"Declared OntoUML property stereotype(?: on the (?:source|target) association end)?: (?:begin|end)\.",
+        )
+        logical = {RDFS.domain, RDFS.range, RDFS.subClassOf, RDFS.subPropertyOf,
+                   OWL.inverseOf, OWL.equivalentClass, OWL.equivalentProperty,
+                   OWL.disjointWith, OWL.propertyDisjointWith, OWL.onProperty,
+                   OWL.cardinality, OWL.minCardinality, OWL.maxCardinality,
+                   OWL.qualifiedCardinality, OWL.minQualifiedCardinality, OWL.maxQualifiedCardinality,
+                   OWL.onClass, OWL.onDataRange, OWL.someValuesFrom, OWL.allValuesFrom,
+                   OWL.hasValue, OWL.hasSelf, OWL.unionOf, OWL.intersectionOf, OWL.complementOf,
+                   OWL.oneOf, OWL.members, OWL.distinctMembers, OWL.propertyChainAxiom,
+                   RDF.first, RDF.rest, OWL.imports}
+        types = {OWL.Ontology, OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty,
+                 OWL.Restriction, OWL.AsymmetricProperty, OWL.IrreflexiveProperty,
+                 OWL.ReflexiveProperty, OWL.SymmetricProperty, OWL.TransitiveProperty,
+                 OWL.FunctionalProperty, OWL.InverseFunctionalProperty, OWL.NamedIndividual,
+                 OWL.AllDifferent, OWL.AllDisjointClasses, OWL.AllDisjointProperties}
+        graph = self.read_ontology(observation)
+        for triple in graph:
+            subject, predicate, obj = triple
+            if predicate in logical:
+                continue
+            if predicate == DCTERMS.identifier and isinstance(obj, Literal) and str(obj) in identifiers:
+                continue
+            if predicate == RDFS.label and isinstance(obj, Literal):
+                if str(obj) in names or any((subject, RDF.type, kind) in graph
+                                           for kind in (OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty)):
+                    continue
+            if predicate == RDF.type and obj in types:
+                continue
+            if (predicate in {DCTERMS.created, DCTERMS.modified}
+                    and isinstance(obj, Literal) and obj.datatype == XSD.dateTime):
+                continue
+            if predicate == RDFS.comment and isinstance(obj, Literal):
+                if str(obj) in descriptions or any(re.fullmatch(pattern, str(obj)) for pattern in flag_forms):
+                    continue
+            raise ImplementationUnavailable(
+                "Historical-dependence annotation interpretation is not bound for this actual RDF statement: "
+                f"{triple!r}"
+            )
         return ()
 
     def read_report(self, path):

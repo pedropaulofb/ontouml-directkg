@@ -1,6 +1,7 @@
 """Ordinary relation naming, labels, cardinalities and explicit hierarchies."""
 
 import copy
+from collections import Counter
 from pathlib import Path
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
@@ -1424,3 +1425,211 @@ def test_existing_mereological_asymmetry_survives_non_simple_material_superprope
     _counts(graph,BASE.cExtra,BASE.sUnrelated,set() if omitted else {('exact',1)})
     _counts(graph,BASE.cGround,BASE.tLeft,{('exact',1)});_counts(graph,BASE.cGround,BASE.tRight,{('exact',1)})
     assert (BASE.tUnrelated,RDF.type,OWL.AsymmetricProperty) in graph
+
+
+# RD-17 historicalDependence, Alternative A is distinct from the earlier
+# decision bearing RD-17 that added five relation axioms. No mapping is replaced.
+def _historical_mapping_equal(first, second):
+    """Compare domain logic, allowing independent descriptive metadata."""
+    types = {OWL.Class, RDFS.Datatype, OWL.ObjectProperty, OWL.DatatypeProperty,
+             OWL.Restriction, OWL.AsymmetricProperty, OWL.IrreflexiveProperty,
+             OWL.ReflexiveProperty, OWL.SymmetricProperty, OWL.TransitiveProperty,
+             OWL.FunctionalProperty, OWL.InverseFunctionalProperty,
+             OWL.AllDifferent, OWL.AllDisjointClasses, OWL.AllDisjointProperties}
+    predicates = {RDF.type, RDFS.domain, RDFS.range, RDFS.subClassOf, RDFS.subPropertyOf,
+                  OWL.inverseOf, OWL.equivalentClass, OWL.equivalentProperty,
+                  OWL.disjointWith, OWL.propertyDisjointWith, OWL.disjointUnionOf,
+                  OWL.onProperty, OWL.cardinality, OWL.minCardinality, OWL.maxCardinality,
+                  OWL.qualifiedCardinality, OWL.minQualifiedCardinality, OWL.maxQualifiedCardinality,
+                  OWL.onClass, OWL.onDataRange, OWL.someValuesFrom, OWL.allValuesFrom,
+                  OWL.hasValue, OWL.hasSelf, OWL.unionOf, OWL.intersectionOf,
+                  OWL.complementOf, OWL.oneOf, OWL.members, OWL.distinctMembers,
+                  OWL.propertyChainAxiom, OWL.hasKey, OWL.sameAs, OWL.differentFrom,
+                  OWL.onDatatype, OWL.withRestrictions, OWL.datatypeComplementOf,
+                  RDF.first, RDF.rest}
+    projections = []
+    for result in (first, second):
+        graph = result.ontology
+        roots = {subject for subject, kind in graph.subject_objects(RDF.type) if kind in types}
+        # Include even untyped/foreign-namespace properties connected to domain
+        # classes, plus anonymous restrictions and complete RDF collections.
+        for classifier in tuple(roots):
+            for predicate in (RDFS.domain, RDFS.range):
+                roots.update(graph.subjects(predicate, classifier))
+        projections.append(rooted_graph(graph, roots, predicates, type_objects=types))
+    assert_graph_equal(*projections)
+
+
+def _historical_limitation_warning(result):
+    # This semantic kind describes an observed limitation warning; it is not
+    # a prescribed native diagnostic code or literal message template. The
+    # current producer emits none; a future renderer requires adapter binding.
+    assert any(d.severity == 'WARNING' and d.kind == 'unmapped_relation_stereotype'
+               for d in result.diagnostics), result.diagnostics
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+
+
+def _historical_other_diagnostics(result):
+    return Counter((d.severity, d.kind, d.message, d.source_ids, d.facts)
+                   for d in result.diagnostics if d.kind != 'unmapped_relation_stereotype')
+
+
+@pytest.mark.parametrize('strategy,mode,input_policy', [
+    pytest.param('id', 'all', 'strict', id='id-all-strict'),
+    pytest.param('name', 'none', 'tolerant', id='name-none-tolerant'),
+    pytest.param('id', 'none', 'best-effort', id='id-none-best-effort'),
+])
+def test_historical_dependence_preserves_ordinary_mapping_and_applicable_diagnostics(
+        run, invoke, source_json, tmp_path, strategy, mode, input_policy):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-09, DK-REL-10, DK-REL-11, DK-LBL-01, DK-LBL-02, DK-IRI-06, DK-IRI-09, DK-INV-01, DK-INV-04, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-DIAG-01, DK-DIAG-18, DK-GEN-11.
+
+    RD-17 historicalDependence Alternative A: naming success does not suppress
+    the limitation warning. Author descriptions may themselves name the
+    stereotype; the omission must not erase that independent source text.
+    """
+    document = source_json('shared/binary_relation')
+    document['languages'] = ['nl']
+    source_element(document, 'cA')['stereotype'] = 'historicalRole'
+    source_element(document, 'cB')['stereotype'] = 'kind'
+    source_element(document, 'rFocus').update(
+        name='History link', stereotype=None,
+        description='The author describes historicalDependence here.')
+    source_element(document, 'tFocus').update(
+        description='Target-end description.', cardinality='2..5', isReadOnly=True, stereotype='end')
+    source_element(document, 'sFocus').update(
+        name='antecedents', description='Source-end description.', cardinality='1', isOrdered=True, stereotype='begin')
+    language = 'fr' if strategy == 'name' else None
+    options = dict(iri_strategy=strategy, inverse_properties=mode, input_policy=input_policy,
+                   stereotype_policy='allow-missing', language=language)
+    assert not fixture_issues(document)
+    ordinary = run(path=write_input(tmp_path, document, 'ordinary.json'), **options)
+    source_element(document, 'rFocus')['stereotype'] = 'historicalDependence'
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document, 'historical.json')
+    result = run(path=path, **options)
+    assert ordinary.outcome == result.outcome == 'completed'
+    primary = _primary(result, strategy=strategy)
+    assert primary == _primary(ordinary, strategy=strategy)
+    source = BASE.cA if strategy == 'id' else BASE.HTTPServer
+    target = BASE.cB if strategy == 'id' else BASE.XMLNode
+    _direction(result.ontology, primary, source, target)
+    assert set(result.ontology.objects(primary, DCTERMS.identifier)) == ({Literal('tFocus')} if strategy == 'name' else set())
+    tag = language or 'nl'
+    assert set(result.ontology.objects(primary, RDFS.label)) == {Literal('History link', lang=tag)}
+    for text in ('The author describes historicalDependence here.', 'Target-end description.'):
+        assert (primary, RDFS.comment, Literal(text, lang=tag)) in result.ontology
+    inverse = _primary(result, 'sFocus', strategy) if mode == 'all' else ('inverse', primary)
+    _counts(result.ontology, source, primary, {('min', 2), ('max', 5)})
+    _counts(result.ontology, target, inverse, {('exact', 1)})
+    if mode == 'all':
+        _direction(result.ontology, inverse, target, source)
+        assert (inverse, OWL.inverseOf, primary) in result.ontology
+        assert (primary, OWL.inverseOf, inverse) not in result.ontology
+        assert set(result.ontology.objects(inverse, DCTERMS.identifier)) == ({Literal('sFocus')} if strategy == 'name' else set())
+        assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal('antecedents', lang=tag)}
+        assert (inverse, RDFS.comment, Literal('Source-end description.', lang=tag)) in result.ontology
+    else:
+        assert not any(isinstance(node, URIRef) for node in result.ontology.subjects(OWL.inverseOf, primary))
+        assert not list(result.ontology.subjects(RDFS.comment, Literal('Source-end description.', lang=tag)))
+    # Independent comments are preserved without requiring a prose template.
+    assert set(ordinary.ontology.objects(_primary(ordinary, strategy=strategy), RDFS.comment)) <= set(
+        result.ontology.objects(primary, RDFS.comment))
+    _historical_mapping_equal(ordinary, result)
+    assert invoke.read_historical_dependence_annotations(result, path) == ()
+    assert _historical_other_diagnostics(result) == _historical_other_diagnostics(ordinary)
+    assert any(d.kind == 'ordering' and d.severity == 'INFO' for d in result.diagnostics)
+    _historical_limitation_warning(result)
+
+
+@pytest.mark.parametrize('branch,strategy,label_mode', [
+    pytest.param('target_role', 'name', 'source-only', id='target_role-name-source-only'),
+    pytest.param('target_role', 'id', 'generated', id='target_role-id-generated'),
+    pytest.param('semantic', 'name', 'source-only', id='semantic-name-source-only'),
+    pytest.param('semantic', 'name', 'generated', id='semantic-name-generated'),
+    pytest.param('semantic', 'id', 'source-only', id='semantic-id-source-only'),
+    pytest.param('semantic', 'id', 'generated', id='semantic-id-generated'),
+    pytest.param('disabled', 'name', 'generated', id='disabled-name-generated'),
+    pytest.param('disabled', 'id', 'generated', id='disabled-id-generated'),
+])
+def test_historical_dependence_keeps_lexical_naming_and_labels_without_stereotype_annotations(
+        run, invoke, source_json, tmp_path, branch, strategy, label_mode):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-IRI-06, DK-IRI-09, DK-INV-01, DK-INV-04, DK-DIAG-01, DK-GEN-11.
+
+    RD-17 historicalDependence Alternative A does not resolve the baseline's
+    deferred semantic-direction selector. Preserve its two-candidate bound;
+    generated lexical labels must agree with whichever candidate is selected.
+    """
+    document = source_json('shared/binary_relation')
+    document['languages'] = ['nl']
+    source_element(document, 'cA').update(name='Dependent', stereotype='historicalRole')
+    source_element(document, 'cB').update(name='Antecedent', stereotype='kind')
+    source_element(document, 'rFocus').update(name=None, stereotype='historicalDependence')
+    source_element(document, 'tFocus')['name'] = 'historical role' if branch == 'target_role' else None
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document)
+    result = run(path=path, iri_strategy=strategy, inverse_properties='named',
+                 relation_labels=label_mode, no_stereotype_relation_naming=branch == 'disabled', language='fr')
+    assert result.outcome == 'completed'
+    primary = _primary(result, strategy=strategy)
+    _direction(result.ontology, primary, BASE.cA if strategy == 'id' else BASE.Dependent,
+               BASE.cB if strategy == 'id' else BASE.Antecedent)
+    assert set(result.ontology.objects(primary, DCTERMS.identifier)) == ({Literal('tFocus')} if strategy == 'name' else set())
+    candidates = ({'historical_role'} if branch == 'target_role' else
+                  {'dependent_antecedent'} if branch == 'disabled' else
+                  {'historicallyDependsOn', 'isHistoricalDependencyOf'})
+    if strategy == 'name': _candidate(result.ontology, primary, candidates, 'Dependent')
+    labels = set(result.ontology.objects(primary, RDFS.label))
+    if branch == 'target_role':
+        assert labels == {Literal('historical role', lang='fr')}
+    elif label_mode == 'source-only':
+        assert not labels
+    else:
+        assert len(labels) == 1
+        label = next(iter(labels))
+        assert label.language is None and str(label) in candidates
+        if strategy == 'name': _candidate(result.ontology, primary, {str(label)}, 'Dependent')
+    inverse = _primary(result, 'sFocus', strategy)
+    assert (inverse, OWL.inverseOf, primary) in result.ontology
+    assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal('workers', lang='fr')}
+    assert invoke.read_historical_dependence_annotations(result, path) == ()
+    # The condition is the semantic limitation, independent of primary naming,
+    # ID strategy, label mode, or disabled stereotype-derived naming.
+    if branch == 'semantic':
+        assert not any(d.kind in NAMING_KINDS - {'missing_name'} for d in result.diagnostics)
+    elif strategy == 'name':
+        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+    _historical_limitation_warning(result)
+
+
+@pytest.mark.parametrize('mode', ['all', 'none'])
+def test_historical_dependence_preserves_explicit_relation_hierarchy(run, invoke, source_json, tmp_path, mode):
+    """Rules: DK-REL-01, DK-REL-14, DK-INV-01, DK-INV-12, DK-DIAG-01, DK-GEN-11.
+
+    RD-17 historicalDependence Alternative A retains asserted primary and
+    available named-inverse generalizations, without temporal repair axioms.
+    """
+    document = source_json('relations/hierarchy')
+    source_element(document, 'rLeaf')['stereotype'] = None
+    options = dict(iri_strategy='id', inverse_properties=mode, stereotype_policy='allow-missing')
+    assert not fixture_issues(document)
+    ordinary = run(path=write_input(tmp_path, document, 'ordinary.json'), **options)
+    source_element(document, 'rLeaf')['stereotype'] = 'historicalDependence'
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document, 'historical.json')
+    result = run(path=path, **options)
+    assert result.outcome == ordinary.outcome == 'completed'
+    _, _, expected = _hierarchy_expected(result, 'id',
+        {'General', 'Middle', 'Leaf', 'Sibling'} if mode == 'all' else set(),
+        [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    assert _edges(result.ontology) == expected
+    # Label/identifier preservation is independent of the annotation audit and
+    # of metadata on unrelated resources; do not hide extra declaration labels.
+    for identifier in ('cA', 'cB', 'cC', 'cD', 'tGeneral', 'tMiddle', 'tLeaf', 'tSibling') + (
+            ('sGeneral', 'sMiddle', 'sLeaf', 'sSibling') if mode == 'all' else ()):
+        for predicate in (RDFS.label, DCTERMS.identifier):
+            assert set(result.ontology.objects(BASE[identifier], predicate)) == set(
+                ordinary.ontology.objects(BASE[identifier], predicate))
+    _historical_mapping_equal(ordinary, result)
+    assert invoke.read_historical_dependence_annotations(result, path) == ()
+    assert _historical_other_diagnostics(result) == _historical_other_diagnostics(ordinary)
+    _historical_limitation_warning(result)

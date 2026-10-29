@@ -623,3 +623,66 @@ and metadata individuals are allowed, extra incoming domain properties are
 rejected, permitted count syntax is accepted, and extra constraints on count
 nodes are retained by the comparison. Unknown comment interpretation remains an
 explicit binding limit; no positive comment evidence is synthesized.
+
+
+## Incremental RD-17 — historicalDependence, Alternative A
+
+This distinct RD-17 decision adds 13 relation parameters; it does not replace the
+earlier five-axiom RD-17 increment or reopen RD-18. Exact nodes, branch rules and
+fixture pairings are in coverage.md. Reused complete inputs remain at
+shared/binary_relation and relations/hierarchy; no fixture promotion or new stored
+data is required. The already approved RD-18 test commit is
+`f45b1a09a72474146c6a735f13083001bce5ce18`.
+
+The adapter still calls real public conversion. It now interprets the inspected
+native RELATION_NAMING and MISSING_RELATION_NAME events, retaining their raw
+payloads. The required historical limitation WARNING has no produced native
+rendition yet: `unmapped_relation_stereotype` is a test-side semantic kind, not a
+proposed native code. No generic naming warning or input-derived event substitutes
+for it. Unknown native diagnostics remain explicitly unavailable.
+
+The scoped historical annotation reader audits actual RDF and actual source
+descriptions, including descriptions that mention historicalDependence. Known
+independent flag and RD-18 comments are read as such. Unknown comments, predicates,
+annotation structures or auxiliary labels raise ImplementationUnavailable. Empty
+results therefore require inspected evidence; positive historical annotation
+forms and uninspected metadata forms are not guessed. Existing all-comment and
+RD-18 positive-meaning readers remain unchanged. Logical comparisons include
+incoming domain/range subjects without namespace filtering, blank-node
+constraints and newly declared logical resources, allowing independent metadata.
+
+Production advanced during this increment to
+`39e2a4b3a10845e9809c5d43a08b4a12fe69a746`, adding begin/end comments. Those changes
+were incorporated unchanged. The ordinary-mapping comparison includes both end
+stereotypes, so their actual independent comments survive historicalDependence.
+
+Observed with Python 3.12.14 and pinned requirements: **2673 collected**, all
+2660 earlier nodes unchanged plus 13. New historical selection: **13 failed,
+931 deselected**: ten missing limitation-warning assertions, after their earlier
+checks passed; three existing production NotImplementedError branches for deferred
+historical semantic naming. The prior two-candidate semantic-direction bound is
+retained; this decision supplies no role selector. Existing mapping selection:
+**51 passed, 35 failed, 858 deselected** (two deferred naming branches; 33 existing
+adapter limits: 3 comparative diagnostic, 22 fallback-origin and 8 inverse-omission
+readers). Earlier combined regression selection: **324 passed, 2349 deselected**;
+earlier RD-17 axiom selection: **92 passed, 852 deselected**. RD-18 regression:
+**4 passed, 42 failed, 163 deselected**; those 42 now encounter explicitly
+uninterpreted produced begin/end comments at its unchanged positive reader,
+rather than claim verified meanings. No RD-18 assertion was changed. These are
+visible production/binding limits; no skip or xfail was added. The full suite and
+remaining unbound capabilities were not executed.
+
+Controlled observations of actual conversions accepted timestamp/metadata
+variation and source-authored historical text, rejected seven logical mutations,
+and raised explicit unavailability for four unknown annotation forms. No
+conversion or positive warning was fabricated. All 17 Python files parsed; the
+inventory exactly reconciles with collection and affected fixture references.
+
+Run from the repository root:
+
+```bash
+python -m pytest --rootdir=. --collect-only -q tests -p no:cacheprovider
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'historical_dependence_' --tb=short -p no:cacheprovider
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'primary_naming_precedence or primary_labels_preserve or explicit_relation_generalizations_mirror or relation_counts_use_directional or historicalDependence' --tb=short -p no:cacheprovider
+python -m pytest --rootdir=. -q tests/transformation/test_properties.py -k 'boundary_' --tb=short -p no:cacheprovider
+```
