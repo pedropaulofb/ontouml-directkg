@@ -17,6 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--output", type=Path, required=True, help="Complete ontology output file path")
     parser.add_argument("--version", action="version", version=SOFTWARE_VERSION)
     parser.add_argument("--base-iri")
+    parser.add_argument("--ontology-version-iri", metavar="IRI")
     parser.add_argument("--iri-strategy", choices=("name", "id"), default="name")
     parser.add_argument("--input-policy", choices=("strict", "tolerant", "best-effort"), default="tolerant")
     parser.add_argument("--stereotype-policy", choices=("require-known", "allow-missing", "allow-custom"), default="allow-custom")

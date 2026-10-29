@@ -12,7 +12,7 @@ from .chains import emit_material_chains
 from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConversion, export_report
 from .enumerations import collect_enumerations, emit_enumerations
 from .generalizations import emit_generalizations, emit_relation_generalizations
-from .identity import ConfigurationError, select_base
+from .identity import ConfigurationError, is_absolute_iri, select_base
 from .inverses import allocate_inverses
 from .metadata import emit_metadata, read_metadata
 from . import provenance as execution_provenance
@@ -83,7 +83,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             language: str | None = None, omit_identifiers: bool = False,
             inverse_properties: str = "all", no_stereotype_relation_naming: bool = False,
             relation_labels: str = "source-only", material_property_chains: str = "none",
-            provenance: str = "embedded", metadata_file: str | Path | None = None) -> ConversionResult:
+            provenance: str = "embedded", metadata_file: str | Path | None = None,
+            ontology_version_iri: str | None = None) -> ConversionResult:
     """Convert supported classifier/attribute/binary-relation VP-plugin 0.5.3 JSON.
 
     Embedded provenance is the default. Sidecar mode exposes a separate graph;
@@ -96,6 +97,9 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     with outcome ``aborted`` and no ontology. Conversion writes no output files.
     """
     base, ontology_iri = select_base(base_iri)
+    if ontology_version_iri is not None and (not isinstance(ontology_version_iri, str)
+                                           or not is_absolute_iri(ontology_version_iri)):
+        raise ConfigurationError("ontology_version_iri must be a syntactically valid absolute IRI")
     choices = {"iri_strategy": (iri_strategy, {"name", "id"}),
                "input_policy": (input_policy, {"strict", "tolerant", "best-effort"}),
                "stereotype_policy": (stereotype_policy, {"require-known", "allow-missing", "allow-custom"}),
@@ -155,6 +159,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         ontology = URIRef(ontology_iri)
         graph.add((ontology, RDF.type, OWL.Ontology))
         graph.add((ontology, OWL.imports, DKGM_ONTOLOGY))
+        if ontology_version_iri is not None:
+            graph.add((ontology, OWL.versionIRI, URIRef(ontology_version_iri)))
         text.describe(graph, ontology, project)
         emit_classes(graph, classes, resources, iri_strategy, omit_identifiers, text, diagnostics)
         emit_stereotype_disjointness(graph, classes, resources)
@@ -180,6 +186,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         if provenance != "none":
             configuration = {
                 "base_iri": base_iri, "effective_base_iri": base,
+                "ontology_version_iri": str(ontology_version_iri) if ontology_version_iri is not None else None,
                 "iri_strategy": iri_strategy, "input_policy": input_policy,
                 "stereotype_policy": stereotype_policy, "inverse_properties": inverse_properties,
                 "stereotype_relation_naming": not no_stereotype_relation_naming,
