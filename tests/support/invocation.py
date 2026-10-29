@@ -59,7 +59,8 @@ class CommentMeaning:
     normalize its observed wording into field/value pairs, retaining the exact
     subject and literal as evidence. Never derive these meanings from input
     declarations or expected fixtures. Several meanings may share one comment.
-    ``field`` uses the source field name, or ``stereotype`` for ``abstract``.
+    ``field`` uses the source field name, or ``stereotype`` for ``abstract``
+    and the RD-18 property stereotypes ``begin`` / ``end``.
     This is a test-side reading of RDF, not a production metadata interface.
     """
 
@@ -72,6 +73,9 @@ class CommentMeaning:
     # source flag under test. Needed to distinguish end occurrences sharing a
     # primary-property target; older tests need not demand a context.
     context: str | None = None
+    # RD-18: English meaning actually observed in the comment wording, not
+    # inferred from an option, expected source stereotype or language tag alone.
+    english: bool | None = None
 
 
 @dataclass
@@ -368,6 +372,17 @@ class Invocation(Protocol):
         """Read the actual delivered graph again; do not reconstruct one."""
         ...
 
+    def read_property_stereotype_comments(self, observation: Observation) -> tuple[CommentMeaning, ...]:
+        """Read actual begin/end declaration meanings and their raw RDF literals.
+
+        Association-end contexts must come from the actual comment, not the
+        requested occurrence. Multiple meanings may share one combined literal.
+        ``english`` records actual wording; no exact prose or mandatory @en
+        spelling is prescribed. Unknown wording must remain unavailable.
+        This test-side reader is not a production Python API.
+        """
+        ...
+
 
 class _UnboundInvocation:
     def has_relation_cardinality_control(self, feature):
@@ -414,6 +429,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_ontology(self, observation):
+        self._unavailable()
+
+    def read_property_stereotype_comments(self, observation):
         self._unavailable()
 
 
@@ -474,6 +492,7 @@ _DIAGNOSTIC_KINDS = {
     "UNKNOWN_INFORMATION": "unknown_information", "UNPROCESSABLE_DOCUMENT": "unprocessable_document",
     "MATERIAL_CHAIN_COMPATIBILITY": "chain_compatibility", "MATERIAL_CHAIN_AMBIGUITY": "chain_ambiguity",
     "EXTENSIONALITY_ANNOTATION": "extensionality",
+    "VOID_DATATYPE": "void_datatype", "ORDERING_ANNOTATION": "ordering",
 }
 
 
@@ -499,6 +518,11 @@ def _observed_diagnostics(events):
             facts.add("not_logically_enforced")
         if "missing descriptive name" in wording:
             facts.add("missing_name")
+        if event.code == "ORDERING_ANNOTATION" and "value order is not represented" in wording:
+            facts.add("ordering_not_represented")
+        if event.code == "VOID_DATATYPE":
+            if "void" in wording: facts.add("void")
+            if "without a range" in wording: facts.add("range_omitted")
         if event.code == "MATERIAL_CHAIN_COMPATIBILITY":
             effect = event.effect.casefold()
             if "does not guarantee owl 2 dl" in wording or "owl 2 dl conformance is not guaranteed" in wording:
@@ -555,6 +579,31 @@ class _DirectKGInvocation(_UnboundInvocation):
 
     def read_ontology(self, observation):
         return observation.native.ontology
+
+    def read_property_stereotype_comments(self, observation):
+        """Verified absence reader for the current, incomplete producer.
+
+        Current production emits no boundary-stereotype comments. Audit actual
+        RDF against its inspected non-boundary generated forms; never assume
+        an empty result from source/request data. A new or unknown comment
+        requires interpretation before it can earn positive/negative evidence.
+        No proposed begin/end prose template is imposed here or by the tests.
+        The existing all-comment meaning reader remains explicitly unbound.
+        """
+        from rdflib.namespace import RDFS
+        non_boundary = (
+            r"OntoUML (?:class|attribute|relation|source association end|target association end) "
+            r"(?:isAbstract|isDerived): (?:true|false)\.",
+            r"OntoUML source metadata: (?:this attribute|the (?:source|target) association end) "
+            r"(?:is read-only|is ordered|has (?:shared|composite) aggregation)\.",
+        )
+        for subject, literal in self.read_ontology(observation).subject_objects(RDFS.comment):
+            if not isinstance(literal, Literal) or not any(re.fullmatch(pattern, str(literal)) for pattern in non_boundary):
+                raise ImplementationUnavailable(
+                    "RD-18 comment meaning is not bound for this observed RDF statement; "
+                    f"inspect and adapt its actual wording: {(subject, RDFS.comment, literal)!r}"
+                )
+        return ()
 
     def read_report(self, path):
         from ontouml_directkg.diagnostics import Diagnostic as NativeDiagnostic, SourceLocation, export_report

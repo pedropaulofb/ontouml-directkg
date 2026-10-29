@@ -586,3 +586,40 @@ variation remains allowed. Prior logical-restriction and F2-asymmetry controls
 remain sensitive. Exact evidence and inventory entries are in coverage.md's F3
 subsection. No fixture, adapter, helper or production change; independent verdict
 pending. Full suite and unbound capabilities were not executed.
+
+
+## RD-18 boundary-stereotype comments
+
+RD-17 is closed with independent OK for 24676f1e383e04ee452a2c55b1f2ade02ff619e3.
+RD-18 is one test-first increment, submitted for independent review. The accepted
+formalization was cross-checked against DK-PROP-06 in the 2026-10-29 consolidated
+specification; it introduces no prose-template requirement. Tests remain in the
+existing properties module and reuse properties/source_flags without stored-data
+changes. The inventory records 46 new cases and exact rule/parameter/fixture links.
+
+The test-side read_property_stereotype_comments operation audits actual RDF.
+Current production generates no boundary comments: the reader can verify absence
+only for the inspected non-boundary comment forms. Unknown/new wording raises
+ImplementationUnavailable until actual interpretation is bound. Positive English,
+value and end-context expectations remain executable; no renderer is guessed,
+no default empty result bypasses the audit, and no current positive preservation
+success is claimed. English wording must be read from evidence; neither an exact
+literal nor an exact language-tag spelling is prescribed. The general comments
+reader remains unbound. Real conversion is unchanged; VOID_DATATYPE and
+ORDERING_ANNOTATION interpretation now retains their actual event meanings.
+
+The focused command in coverage.md ran 46 cases: 4 passed, 42 failed at missing
+required boundary comments after successful mapping/diagnostic checks. Collection
+contains 2660 nodes, preserving every previous node. The previous 324-case
+selection passes. After refreshing intervening production commit d1aec3b67b7f7a0945e0d83608de0953bf7ac956, all 92 selected RD-17 cases pass; its expectations are unchanged. Additional
+typing regressions gave 77 passes and 6 existing execution limits (3 unbound
+MISSING_CARDINALITY reads; 3 deferred standalone attribute '*'), plus two existing
+RDFlib namespace warnings. Exact commands and limitations are in coverage.md.
+No full-suite pass, new production behavior or reviewer OK is claimed. Rule 6's
+website explanation remains the Documenter's responsibility; no site/spec edits.
+
+Temporary actual-output controls additionally verified that independent timestamps
+and metadata individuals are allowed, extra incoming domain properties are
+rejected, permitted count syntax is accepted, and extra constraints on count
+nodes are retained by the comparison. Unknown comment interpretation remains an
+explicit binding limit; no positive comment evidence is synthesized.

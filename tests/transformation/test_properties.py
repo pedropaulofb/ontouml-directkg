@@ -69,6 +69,8 @@ from rdflib import BNode, Graph
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.rdf import (assert_selected_equal, cardinality_facts,
                                necessary_restrictions, property_expression)
+from tests.support.invocation import diagnostic_signatures
+from tests.support.rdf import assert_graph_equal, rooted_graph, one_object
 
 POLICIES = ['strict', 'tolerant', 'best-effort']
 REFERENCE_FIELDS = ['subsettedProperties', 'redefinedProperties']
@@ -516,3 +518,191 @@ def test_chain_propagation_uses_inverse_origins_but_does_not_spread_down_to_simp
     assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cA,BASE.tUnrelated)}==(set() if case=='inverse_origin' else {('exact',4)})
     reverse=BASE.sUnrelated if inverse_mode=='all' else ('inverse',BASE.tUnrelated)
     assert {(k,n) for k,n,_,_ in cardinality_facts(graph,BASE.cExtra,reverse)}==(set() if case=='inverse_origin' else {('exact',1)})
+
+
+# RD-18 owns these integrated attribute/end annotation cases in the properties
+# topic. Requests and RDF expectations do not prescribe comment prose.
+_BOUNDARY_COUNTS={OWL.cardinality,OWL.minCardinality,OWL.maxCardinality,
+                  OWL.qualifiedCardinality,OWL.minQualifiedCardinality,OWL.maxQualifiedCardinality}
+_BOUNDARY_LOGIC={RDF.type,RDFS.domain,RDFS.range,RDFS.subClassOf,RDFS.subPropertyOf,
+                 OWL.equivalentClass,OWL.equivalentProperty,OWL.disjointWith,OWL.propertyDisjointWith,
+                 OWL.inverseOf,OWL.onProperty,OWL.onClass,OWL.onDataRange,OWL.someValuesFrom,
+                 OWL.allValuesFrom,OWL.hasValue,OWL.hasSelf,OWL.intersectionOf,OWL.unionOf,
+                 OWL.complementOf,OWL.oneOf,OWL.members,OWL.distinctMembers,OWL.propertyChainAxiom,
+                 RDF.first,RDF.rest}|_BOUNDARY_COUNTS
+
+
+def _boundary_resource(result,identifier,strategy):
+    return BASE[identifier] if strategy=='id' else one_subject(result.ontology,DCTERMS.identifier,Literal(identifier))
+
+
+def _boundary_logic_equal(first,second,strategy='id'):
+    """Compare actual domain logic, allowing metadata and permitted count syntax."""
+    projections=[];count_sets=[]
+    types=PROPERTY_TYPES|{OWL.Class,OWL.NamedIndividual,OWL.Restriction,OWL.AllDifferent,OWL.AllDisjointClasses,OWL.AllDisjointProperties}
+    for result in (first,second):
+        graph=result.ontology
+        identifiers=('cOwner','cOther','dValue','pFocus','tFlag','sFlag','vBoundary')
+        roots={BASE[key] for key in identifiers} if strategy=='id' else {
+            node for key in identifiers for node in graph.subjects(DCTERMS.identifier,Literal(key))}
+        owners={node for node in roots if (node,RDF.type,OWL.Class) in graph}
+        for owner in owners:
+            for predicate in (RDFS.domain,RDFS.range):roots.update(graph.subjects(predicate,owner))
+        count_nodes=set();counts=set()
+        for owner in owners:
+            expressions={property_expression(graph,one_object(graph,node,OWL.onProperty))
+                         for node in necessary_restrictions(graph,owner)
+                         if any((node,p,None) in graph for p in _BOUNDARY_COUNTS)}
+            for expression in expressions:
+                primary=expression[1] if isinstance(expression,tuple) else expression
+                ranges=set(graph.objects(primary,RDFS.domain if isinstance(expression,tuple) else RDFS.range))
+                universal=RDFS.Literal if (primary,RDF.type,OWL.DatatypeProperty) in graph else OWL.Thing
+                for kind,number,qualifier,node in cardinality_facts(graph,owner,expression):
+                    assert qualifier in ranges|{None,universal}
+                    counts.add((owner,expression,kind,number));count_nodes.add(node)
+        selected=rooted_graph(graph,roots,_BOUNDARY_LOGIC,type_objects=types)
+        # Count meaning is compared separately. Retain any additional logical
+        # statements on a count node instead of hiding an extra constraint.
+        for node in count_nodes:
+            selected.remove((None,RDFS.subClassOf,node))
+            selected.remove((node,RDF.type,OWL.Restriction))
+            for predicate in _BOUNDARY_COUNTS|{OWL.onProperty,OWL.onClass,OWL.onDataRange}:
+                selected.remove((node,predicate,None))
+        projections.append(selected);count_sets.append(counts)
+    assert count_sets[0]==count_sets[1]
+    assert_graph_equal(*projections)
+
+
+def _boundary_annotations(invoke,result,expected):
+    meanings=invoke.read_property_stereotype_comments(result)
+    actual=set()
+    for meaning in meanings:
+        assert meaning.field=='stereotype' and meaning.value in {'begin','end'}
+        assert isinstance(meaning.literal,Literal) and meaning.english is True
+        assert meaning.literal.language is None or meaning.literal.language.lower().split('-')[0]=='en'
+        assert (meaning.subject,RDFS.comment,meaning.literal) in result.ontology
+        context='attribute' if meaning.context is None else meaning.context
+        actual.add((meaning.subject,context,meaning.value))
+    assert actual==set(expected)
+
+
+@pytest.mark.parametrize('strategy,language',[('id','fr'),('name',None)],ids=['id_override','name_project_language'])
+@pytest.mark.parametrize('kind',['primitive','untyped','custom','enumeration','void'])
+@pytest.mark.parametrize('stereotype',['begin','end'])
+def test_boundary_attribute_stereotypes_preserve_comments_and_existing_value_mappings(run,invoke,source_json,tmp_path,strategy,language,kind,stereotype):
+    """Rules: DK-ATT-01, DK-ATT-03, DK-ATT-04, DK-DAT-01, DK-DAT-03, DK-DAT-04, DK-DAT-05, DK-PROP-04, DK-PROP-06, DK-LBL-02, DK-DIAG-06; RD-18 rules 1–5."""
+    document=source_json('properties/source_flags');document['languages']=['nl']
+    focus=source_element(document,'pFocus');focus.update(name='startTime',cardinality='2..5',stereotype=None)
+    value=source_element(document,'dValue')
+    if kind=='untyped':focus['propertyType']=None
+    elif kind=='custom':value['name']='BoundaryValue'
+    elif kind=='void':value['name']='void'
+    elif kind=='enumeration':
+        value.update(name='BoundaryState',stereotype='enumeration',literals=[{
+            'id':'vBoundary','name':'recorded','description':None,'type':'Literal','propertyAssignments':None}])
+    assert not fixture_issues(document)
+    options={'iri_strategy':strategy,'language':language,'stereotype_policy':'require-known','inverse_properties':'none'}
+    baseline=run(path=write_input(tmp_path,document,'baseline.json'),**options)
+    focus['stereotype']=stereotype
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),**options)
+    assert result.outcome==baseline.outcome=='completed'
+    _boundary_logic_equal(baseline,result,strategy)
+    prop=_boundary_resource(result,'pFocus',strategy);owner=_boundary_resource(result,'cOwner',strategy)
+    assert prop==_boundary_resource(baseline,'pFocus',strategy)
+    assert set(baseline.ontology.objects(prop,RDFS.label))<=set(result.ontology.objects(prop,RDFS.label))
+    object_kind=kind in {'custom','enumeration'}
+    assert (prop,RDF.type,OWL.ObjectProperty if object_kind else OWL.DatatypeProperty) in result.ontology
+    assert (prop,RDF.type,OWL.DatatypeProperty if object_kind else OWL.ObjectProperty) not in result.ontology
+    expected_range={_boundary_resource(result,'dValue',strategy)} if object_kind else {XSD.int} if kind=='primitive' else set()
+    assert set(result.ontology.objects(prop,RDFS.domain))=={owner}
+    assert set(result.ontology.objects(prop,RDFS.range))==expected_range
+    assert {(k,n) for k,n,_,_ in cardinality_facts(result.ontology,owner,prop)}=={('min',2),('max',5)}
+    assert diagnostic_signatures(result.diagnostics)==diagnostic_signatures(baseline.diagnostics)
+    assert any(d.kind=='void_datatype' and d.severity=='WARNING' for d in result.diagnostics)==(kind=='void')
+    _boundary_annotations(invoke,result,{(prop,'attribute',stereotype)})
+
+
+_BOUNDARY_END_PATTERNS=[('source_begin','begin',None),('source_end','end',None),
+                        ('target_begin',None,'begin'),('target_end',None,'end'),
+                        ('begin_end','begin','end'),('end_begin','end','begin'),
+                        ('begin_begin','begin','begin'),('end_end','end','end')]
+_BOUNDARY_END_CASES=[pytest.param(source,target,mode,'role',mode=='all',id=key+'-'+mode)
+                     for key,source,target in _BOUNDARY_END_PATTERNS for mode in ('all','none')]
+_BOUNDARY_END_CASES += [pytest.param('begin','end',mode,information,generated,id=mode+'-'+information)
+                       for mode,information,generated in [('named','role',True),('named','absent',False),
+                                                          ('informed','count',True),('informed','absent',False)]]
+
+
+@pytest.mark.parametrize('source_stereo,target_stereo,mode,information,generated',_BOUNDARY_END_CASES)
+def test_boundary_end_occurrences_stay_on_primary_independently_of_inverse_generation(run,invoke,source_json,tmp_path,source_stereo,target_stereo,mode,information,generated):
+    """Rules: DK-REL-01, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-13, DK-INV-01, DK-INV-04, DK-PROP-04, DK-PROP-06, DK-PROP-05, DK-LBL-02; RD-18 rules 1–5."""
+    document=source_json('properties/source_flags');document['languages']=['nl']
+    source=source_element(document,'sFlag');target=source_element(document,'tFlag')
+    source.update(stereotype=None,name='fromBoundary' if information=='role' else None,
+                  cardinality='1' if information=='count' or mode in {'all','none'} else None)
+    target.update(stereotype=None,name='toBoundary',cardinality='2..5')
+    assert not fixture_issues(document)
+    options={'iri_strategy':'id','language':'fr','inverse_properties':mode,'stereotype_policy':'require-known'}
+    baseline=run(path=write_input(tmp_path,document,'baseline.json'),**options)
+    source['stereotype']=source_stereo;target['stereotype']=target_stereo
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),**options)
+    assert result.outcome==baseline.outcome=='completed';graph=result.ontology
+    _boundary_logic_equal(baseline,result)
+    assert set(graph.objects(BASE.tFlag,RDFS.domain))=={BASE.cOwner}
+    assert set(graph.objects(BASE.tFlag,RDFS.range))=={BASE.cOther}
+    assert (BASE.tFlag,RDF.type,OWL.ObjectProperty) in graph
+    assert set(baseline.ontology.objects(BASE.tFlag,RDFS.label))<=set(graph.objects(BASE.tFlag,RDFS.label))
+    assert {node for node in graph.subjects(OWL.inverseOf,BASE.tFlag) if isinstance(node,URIRef)}==({BASE.sFlag} if generated else set())
+    assert ((BASE.sFlag,RDF.type,OWL.ObjectProperty) in graph)==generated
+    reverse=BASE.sFlag if generated else ('inverse',BASE.tFlag)
+    if generated:
+        assert set(graph.objects(BASE.sFlag,RDFS.domain))=={BASE.cOther}
+        assert set(graph.objects(BASE.sFlag,RDFS.range))=={BASE.cOwner}
+        assert (BASE.tFlag,OWL.inverseOf,BASE.sFlag) not in graph
+    assert {(k,n) for k,n,q,_ in cardinality_facts(graph,BASE.cOwner,BASE.tFlag) if q is None}=={('min',2),('max',5)}
+    source_counts=cardinality_facts(graph,BASE.cOther,reverse)
+    assert {(k,n) for k,n,q,_ in source_counts}==({('exact',1)} if source['cardinality']=='1' else set())
+    assert all(q is None for _,_,q,_ in source_counts)
+    assert diagnostic_signatures(result.diagnostics)==diagnostic_signatures(baseline.diagnostics)
+    expected={(BASE.tFlag,context,stereo) for context,stereo in [('source_end',source_stereo),('target_end',target_stereo)] if stereo is not None}
+    _boundary_annotations(invoke,result,expected)
+
+
+@pytest.mark.parametrize('identifier,state',[(None,'null'),('pFocus','absent'),('sFlag','absent'),('tFlag','absent')],
+                         ids=['all_null','attribute_absent','source_end_absent','target_end_absent'])
+def test_boundary_stereotypes_are_not_reconstructed_from_names_or_missing_fields(run,invoke,source_json,tmp_path,identifier,state):
+    """Rules: DK-ATT-01, DK-REL-01, DK-PROP-04, DK-PROP-06, DK-LBL-02, DK-DIAG-06; RD-18 rules 3–5."""
+    document=source_json('properties/source_flags')
+    for key,name in [('pFocus','begin'),('sFlag','begin'),('tFlag','end')]:
+        source_element(document,key).update(name=name,stereotype=None)
+    baseline=run(path=write_input(tmp_path,document,'baseline.json'),iri_strategy='id',inverse_properties='all')
+    if state=='absent':source_element(document,identifier).pop('stereotype')
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='all')
+    assert result.outcome==baseline.outcome=='completed'
+    _boundary_logic_equal(baseline,result)
+    assert diagnostic_signatures(result.diagnostics)==diagnostic_signatures(baseline.diagnostics)
+    _boundary_annotations(invoke,result,set())
+
+
+@pytest.mark.parametrize('occurrence',['attribute','ends'])
+def test_boundary_preservation_adds_no_diagnostic_and_retains_existing_ordering_notice(run,invoke,source_json,tmp_path,occurrence):
+    """Rules: DK-ATT-01, DK-REL-01, DK-PROP-04, DK-PROP-06, DK-PROP-05, DK-DIAG-18, DK-LBL-02; RD-18 rules 1–5."""
+    document=source_json('properties/source_flags')
+    identifier='pFocus' if occurrence=='attribute' else 'tFlag'
+    source_element(document,identifier)['isOrdered']=True
+    baseline=run(path=write_input(tmp_path,document,'baseline.json'),iri_strategy='id',inverse_properties='none')
+    if occurrence=='attribute':
+        source_element(document,'pFocus')['stereotype']='begin';expected={(BASE.pFocus,'attribute','begin')}
+    else:
+        source_element(document,'sFlag')['stereotype']='begin';source_element(document,'tFlag')['stereotype']='end'
+        expected={(BASE.tFlag,'source_end','begin'),(BASE.tFlag,'target_end','end')}
+    assert not fixture_issues(document)
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='none')
+    assert result.outcome==baseline.outcome=='completed'
+    _boundary_logic_equal(baseline,result)
+    assert any(d.kind=='ordering' and d.severity=='INFO' and identifier in d.identified_sources for d in result.diagnostics)
+    assert diagnostic_signatures(result.diagnostics)==diagnostic_signatures(baseline.diagnostics)
+    _boundary_annotations(invoke,result,expected)
