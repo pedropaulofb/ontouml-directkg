@@ -1470,7 +1470,14 @@ def _historical_limitation_warning(result):
 
 
 def _historical_other_diagnostics(result):
-    return Counter((d.severity, d.kind, d.message, d.source_ids, d.facts)
+    """Preserve observed meaning/source information and event multiplicity.
+
+    Human wording remains in Diagnostic.message/raw for inspection. Neither
+    prose nor the presentation order of source locators is an acceptance rule.
+    """
+    return Counter((d.severity, d.kind, d.facts, tuple(sorted(d.source_ids)),
+                    tuple(sorted(d.source_types)), tuple(sorted(d.identified_sources)),
+                    tuple(sorted(d.generated_iris)))
                    for d in result.diagnostics if d.kind != 'unmapped_relation_stereotype')
 
 

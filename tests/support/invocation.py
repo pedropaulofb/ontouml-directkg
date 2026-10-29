@@ -628,8 +628,10 @@ class _DirectKGInvocation(_UnboundInvocation):
         RDF predicates as well, so an unfamiliar annotation/auxiliary structure
         cannot silently earn an empty result. Positive/unknown forms remain
         unavailable until their actual meanings can be inspected and bound.
-        Labels/identifiers on domain resources are checked directly by the
-        topical assertions; unfamiliar auxiliary labels remain unavailable.
+        Property labels/identifiers are checked directly by the topical
+        assertions. Class labels need actual source-name evidence; class typing
+        alone never classifies a label as independent of the stereotype.
+        Unfamiliar class/auxiliary labels remain explicitly unavailable.
         """
         from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
@@ -678,7 +680,7 @@ class _DirectKGInvocation(_UnboundInvocation):
                 continue
             if predicate == RDFS.label and isinstance(obj, Literal):
                 if str(obj) in names or any((subject, RDF.type, kind) in graph
-                                           for kind in (OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty)):
+                                           for kind in (OWL.ObjectProperty, OWL.DatatypeProperty)):
                     continue
             if predicate == RDF.type and obj in types:
                 continue

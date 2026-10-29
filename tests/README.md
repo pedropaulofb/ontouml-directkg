@@ -686,3 +686,29 @@ python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'histo
 python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'primary_naming_precedence or primary_labels_preserve or explicit_relation_generalizations_mirror or relation_counts_use_directional or historicalDependence' --tb=short -p no:cacheprovider
 python -m pytest --rootdir=. -q tests/transformation/test_properties.py -k 'boundary_' --tb=short -p no:cacheprovider
 ```
+
+
+### HistoricalDependence F1/F2 correction
+
+The NOT OK verdict for `7e53a2392f4447b0cc68e5a72d40ceb168023483` identified
+two test-side defects. Diagnostic preservation now compares observed normalized
+severity, kind, facts and source/IRI information with event multiplicity; raw
+messages remain inspectable and prose is not compared. The annotation reader
+requires actual source-name evidence for class labels; an owl:Class type alone
+no longer permits an unknown declaration label. Existing property fallback and
+independent metadata interpretation remain unchanged. All 2673 collected node
+IDs, fixtures, production interfaces and earlier assertions remain otherwise
+unchanged; the 13 inventory entries describe the corrected evidence.
+
+The same commands above reproduce **13 focused failures** (ten missing warnings,
+three production naming guards), **51 mapping passes / 35 existing limits**,
+**324 combined regression passes**, **92 earlier axiom passes**, and the unchanged
+**4 RD-18 passes / 42 positive-reader limits**. All 17 Python files parse and the
+inventory reconciles exactly. Alternative ordering prose passed the comparison
+in all three ordinary cases while changed source/severity/meaning/multiplicity
+still changed the signature. Injected declaration class labels raised explicit
+unavailability in all three cases; actual authored class labels containing the
+same words and generated property fallback labels remained permitted. Prior
+metadata and logical/annotation sensitivity controls remained effective. These
+are controls on actual observations, not fabricated conversion or warning
+results. The full suite and remaining unbound capabilities were not executed.
