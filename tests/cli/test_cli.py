@@ -580,3 +580,42 @@ def test_cli_external_metadata_does_not_ingest_unaccepted_formats(invoke,tmp_pat
         _report(invoke,tmp_path/'report.json',process.observation)
         if process.observation.ontology is not None:assert process.observation.external_metadata_output==()
     else:assert process.returncode==2 and process.observation.outcome is None
+
+def test_cli_ontology_version_iri_sidecar_records_setting_and_final_byte_digest(invoke, tmp_path):
+    """Rules: DK-IRI-01, DK-GEN-04, DK-GEN-10, DK-DIAG-04; RD-05 Option B replacement Rule 5; §15.
+
+    Test-side options map to actual CLI controls at the replaceable boundary.
+    Version/configuration evidence comes from delivered RDF, not the request.
+    """
+    import hashlib
+    spdx = Namespace('http://spdx.org/rdf/terms#')
+    source = fixture_path('shared/core_model')
+    for index, version in enumerate(('https://example.test/versions/one', 'urn:directkg:test:version:two')):
+        destination = tmp_path / f'versioned_{index}.ttl'
+        process = invoke.cli(source, options={'base_iri': str(BASE), 'iri_strategy': 'id',
+            'provenance': 'sidecar', 'ontology_version_iri': version}, workdir=tmp_path,
+            output_path=destination, diagnostics_path=tmp_path / f'report_{index}.json')
+        assert process.returncode == 0 and process.observation.outcome == 'completed'
+        ontology = Graph().parse(destination, format='turtle')
+        assert (ONTOLOGY, RDF.type, OWL.Ontology) in ontology
+        assert (ONTOLOGY, OWL.versionIRI, URIRef(version)) in ontology
+        assert (ONTOLOGY, OWL.imports, URIRef('https://w3id.org/directkg/vocab/dkgm')) in ontology
+        sidecar = Graph().parse(destination.with_name(destination.stem + '.provenance.ttl'), format='turtle')
+        observed = process.observation
+        assert observed.provenance_roles is not None
+        assert observed.provenance_roles.get('output') and observed.provenance_roles.get('configuration')
+        output = observed.provenance_roles['output'][0]
+        assert (output, DCTERMS.isFormatOf, ONTOLOGY) in sidecar
+        checksums = [node for node in sidecar.objects(output, spdx.checksum)
+                     if (node, spdx.algorithm, spdx.checksumAlgorithm_sha256) in sidecar]
+        assert checksums
+        for node in checksums:
+            assert {str(value).lower() for value in sidecar.objects(node, spdx.checksumValue)} == {
+                hashlib.sha256(destination.read_bytes()).hexdigest()}
+        configuration = observed.provenance_roles['configuration'][0]
+        assert (configuration, PROV.value, observed.configuration_literal) in sidecar
+        assert isinstance(observed.configuration_literal, Literal)
+        assert isinstance(yaml.safe_load(str(observed.configuration_literal)), dict)
+        assert observed.configuration_controls is not None
+        assert observed.configuration_controls.get('ontology_version_iri') == version
+

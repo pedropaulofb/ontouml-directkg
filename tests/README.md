@@ -712,3 +712,43 @@ same words and generated property fallback labels remained permitted. Prior
 metadata and logical/annotation sensitivity controls remained effective. These
 are controls on actual observations, not fabricated conversion or warning
 results. The full suite and remaining unbound capabilities were not executed.
+
+
+## RD-05 Option B — replacement Rule 5
+
+This decision adds nine cases (eight Python parameters and one CLI case) in the
+existing ontology/CLI modules, all reusing shared/core_model. Exact rule, node and
+fixture traceability is in coverage.md. Only replacement Rule 5 and its immediate
+version-header/interface prerequisites are exercised; the unchanged version
+validation/assignment rules are not claimed fully covered by this increment.
+
+Current production at `7e17f613e270346da981a35c011222ae34df37eb` exposes no
+version-IRI Python control and advertises no --ontology-version-iri CLI option.
+The new semantic request option ontology_version_iri stops explicitly with
+ImplementationUnavailable. It does not prescribe or forward a guessed Python
+parameter. The identically named configuration observation key is semantic,
+not a prescribed native YAML key. Positive binding requires actual interface
+and output evidence when production supports the capability; existing provenance
+and delivery readers retain their documented limits. Omitted controls and
+unrelated tests keep their actual bindings.
+
+Observed with Python 3.12.14 and pinned dependencies: **2682 collected**, all
+2673 previous node IDs unchanged plus nine. Focused RD-05: **9 failed, 2673
+deselected**, all at explicit unavailable version controls (eight Python, one
+CLI). Assertions for supplied-version behavior remain test-first and unexecuted;
+no positive conversion/configuration/checksum/reuse evidence is claimed. Actual
+baseline resource extraction passed in six real conversions covering both IRI
+strategies and all provenance modes. Combined regression: **324 passed, 2358
+deselected**. Direct provenance selection: **1 passed, 12 failed, 381 deselected**,
+all failures at existing unbound observations/operations (4 metadata-predicate,
+4 provenance-role, 1 provenance and 3 delivery readers). All Python files parse;
+fixture and inventory checks pass. No skip/xfail or structural exception is added.
+The full suite and remaining unbound capabilities were not executed.
+
+Run from the repository root:
+
+```bash
+python -m pytest --rootdir=. --collect-only -q tests -p no:cacheprovider
+python -m pytest --rootdir=. -q tests -k 'ontology_version_iri_' --tb=short -p no:cacheprovider
+python -m pytest --rootdir=. -q tests/transformation/test_ontology.py tests/cli/test_cli.py -k 'input_digests_use_exact_bytes or provenance_modes_keep_domain_output or explicit_delivery_places_sidecar or cli_sidecar_names_and_final_ontology_byte_digest or core_asserted_domain_graph' --tb=short -p no:cacheprovider
+```

@@ -570,6 +570,12 @@ class _DirectKGInvocation(_UnboundInvocation):
     """Minimal RD-02 wiring; no conversion, recovery or output rules live here."""
 
     def convert(self, source, *, options, workdir, faults=()):
+        if "ontology_version_iri" in options:
+            raise ImplementationUnavailable(
+                "RD-05 ontology-version-IRI Python control has no verified production binding; "
+                "the inspected public convert signature does not expose this capability. "
+                "ontology_version_iri is a test-side semantic option, not a proposed Python parameter."
+            )
         if faults:
             self._unavailable()
         try:
@@ -707,6 +713,11 @@ class _DirectKGInvocation(_UnboundInvocation):
                                  schema=(export_report, NativeDiagnostic, SourceLocation))
 
     def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
+        if "ontology_version_iri" in options:
+            raise ImplementationUnavailable(
+                "RD-05 ontology-version-IRI CLI capability is not bound: the inspected help "
+                "does not advertise the accepted --ontology-version-iri control."
+            )
         if (faults or extra_args or source is None or output_path is None or diagnostics_path is None
                 or Path(output_path).exists() or Path(diagnostics_path).exists()):
             self._unavailable()

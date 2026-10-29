@@ -8,7 +8,7 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.invocation import diagnostic_signatures
-from tests.support.data import write_input
+from tests.support.data import write_input, fixture_issues
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, property_chains
 
 
@@ -835,3 +835,105 @@ def test_mixed_metadata_lists_omit_invalid_values_and_keep_independent_fields_wi
     permitted=Literal(valid) if field=='keyword' else URIRef(valid)
     assert set(graph.objects(ONTOLOGY,SELECTED_METADATA[field]))<={permitted}
     assert (BASE.Person,RDF.type,OWL.Class) in result.ontology
+
+def _version_source_resources(result, strategy):
+    """Read the fixture's source-backed resources, excluding execution metadata."""
+    from tests.support.rdf import one_subject
+    kinds = {key: OWL.Class for key in ('cPerson', 'cOrg', 'cAddress')}
+    kinds.update(aAge=OWL.DatatypeProperty, aNote=OWL.DatatypeProperty,
+                 aAddress=OWL.ObjectProperty, eTarget=OWL.ObjectProperty, eSource=OWL.ObjectProperty)
+    resources = {}
+    for identifier, kind in kinds.items():
+        resource = (BASE[identifier] if strategy == 'id' else
+                    one_subject(result.ontology, DCTERMS.identifier, Literal(identifier)))
+        assert isinstance(resource, URIRef) and (resource, RDF.type, kind) in result.ontology
+        resources[identifier] = resource
+    assert len(set(resources.values())) == len(resources)
+    return resources
+
+
+@pytest.mark.parametrize('strategy', ['id', 'name'])
+@pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
+def test_ontology_version_iri_preserves_identity_and_records_effective_setting(
+        invoke, source_path, tmp_path, strategy, mode):
+    """Rules: DK-IRI-01, DK-IRI-02, DK-IRI-06, DK-IRI-09, DK-GEN-04, DK-GEN-10, DK-CONF-01; RD-05 Option B replacement Rule 5; §15.
+
+    Entity identity is compared through source resources, while execution
+    records may change. The semantic version option does not prescribe a
+    Python parameter or a YAML key in the production interface.
+    """
+    source = source_path('shared/core_model')
+    identities = None
+    observations = []
+    for version in (None, 'https://example.test/versions/one', 'urn:directkg:test:version:two'):
+        options = {'base_iri': str(BASE), 'iri_strategy': strategy, 'provenance': mode}
+        if version is not None: options['ontology_version_iri'] = version
+        result = invoke.convert(source, options=options, workdir=tmp_path)
+        assert result.outcome == 'completed'
+        assert (ONTOLOGY, RDF.type, OWL.Ontology) in result.ontology
+        assert (ONTOLOGY, OWL.imports, DKGM_ONTOLOGY) in result.ontology
+        assert set(result.ontology.objects(ONTOLOGY, OWL.versionIRI)) == (
+            set() if version is None else {URIRef(version)})
+        resources = _version_source_resources(result, strategy)
+        if identities is None: identities = resources
+        else: assert resources == identities
+        observations.append(result)
+        if version is not None and mode != 'none':
+            _provenance(result, mode, source.read_bytes())
+            assert result.configuration_controls.get('ontology_version_iri') == version
+    if mode != 'none':
+        _provenance(observations[0], mode, source.read_bytes())
+        assert observations[0].configuration_controls.get('ontology_version_iri') is None
+    else:
+        for result in observations: assert result.transformation_provenance_output == ()
+
+
+def test_ontology_version_iri_reuse_allows_changed_source_content(invoke, source_json, tmp_path):
+    """Rules: DK-IRI-01, DK-LBL-01; RD-05 Option B replacement Rule 5; §15.
+
+    Reusing a caller-assigned identifier does not establish content identity or
+    authorize a cross-run registry that rejects a second valid transformation.
+    """
+    document = source_json('shared/core_model')
+    version = 'https://example.test/versions/reused'
+    options = {'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': 'none',
+               'ontology_version_iri': version}
+    for index, label in enumerate(('First source label', 'Changed source label')):
+        source_element(document, 'cPerson')['name'] = label
+        assert not fixture_issues(document)
+        path = write_input(tmp_path, document, f'source_{index}.json')
+        result = invoke.convert(path, options=options, workdir=tmp_path)
+        assert result.outcome == 'completed'
+        assert (ONTOLOGY, OWL.versionIRI, URIRef(version)) in result.ontology
+        assert set(result.ontology.objects(BASE.cPerson, RDFS.label)) == {Literal(label)}
+
+
+def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, source_path, tmp_path):
+    """Rules: DK-IRI-01, DK-GEN-04, DK-GEN-10, DK-DIAG-04; RD-05 Option B replacement Rule 5; §15.
+
+    Parse the delivered ontology as RDF; hash its actual bytes, including the
+    version statement. No invariant checksum or provenance graph is required.
+    """
+    source = source_path('shared/core_model')
+    for index, version in enumerate(('https://example.test/versions/one', 'urn:directkg:test:version:two')):
+        result = invoke.convert(source, options={'base_iri': str(BASE), 'iri_strategy': 'id',
+            'provenance': 'sidecar', 'ontology_version_iri': version}, workdir=tmp_path)
+        assert result.outcome == 'completed'
+        destination = tmp_path / f'versioned_{index}.ttl'
+        delivered = invoke.deliver(result, output_path=destination)
+        assert delivered.failure is None and not delivered.observation.delivery_failures
+        ontology = Graph().parse(destination, format='turtle')
+        assert (ONTOLOGY, OWL.versionIRI, URIRef(version)) in ontology
+        assert (ONTOLOGY, OWL.imports, DKGM_ONTOLOGY) in ontology
+        sidecar = Graph().parse(destination.with_name(destination.stem + '.provenance.ttl'), format='turtle')
+        observed = delivered.observation
+        output = _role(observed, 'output')
+        assert (output, DCTERMS.isFormatOf, ONTOLOGY) in sidecar
+        _checksum(sidecar, output, destination.read_bytes())
+        configuration = _role(observed, 'configuration')
+        assert (configuration, PROV.value, observed.configuration_literal) in sidecar
+        assert isinstance(observed.configuration_literal, Literal)
+        assert isinstance(yaml.safe_load(str(observed.configuration_literal)), dict)
+        assert observed.configuration_controls is not None
+        assert observed.configuration_controls.get('ontology_version_iri') == version
+
