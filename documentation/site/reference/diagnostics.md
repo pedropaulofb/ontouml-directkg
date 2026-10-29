@@ -78,7 +78,8 @@ The following groups explain when diagnostics occur. Their linked mapping pages 
 | Owner/source fallback qualification | No additional event solely for qualification; existing missing-name/input diagnostics remain |
 | Attribute explicitly typed by recognized unsupported `void` | Nonfatal warning identifying available attribute/owner/type information and omitted mapping/range; null typing is separately supported |
 | Unnamed ordinary relation uses target-role or endpoint fallback | Nonfatal warning unless a specific rule replaces it; comparative reaching its deliberately unmapped semantic-name step warns before fallback |
-| Successful ordinary stereotype naming / successful relator naming | Ordinary stereotype success adds no event; relator-derived success should produce informational provenance reporting, without a warning merely for success |
+| Successful ordinary stereotype naming / successful relator naming | Ordinary stereotype success adds no event solely for that success; relator-derived success should produce informational provenance reporting, without a warning merely for success. Independently applicable diagnostics remain. |
+| Deliberately unmapped applicable relation stereotype, including `historicalDependence` | Nonfatal limitation warning under DK-DIAG-01; retain the weaker ordinary mapping where defined. Successful stereotype-derived naming does not suppress the warning. See [Historical dependence](../mapping/relations.md#historical-dependence). |
 | Usable material semantic name unavailable | Warning, then accepted source–target fallback |
 | Multiple project languages with no local tag or override for a supported value | Nonfatal WARNING and untagged value; may consolidate to avoid unnecessary repetition |
 
@@ -172,3 +173,5 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 Governing rules: DK-DIAG-01–19; §3.4; §15; DK-GEN-09–10; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
+
+Accepted update: **RD-17 — Ordinary mapping of `historicalDependence` with the applicable limitation warning (Alternative A)** (project-owner formalization supplied after this baseline).

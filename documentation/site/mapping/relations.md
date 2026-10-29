@@ -40,13 +40,21 @@ The following candidates apply when the stereotype step is reached and the sourc
 | `termination` | Endurant → Event / Event → Endurant | `wasTerminatedIn` / `terminates` |
 | `triggers` | Situation → Event / Event → Situation | `triggers` / `triggeredBy` |
 
-Stereotype naming is enabled by default; the [naming control](../reference/controls.md#established-controls) can skip this step. Do not invent `has`, `relatedTo`, or `isRelatedTo` prefixes unless supplied by the source or an accepted stereotype mapping. Successful ordinary stereotype naming adds no warning or INFO.
+Stereotype naming is enabled by default; the [naming control](../reference/controls.md#established-controls) can skip this step. Do not invent `has`, `relatedTo`, or `isRelatedTo` prefixes unless supplied by the source or an accepted stereotype mapping. Successful ordinary stereotype naming adds no warning or INFO solely for naming success; independently applicable limitation warnings remain.
 
 An unnamed `material` relation without a usable target role instead attempts its grounding **relator's** name at this step: `lowerFirst(normalize(relator.name))`, with no `has` prefix. The property still connects its participant classes, not a relator individual. Successful relator-based naming should produce an informational provenance diagnostic and requires no warning merely for that success. An unavailable usable grounding relator requires a warning, then the endpoint fallback; the initial diagnostic need not distinguish absence, ambiguity, or unusable naming. No special mode-grounded material name is established.
 
 `comparative` has no generic semantic predicate: reaching that step requires a warning before the endpoint fallback. An unnamed ordinary relation using a target-role or source–target fallback requires a nonfatal warning unless a specific rule replaces it. If both an endpoint and its relation are unnamed, their diagnostics should distinguish the conditions. Covered derivation connectors do not enter ordinary naming fallback. See [Recognized derivations](derivations-and-chains.md#recognized-derivations).
 
 Original relation/target-role labels and descriptions have their [separate text rules](../reference/text.md#labels-and-descriptions); lexical identity is not a substitute for a label. Primary-property IDs use the target association-end ID under ID-based construction, as specified in [Strategy and renaming](../reference/identifiers.md#strategy-and-renaming).
+
+### Historical dependence
+
+An eligible ordinary relation carrying recognized `historicalDependence` retains its ordinary property identity, direction, naming, labels, descriptions, domain, range, inverses, cardinalities, and applicable generalization mappings. **Historical-dependence semantics are only partially translated** through this ordinary mapping. The stereotype alone supplies no additional logical axioms or annotations recording its declaration. The general metadata permission in DK-GEN-11 does not override this omission.
+
+Source-description mappings and independently required annotations remain applicable. The stereotype-derived names in the table above and any corresponding [generated fallback label](../reference/text.md#primary-relation-labels) retain their existing conditions, as do source-label and language rules. Omitting a stereotype-declaration annotation does not suppress these lexical or descriptive mappings.
+
+The existing nonfatal [limitation warning](../reference/diagnostics.md#names-typing-and-source-text) for a deliberately unmapped applicable relation stereotype still applies under DK-DIAG-01. Successful stereotype-derived naming does not suppress this warning; no warning-suppression exception is established for `historicalDependence`.
 
 ## Additional relation axioms
 
@@ -178,3 +186,5 @@ Governing rules: DK-REL-01–06, 09–17, 20; DK-GEN-03; DK-INV-12; DK-DIAG-07, 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
+
+Accepted update: **RD-17 — Ordinary mapping of `historicalDependence` with the applicable limitation warning (Alternative A)** (project-owner formalization supplied after this baseline).
