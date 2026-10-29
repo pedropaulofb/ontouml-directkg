@@ -18,6 +18,7 @@ from .metadata import emit_metadata, read_metadata
 from . import provenance as execution_provenance
 from .provenance import ProvenanceRecord
 from .properties import PropertyExpressions, collect_attributes, emit_attributes, emit_property_references, property_candidates
+from .relation_axioms import emit_relation_axioms
 from .relations import collect_relations, emit_relations, relation_names
 from .source import apply_identifier_policy, check_stereotypes, index_project, read_project
 
@@ -172,6 +173,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         emit_property_references(graph, index, expressions, diagnostics, input_policy)
         emit_material_chains(graph, relations, groundings, attributes, expressions,
                              material_property_chains, diagnostics)
+        emit_relation_axioms(graph, relations, expressions)
         metadata = read_metadata(metadata_file, diagnostics, input_policy)
         emit_metadata(graph, ontology, metadata)
         record = None
