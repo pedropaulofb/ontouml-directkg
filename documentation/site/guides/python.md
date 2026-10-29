@@ -4,13 +4,15 @@ This guide describes **specified integration capabilities**, not a working API. 
 
 ## Conversion and configuration
 
+Every Python transformation requires a concrete [OntoUML JSON input file](../reference/input.md#source-file-input) identified by a file path, regardless of provenance mode. Parsed JSON objects, dictionaries, and other fileless representations are not accepted substitutes. Internal processing in memory and the existing output-graph and diagnostic capabilities remain available under their separate contracts.
+
 Python and CLI must expose every established ontology-transformation control with equivalent selectable behavior, identical defaults, and the same transformation effects. An equivalent effective configuration on the same supported input invokes the same accepted rules. This does not promise identical execution provenance from separate runs.
 
 Use [Controls](../reference/controls.md#established-controls) as the canonical inventory, including metadata and provenance. Python need not copy CLI flag spelling, representation, or negative-flag polarity. The exception is the specifically prescribed parameter name `relation_labels`, with accepted values `"source-only"` and `"generated"`, default `"source-only"`. This requirement does not establish the containing function's name or signature.
 
 An equivalent optional Python control must accept a caller-supplied [ontology version IRI](../reference/output.md#optional-ontology-version-iri), with the same emission and absence behavior as the CLI control. Its parameter name is not prescribed, and the [inspected API](../reference/controls.md#interface-parity) does not yet expose this addition.
 
-An integrator's conceptual sequence is to prepare [supported input](../reference/input.md), choose effective transformation settings, request conversion through the eventual verified API, inspect its outcome and diagnostics, and consume only eligible ontology output. Concrete input/output argument mechanics and Python representations remain unavailable; this sequence is not executable code.
+An integrator's conceptual sequence is to prepare a [supported JSON file](../reference/input.md), supply its file path, choose effective transformation settings, request conversion through the eventual verified API, inspect its outcome and diagnostics, and consume only eligible ontology output. Exact Python input parameter names, function signatures, and output representations are not prescribed here; this sequence is not executable code.
 
 Base validation and validation of a supplied ontology version IRI happen before conversion. Either rejection must be signaled programmatically, independently of input policy, without an ontology, transformation outcome, or conversion-diagnostics report. No particular exception class is selected. See [Base and ontology IRIs](../reference/identifiers.md#base-and-ontology-iris) and the version-IRI boundary linked above.
 
@@ -57,3 +59,5 @@ See the [metadata/provenance failure reference](metadata-and-provenance.md#failu
 Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).

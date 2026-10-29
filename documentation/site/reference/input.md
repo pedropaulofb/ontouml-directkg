@@ -14,6 +14,14 @@ A Catalog `ontology.json` file is a candidate example, not evidence of compatibi
 
 The [classes-and-attributes example](../examples/index.md#catalog-source-and-adaptation) documents a bounded Catalog adaptation checked against the 0.5.3 serialization structure, with its exact provenance and reference checks. It does not establish compatibility for the full source project or other Catalog files.
 
+### Source file input
+
+Every transformation in the current version requires a concrete OntoUML JSON input file identified by a file path, through both CLI and Python, independently of provenance mode, including `none`. The file's contents remain subject to the exporter baseline above and the accepted language enrichment below.
+
+Already parsed JSON objects, Python dictionaries, and other fileless representations cannot substitute for the required source file. Internal parsing and processing of that file in memory remain allowed. This restriction does not change Python output or diagnostic capabilities.
+
+Alternative source-input mechanisms are outside the current version's scope, with no commitment to implement them in a future release. Source checksums follow [Artifacts and digests](../guides/metadata-and-provenance.md#artifacts-and-digests).
+
 ## Language enrichment
 
 In textual fields already supported by DirectKG, both plain strings and the schema-defined `languageString` representation are accepted. The schema-defined top-level `Project.languages` field supplies project-level language information. Top-level `Project.description` is supported in plain-string or accepted localized form and maps to an ontology comment when nonempty.
@@ -77,3 +85,5 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).
+
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).

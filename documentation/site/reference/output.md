@@ -70,7 +70,7 @@ Turtle serialization preserves the generated graph, including IRIs, literal valu
 
 Do not compare RDF examples or conversion results solely as text. Graph comparison can allow blank-node renaming while preserving connections and RDF-list order. This contract requires neither a canonicalization algorithm nor sorting, prefix-selection, or canonicalization controls.
 
-Execution provenance can differ between conversions, including the distinct execution activity and completion timestamp. Its effective-configuration YAML has a separate deterministic-serialization requirement. For file inputs, digests cover the exact bytes read; a sidecar's ontology-file digest covers the final serialized ontology bytes. Neither a self-referential embedded digest nor an original-file digest for unavailable in-memory bytes may be invented. In-memory canonicalization remains dependent on a separately specified rule.
+Execution provenance can differ between conversions, including the distinct execution activity and completion timestamp. Its effective-configuration YAML has a separate deterministic-serialization requirement. Source JSON checksums use SHA-256 over the exact bytes read from the [required source file](input.md#source-file-input), not a serialization of parsed data. A sidecar's ontology-file digest still covers the final serialized ontology bytes. Self-referential digests of embedded provenance remain prohibited. See [Artifacts and digests](../guides/metadata-and-provenance.md#artifacts-and-digests) for checksum scope and accepted exclusions.
 
 ## Delivery boundaries
 
@@ -87,3 +87,5 @@ See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-deliv
 Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).

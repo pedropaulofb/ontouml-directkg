@@ -4,7 +4,9 @@ This guide explains the **specified command-line contract**. At the consulted re
 
 ## Invocation
 
-Executable names, positional arguments, input/output invocation mechanics, and a default output destination remain unavailable or unspecified. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults; it does not establish an executable.
+Every CLI transformation requires a concrete [OntoUML JSON input file](../reference/input.md#source-file-input) identified by a file path, including when provenance is `none`.
+
+Executable names, exact argument syntax, output invocation mechanics, and a default output destination remain unavailable or unspecified at the consulted revision. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults; it does not establish an executable.
 
 The accepted `--ontology-version-iri IRI` option supplies an [optional ontology-header version identifier](../reference/output.md#optional-ontology-version-iri), while retaining the base-derived ontology IRI. This specified addition is not yet exposed by the [inspected CLI](../reference/controls.md#interface-parity).
 
@@ -82,3 +84,5 @@ The [Python guide](python.md) explains equivalent transformation capabilities an
 Governing rules: §15; DK-DIAG-04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).
