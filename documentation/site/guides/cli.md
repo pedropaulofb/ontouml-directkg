@@ -6,9 +6,11 @@ This guide explains the **specified command-line contract**. At the consulted re
 
 Executable names, positional arguments, input/output invocation mechanics, and a default output destination remain unavailable or unspecified. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults; it does not establish an executable.
 
+The accepted `--ontology-version-iri IRI` option supplies an [optional ontology-header version identifier](../reference/output.md#optional-ontology-version-iri), while retaining the base-derived ontology IRI. This specified addition is not yet exposed by the [inspected CLI](../reference/controls.md#interface-parity).
+
 For an eventual verified invocation, prepare an export satisfying the [input contract](../reference/input.md), select effective controls from that catalog, and interpret the result using the separate transformation and delivery contracts below. Do not infer additional format, prefix, sorting, qualified-cardinality, or independent ontology-IRI switches.
 
-Invalid invocation, such as an unknown option or invalid value, is rejected **before conversion** with code `2` and no transformation outcome. A rejected supplied base likewise returns `2`: no conversion starts and no ontology, outcome, or conversion-diagnostics report is produced, even if a diagnostics-file path was supplied. The [base-IRI reference](../reference/identifiers.md#base-and-ontology-iris) owns the exact validation and delimiter rules.
+Invalid invocation, such as an unknown option or invalid value, is rejected **before conversion** with code `2` and no transformation outcome. A rejected supplied base or ontology version IRI likewise returns `2`, independently of input policy: no conversion starts and no ontology, outcome, or conversion-diagnostics report is produced, even if a diagnostics-file path was supplied. The [base-IRI reference](../reference/identifiers.md#base-and-ontology-iris) owns base validation and delimiter rules; the [version-IRI reference](../reference/output.md#optional-ontology-version-iri) owns its separate validation boundary.
 
 ## Files and console
 
@@ -30,7 +32,7 @@ Transformation outcome and requested-file delivery are separate. `completed-with
 | --- | --- |
 | `0` | Outcome `completed`, with requested output delivery successful |
 | `1` | Outcome `completed-with-errors`, with requested output delivery successful |
-| `2` | Invalid invocation before conversion; also rejected supplied-base configuration |
+| `2` | Invalid invocation before conversion; also rejection of a supplied base or ontology version IRI |
 | `3` | Outcome `aborted`, with no requested diagnostics-file delivery failure |
 | `4` | A requested diagnostics file cannot be created or written |
 | `5` | Requested provenance-sidecar serialization, creation, or writing fails, without a requested diagnostics-file or ontology-file delivery failure |
@@ -78,3 +80,5 @@ The [Python guide](python.md) explains equivalent transformation capabilities an
 ---
 
 Governing rules: §15; DK-DIAG-04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).

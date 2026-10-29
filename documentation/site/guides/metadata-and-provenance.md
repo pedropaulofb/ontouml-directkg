@@ -86,6 +86,8 @@ When enabled, provenance records the following without selecting resource-IRI te
 
 The configuration entity contains a **deterministically serialized YAML string** under `prov:value`, identified by `dcterms:format`. Record effective transformation settings, including defaults, subject to the embedded-output-file exclusion below. Configuration keys inside this literal are data, not RDF predicates.
 
+When provenance is enabled, the effective configuration record must reflect the [ontology version IRI setting](../reference/output.md#optional-ontology-version-iri). RD-05 leaves DK-GEN-10 unchanged and introduces no special provenance exclusion or requirement for provenance values to remain invariant.
+
 Descriptive citations through `dcterms:source` differ from execution inputs actually processed through `prov:used`. Do not treat every cited source as an execution input.
 
 ### Optional automatic enrichment
@@ -101,6 +103,8 @@ Sidecars use Turtle beside a **concrete ontology output path**, named `<output-s
 Concrete output-file information—filename, serialization format, and content digest—belongs **only in sidecar mode**. Embedded provenance describes the ontology and transformation without representing its containing serialization as an external artifact describing itself. The embedded configuration record also excludes that concrete output-file information.
 
 For file inputs, SHA-256 covers the **exact bytes read**. A sidecar's ontology-file digest covers the **final serialized ontology bytes**. Graph-equivalent files can have different byte digests because prefixes, statement order, blank-node labels, and whitespace need not be identical. The [serialization contract](../reference/output.md#graph-and-text-stability) preserves graph connections and ordered RDF lists.
+
+The final ontology bytes used for that sidecar checksum include the `owl:versionIRI` statement when present. Version identification does not exempt that statement from the existing digest scope.
 
 Do not compute a self-referential digest of embedded provenance or claim an original-file byte digest for an in-memory input when the bytes are unavailable. Canonicalized in-memory digesting depends on a separately specified canonicalization rule. These accepted exclusions are not provenance-construction failures.
 
@@ -132,3 +136,5 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 ---
 
 Governing rules: DK-GEN-08–11; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5, supplied after this baseline).

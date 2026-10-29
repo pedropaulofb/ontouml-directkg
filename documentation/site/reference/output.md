@@ -25,6 +25,29 @@ The ontology IRI is derived from the effective entity base: remove a final `#`; 
 
 These are namespace illustrations, not published ontology addresses. The [base control](controls.md#established-controls) records the placeholder default. Invalid supplied bases are rejected before conversion; delimiter handling does not authorize trimming or repairing them. See [Identifiers and naming](identifiers.md) for identity construction and source-ID annotations.
 
+### Optional ontology version IRI
+
+The optional `--ontology-version-iri IRI` control, with an equivalent optional Python control, adds `owl:versionIRI` on the generated ontology resource when supplied and valid. Its subject remains the ontology IRI derived above; its object is the supplied version IRI. When the control is absent, emit no `owl:versionIRI` statement and no diagnostic solely for its absence.
+
+Validate the supplied value as an absolute IRI permitted for OWL ontology version identifiers. Invalid values follow [configuration rejection before conversion](diagnostics.md#policies-and-precedence), independently of the selected input policy.
+
+This **specification illustration**, not converter output or publication, assumes entity base `https://example.org/model#` and caller-supplied version IRI `https://example.org/model/versions/1`. It shows only the added header statement:
+
+```turtle
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+<https://example.org/model>
+    owl:versionIRI <https://example.org/model/versions/1> .
+```
+
+The caller assigns version identifiers. Do not derive one from a filename, execution timestamp, checksum, or DirectKG software version. This control adds no field to the [external metadata whitelist](../guides/metadata-and-provenance.md#external-field-whitelist).
+
+Supplying or changing only the version IRI does not change ontology IRI derivation, generated entity IRIs, or the established DKGM import. The version statement is an ontology-header contribution independent of provenance mode.
+
+DK-GEN-10 remains unchanged: when provenance is enabled, the [effective configuration record](../guides/metadata-and-provenance.md#required-provenance-representation) must reflect the ontology version IRI setting. In sidecar mode, the [output checksum](../guides/metadata-and-provenance.md#artifacts-and-digests) covers the final serialized ontology bytes, including the version IRI statement when present. This introduces no special provenance exclusion or requirement for provenance values to remain invariant.
+
+Emitting a version IRI neither publishes the ontology nor verifies across executions that repeated use identifies identical ontology content. No cross-run version registry is introduced. See [Controls](controls.md#interface-parity) for the specified control's implementation status.
+
 ### Required import and descriptive text
 
 Every generated ontology imports the **complete** reusable DKGM mereology vocabulary, including when no covered mereological relation occurs. Its four generic properties and three accepted generic chains remain in the imported vocabulary; they are not copied into each generated ontology or reduced to a model-specific subset.
@@ -51,7 +74,7 @@ Execution provenance can differ between conversions, including the distinct exec
 
 ## Delivery boundaries
 
-Transformation outcome and artifact delivery are separate. `completed` and `completed-with-errors` are eligible for ontology delivery, including permitted partial output; `aborted` prohibits delivery of the accumulated ontology. Produced diagnostics remain accessible after accepted aborts, and requested CLI diagnostics export is still attempted. Invalid invocation and supplied-base rejection happen before conversion and do not create a transformation outcome; supplied-base rejection produces no conversion-diagnostics report.
+Transformation outcome and artifact delivery are separate. `completed` and `completed-with-errors` are eligible for ontology delivery, including permitted partial output; `aborted` prohibits delivery of the accumulated ontology. Produced diagnostics remain accessible after accepted aborts, and requested CLI diagnostics export is still attempted. Invalid invocation and rejection of a supplied base or ontology version IRI happen before conversion and do not create a transformation outcome; either IRI rejection produces no conversion-diagnostics report.
 
 A failed ontology-file write does not change an already established transformation outcome or graph, and prevents a new sidecar for that ontology. A failed sidecar delivery leaves successfully written ontology output available. Failed diagnostics-file delivery likewise does not alter transformation outcome or ontology-output eligibility. Delivery failures must be reported explicitly; a partial file must not be presented as a valid ontology or sidecar, and an older destination left in place must be identified as not updated.
 
@@ -62,3 +85,5 @@ See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-deliv
 ---
 
 Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).

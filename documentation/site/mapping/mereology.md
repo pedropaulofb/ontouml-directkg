@@ -13,7 +13,7 @@ The specification fixes `U = https://w3id.org/directkg/vocab/dkgm` as the stable
 | Vocabulary ontology and mandatory import target | `U` |
 | Generic properties | `U#memberOf`, `U#subCollectionOf`, `U#subQuantityOf`, `U#componentOf` |
 
-Import the stable `U`, without the namespace's appended `#` or a property name. Do not pin a generated import to a vocabulary release or substitute the document address reached by a redirect. Redirecting to a newer document changes neither ontology identity nor property IRIs. DKGM version IRIs use `U/X.Y.Z`; generated-ontology versioning remains a separate decision.
+Import the stable `U`, without the namespace's appended `#` or a property name. Do not pin a generated import to a vocabulary release or substitute the document address reached by a redirect. Redirecting to a newer document changes neither ontology identity nor property IRIs. DKGM version IRIs use `U/X.Y.Z`; [caller-supplied version IRIs for generated ontologies](../reference/output.md#optional-ontology-version-iri) do not change this import policy.
 
 Resolving an unchanged generated ontology's import against a later vocabulary version can bring in changed imported axioms. Its import alone therefore does not record which version was current at conversion time.
 
@@ -75,3 +75,5 @@ These imports, generic chains, bridges, and source-specific asymmetry are part o
 ---
 
 Governing rules: DK-GEN-04; DK-REL-19; DK-CLS-01; DK-PROP-04; baseline consolidated: **2026-10-21**, with the **2026-10-24** accepted DKGM identity correction; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).

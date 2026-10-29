@@ -8,9 +8,11 @@ Python and CLI must expose every established ontology-transformation control wit
 
 Use [Controls](../reference/controls.md#established-controls) as the canonical inventory, including metadata and provenance. Python need not copy CLI flag spelling, representation, or negative-flag polarity. The exception is the specifically prescribed parameter name `relation_labels`, with accepted values `"source-only"` and `"generated"`, default `"source-only"`. This requirement does not establish the containing function's name or signature.
 
+An equivalent optional Python control must accept a caller-supplied [ontology version IRI](../reference/output.md#optional-ontology-version-iri), with the same emission and absence behavior as the CLI control. Its parameter name is not prescribed, and the [inspected API](../reference/controls.md#interface-parity) does not yet expose this addition.
+
 An integrator's conceptual sequence is to prepare [supported input](../reference/input.md), choose effective transformation settings, request conversion through the eventual verified API, inspect its outcome and diagnostics, and consume only eligible ontology output. Concrete input/output argument mechanics and Python representations remain unavailable; this sequence is not executable code.
 
-Base validation happens before conversion. A rejected supplied base must be signaled programmatically, without an ontology, transformation outcome, or conversion-diagnostics report. No particular exception class is selected. See [Base and ontology IRIs](../reference/identifiers.md#base-and-ontology-iris).
+Base validation and validation of a supplied ontology version IRI happen before conversion. Either rejection must be signaled programmatically, independently of input policy, without an ontology, transformation outcome, or conversion-diagnostics report. No particular exception class is selected. See [Base and ontology IRIs](../reference/identifiers.md#base-and-ontology-iris) and the version-IRI boundary linked above.
 
 The required ontology-serialization capability uses RDF 1.1 Turtle. Prefix names, blank-node labels, statement order, and other textual layout are not fixed; compare the accepted graph rather than assuming byte-identical serializations. See [Graph and text stability](../reference/output.md#graph-and-text-stability).
 
@@ -53,3 +55,5 @@ See the [metadata/provenance failure reference](metadata-and-provenance.md#failu
 ---
 
 Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).

@@ -31,7 +31,7 @@ An accepted missing stereotype adds no warning solely for absence. `strict` inpu
 
 Unknown does not mean ontologically wrong. DirectKG does not validate classifier orders, stereotype appropriateness, higher-order conflicts, UML semantic compatibility, or output consistency. A recognized but explicitly unresolved mapping remains unresolved; it cannot be relabelled unknown to bypass that boundary (DK-DIAG-02, 06).
 
-Supplied-base rejection is **configuration rejection before conversion**, not input-policy recovery. It produces no ontology, outcome, or conversion-diagnostics report under any policy, even when report persistence was requested. Python signals it programmatically; CLI code `2` is described in [Invocation](../guides/cli.md#invocation).
+Rejection of a supplied base or [ontology version IRI](output.md#optional-ontology-version-iri) is **configuration rejection before conversion**, not input-policy recovery. It produces no ontology, outcome, or conversion-diagnostics report under any policy, even when report persistence was requested. Python signals it programmatically; CLI code `2` is described in [Invocation](../guides/cli.md#invocation). Absence of the optional version IRI alone adds no diagnostic.
 
 ## Outcomes and output eligibility
 
@@ -175,3 +175,5 @@ Governing rules: DK-DIAG-01–19; §3.4; §15; DK-GEN-09–10; baseline consolid
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
 
 Accepted update: **RD-17 — Ordinary mapping of `historicalDependence` with the applicable limitation warning (Alternative A)** (project-owner formalization supplied after this baseline).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).

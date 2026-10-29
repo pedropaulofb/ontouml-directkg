@@ -21,6 +21,8 @@ For example, relative `my-model` is rejected. `https://example.org/model#part` i
 
 There is no independent ontology-IRI control. This derivation does not change entity identity; the imported DKGM vocabulary has its separately accepted persistent identity under DK-GEN-04. See [Ontology header](output.md#ontology-header).
 
+The [optional caller-supplied version IRI](output.md#optional-ontology-version-iri) supplies an `owl:versionIRI` object on that same ontology resource. It changes neither ontology IRI derivation nor generated entity IRIs.
+
 ## Strategy and renaming
 
 The default `name` strategy favors readable identifiers. **Renaming a source element may change its IRI** (E06 / DK-IRI-02). In particular, name-based enumeration-value identity also depends on its enumeration class's resolved local name. Adding a usable translation that sorts earlier can change the selected name even if an existing translation stays unchanged.
@@ -138,3 +140,5 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
 
 Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
