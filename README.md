@@ -20,7 +20,7 @@ It is intended for OntoUML modelers, ontology engineers, knowledge-graph develop
 | **Output** | Domain-oriented RDF/OWL ontology; **RDF 1.1 Turtle** is the sole officially specified ontology serialization. |
 | **Interfaces** | A Python library and CLI with equivalent transformation behavior; their production entry points do not yet exist. |
 
-The [normative specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md) defines mappings for:
+The [normative specification](documentation/specification/transformation-specification.md) defines mappings for:
 
 - **Domain structure:** classes, generalizations, attributes, datatypes, binary relations, and applicable cardinality or generalization-set constraints.
 - **Selected OntoUML semantics:** higher-order classification, enumerations, named inverse properties, and controlled material-relation property chains.
@@ -33,11 +33,11 @@ The design intentionally **does not perform general OntoUML semantic validation*
 
 | Resource | What it provides |
 | --- | --- |
-| [Current specification](documentation/specification/2026-10-21%20-%20specification%20handoff.md) | Authoritative requirements for mappings, controls, and intended behavior. |
+| [Current specification](documentation/specification/transformation-specification.md) | Authoritative requirements for mappings, controls, and intended behavior. |
 | [Mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) | Current Turtle representation of the four generic mereological properties and their accepted generic chains; archived releases and PyLODE documentation are maintained under [`vocabulary/`](vocabulary/README.md). **Not** conversion output. |
 | [Tests](tests/README.md) and [coverage inventory](tests/coverage.md) | Initial executable tests, fixtures, traceability, and the missing production-integration boundary. |
-| [Open design issues](documentation/specification/2026-10-21%20-%20remaining%20decisions%20handoff.md) | Non-normative, incomplete record of unresolved questions. |
-| [Documentation structure](documentation/specification/2026-10-21%20-%20documentation%20structure.md) | Approved page organization and responsibilities; public website sources are under `documentation/site/`. |
+| [Open design issues](documentation/specification/open-design-issues.md) | Non-normative, incomplete record of unresolved questions. |
+| [Documentation structure](documentation/specification/documentation-structure.md) | Approved page organization and responsibilities; public website sources are under `documentation/site/`. |
 
 ## Getting started with the current repository
 
@@ -55,7 +55,7 @@ These commands **do not install or run DirectKG**. The conversion-facing tests c
 
 ## Documentation and development
 
-The current source of truth is the [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md), not the archived specifications or unresolved-issues record. Baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source path: `documentation/specification/2026-10-21 - specification handoff.md`. Development tests document expected behavior but **do not demonstrate a working implementation**.
+The current source of truth is the [consolidated specification](documentation/specification/transformation-specification.md), not the archived specifications or unresolved-issues record. Recorded documentation baseline: [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md). Baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source path: `documentation/specification/2026-10-21 - specification handoff.md`. Development tests document expected behavior but **do not demonstrate a working implementation**.
 
 The [documentation website](https://w3id.org/directkg/docs) uses **Zensical**, with **mkdocstrings** configured for future source-derived API references. Start with [Home](documentation/site/index.md), [Semantics and limitations](documentation/site/concepts/semantics.md), [Input contract](documentation/site/reference/input.md), [Output contract](documentation/site/reference/output.md), and [Controls](documentation/site/reference/controls.md). [Examples](documentation/site/examples/index.md) provides a checked Catalog adaptation and illustrative Turtle excerpt. [Contributing](documentation/site/development/contributing.md) covers documentation maintenance, build/preview, and available development checks. No production installation command, Python API example, CLI invocation, or generated API reference can be verified at this stage; Getting started and generated API pages remain pending implementation.
 

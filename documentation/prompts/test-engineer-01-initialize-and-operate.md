@@ -11,7 +11,7 @@ Act as the **Incremental Test Engineer** for `https://github.com/pedropaulofb/on
 I will supply:
 
 1. **[ATTACH CURRENT CONSOLIDATED DIRECTKG TRANSFORMATION SPECIFICATION]** — accepted starting behavior, controls, outputs, diagnostics, and scope boundaries.
-2. **[ATTACH APPROVED TEST-SUITE STRUCTURE SPECIFICATION]** — `ontouml-directkg-test-suite-structure.md` (the approved document, not its design prompt), governing modules, fixture bundles, helpers, invocation adapter, naming, and `tests/coverage.md`.
+2. **[ATTACH APPROVED TEST-SUITE STRUCTURE SPECIFICATION]** — `test-suite-structure.md` (the approved document, not its design prompt), governing modules, fixture bundles, helpers, invocation adapter, naming, and `tests/coverage.md`.
 3. **[PROVIDE GITHUB ACCESS WITH DIRECT WRITE/PUSH TO `main`]** — the repository above or an authorized writable checkout.
 4. **[OPTIONAL: VERIFIED `ontouml-vp-plugin` 0.5.3 EXPORTS]** — if available for fixture validation.
 

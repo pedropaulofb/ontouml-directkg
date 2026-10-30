@@ -23,9 +23,9 @@ and historical production-execution limits remain explicitly recorded below.
 Incremental RD-02 — Minimal opaque source identifiers, Alternative A — follows
 the explicitly accepted formalization and corrected structure attachment supplied
 by the project owner. Its test change is submitted for independent review.
-Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](../documentation/specification/2026-10-21%20-%20specification%20handoff.md)
+Behavioral baseline: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20specification%20handoff.md)
 at `7870042a02e094dca772d6fdd6570ad7b2d02578`.
-Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](../documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
+Organization: [`documentation/specification/2026-10-21 - test suite structure.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), same commit.
 The single requirement-to-test inventory, source evidence, exact data pairings,
 and remaining scope are in [`coverage.md`](coverage.md).
 

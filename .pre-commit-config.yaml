@@ -11,7 +11,7 @@ repos:
         args: [--markdown-linebreak-ext=md]
         exclude: '^(?:\.gitignore$|branding/|documentation/site/assets/|documentation/site/examples/files/|documentation/specification/archive/|tests/(?:coverage\.md$|fixtures/)|vocabulary/(?:latest|versioned)/)'
       - id: end-of-file-fixer
-        exclude: '^(?:\.gitignore$|branding/|documentation/site/assets/|documentation/site/examples/files/|documentation/specification/archive/|documentation/specification/2026-10-21 - test suite structure\.md$|documentation/prompts/adviser-01-initialize-and-operate\.md$|tests/(?:coverage\.md$|fixtures/)|vocabulary/(?:latest|versioned)/)'
+        exclude: '^(?:\.gitignore$|branding/|documentation/site/assets/|documentation/site/examples/files/|documentation/specification/archive/|documentation/specification/test-suite-structure\.md$|documentation/prompts/adviser-01-initialize-and-operate\.md$|tests/(?:coverage\.md$|fixtures/)|vocabulary/(?:latest|versioned)/)'
       - id: check-yaml
       - id: check-json
         exclude: '^tests/fixtures/transformation/input_diagnostics/unprocessable/input\.json$'

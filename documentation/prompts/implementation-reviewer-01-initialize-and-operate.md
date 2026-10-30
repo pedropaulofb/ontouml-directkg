@@ -28,7 +28,7 @@ Retrieve:
 1. **Current consolidated normative transformation specification** from:
    https://github.com/pedropaulofb/ontouml-directkg/tree/main/documentation/specification
 
-   Locate the latest current, non-archived `[DATE] - specification handoff.md`.
+   Locate the latest current, non-archived `transformation-specification.md`.
 
 2. **Approved test-suite structure specification** from the same location.
 

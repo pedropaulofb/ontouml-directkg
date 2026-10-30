@@ -44,10 +44,9 @@ Legend: **E** = exists at the inspected revision; **P** = planned location, crea
 ├── .gitignore                                      [E]
 ├── dkgm-vocabulary-v1.0.0.ttl                        [E]
 ├── documentation/                                  [E]
-│   ├── specification/                              [E; existing sources stay here]
-│   │   └── 2026-10-05 - specification handoff.md     [E]
-│   └── testing/                                    [P]
-│       └── ontouml-directkg-test-suite-structure.md [P; approved copy of this attachment]
+│   └── specification/                              [E; existing sources stay here]
+│       ├── 2026-10-05 - specification handoff.md     [E]
+│       └── test-suite-structure.md                  [P; approved copy of this attachment]
 ├── pytest.ini                                      [C; §7]
 └── tests/                                          [P]
     ├── __init__.py                                 [P; test-support import namespace]
@@ -173,7 +172,7 @@ Shared data means checked-in input/expectation files under `fixtures/`; shared p
 
 ## 7. Test documentation and configuration
 
-After approval, the repository copy of this document belongs at `documentation/testing/ontouml-directkg-test-suite-structure.md`. Maintain a single canonical copy there.
+After approval, the repository copy of this document belongs at `documentation/specification/test-suite-structure.md`. Maintain a single canonical copy there.
 
 `tests/README.md` contains concise operating notes: the active behavioral baseline and inventory links, how to run the currently implemented suite, the actual invocation binding, any test configuration location, and justified structural exceptions. It must not duplicate transformation requirements or become a second coverage inventory.
 

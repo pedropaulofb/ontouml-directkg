@@ -46,6 +46,6 @@ State that the next Architect session must pair this handoff with the specificat
 
 ## Output and check
 
-Create the actual downloadable file `ontouml-directkg-open-design-issues.md` if file creation is available; otherwise provide the complete Markdown in a clearly delimited copyable block. Do not claim a file exists unless it was created.
+Create the actual downloadable file `open-design-issues.md` if file creation is available; otherwise provide the complete Markdown in a clearly delimited copyable block. Do not claim a file exists unless it was created.
 
 Before delivery, verify that all known remaining issues and dependencies are preserved, resolved questions are removed or narrowed, alternatives remain non-normative, minimal accepted-rule references are accurate, and no unavailable information was invented. Provide the file/link or full text with a brief reconciliation status and any separate transfer/access limitations, then stop.

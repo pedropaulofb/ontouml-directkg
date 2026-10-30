@@ -13,7 +13,7 @@ For an EDIT, implement the minimum required changes, **commit and publish them d
 I will provide:
 
 1. **[ATTACH CURRENT CONSOLIDATED DIRECTKG TRANSFORMATION SPECIFICATION]** — the accepted normative starting point for behavior, limitations, and documentation obligations.
-2. **[ATTACH APPROVED DOCUMENTATION STRUCTURE SPECIFICATION]** — `ontouml-directkg-documentation-structure.md` (the approved output, not its design prompt), governing page inventory, paths, navigation, content responsibilities, and conventions.
+2. **[ATTACH APPROVED DOCUMENTATION STRUCTURE SPECIFICATION]** — `documentation-structure.md` (the approved output, not its design prompt), governing page inventory, paths, navigation, content responsibilities, and conventions.
 3. **[PROVIDE GITHUB ACCESS WITH DIRECT WRITE/PUSH PERMISSION TO `main`]** — the repository above.
 
 Read **both specifications completely**; inspect the repository on remote `main` at an identified revision, including existing pages and relevant source code. Check whether the baseline documentation foundation exists. Do **not** bootstrap a missing website under this incremental prompt; identify the specific blocker instead.
