@@ -637,6 +637,8 @@ def test_file_source_preserves_exact_consumed_bytes_and_programmatic_graphs(invo
 
     Equivalent parsed JSON has different whitespace, escaping and byte digests.
     A later change to the file must not replace the bytes actually consumed.
+    Provenance content is checked independently of whether a programmatic
+    graph view is exposed alongside the ontology.
     """
     document = source_json('shared/base_iri')
     source_element(document, 'C17')['name'] = 'Málaga'
@@ -657,10 +659,12 @@ def test_file_source_preserves_exact_consumed_bytes_and_programmatic_graphs(invo
         assert not any(event.severity == 'ERROR' for event in result.diagnostics)
         path.write_bytes(payload + b' \n')  # change after completed conversion, before reading provenance
         if mode == 'none':
-            assert result.provenance is None
-            assert not list(result.ontology.subjects(RDF.type, PROV.Activity))
-            assert not list(result.ontology.triples((None, PROV.used, None)))
-            assert not invoke.read_source_artifacts(result.ontology)
+            for graph in (result.ontology, result.provenance):
+                if graph is not None:
+                    assert isinstance(graph, Graph)
+                    assert not list(graph.subjects(RDF.type, PROV.Activity))
+                    assert not list(graph.triples((None, PROV.used, None)))
+                    assert not invoke.read_source_artifacts(graph)
         else:
             graph = result.ontology if mode == 'embedded' else result.provenance
             assert isinstance(graph, Graph)
@@ -670,9 +674,7 @@ def test_file_source_preserves_exact_consumed_bytes_and_programmatic_graphs(invo
                 assert (artifact, RDF.type, PROV.Entity) in graph
                 assert any((activity, RDF.type, PROV.Activity) in graph for activity in graph.subjects(PROV.used, artifact))
                 _checksum(graph, artifact, payload)
-            if mode == 'embedded':
-                assert result.provenance is None
-            else:
+            if mode == 'sidecar':
                 assert not list(result.ontology.subjects(RDF.type, PROV.Activity))
         assert not list(tmp_path.glob('*.provenance.ttl'))  # programmatic output stays available without automatic delivery
 

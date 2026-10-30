@@ -807,3 +807,21 @@ Publication resumed after interruption: refreshed remote main
 files. Production, governing specifications, tests, fixtures, vocabulary and
 configuration are unchanged, so the recorded validation remains applicable.
 All intervening changes are preserved in the publication parent.
+
+
+## RD-05 file-only input — F1 correction
+
+The prior submission `f65be303753fca64e2f3cd2dd407471d65434540` received NOT OK
+for two assertions imposing `provenance is None`. The corrected none-mode checks
+audit actual provenance content while allowing an empty programmatic graph;
+embedded mode permits an additional graph view while still checking the required
+provenance and source checksum in the ontology itself. Exact consumed-byte and
+no-automatic-sidecar checks remain. The four affected inventory rows are updated.
+No node, fixture or invocation binding changes. This same decision is submitted
+for independent re-review; no approval is claimed.
+
+Correction validation: the 31 file-only cases and 324 accepted regressions pass;
+collection remains 2711 with exact inventory reconciliation. Four permitted
+programmatic-view controls now pass. Four provenance-content violations and all
+six canonicalized-digest substitutions remain rejected. All 17 Python files parse.
+The unchanged broader binding-limit selection and full suite were not rerun.
