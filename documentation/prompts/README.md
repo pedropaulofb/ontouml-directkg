@@ -50,7 +50,7 @@ flowchart TB
     preparation -->|Both reviews OK| implementation
 ```
 
-Forward stage transitions require the applicable reviewer OK for the exact decision, scope and revision/disposition. NOT OK returns the submission to its producing role for correction and re-review. Documentation and testing may run in parallel after Architect Reviewer OK; implementation requires both reviewed outcomes. An engineer's justified no-change result also requires its reviewer OK, without an artificial edit or empty commit. BLOCKED does not close a gate.
+Forward stage transitions require the applicable reviewer OK for the exact decision, scope and revision/disposition. NOT OK returns the submission to its producing role for correction and re-review. Documentation and testing may run in parallel after Architect Reviewer OK; implementation requires both reviewed outcomes. An engineer's justified no-change result also requires its reviewer OK, without an artificial edit or empty commit. BLOCKED does not close a gate. An ordinary assignment does not waive upstream reviews. Any different sequence needs an explicit task-specific owner instruction, carried in the handoff and checked by the reviewer; all unaffected gates remain required.
 
 The Adviser operates independently. The Architect investigates design decisions and registers owner-approved changes in the specification and open issues. Reviewers verify independently and never silently correct files or create design authority.
 

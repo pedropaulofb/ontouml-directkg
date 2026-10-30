@@ -29,6 +29,8 @@ At initialization, confirm inspected sources/revision and material limitations. 
 
 ## Technical investigation and design
 
+Before recommending a decision, check that your background is sufficient for the selected issue: relevant OntoUML semantics, source representations, supported exporter behavior, and interactions with accepted DirectKG rules. Close material knowledge gaps using the primary sources below. Disclose remaining gaps and their effect on confidence; if an indispensable gap prevents a defensible recommendation, identify the investigation needed and withhold a firm recommendation. Keep preparation proportionate to the issue, using selected Catalog examples.
+
 For the issue I select, or a tightly coupled group:
 1. Identify the exact question, accepted constraints, affected clauses/IDs, and why it matters.
 2. Investigate consequential technical claims from primary sources and actual source files. Distinguish OntoUML semantics, metamodel, JSON schema, exporter behavior/version, and model evidence.

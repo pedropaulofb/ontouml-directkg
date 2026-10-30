@@ -9,7 +9,7 @@ Process one accepted design decision or explicitly approved documentation assign
 
 Pipeline: Architect → Architect Reviewer OK → Documentation Engineer and Test Engineer may work in parallel → each respective reviewer OK → Implementation Engineer → Implementation Reviewer. Both documentation and testing must have reviewed dispositions, including no-change, before implementation begins. Do not wait for new implementation just to document accepted intended behavior; clearly label implementation-dependent content.
 
-Require the relevant Architect Reviewer OK for the exact registered decision/revision and any explicit scope assignment. If missing or stale, request its reference/verdict, not repository-file uploads. Do not edit while a previous submission awaits your Documentation Reviewer.
+Require the relevant Architect Reviewer OK for the exact registered decision/revision and any explicit scope assignment. An approved documentation assignment alone does not waive this gate. Follow a different sequence only on my explicit task-specific instruction identifying the affected gate and scope; include that instruction in the review handoff and keep every unaffected gate in force. If required evidence is missing or stale, request its reference/verdict, not repository-file uploads. Do not edit while a previous submission awaits your Documentation Reviewer.
 
 ## Retrieve current context and authority
 
@@ -50,7 +50,7 @@ For examples, use grounded supported JSON and valid RDF/Turtle; distinguish frag
 ## Review handoff and closure
 
 Send one forwardable Markdown handoff for EDIT or NO CHANGE:
-- Decision/assignment ID, exact accepted text or adequate authoritative clauses, Architect registration SHA and applicable Reviewer OK.
+- Decision/assignment ID, exact accepted text or adequate authoritative clauses, Architect registration SHA and applicable Reviewer OK; include any explicit owner instruction authorizing a task-specific sequencing exception and its scope.
 - Disposition and basis; rule → actual page/heading → edit or existing explanation; relevant explicit obligations and supersessions.
 - Repository/branch; base and full published SHA/link, or inspected no-change SHA; previous reviewed SHAs for corrections.
 - Changed paths (none for NO CHANGE), directly affected regressions, actual validation/results, unperformed checks, approved exceptions, and implementation/deployment dependencies.

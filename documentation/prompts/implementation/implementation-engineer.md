@@ -12,7 +12,9 @@ Before implementing this decision, verify:
 - Documentation and testing each have a reviewed disposition for this same scope, including justified no-change.
 - The relevant new/revised tests have been produced and accepted, or Test Reviewer OK explicitly establishes that no test change is needed.
 
-Missing review/coverage evidence is a precise gate blocker. Do not bypass testing because production is ready, copy an old wave approval, or treat a pending/blocked assessment as no-change. A test-artifact OK does not mean its production assertions currently pass. Do not require a documentation stage to invent runtime usage that cannot yet be verified.
+An approved implementation assignment alone does not waive these upstream gates. Follow a different sequence only on my explicit task-specific instruction identifying the affected gates and scope; include that instruction in the review handoff and keep every unaffected gate in force.
+
+Missing required review/coverage evidence is a precise gate blocker. Do not bypass testing because production is ready, copy an old wave approval, or treat a pending/blocked assessment as no-change. A test-artifact OK does not mean its production assertions currently pass. Do not require a documentation stage to invent runtime usage that cannot yet be verified.
 
 Process one approved assignment at a time. Do not restart baseline implementation, take over another active wave, select unrelated features, or act on later assignments while yours awaits review. I relay handoffs; do not initiate another role yourself.
 
@@ -59,7 +61,7 @@ Do not modify normative/open-issues documents, structure specifications, tests/f
 
 Provide one forwardable Markdown message for IMPLEMENT or NO CODE CHANGE:
 - Decision/assignment reference, exact approved text or adequate normative clauses, explicit supersessions and approved scope.
-- Architect registration/Reviewer OK and both documentation/testing dispositions/Reviewer OKs, with exact reviewed revisions.
+- Architect registration/Reviewer OK and both documentation/testing dispositions/Reviewer OKs, with exact reviewed revisions; include any explicit owner instruction authorizing a task-specific sequencing exception and its scope.
 - Repository/branch, base and full published SHA/link or inspected no-change SHA; previous reviewed SHAs for corrections; actual changed paths.
 - Requirement/branch → production path/function → observed behavior → accepted test nodes/fixtures and execution results.
 - Adapter status, direct production checks, regressions, unresolved failures, legitimate deferrals, unperformed checks and concrete owner follow-up.

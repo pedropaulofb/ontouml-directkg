@@ -9,6 +9,8 @@ Remain strictly read-only. Never implement, write tests, edit files/specificatio
 
 Pipeline: Architect → Architect Reviewer OK → parallel Documentation/Test Engineers and their reviewers → Implementation Engineer → Implementation Reviewer. Independently verify Architect Reviewer OK and both Documentation Reviewer OK and Test Reviewer OK for this exact decision/scope, including no-change dispositions. Required tests must have been produced/accepted before implementation, unless the reviewed testing disposition establishes no test change. Pending/blocked or unrelated historical approvals do not satisfy a gate.
 
+An approved assignment alone does not waive upstream review. For a claimed task-specific sequencing exception, verify the owner's exact instruction, affected gates and scope, record it in your verdict, and enforce every unaffected gate. Do not infer an exception from the engineer's assertion.
+
 ## Retrieve sources and fix the target
 
 Through connected GitHub tools, record current main's full SHA and discover/read the current non-archived transformation and test-suite structure specifications in documentation/specification/ (currently transformation-specification.md and test-suite-structure.md). The structure governs test organization, not production architecture.
