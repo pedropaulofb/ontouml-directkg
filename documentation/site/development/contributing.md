@@ -14,17 +14,19 @@ Use the current accepted sources before changing a documented behavior:
 
 | Source | Responsibility |
 | --- | --- |
-| [Current consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md) | Product behavior, supported inputs, limitations, controls, and documentation requirements. Consolidated **2026-10-21**; consulted commit `9e52a66af43e39b374d0a642298b1117d12be4d8`; source path `documentation/specification/2026-10-21 - specification handoff.md`. |
-| [Approved documentation structure v2.0](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/ontouml-directkg-documentation-structure.md) | Public page inventory, paths, navigation, content ownership, and writing/maintenance conventions. |
-| [Test Suite Structure and Location Specification v2](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20test%20suite%20structure.md) | Separate test-organization document. Its header states “Recommended structure; applicable when approved for the Test Engineer.” Current [test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/tests/README.md) record its use and test-review status. It does not define product mappings or production architecture. |
+| [Current consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/specification/transformation-specification.md) | Authoritative product behavior, supported inputs, limitations, controls and documentation requirements. Retrieve the current accepted revision from GitHub; individual pages retain their own consulted-baseline evidence. |
+| [Approved documentation structure v2.0](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/specification/documentation-structure.md) | Public page inventory, paths, navigation, content ownership and writing/maintenance conventions. |
+| [Test Suite Structure and Location Specification v2](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/specification/test-suite-structure.md) | Test organization and ownership, used with the [current test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/README.md). It does not determine product mappings or production architecture. |
 
 Archived specifications, unresolved-decision records, prompts, and observed implementation behavior do not silently amend the accepted baseline. Bring a material conflict to the project owner with the exact passages and revision. Keep accepted intended behavior, verified functionality, and pending implementation-dependent guidance distinct.
 
 ## AI-assisted development and prompts
 
-For human and AI responsibilities, see [Authorship and independence](../index.md#authorship-and-independence). Published workflow instructions are available in [`documentation/prompts/`](https://github.com/pedropaulofb/ontouml-directkg/tree/1dcdc76137a617a737e30aef7899e7ed769e2538/documentation/prompts).
+For human and AI responsibilities, see [Authorship and independence](../index.md#authorship-and-independence). The [current agent workflow and prompt index](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/prompts/README.md) links to the active role-specific instructions.
 
-These files contain role instructions, not a complete history of development prompts or conversations. They do not identify which prompt revision produced each artifact.
+The Architect investigates owner-approved design and registers the specification and open issues in GitHub, preserving each replaced document in its archive. Architect Reviewer OK releases documentation and testing to run in parallel. Each engineer submits edits or a justified no-change result to its own reviewer. Implementation follows both reviewed outcomes and uses the accepted tests; its independent reviewer closes that stage. The Adviser is independent. Repository files are retrieved directly from GitHub; handoffs communicate decisions, scope, revisions and review evidence.
+
+These files contain role instructions, not a complete development history or attribution of each artifact to a prompt revision. Superseded instructions remain in each role directory's archive/; they do not govern current work. Published commits alone do not establish reviewer acceptance.
 
 ## Documentation maintenance
 
@@ -73,7 +75,7 @@ python -m pytest --rootdir=. --collect-only -q tests
 python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper'
 ```
 
-They check available test scaffolding and fixture integrity; they do not certify transformation behavior. Conversion-facing tests use an unbound adapter and cannot exercise a production converter yet. A full-suite pass is not claimed. Follow the [current test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/tests/README.md) and [coverage inventory](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/tests/coverage.md) for actual case ownership, pairings, review status, and pending bindings.
+They check available test scaffolding and fixture integrity; they do not certify transformation behavior. Conversion-facing tests use an unbound adapter and cannot exercise a production converter yet. A full-suite pass is not claimed. Follow the [current test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/README.md) and [coverage inventory](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/coverage.md) for actual case ownership, pairings, review status, and pending bindings.
 
 The publisher also runs the vocabulary unit checks:
 

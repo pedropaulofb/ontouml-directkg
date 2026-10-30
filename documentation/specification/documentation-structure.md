@@ -8,6 +8,8 @@
 **Inspected commit:** `7870042a02e094dca772d6fdd6570ad7b2d02578`.  
 **Normative baseline:** `documentation/specification/2026-10-21 - specification handoff.md`, titled *OntoUML DirectKG Current Specification*, **Status: Consolidated normative baseline**, **Consolidated: 2026-10-21**. No numbered specification revision or DirectKG release version is asserted by that header.
 
+**Workflow maintenance — 2026-10-30:** Current role references follow the [agent workflow](../prompts/README.md). The evidence inventory and commit-pinned sources below retain their historical inspection context; discover the latest accepted specification directly from GitHub for new work. This maintenance changes workflow references only, not page responsibilities or transformation behavior.
+
 ## 1. Purpose, authority, and scope
 
 This document governs the organization, repository locations, page responsibilities, navigation, content traceability, and maintenance conventions of DirectKG documentation. It supplies a page-level plan for subsequent documentation work. It does not create the pages or establish a working documentation website.
@@ -16,12 +18,12 @@ Four kinds of material have separate authority:
 
 | Material | Authority and responsibility |
 | --- | --- |
-| Current normative DirectKG specification | Defines transformation behavior, accepted controls, defaults, diagnostics, and product boundaries. The Documenter owns its consolidation and maintenance. Its §1 identifies §§2–16 as accepted scope and behavior. |
+| Current normative DirectKG specification | Defines transformation behavior, accepted controls, defaults, diagnostics, and product boundaries. The Architect owns its consolidation and registration, subject to independent Architect Reviewer validation. Its §1 identifies §§2–16 as accepted scope and behavior. |
 | This structure specification | Defines where and how that behavior is documented. Its organizational choices take effect when approved. It cannot amend transformation semantics, select unspecified APIs, or resolve a pending product decision. |
 | Public user and developer documentation | Explains the accepted behavior and, where verified, its implemented use. It is derived guidance and reference material, not a second transformation specification. |
 | Historical handoffs, open-design-issues notes, and workflow prompts | Preserve history or govern their respective workflows. Their proposals and alternatives do not establish accepted transformation requirements. |
 
-An accepted Architect decision becomes the basis for routine public-documentation updates after the Documenter integrates it into the current normative specification. If a decision and the consolidated baseline disagree or necessary accepted wording is unavailable, identify the affected passages and obtain the current consolidated text or an explicit project resolution. Do not reconstruct the missing rule or edit the normative baseline as part of documentation authoring. [N1] §1; [P1]; [P2]
+An owner-approved decision becomes eligible for documentation/testing assessment after the Architect registers it in the current specification and/or open issues and the Architect Reviewer returns OK. Documentation and testing may proceed in parallel; implementation follows both reviewers' accepted dispositions, including no-change. Retrieve authoritative repository files directly from GitHub. If the decision and registered baseline conflict, identify exact passages and obtain an explicit resolution through the Architect; documentation authors must not reconstruct or edit the normative baseline. [N1] §1; [W1]; [W2]
 
 This document excludes documentation-page drafting, website configuration or deployment, source-code implementation, package design, test-suite design, and changes to Documentation Engineer or Reviewer prompts. It establishes no implementation waves, release schedule, or new software functionality.
 
@@ -29,7 +31,7 @@ This document excludes documentation-page drafting, website configuration or dep
 
 ### 2.1 Repository findings
 
-The complete recursive tree at the inspected commit was available and was not truncated. GitHub identified `main` as the default branch. The commit is dated 21 October 2026 and adds the October 21 handoffs while archiving earlier ones. Authority is established by the specification's own status and §1, supported by the Documenter workflow; the filename and commit date alone are insufficient. [R1]; [N1]; [P1]; [P2]
+The complete recursive tree at the inspected commit was available and was not truncated. GitHub identified `main` as the default branch. The commit is dated 21 October 2026 and adds the October 21 handoffs while archiving earlier ones. Authority is established by the specification's own status and §1, supported at that historical revision by the then-active specification-maintenance workflow; the filename and commit date alone are insufficient. [R1]; [N1]; [P1]; [P2]
 
 | Observed material | Finding and consequence |
 | --- | --- |
@@ -37,7 +39,7 @@ The complete recursive tree at the inspected commit was available and was not tr
 | `documentation/specification/2026-10-21 - remaining decisions handoff.md` | Identifies itself as non-normative and incompletely reconciled. It is not a source of additional accepted requirements and cannot override the consolidated baseline. |
 | `documentation/specification/2026-10-21 - test suite structure.md` | Separate proposed test-organization specification, conditional on approval. It records an earlier inspection commit. Its historical paths and observations are not current-repository facts. |
 | `documentation/specification/archive/` | Earlier specification and remaining-decisions handoffs. Retain as history. |
-| `documentation/specification/prompts/` | Adviser, Architect, Documenter, and test-workflow prompts. Retain their workflow role and existing locations. |
+| `documentation/specification/prompts/` | Historical prompt location at this inspected revision. Current role-specific prompts are in `documentation/prompts/`; retired workflow instructions remain only as history. |
 | `dkgm-vocabulary-v0.1.0.ttl` | Historical baseline artifact; its concrete URI did not settle the then-unselected normative import target. The 2026-10-24 decision now fixes the identity under DK-GEN-04 and corrects the current versioned artifact in place. See §11. |
 | `logos/`; `LICENSE`; `.gitignore` | Existing branding, repository license, and ignore rules. The ignore rules already cover root `/site`; template comments about documentation tools do not establish an implemented toolchain. |
 
@@ -165,7 +167,7 @@ site/                                                      [G: eventual rendered
 | `zensical.toml` | Own site identity, source/output roots, explicit navigation, approved rendering settings, and mkdocstrings connection to real Python source. No parallel independent `mkdocs.yml` or distributed navigation files are needed. |
 | `.github/workflows/docs.yml` | Own the eventual automated documentation build/publication connection to GitHub Pages. Workflow internals, triggers, permissions, and versions are for a later implementation task. |
 | `documentation/specification/documentation-structure.md` | Stable repository destination for the approved structural plan and its obligation/location traceability. Saving the deliverable elsewhere for review does not create this repository path. |
-| Existing handoffs, archives, and workflow prompts | Retain handoffs and `archive/` in `documentation/specification/`. Workflow prompts now reside in `documentation/prompts/`, outside the public documentation build. The repository inventory and tree in §§2.1 and 5.1 describe the historical inspected revision. |
+| Existing handoffs, archives, and workflow prompts | Retain handoffs and `archive/` in `documentation/specification/`. Active workflow prompts reside in the adviser, architect, documentation, test, and implementation directories under `documentation/prompts/`, each with its own archive, outside the public documentation build. The repository inventory and tree in §§2.1 and 5.1 describe the historical inspected revision. |
 | Existing vocabulary and `branding/` | Retain canonical repository artifacts. Public pages can link to the vocabulary as repository evidence; website prose does not edit it or finalize its persistent identity. Reuse branding; any image copy needed under public assets is derived from the existing original. |
 | Root `site/` | Rendered HTML, generated API output, and copied publication assets. Keep outside the source root and out of committed documentation sources. Existing `/site` ignore coverage supports this placement. |
 
@@ -336,7 +338,7 @@ Do not put unresolved object directives or nonexistent page paths into an active
 
 ## 10. Incremental maintenance
 
-1. **Establish the current accepted baseline.** Use the Documenter-maintained consolidated source, checking its header, authority, and accessible accepted revision. Use a newer explicitly supplied baseline when applicable. Historical open-issue notes and memory do not fill missing normative wording.
+1. **Establish the current accepted baseline.** Retrieve the Architect-maintained consolidated source from GitHub, checking its header, authority, registered revision and applicable Architect Reviewer OK. Historical open-issue notes and memory do not fill missing normative wording.
 2. **Locate the content owner.** Use §§6–7 to select the existing primary page. Update that explanation and link to it from guides, conceptual summaries, and related mappings. Add a page only for a distinct reader task or coherent reference subject that no longer fits its owner.
 3. **Propagate the accepted change.** Update affected examples, control/default tables, diagnostic explanations, API docstrings where separately authorized, cross-references, and the obligation map. Preserve qualifications, defaults, exceptions, and requirement strength. Do not describe an accepted behavior as implemented until verified.
 4. **Preserve navigation and paths.** Keep existing public paths stable. Amend the tree, inventory, and navigation together when organization changes. Avoid renaming a page merely because a rule gains a new ID or a baseline gets a new date. Preserve old anchors or provide a verified redirect when a published target must move.
@@ -353,7 +355,7 @@ Use the existing public content owners as the maintenance index; a separate work
 
 Routine wording changes, source-note refreshes, additional examples, and new subsections within a page's assigned responsibility need no separate structural approval. A justified page addition/split within an existing group can be proposed with its inventory/navigation/traceability amendment and a clear content owner.
 
-Obtain an explicit project-owner structural decision before changing the public source root, replacing the configuration/navigation ownership convention, reorganizing top-level navigation groups, moving published paths without a preservation plan, or abandoning an obligation's destination. Explain the concrete need and the effect on links, duplication, and maintenance. Changes to accepted framework, hosting, API-generation technology, or transformation semantics require the relevant accepted project decision and Documenter integration; approval of a layout exception alone cannot authorize them.
+Obtain an explicit project-owner structural decision before changing the public source root, replacing the configuration/navigation ownership convention, reorganizing top-level navigation groups, moving published paths without a preservation plan, or abandoning an obligation's destination. Explain the concrete need and the effect on links, duplication, and maintenance. Changes to accepted framework, hosting, API-generation technology, or transformation semantics require the relevant owner-approved decision, Architect registration and Architect Reviewer OK; approval of a layout exception alone cannot authorize them.
 
 ### 11.2 Specific unresolved or implementation-dependent matters
 
@@ -390,8 +392,10 @@ Repository sources below are pinned to `7870042a02e094dca772d6fdd6570ad7b2d02578
 - **[R1]** [Complete inspected repository tree](https://github.com/pedropaulofb/ontouml-directkg/tree/7870042a02e094dca772d6fdd6570ad7b2d02578), retrieved through GitHub's recursive Git-tree API with `truncated: false`.
 - **[R2]** [Repository metadata](https://api.github.com/repos/pedropaulofb/ontouml-directkg), inspected 21 October 2026; default branch, homepage, and Pages state are time-specific metadata rather than immutable commit content.
 - **[N1]** [Current normative specification](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20specification%20handoff.md), especially §§1–3, rule sections 5–14, §15, and §16.
-- **[P1]** [Documenter initialization/operation](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/prompts/documenter-01-initialize-and-operate.md), source authority and integration responsibilities.
-- **[P2]** [Documenter consolidation handoff](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/prompts/documenter-99-session-consolidated-specification.md), consolidated-baseline and incomplete-consolidation conventions.
+- **[W1]** [Current Architect registration workflow](../prompts/architect/architect.md).
+- **[W2]** [Current independent Architect Reviewer](../prompts/architect/architect-reviewer.md).
+- **[P1]** [Historical retired Documenter initialization/operation](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/prompts/documenter-01-initialize-and-operate.md), source authority and integration responsibilities.
+- **[P2]** [Historical retired Documenter consolidation handoff](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/prompts/documenter-99-session-consolidated-specification.md), consolidated-baseline and incomplete-consolidation conventions.
 - **[H1]** [Remaining-decisions handoff](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20remaining%20decisions%20handoff.md), opening authority/incomplete-reconciliation statement only; not accepted-requirement authority.
 - **[H2]** [Test-suite structure proposal](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20test%20suite%20structure.md), separate structural scope, status, and earlier inspection baseline.
 - **[V1]** [Existing DKGM vocabulary artifact](https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/dkgm-vocabulary-v0.1.0.ttl), historical pre-migration artifact identity/namespace; does not supersede [N1] or the 2026-10-24 identity correction.
@@ -403,6 +407,8 @@ Repository sources below are pinned to `7870042a02e094dca772d6fdd6570ad7b2d02578
 [R1]: https://github.com/pedropaulofb/ontouml-directkg/tree/7870042a02e094dca772d6fdd6570ad7b2d02578
 [R2]: https://api.github.com/repos/pedropaulofb/ontouml-directkg
 [N1]: https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20specification%20handoff.md
+[W1]: ../prompts/architect/architect.md
+[W2]: ../prompts/architect/architect-reviewer.md
 [P1]: https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/prompts/documenter-01-initialize-and-operate.md
 [P2]: https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/prompts/documenter-99-session-consolidated-specification.md
 [H1]: https://github.com/pedropaulofb/ontouml-directkg/blob/7870042a02e094dca772d6fdd6570ad7b2d02578/documentation/specification/2026-10-21%20-%20remaining%20decisions%20handoff.md
