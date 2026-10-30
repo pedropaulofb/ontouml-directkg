@@ -1,6 +1,6 @@
 # Controls
 
-This is the canonical catalog of **specified controls and defaults**. No production CLI or public conversion API exists at the reviewed repository revision. Option spellings below establish the intended contract; they are not runnable invocation instructions.
+This is the canonical catalog of **specified controls and defaults**. The [inspected source](#interface-parity) declares CLI and public Python conversion interfaces. Runtime behavior has not been verified for this documentation update; the catalog states the accepted contract.
 
 ## Established controls
 
@@ -34,7 +34,7 @@ RD-05 requires an optional Python equivalent of `--ontology-version-iri`; its pa
 
 Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same report schema/content contract as the CLI. Python conversion does not automatically write that file. Exact report member names and runtime diagnostic codes remain unspecified.
 
-Python must also expose semantically equivalent metadata/provenance controls with the same provenance default, and make separate provenance available as a graph with explicit file serialization. Source-derived API signatures remain pending real public source and mkdocstrings generation.
+Python must also expose semantically equivalent metadata/provenance controls with the same provenance default, and make separate provenance available as a graph with explicit file serialization. Source-generated API reference content has not been verified for this documentation update.
 
 ## Control boundaries
 

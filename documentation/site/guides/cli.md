@@ -1,16 +1,16 @@
 # CLI guide
 
-This guide explains the **specified command-line contract**. At the consulted revision, no production executable, installation mechanism, or conversion entry point exists. The option spellings and exit codes below are accepted requirements, not evidence of a runnable CLI.
+This guide explains the **specified command-line contract**. The [inspected source](../reference/controls.md#interface-parity) declares a CLI entry point and parser. Runtime behavior has not been verified for this documentation update.
 
 ## Invocation
 
 Every CLI transformation requires a concrete [OntoUML JSON input file](../reference/input.md#source-file-input) identified by a file path, including when provenance is `none`.
 
-Executable names, exact argument syntax, output invocation mechanics, and a default output destination remain unavailable or unspecified at the consulted revision. No complete command is offered as working usage. The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults; it does not establish an executable.
+The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults. This guide does not present a complete command as verified working usage.
 
 The accepted `--ontology-version-iri IRI` option supplies an [optional ontology-header version identifier](../reference/output.md#optional-ontology-version-iri), while retaining the base-derived ontology IRI. The [inspected CLI parser](../reference/controls.md#interface-parity) declares this option.
 
-For an eventual verified invocation, prepare an export satisfying the [input contract](../reference/input.md), select effective controls from that catalog, and interpret the result using the separate transformation and delivery contracts below. Do not infer additional format, prefix, sorting, qualified-cardinality, or independent ontology-IRI switches.
+For an invocation, prepare an export satisfying the [input contract](../reference/input.md), select effective controls from that catalog, and interpret the result using the separate transformation and delivery contracts below. Do not infer additional format, prefix, sorting, qualified-cardinality, or independent ontology-IRI switches.
 
 Invalid invocation, such as an unknown option or invalid value, is rejected **before conversion** with code `2` and no transformation outcome. A rejected supplied base or ontology version IRI likewise returns `2`, independently of input policy: no conversion starts and no ontology, outcome, or conversion-diagnostics report is produced, even if a diagnostics-file path was supplied. The [base-IRI reference](../reference/identifiers.md#base-and-ontology-iris) owns base validation and delimiter rules; the [version-IRI reference](../reference/output.md#optional-ontology-version-iri) owns its separate validation boundary.
 
