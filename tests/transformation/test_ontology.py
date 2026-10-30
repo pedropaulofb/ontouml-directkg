@@ -1007,4 +1007,3 @@ def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, sourc
         assert isinstance(yaml.safe_load(str(observed.configuration_literal)), dict)
         assert observed.configuration_controls is not None
         assert observed.configuration_controls.get('ontology_version_iri') == version
-
