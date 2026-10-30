@@ -2,7 +2,7 @@
 
 ## Purpose, sources, and reconciliation boundary
 
-This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Documenter-maintained specification. It is not a specification and must not be supplied as required input to the Documenter.
+This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -169,4 +169,4 @@ These are research pointers retained from the inspected prior state and session;
 - OWL 2 structural specification, Second Edition, especially property simplicity and global restrictions (§§11.1–11.2): https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/
 - Standard provenance/metadata references, if a remaining question requires them: https://www.w3.org/TR/prov-o/ ; https://www.dublincore.org/specifications/dublin-core/dcmi-terms/ ; https://spdx.org/rdf/terms/
 
-The next Architect session must pair this handoff with the Documenter-maintained specification consolidated after the accepted transfers. Integration status is reported separately from this open-issues document. If integration reveals a substantive conflict, its unresolved clarification belongs back in the Architect workflow for a user decision; do not select a resolution during documentation or handoff preparation.
+At continuation, the Architect retrieves this record and the current consolidated specification directly from GitHub. Registration and independent review status are reported separately from unresolved design state. A substantive integration conflict needs an explicit owner decision in the Architect workflow; it must not be silently resolved during record maintenance or independent review.

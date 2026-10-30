@@ -8,9 +8,9 @@
 
 ## 1. Purpose, scope, authority, and applicability
 
-This document governs the locations, naming, shared support boundaries, and traceability records of the future executable DirectKG test suite. It is an additional attachment to the Test Engineer baseline-generation prompt, Prompt 07. It does not replace or amend Prompt 07, Prompt 08, or Prompt 09, or determine which work belongs in an approved implementation wave.
+This document governs the locations, naming, shared support boundaries, and traceability records of the future executable DirectKG test suite. The Test Engineer and Test Reviewer retrieve this document directly from GitHub; their active instructions are in `documentation/prompts/test/`. It governs placement rather than the scope of an approved assignment. The [agent workflow](../prompts/README.md) requires Architect Reviewer OK before parallel documentation/testing assessment and both respective reviewer OKs before implementation; reviewed no-change results also close their own gates.
 
-The current normative DirectKG specification remains authoritative for transformation behavior and acceptance criteria. At the inspected revision, that source is `documentation/specification/2026-10-05 - specification handoff.md`, titled *OntoUML DirectKG Current Specification*, with **Consolidated: 2026-10-04** in its header. The filename date and consolidation date are distinct. A later authoritative baseline or explicitly accepted decision supplied to the Test Engineer may update behavioral requirements without changing this layout.
+The current normative DirectKG specification remains authoritative for transformation behavior and acceptance criteria. At the inspected revision, that source is `documentation/specification/2026-10-05 - specification handoff.md`, titled *OntoUML DirectKG Current Specification*, with **Consolidated: 2026-10-04** in its header. The filename date and consolidation date are distinct. For new work, retrieve the current registered specification and applicable reviewed decision directly from GitHub; the dated source and repository inventory describe the historical inspection, not permanent current-source paths. Behavioral updates do not themselves change this layout.
 
 Structural requirements in this document apply only to test organization. They establish no individual cases, assertion inventory, transformation mappings, diagnostic requirements, coverage quota, CI workflow, or production architecture. A folder, filename, inventory entry, or illustrative example is not evidence of required DirectKG behavior and must not resolve an open design issue.
 
@@ -192,9 +192,9 @@ The existing root vocabulary stays at its current location. If approved work use
 
 ## 9. Applying the structure across waves
 
-Each approved Prompt 07 baseline wave and later incremental decision uses the same suite root, topical ownership table, data naming, support boundary, and inventory. Extend existing topical modules or bundles where the new work belongs. Create only the additional files needed for that approved work.
+Each approved baseline assignment and later incremental decision uses the same suite root, topical ownership table, data naming, support boundary, and inventory. Extend existing topical modules or bundles where the new work belongs. Create only the additional files needed for that approved work.
 
-Record wave and decision provenance in `tests/coverage.md`, not in directory names or duplicate copies. Do not create `wave_1/`, separate baseline/incremental suites, temporary parallel layouts, or replacement suites for Prompt 08 or Prompt 09. Workflow prompts retain their own authority over execution and approval; this attachment governs placement only.
+Record wave and decision provenance in `tests/coverage.md`, not in directory names or duplicate copies. Do not create `wave_1/`, separate baseline/incremental suites, temporary parallel layouts, or replacement suites for review/correction rounds. Active role prompts govern execution and review; this structure document governs placement only.
 
 When a test or fixture is superseded, revise or remove it in its canonical location as authorized and update the inventory. Preserve meaningful existing case and parameter IDs where possible. Any necessary move must update imports, data references, and inventory links in the same change.
 

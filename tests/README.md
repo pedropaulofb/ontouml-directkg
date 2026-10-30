@@ -29,6 +29,10 @@ Organization: [`documentation/specification/2026-10-21 - test suite structure.md
 The single requirement-to-test inventory, source evidence, exact data pairings,
 and remaining scope are in [`coverage.md`](coverage.md).
 
+## Current agent workflow
+
+The [active role prompts](../documentation/prompts/README.md) govern new assignments: Architect registration and Architect Reviewer OK, parallel documentation/testing assessments and their reviewer OKs, then implementation informed by accepted tests and its independent review. No-change assessments also require review. Retrieve current authoritative files from [documentation/specification/](../documentation/specification/) directly; historical baseline links, supplied-source references and execution records below describe their original reviewed work rather than a requirement to upload files today. Test-artifact acceptance does not certify passing production execution.
+
 ## Run from the repository root
 
 Use an isolated Python environment if desired. The observed environment is
@@ -615,7 +619,7 @@ typing regressions gave 77 passes and 6 existing execution limits (3 unbound
 MISSING_CARDINALITY reads; 3 deferred standalone attribute '*'), plus two existing
 RDFlib namespace warnings. Exact commands and limitations are in coverage.md.
 No full-suite pass, new production behavior or reviewer OK is claimed. Rule 6's
-website explanation remains the Documenter's responsibility; no site/spec edits.
+website explanation belongs to the Documentation Engineer in the current workflow; this recorded test increment made no site/spec edits.
 
 Temporary actual-output controls additionally verified that independent timestamps
 and metadata individuals are allowed, extra incoming domain properties are
