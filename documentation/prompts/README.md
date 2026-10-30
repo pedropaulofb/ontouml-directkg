@@ -16,6 +16,21 @@ These are independent initial prompts for separate AI conversations. The project
 | Implementation Engineer | [implementation/implementation-engineer.md](implementation/implementation-engineer.md) |
 | Implementation Reviewer | [implementation/implementation-reviewer.md](implementation/implementation-reviewer.md) |
 
+## Periodic auditors
+
+These four independent roles run only when manually invoked. Each audits the complete current state of its area and relevant cross-artifact relationships across development iterations, independently of earlier agent reports. Invocation starts the audit; no creator handoff, upstream reviewer OK or other active agent is required.
+
+| Role | Prompt |
+| --- | --- |
+| Architecture Auditor | [architect/architect-auditor.md](architect/architect-auditor.md) |
+| Implementation Auditor | [implementation/implementation-auditor.md](implementation/implementation-auditor.md) |
+| Test Auditor | [test/test-auditor.md](test/test-auditor.md) |
+| Documentation Auditor | [documentation/documentation-auditor.md](documentation/documentation-auditor.md) |
+
+Auditors retrieve the requested branch/ref (default main), identify its full SHA, inspect actual repository evidence and report coverage and limitations. They remain read-only, distinguish confirmed defects, investigation needs and architectural/owner decisions, and route findings to the responsible existing role through the owner.
+
+Audits are outside the execution and acceptance pipeline below. They do not issue workflow OK/NOT OK verdicts, close or waive gates, accept new semantics, launch other agents or authorize repairs. Prior review does not prevent a substantiated audit finding. The owner selects follow-up; corrections retain normal ownership and review requirements. No additional persistent audit ledger or approval stage is required.
+
 ## Execution and acceptance
 
 ```mermaid
