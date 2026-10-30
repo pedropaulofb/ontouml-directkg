@@ -471,13 +471,12 @@ Bind every operation to the inspected public library or real CLI entry point:
   diagnostic/sidecar writes and advertised valid artifacts. Existing unbound None
   values cannot satisfy their negative assertions. Retain actual native failures.
 
-In-memory and stdout clauses are conditional on observed supported capabilities;
-no additional public input type, command syntax or entry point is invented. An
-unbound inspection raises ImplementationUnavailable before these branches can pass.
-A supported in-memory input has no invented original-file byte digest. Automatic
-sidecar writing needs a concrete output path. Capability absence is non-applicability,
-not certified execution of those clauses. An exact other-format rejection classification
-is not added to the contract. Mixed-list invalid-value rejection and independent-field
+RD-05 file-only input supersedes the former conditional in-memory-input clauses:
+all transformations require a concrete source file, regardless of provenance mode.
+Programmatic ontology/provenance graphs remain supported outputs. Stdout clauses
+remain conditional on observed capability; no stdout syntax is invented and an
+unbound inspection cannot pass. Automatic sidecar writing needs a concrete output
+path. No additional rejection classification is imposed on excluded input forms. Mixed-list invalid-value rejection and independent-field
 preservation are asserted; exact valid-sibling retention is recorded as blocked for
 Architect clarification in the inventory.
 
@@ -752,3 +751,59 @@ python -m pytest --rootdir=. --collect-only -q tests -p no:cacheprovider
 python -m pytest --rootdir=. -q tests -k 'ontology_version_iri_' --tb=short -p no:cacheprovider
 python -m pytest --rootdir=. -q tests/transformation/test_ontology.py tests/cli/test_cli.py -k 'input_digests_use_exact_bytes or provenance_modes_keep_domain_output or explicit_delivery_places_sidecar or cli_sidecar_names_and_final_ontology_byte_digest or core_asserted_domain_graph' --tb=short -p no:cacheprovider
 ```
+
+
+## RD-05 — File-only transformation input and exact-byte source checksums
+
+Submitted for independent review; distinct from the closed ontology-version-IRI
+Option B increment (`fe5515b6719e60ec518c48d08ee68c79ddceef00`). The accepted
+file-only rules supersede the two conditional in-memory source cases. All other
+existing nodes and their assertions are preserved. The existing canonical
+`shared/base_iri/input.json` supplies complete VP-plugin 0.5.3 data; changed names,
+byte layouts and rejected representations exist only in pytest temporary work.
+
+The inspected public `ontouml_directkg.convert` still receives the caller's actual
+source object. `attempt_source_input` retains a native TypeError/ValueError/OSError
+or actual result; it never serializes, saves, coerces or rejects input itself.
+The Python observation now reads the real separate `ConversionResult.provenance`
+field; CLI observations still come only from subprocesses and actual artifacts.
+Missing-source CLI invocations retain actual status and captured streams without
+inventing a conversion outcome or requiring a diagnostics-report omission.
+
+The source-artifact reader identifies actually used JSON entities from the current
+producer's MIME-format evidence in the actual graph. The tests assert their
+PROV/SPDX structure and SHA-256 of the bytes supplied to the real file conversion,
+including differing whitespace/escaping and a change to the file after conversion.
+No public RDF template for role recognition is prescribed. The source-surface audit
+interprets the actual exported names, signature and parser actions; unfamiliar
+entries/controls raise ImplementationUnavailable rather than earn absence credit.
+No new checksum/source control, public signature, fault mechanism or transformer is
+introduced. Existing broader provenance/configuration/delivery readers remain
+unbound; this increment does not claim to complete them.
+
+Validation for this increment: **2711 collected**, with 31 additions and two
+superseded conditional nodes removed; every other existing node and test function
+body is unchanged. The new selection passed **31/31**; the combined accepted
+regression selection passed **324/324**. Direct provenance/version/delivery
+regressions produced **1 pass and 21 existing binding-limit failures**. No new
+production failure occurred in the new cases. Six wrong canonicalized-digest
+observations were rejected; three unknown interface additions required explicit
+interpretation. All 17 Python files parse and the inventory reconciles exactly.
+The full suite and remaining unbound capabilities were not executed.
+
+Remote main advanced during this increment to
+`794dd121661245a7a59a91a64d48bb5310a89b74`: consolidated specifications were
+published/archived and ontology-version-IRI production support was added. No
+intervening tests or fixtures changed. The file-only clauses match the accepted
+text and all intervening changes are preserved. The prior version-control
+adapter guards still report unavailability; their messages now distinguish
+historical interface absence from current production support. Those older
+positive version bindings are outside this file-only increment.
+
+
+Publication resumed after interruption: refreshed remote main
+`914f3611bce63aa95bda7bf6e38655427f6c1a71` differs from the validated
+`794dd121661245a7a59a91a64d48bb5310a89b74` only in three site-documentation
+files. Production, governing specifications, tests, fixtures, vocabulary and
+configuration are unchanged, so the recorded validation remains applicable.
+All intervening changes are preserved in the publication parent.

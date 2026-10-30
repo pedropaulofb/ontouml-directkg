@@ -619,3 +619,69 @@ def test_cli_ontology_version_iri_sidecar_records_setting_and_final_byte_digest(
         assert observed.configuration_controls is not None
         assert observed.configuration_controls.get('ontology_version_iri') == version
 
+
+
+@pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
+def test_cli_requires_source_file_and_hashes_exact_source_bytes(invoke, tmp_path, mode):
+    """Rules: DK-GEN-10, DK-CLS-01, DK-DIAG-04; §3.2, §15. RD-05 file-only input rules 1–4."""
+    import hashlib
+    spdx = Namespace('http://spdx.org/rdf/terms#')
+    document = load_json('shared/base_iri')
+    source_element(document, 'C17')['name'] = 'Málaga'
+    assert not fixture_issues(document)
+    variants = (
+        json.dumps(document, ensure_ascii=False, separators=(',', ':')).encode('utf-8') + b'\n',
+        json.dumps(document, ensure_ascii=True, indent=2).replace('\n', '\r\n').encode('utf-8') + b'\r\n \t',
+    )
+    assert variants[0] != variants[1] and json.loads(variants[0]) == json.loads(variants[1]) == document
+    for index, payload in enumerate(variants):
+        source = tmp_path / f'source_{index}.json'
+        source.write_bytes(payload)
+        destination = tmp_path / f'ontology_{index}.ttl'
+        report_path = tmp_path / f'diagnostics_{index}.json'
+        process = invoke.cli(source, options={'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': mode},
+                             workdir=tmp_path, output_path=destination, diagnostics_path=report_path)
+        assert process.returncode == 0 and process.observation.outcome == 'completed'
+        assert report_path.is_file()
+        ontology = Graph().parse(destination, format='turtle')
+        assert (BASE.C17, RDF.type, OWL.Class) in ontology
+        assert (BASE.C17, RDFS.label, Literal('Málaga')) in ontology
+        source.write_bytes(payload + b' \n')
+        sidecar_path = destination.with_name(destination.stem + '.provenance.ttl')
+        if mode == 'none':
+            assert not list(ontology.subjects(RDF.type, PROV.Activity))
+            assert not list(ontology.triples((None, PROV.used, None)))
+            assert not invoke.read_source_artifacts(ontology)
+            assert not sidecar_path.exists()
+        else:
+            graph = Graph().parse(sidecar_path, format='turtle') if mode == 'sidecar' else ontology
+            artifacts = invoke.read_source_artifacts(graph)
+            assert artifacts, 'Actual delivered provenance must identify the consumed source file'
+            for artifact in artifacts:
+                assert (artifact, RDF.type, PROV.Entity) in graph
+                assert any((activity, RDF.type, PROV.Activity) in graph for activity in graph.subjects(PROV.used, artifact))
+                checksums = [node for node in graph.objects(artifact, spdx.checksum)
+                             if (node, spdx.algorithm, spdx.checksumAlgorithm_sha256) in graph]
+                assert checksums
+                for node in checksums:
+                    values = list(graph.objects(node, spdx.checksumValue))
+                    assert values and all(isinstance(value, Literal) and str(value).lower() == hashlib.sha256(payload).hexdigest()
+                                          for value in values)
+            if mode == 'embedded':
+                assert not sidecar_path.exists()
+            else:
+                assert not list(ontology.subjects(RDF.type, PROV.Activity))
+
+
+@pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
+def test_cli_missing_source_path_is_invalid_in_every_provenance_mode(invoke, tmp_path, mode):
+    """Rules: DK-GEN-10; §3.2, §15 invalid invocation. RD-05 file-only input rules 1–2."""
+    (tmp_path / 'input.json').write_bytes(fixture_path('shared/base_iri').read_bytes())
+    destination = tmp_path / 'ontology.ttl'
+    report_path = tmp_path / 'diagnostics.json'
+    process = invoke.cli(None, options={'provenance': mode}, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report_path)
+    assert process.returncode == 2
+    assert process.stdout or process.stderr
+    assert not destination.exists()
+    assert not destination.with_name(destination.stem + '.provenance.ttl').exists()

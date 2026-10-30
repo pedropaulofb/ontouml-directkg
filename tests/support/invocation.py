@@ -23,6 +23,22 @@ class ImplementationUnavailable(RuntimeError):
     """There is no verified production invocation to execute."""
 
 
+@dataclass
+class SourceInputAttempt:
+    """Actual public-call result or native rejection; no rejection type is prescribed."""
+
+    observation: "Observation | None" = None
+    rejection: Exception | None = None
+
+
+@dataclass
+class SourceInputSurface:
+    """Observed fileless/checksum extensions and the inspected interface evidence."""
+
+    extensions: tuple[Any, ...]
+    raw: Any
+
+
 @dataclass(frozen=True)
 class Diagnostic:
     """One observed event, retaining multiplicity and its original payload.
@@ -254,7 +270,7 @@ class CLIObservation:
     returncode: int
     stdout: bytes
     stderr: bytes
-    observation: Observation
+    observation: Observation | None  # no conversion result for an actual invalid invocation
     console: tuple[Diagnostic, ...]
     # Observed conversion entry, from real instrumentation when needed; never
     # derive this solely from the expected exit code or configuration error.
@@ -277,9 +293,7 @@ class ControlSurface:
     prohibited_features: Mapping[str, bool]  # actual observed feature presence
     software_version: str | None = None
     raw: Any = None
-    # Capabilities whose existence is not prescribed by a production signature.
-    # Conditional input/stream assertions must not invent entry-point support.
-    in_memory_input_supported: bool | None = None
+    # Conditional stream assertions must not invent entry-point support.
     stdout_supported: bool | None = None
 
 
@@ -321,8 +335,20 @@ class Invocation(Protocol):
         """
         ...
 
-    def convert_memory(self, source: Mapping[str, Any], *, options: Mapping[str, Any], workdir: Path, faults: tuple[Fault, ...] = ()) -> Observation:
-        """Use an actual supported in-memory public entry, without inventing bytes."""
+    def attempt_source_input(self, source: Any, *, options: Mapping[str, Any], workdir: Path) -> SourceInputAttempt:
+        """Submit the original object to the real public source argument.
+
+        Retain native rejection or actual conversion result. Do not serialize,
+        coerce, save, or pre-reject the object in this boundary.
+        """
+        ...
+
+    def inspect_source_input_surface(self) -> SourceInputSurface:
+        """Audit actual public entries/controls for fileless or checksum extensions."""
+        ...
+
+    def read_source_artifacts(self, graph: Graph) -> tuple[Node, ...]:
+        """Identify source roles from actual provenance, retaining its RDF evidence."""
         ...
 
     def cli(self, source: Path | None, *, options: Mapping[str, Any], workdir: Path,
@@ -411,7 +437,13 @@ class _UnboundInvocation:
     def convert(self, source, *, options, workdir, faults=()):
         self._unavailable()
 
-    def convert_memory(self, source, *, options, workdir, faults=()):
+    def attempt_source_input(self, source, *, options, workdir):
+        self._unavailable()
+
+    def inspect_source_input_surface(self):
+        self._unavailable()
+
+    def read_source_artifacts(self, graph):
         self._unavailable()
 
     def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
@@ -462,6 +494,10 @@ class _BoundFieldsOnly:
 
 class _BasicObservation(_BoundFieldsOnly, Observation):
     _available_fields = frozenset({"ontology", "outcome", "diagnostics", "configuration_error", "native"})
+
+
+class _PythonObservation(_BasicObservation):
+    _available_fields = _BasicObservation._available_fields | {"provenance"}
 
 
 class _ReportProcess(_BoundFieldsOnly, CLIObservation):
@@ -573,7 +609,8 @@ class _DirectKGInvocation(_UnboundInvocation):
         if "ontology_version_iri" in options:
             raise ImplementationUnavailable(
                 "RD-05 ontology-version-IRI Python control has no verified production binding; "
-                "the inspected public convert signature does not expose this capability. "
+                "the absence inspection at 7e17f613 is historical, and the current capability "
+                "requires a separate verified adapter binding. "
                 "ontology_version_iri is a test-side semantic option, not a proposed Python parameter."
             )
         if faults:
@@ -589,7 +626,63 @@ class _DirectKGInvocation(_UnboundInvocation):
             result = convert(source, **request)
         except ConfigurationError as exc:
             return _BasicObservation(None, None, (), configuration_error=exc)
-        return _BasicObservation(result.ontology, result.outcome, _observed_diagnostics(result.diagnostics), native=result)
+        return _PythonObservation(result.ontology, result.outcome, _observed_diagnostics(result.diagnostics),
+                                  native=result, provenance=result.provenance)
+
+    def attempt_source_input(self, source, *, options, workdir):
+        try:
+            result = self.convert(source, options=options, workdir=workdir)
+        except (TypeError, ValueError, OSError) as exc:
+            return SourceInputAttempt(rejection=exc)
+        return SourceInputAttempt(observation=result)
+
+    def inspect_source_input_surface(self):
+        """Closed interpretation of inspected native interfaces, not a feature guess.
+
+        Every currently exported name, conversion parameter and CLI action has
+        been inspected below. Unfamiliar additions require interpretation; they
+        cannot earn absence credit through spelling heuristics. This is not an
+        expected public API whitelist: unknown surfaces raise unavailability,
+        rather than assert that an independently accepted control is forbidden.
+        """
+        import inspect
+        import ontouml_directkg
+        from ontouml_directkg.cli import build_parser
+        exports = tuple(ontouml_directkg.__all__)
+        known_exports = {"ConfigurationError", "ConversionResult", "Diagnostic", "DiagnosticsExportError",
+                         "SourceLocation", "convert", "DeliveryFailure", "DeliveryResult", "__version__"}
+        signature = inspect.signature(ontouml_directkg.convert)
+        known_parameters = {"source", "base_iri", "iri_strategy", "input_policy", "stereotype_policy",
+                            "language", "omit_identifiers", "inverse_properties", "no_stereotype_relation_naming",
+                            "relation_labels", "material_property_chains", "provenance", "metadata_file",
+                            "ontology_version_iri"}
+        parser = build_parser()
+        known_flags = {"-h", "--help", "-o", "--output", "--version", "--base-iri", "--iri-strategy",
+                       "--input-policy", "--stereotype-policy", "--inverse-properties",
+                       "--no-stereotype-relation-naming", "--relation-labels", "--material-property-chains",
+                       "--language", "--omit-identifiers", "--metadata-file", "--provenance",
+                       "--diagnostics-file", "--console-level", "--ontology-version-iri"}
+        actions = tuple(parser._actions)
+        unknown = (set(exports) - known_exports) | (set(signature.parameters) - known_parameters)
+        unknown.update(flag for action in actions for flag in action.option_strings if flag not in known_flags)
+        unknown.update(action.dest for action in actions if not action.option_strings and action.dest != "input")
+        unknown.update(name for name, parameter in signature.parameters.items()
+                       if parameter.kind in {parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD})
+        if unknown:
+            raise ImplementationUnavailable(f"Interpret new public source/checksum surface before absence credit: {sorted(unknown)!r}")
+        return SourceInputSurface((), {"exports": exports, "python_signature": signature,
+                                      "cli_actions": actions, "cli_help": parser.format_help()})
+
+    def read_source_artifacts(self, graph):
+        """Current producer marks actually used JSON artifacts by their MIME format.
+
+        This role reading is implementation knowledge, not a required RDF
+        template or a role inferred from requested paths/checksums.
+        """
+        from rdflib.namespace import DCTERMS, PROV, RDF
+        return tuple({artifact for activity in graph.subjects(RDF.type, PROV.Activity)
+                      for artifact in graph.objects(activity, PROV.used)
+                      if (artifact, DCTERMS.format, Literal("application/json")) in graph})
 
     def read_diagnostics(self, observation):
         return _observed_diagnostics(observation.native.diagnostics)
@@ -715,14 +808,17 @@ class _DirectKGInvocation(_UnboundInvocation):
     def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
         if "ontology_version_iri" in options:
             raise ImplementationUnavailable(
-                "RD-05 ontology-version-IRI CLI capability is not bound: the inspected help "
-                "does not advertise the accepted --ontology-version-iri control."
+                "RD-05 ontology-version-IRI CLI capability is not bound here. The absence "
+                "inspection at 7e17f613 is historical; current production advertises the control."
             )
-        if (faults or extra_args or source is None or output_path is None or diagnostics_path is None
+        if (faults or extra_args or output_path is None or diagnostics_path is None
                 or Path(output_path).exists() or Path(diagnostics_path).exists()):
             self._unavailable()
-        command = [sys.executable, "-m", "ontouml_directkg", str(source), "--output", str(output_path),
-                   "--diagnostics-file", str(diagnostics_path)]
+        command = [sys.executable, "-m", "ontouml_directkg"]
+        if source is not None:
+            command.append(str(source))
+        command.extend(["--output", str(output_path),
+                        "--diagnostics-file", str(diagnostics_path)])
         for name, value in options.items():
             if name == "stereotype_relation_naming":
                 if not value:
@@ -733,6 +829,11 @@ class _DirectKGInvocation(_UnboundInvocation):
             else:
                 command.extend(("--" + name.replace("_", "-"), str(value)))
         completed = subprocess.run(command, cwd=workdir, capture_output=True, check=False)
+        if source is None and not Path(diagnostics_path).exists():
+            # A real invalid invocation has no conversion report to interpret.
+            # Preserve actual streams/status; never invent a conversion outcome.
+            return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
+                                  None, _observed_console(completed.stdout, completed.stderr))
         # Missing reports are a visible failure, never reconstructed by running
         # Python again, guessing an outcome or creating a hidden report.
         report = self.read_report(diagnostics_path)

@@ -2,6 +2,8 @@
 
 from urllib.parse import urlsplit
 from pathlib import Path
+import io
+import json
 
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
@@ -628,18 +630,85 @@ def test_input_digests_use_exact_bytes_and_configuration_is_deterministic_in_dis
     for key,value in configured.items():assert fourth.configuration_controls[key]==value
 
 
-@pytest.mark.parametrize('mode',['embedded','sidecar'])
-def test_in_memory_provenance_never_claims_unavailable_original_file_bytes(invoke,source_json,tmp_path,mode):
-    """Rules: DK-GEN-10."""
-    supported=invoke.inspect_controls().in_memory_input_supported
-    assert supported is not None, 'Inspect the real supported input capability'
-    if not supported:return  # conditional input form; no additional Python entry is prescribed
-    result=invoke.convert_memory(source_json('shared/base_iri'),options={'base_iri':str(BASE),'provenance':mode},workdir=tmp_path)
-    assert result.outcome=='completed'
-    graph,_,_=_provenance(result,mode)
-    assert not list(graph.objects(_role(result,'source'),SPDX.checksum))
-    assert result.sidecar_writes==()
+@pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
+@pytest.mark.parametrize('path_form', ['path_object', 'path_string'])
+def test_file_source_preserves_exact_consumed_bytes_and_programmatic_graphs(invoke, source_json, tmp_path, mode, path_form):
+    """Rules: DK-GEN-10, DK-CLS-01; §3.2, §15. RD-05 file-only input rules 1–4.
+
+    Equivalent parsed JSON has different whitespace, escaping and byte digests.
+    A later change to the file must not replace the bytes actually consumed.
+    """
+    document = source_json('shared/base_iri')
+    source_element(document, 'C17')['name'] = 'Málaga'
+    assert not fixture_issues(document)
+    variants = (
+        json.dumps(document, ensure_ascii=False, separators=(',', ':')).encode('utf-8') + b'\n',
+        json.dumps(document, ensure_ascii=True, indent=2).replace('\n', '\r\n').encode('utf-8') + b'\r\n \t',
+    )
+    assert variants[0] != variants[1] and json.loads(variants[0]) == json.loads(variants[1]) == document
+    for index, payload in enumerate(variants):
+        path = tmp_path / f'source_{index}.json'
+        path.write_bytes(payload)
+        source = str(path) if path_form == 'path_string' else path
+        result = invoke.convert(source, options={'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': mode}, workdir=tmp_path)
+        assert result.outcome == 'completed'
+        assert (BASE.C17, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.C17, RDFS.label, Literal('Málaga')) in result.ontology
+        assert not any(event.severity == 'ERROR' for event in result.diagnostics)
+        path.write_bytes(payload + b' \n')  # change after completed conversion, before reading provenance
+        if mode == 'none':
+            assert result.provenance is None
+            assert not list(result.ontology.subjects(RDF.type, PROV.Activity))
+            assert not list(result.ontology.triples((None, PROV.used, None)))
+            assert not invoke.read_source_artifacts(result.ontology)
+        else:
+            graph = result.ontology if mode == 'embedded' else result.provenance
+            assert isinstance(graph, Graph)
+            artifacts = invoke.read_source_artifacts(graph)
+            assert artifacts, 'Actual provenance must identify the consumed source file'
+            for artifact in artifacts:
+                assert (artifact, RDF.type, PROV.Entity) in graph
+                assert any((activity, RDF.type, PROV.Activity) in graph for activity in graph.subjects(PROV.used, artifact))
+                _checksum(graph, artifact, payload)
+            if mode == 'embedded':
+                assert result.provenance is None
+            else:
+                assert not list(result.ontology.subjects(RDF.type, PROV.Activity))
+        assert not list(tmp_path.glob('*.provenance.ttl'))  # programmatic output stays available without automatic delivery
+
+
+@pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
+@pytest.mark.parametrize('representation', ['mapping', 'json_text', 'json_bytes', 'text_stream', 'byte_stream', 'missing'])
+def test_fileless_source_substitutes_are_rejected_in_every_provenance_mode(invoke, source_json, tmp_path, mode, representation):
+    """Rules: DK-GEN-10; §3.2, §15. RD-05 file-only input rules 1–2, 4.
+
+    Rejection may be programmatic or an aborted result; no new exception class,
+    diagnostic text, checksum fallback, or source-failure policy is prescribed.
+    """
+    document = source_json('shared/base_iri')
+    assert not fixture_issues(document)
+    payload = json.dumps(document, ensure_ascii=False).encode('utf-8')
+    (tmp_path / 'input.json').write_bytes(payload)  # an unrelated file cannot substitute for the supplied input
+    forms = {'mapping': document, 'json_text': payload.decode('utf-8'), 'json_bytes': payload,
+             'text_stream': io.StringIO(payload.decode('utf-8')), 'byte_stream': io.BytesIO(payload), 'missing': None}
+    attempt = invoke.attempt_source_input(forms[representation],
+        options={'base_iri': str(BASE), 'provenance': mode}, workdir=tmp_path)
+    if attempt.rejection is not None:
+        assert isinstance(attempt.rejection, Exception) and attempt.observation is None
+    else:
+        result = attempt.observation
+        assert result is not None and result.ontology is None
+        assert result.configuration_error is not None or result.outcome == 'aborted'
+        if result.configuration_error is None:
+            assert any(event.severity == 'ERROR' for event in result.diagnostics)
     assert not list(tmp_path.glob('*.provenance.ttl'))
+
+
+def test_source_input_surface_has_no_fileless_or_checksum_extension(invoke):
+    """Rules: DK-GEN-10; §3.2, §15. RD-05 file-only input rules 2, 4."""
+    surface = invoke.inspect_source_input_surface()
+    assert surface.raw is not None
+    assert surface.extensions == ()
 
 
 @pytest.mark.parametrize('mode',['embedded','sidecar'])
