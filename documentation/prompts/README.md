@@ -19,18 +19,38 @@ These are independent initial prompts for separate AI conversations. The project
 ## Execution and acceptance
 
 ```mermaid
-flowchart TD
-    A["Architect"] --> AR["Architect Reviewer"]
-    AR --> D["Documentation Engineer"]
-    AR --> T["Test Engineer"]
-    D --> DR["Documentation Reviewer"]
-    T --> TR["Test Reviewer"]
-    DR --> I["Implementation Engineer"]
-    TR --> I
-    I --> IR["Implementation Reviewer"]
+flowchart TB
+    subgraph architecture["1. Architecture"]
+        direction LR
+        A["Architect"] -->|Submit| AR["Architect Reviewer"]
+        AR -->|NOT OK: revise| A
+    end
+
+    subgraph preparation["2. Documentation and testing (parallel)"]
+        direction TB
+        subgraph documentation["Documentation"]
+            direction LR
+            D["Documentation Engineer"] -->|Submit| DR["Documentation Reviewer"]
+            DR -->|NOT OK: revise| D
+        end
+        subgraph testing["Testing"]
+            direction LR
+            T["Test Engineer"] -->|Submit| TR["Test Reviewer"]
+            TR -->|NOT OK: revise| T
+        end
+    end
+
+    subgraph implementation["3. Implementation"]
+        direction LR
+        I["Implementation Engineer"] -->|Submit| IR["Implementation Reviewer"]
+        IR -->|NOT OK: revise| I
+    end
+
+    architecture -->|Architect review OK| preparation
+    preparation -->|Both reviews OK| implementation
 ```
 
-Each reviewer edge requires an applicable OK for the exact decision, scope and revision/disposition. Documentation and testing may run in parallel after Architect Reviewer OK; implementation requires both reviewed outcomes. An engineer's justified no-change result also requires its reviewer OK, without an artificial edit or empty commit. BLOCKED does not close a gate.
+Forward stage transitions require the applicable reviewer OK for the exact decision, scope and revision/disposition. NOT OK returns the submission to its producing role for correction and re-review. Documentation and testing may run in parallel after Architect Reviewer OK; implementation requires both reviewed outcomes. An engineer's justified no-change result also requires its reviewer OK, without an artificial edit or empty commit. BLOCKED does not close a gate.
 
 The Adviser operates independently. The Architect combines design investigation, owner-approved specification registration and open-issue maintenance; there is no active Documenter role or separate session-consolidation workflow. Reviewers verify independently and never silently correct files or create design authority.
 
