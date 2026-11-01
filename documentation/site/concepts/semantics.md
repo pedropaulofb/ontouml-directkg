@@ -1,6 +1,6 @@
 # Semantics and limitations
 
-This page explains the **accepted transformation contract**. Product implementation and runtime conformance have not been verified; no production converter exists at the reviewed revision.
+This page explains the **accepted transformation contract**. [Getting started](../getting-started.md) identifies a bounded example verified against the development converter; that execution does not establish complete runtime conformance or verify every mapping explained here.
 
 ## Key terms
 

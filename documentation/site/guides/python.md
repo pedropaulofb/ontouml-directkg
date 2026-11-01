@@ -1,6 +1,6 @@
 # Python guide
 
-This guide describes **specified integration capabilities**. The [inspected source](../reference/controls.md#interface-parity) exports `convert` and declares its public conversion signature. Runtime behavior and source-generated API reference content have not been verified for this documentation update.
+This guide describes **specified integration capabilities** and a bounded verified example. The [generated API reference](../reference/api/index.md) renders actual public objects and docstrings. The example below was executed with Python 3.12.14 against development revision `25bf7b2259331d0c439fe0f79f826bae0218b8f7`; wider contract coverage remains distinct from that execution.
 
 ## Conversion and configuration
 
@@ -12,7 +12,31 @@ Use [Controls](../reference/controls.md#established-controls) as the canonical i
 
 An equivalent optional Python control must accept a caller-supplied [ontology version IRI](../reference/output.md#optional-ontology-version-iri), with the same emission and absence behavior as the CLI control. Its parameter name is not prescribed by the specification; the [inspected conversion signature](../reference/controls.md#interface-parity) declares this optional control.
 
-An integrator's conceptual sequence is to prepare a [supported JSON file](../reference/input.md), supply its file path, choose effective transformation settings, request conversion through the Python conversion interface, inspect its outcome and diagnostics, and consume only eligible ontology output. Exact Python input parameter names, function signatures, and output representations are not prescribed here; this sequence is not executable code.
+An integrator prepares a [supported JSON file](../reference/input.md), supplies its path, chooses effective settings, inspects the outcome and diagnostics, and consumes only eligible ontology output. The specification leaves most API names and representations open; the generated reference describes the implementation's actual choices.
+
+After the [source installation](../getting-started.md#installation-status), run this example from the repository root:
+
+```python
+from ontouml_directkg import convert
+
+result = convert(
+    "documentation/site/examples/files/classes-and-attributes.json",
+    base_iri="https://example.org/directkg-example#",
+    iri_strategy="id",
+    language="pt-BR",
+    provenance="none",
+)
+print(result.outcome)
+if result.ontology is not None:
+    delivery = result.deliver("python-example.ttl")
+    for failure in delivery.failures:
+        print(failure.destination, failure.reason)
+for diagnostic in result.diagnostics:
+    print(diagnostic.severity, diagnostic.message)
+result.export_diagnostics("python-example-diagnostics.json")
+```
+
+The verified example completed, delivered a 20-triple ontology and exported two INFO diagnostics. It uses the same configuration as [Getting started](../getting-started.md#inspecting-the-result). Diagnostics export occurs after delivery so any delivery diagnostics are included. An aborted result has no eligible ontology; diagnostics remain accessible. This small successful run does not verify every recovery, delivery-failure or provenance path. The exception boundaries below remain applicable.
 
 Base validation and validation of a supplied ontology version IRI happen before conversion. Either rejection must be signaled programmatically, independently of input policy, without an ontology, transformation outcome, or conversion-diagnostics report. No particular exception class is selected. See [Base and ontology IRIs](../reference/identifiers.md#base-and-ontology-iris) and the version-IRI boundary linked above.
 

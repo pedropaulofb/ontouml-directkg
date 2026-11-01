@@ -114,8 +114,8 @@ labels and shown beside their identifiers. PyLODE's JSON-LD remains intact.
 The existing transparent PNG logo and SVG favicon under `branding/` are embedded
 unchanged as data URLs, making the standalone HTML independent of asset paths.
 Only the logo's proportional size is styled; the PyLODE layout is retained.
-Navigation uses the `/vocab/dkgm` routes prepared in the W3ID migration branch
-(`pedropaulofb/w3id.org`, `feat/directkg-dkgm-pid`), pending upstream integration:
+Navigation uses the `/vocab/dkgm` routes
+[merged upstream on 26 October 2026](https://github.com/perma-id/w3id.org/commit/51c4025f381ede8f543bc27bf9ff8b2f1feb6612):
 project docs, repository, ontology, current Turtle, and this version's IRI/Turtle.
 The Turtle alternate link always identifies the snapshot's own version, including
 when the same HTML is copied to `latest/`. Version navigation is generated from
@@ -223,11 +223,14 @@ of this deterministic gate. GitHub Pages remains the single combined publisher.
 
 ## Coordinated W3ID validation
 
-The W3ID source changes are in the existing fork, on `feat/directkg-dkgm-pid`,
-based on upstream `master`. Only `ids/directkg/.htaccess` changes. The former
-`/vocab` routes are withdrawn under the explicit pre-release decision; no aliases
-or replacement resource are introduced. Upstream acceptance remains a separate
-review step. Project navigation routes and representation targets are unchanged.
+The W3ID migration was accepted in upstream
+[commit `51c4025f381ede8f543bc27bf9ff8b2f1feb6612`](https://github.com/perma-id/w3id.org/commit/51c4025f381ede8f543bc27bf9ff8b2f1feb6612).
+The [configuration at that commit](https://github.com/perma-id/w3id.org/blob/51c4025f381ede8f543bc27bf9ff8b2f1feb6612/ids/directkg/.htaccess)
+and the [current upstream file](https://github.com/perma-id/w3id.org/blob/master/ids/directkg/.htaccess)
+replace the deleted migration-branch reference. The former `/vocab` routes are
+withdrawn under the explicit pre-release decision; no aliases or replacement
+resource are introduced. Project navigation routes and representation targets
+are unchanged. Accepted registration does not establish current HTTP availability.
 
 Validate all required paths, optional slashes, negotiation defaults, release
 patterns, retired paths and unrelated project rules against that actual file:
@@ -273,5 +276,8 @@ temporary W3ID or Pages outage as an RDF/OWL semantic error. Verification does n
 roll back a completed deployment. Unit tests use mocked HTTP responses and do
 not establish that any real deployment has passed verification.
 
-The converter itself is not implemented yet. The vocabulary's RDF license is
-CC BY 4.0; the repository's overall software license is Apache 2.0.
+The repository provides a development converter and CLI; see
+[Getting started](../documentation/site/getting-started.md) for a bounded verified
+source installation and conversion. This does not certify complete converter
+conformance. The vocabulary's RDF license is CC BY 4.0; the repository's overall
+software license is Apache 2.0.

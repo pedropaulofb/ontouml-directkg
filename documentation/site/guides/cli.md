@@ -1,12 +1,12 @@
 # CLI guide
 
-This guide explains the **specified command-line contract**. The [inspected source](../reference/controls.md#interface-parity) declares a CLI entry point and parser. Runtime behavior has not been verified for this documentation update.
+This guide explains the **specified command-line contract**. [Getting started](../getting-started.md) provides a complete invocation verified with Python 3.12.14 against development revision `25bf7b2259331d0c439fe0f79f826bae0218b8f7`. That bounded execution does not establish verification of every contract below.
 
 ## Invocation
 
 Every CLI transformation requires a concrete [OntoUML JSON input file](../reference/input.md#source-file-input) identified by a file path, including when provenance is `none`.
 
-The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults. This guide does not present a complete command as verified working usage.
+The [control catalog](../reference/controls.md#established-controls) lists established option spellings, values, and defaults. Follow [First conversion](../getting-started.md#first-conversion) for verified working usage from the repository root.
 
 The accepted `--ontology-version-iri IRI` option supplies an [optional ontology-header version identifier](../reference/output.md#optional-ontology-version-iri), while retaining the base-derived ontology IRI. The [inspected CLI parser](../reference/controls.md#interface-parity) declares this option.
 

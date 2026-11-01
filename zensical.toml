@@ -8,6 +8,7 @@ docs_dir = "documentation/site"
 site_dir = "site"
 nav = [
   { "Home" = "index.md" },
+  { "Getting started" = "getting-started.md" },
   { "Guides" = [
     { "CLI guide" = "guides/cli.md" },
     { "Python guide" = "guides/python.md" },
@@ -33,6 +34,7 @@ nav = [
     { "Persistent identifiers and redirects" = "reference/persistent-identifiers.md" },
     { "Labels, comments, and language" = "reference/text.md" },
     { "Diagnostics and recovery" = "reference/diagnostics.md" },
+    { "Python API" = "reference/api/index.md" },
   ] },
   { "Examples" = "examples/index.md" },
   { "Contributing" = "development/contributing.md" },
@@ -42,11 +44,15 @@ nav = [
 invalid_links = true
 invalid_link_anchors = true
 
-# No source paths or API-object directives until real public modules exist.
+# Curated API directives resolve the real public package from its source tree.
 [project.plugins.mkdocstrings]
 default_handler = "python"
 
 [project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+show_signature_annotations = true
 
 [project.theme]
 logo = "assets/favicon.svg"

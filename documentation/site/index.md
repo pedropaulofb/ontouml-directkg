@@ -6,9 +6,9 @@ OntoUML DirectKG transforms supported OntoUML models into a domain-oriented RDF/
 
 ## Current availability
 
-**These pages describe accepted intended behavior.** At the reviewed repository revision, `9e52a66af43e39b374d0a642298b1117d12be4d8`, no production conversion library, CLI, or supported installation mechanism exists. Python test material is present; that does not establish a working converter. Runnable installation, conversion, and Python API guidance is pending implementation and verification.
+**A development Python library and CLI are available from source**, version `0.0.0.dev1`. [Getting started](getting-started.md) provides a source installation and bounded conversion verified with Python 3.12.14 against `25bf7b2259331d0c439fe0f79f826bae0218b8f7`. This is not evidence of complete conformance or package-release availability. The mapping and reference pages describe accepted intended behavior unless they identify specific execution evidence.
 
-The website provides shared contracts, conceptual guidance, mappings, and contract-based [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and available development checks. Getting started and generated API pages remain pending their implementation prerequisites.
+The website provides shared contracts, conceptual guidance, mappings, and [CLI](guides/cli.md), [Python](guides/python.md), and [Metadata and provenance](guides/metadata-and-provenance.md) guides. The [Python API reference](reference/api/index.md) renders actual public signatures and docstrings. [Examples](examples/index.md) supplies a checked Catalog adaptation paired with an illustrative Turtle excerpt. [Contributing](development/contributing.md) explains documentation maintenance and the partial test integration.
 
 ## Scope at a glance
 
@@ -23,7 +23,7 @@ The website provides shared contracts, conceptual guidance, mappings, and contra
 
 ## Find the relevant contract
 
-- Start with [Semantics and limitations](concepts/semantics.md) to interpret the graph and its preservation boundaries.
+- Start with [Getting started](getting-started.md) to install the development package and run the verified example; read [Semantics and limitations](concepts/semantics.md) to interpret the graph and its preservation boundaries.
 - Read the [Input contract](reference/input.md) before preparing an export.
 - Read the [Output contract](reference/output.md) to understand ontology identity, artifact formats, and graph-versus-text guarantees.
 - Use [Controls](reference/controls.md) for the accepted option values, defaults, and interface boundaries. Read [Diagnostics and recovery](reference/diagnostics.md) for policies, outcomes, complete diagnostic access, and multiplicity recovery.

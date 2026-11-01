@@ -4,10 +4,10 @@
 
 OntoUML DirectKG registers persistent URLs (PIDs) with [W3ID](https://w3id.org/) under the namespace `https://w3id.org/directkg/`. These URLs identify project resources and the DirectKG Mereology Vocabulary (DKGM). A **persistent identifier** is the URL to reference; a **redirect destination** is the current place an HTTP request is sent. Hosting locations can change while the PID remains stable. Prefer W3ID URLs when linking to the registered resources or using their RDF identities.
 
-The DKGM paths below reflect the coordinated pre-release migration in
-[`pedropaulofb/w3id.org`, branch `feat/directkg-dkgm-pid`](https://github.com/pedropaulofb/w3id.org/blob/feat/directkg-dkgm-pid/ids/directkg/.htaccess).
-Upstream acceptance and live publication remain pending; the former generic
-DKGM paths are withdrawn by that configuration, without compatibility aliases.
+The DKGM route migration was [merged upstream on 26 October 2026](https://github.com/perma-id/w3id.org/commit/51c4025f381ede8f543bc27bf9ff8b2f1feb6612).
+The [accepted configuration at that commit](https://github.com/perma-id/w3id.org/blob/51c4025f381ede8f543bc27bf9ff8b2f1feb6612/ids/directkg/.htaccess)
+contains the `/vocab/dkgm` routes and withdraws the former generic DKGM paths without compatibility aliases.
+Upstream integration is distinct from deployment evidence and current HTTP availability.
 
 W3ID provides HTTP redirects, not the hosted documents or ontology content. Registration does not guarantee that a destination has been published or is reachable.
 
@@ -24,11 +24,11 @@ W3ID provides HTTP redirects, not the hosted documents or ontology content. Regi
 | Explicit current Turtle document | `https://w3id.org/directkg/vocab/dkgm/ttl` |
 | Version 0.1.0 DKGM ontology identity | `https://w3id.org/directkg/vocab/dkgm/0.1.0` |
 
-These are **project and vocabulary PIDs**; the DKGM registration update is pending as described above. They are different from the ontology and entity IRIs a future DirectKG converter would generate for a particular OntoUML model. For the latter, consult [Identifiers and naming](identifiers.md#base-and-ontology-iris).
+These are **project and vocabulary PIDs**. They are different from the ontology and entity IRIs DirectKG generates for a particular OntoUML model. For the latter, consult [Identifiers and naming](identifiers.md#base-and-ontology-iris).
 
 ## Registered identifiers
 
-The [migration W3ID configuration](https://github.com/pedropaulofb/w3id.org/blob/feat/directkg-dkgm-pid/ids/directkg/.htaccess) has **14 redirect-rule families**. The tables document configured mappings; they are not evidence of live HTTP responses or of the existence of every target.
+The [upstream W3ID configuration at the migration commit](https://github.com/perma-id/w3id.org/blob/51c4025f381ede8f543bc27bf9ff8b2f1feb6612/ids/directkg/.htaccess) has **14 redirect-rule families**. The tables document configured mappings; they are not evidence of live HTTP responses or of the existence of every target.
 
 PID paths in these tables are relative to `https://w3id.org/directkg`. Destination abbreviations expand to:
 

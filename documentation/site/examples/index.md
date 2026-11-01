@@ -1,6 +1,6 @@
 # Examples
 
-Use these files to inspect the accepted mappings alongside their source data. No production converter exists at the consulted revision, so the Turtle is a **specification illustration**, not captured output. Installation, a runnable first conversion, and source-generated Python API documentation remain pending implementation and verification.
+Use these files to inspect the accepted mappings alongside their source data. The downloadable Turtle remains a **specification illustration**, not captured output. [Getting started](../getting-started.md) supplies a verified development-package installation and conversion of the same JSON, while the [Python API reference](../reference/api/index.md) is generated from real source objects.
 
 ## Examples and evidence status
 
@@ -27,7 +27,7 @@ The adapted JSON and illustrative Turtle pair are distributed under [CC BY-SA 4.
 
 ### Effective configuration and interpretation
 
-These settings describe the illustration; they are not a runnable invocation:
+These settings describe the illustration. [First conversion](../getting-started.md#first-conversion) supplies a verified invocation with the same configuration:
 
 | Setting | Selected behavior |
 | --- | --- |
@@ -52,7 +52,7 @@ The accepted concrete [DKGM import URI](../mapping/mereology.md#import-and-vocab
 | --- | --- | --- | --- |
 | Classes and attributes | [classes-and-attributes.json](files/classes-and-attributes.json) | [classes-and-attributes.ttl](files/classes-and-attributes.ttl) | How do distinct same-named attributes with null typing/cardinality retain their identity and owner domains? |
 
-These are the canonical downloadable copies. Use the [CLI guide](../guides/cli.md) and [Python guide](../guides/python.md) for specified interface contracts; neither currently supplies verified conversion calls.
+These are the canonical downloadable copies. Use [Getting started](../getting-started.md) and the [Python guide](../guides/python.md#conversion-and-configuration) for bounded verified conversion calls; the [CLI guide](../guides/cli.md) explains the wider specified contract.
 
 ---
 

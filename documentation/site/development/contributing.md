@@ -6,7 +6,7 @@ The software uses the [Apache License 2.0](https://github.com/pedropaulofb/ontou
 
 OntoUML DirectKG is independently maintained as a personal side project. The maintainer welcomes constructive feedback and works to address issues, review contributions, and maintain and improve the project as time and resources permit. Response times and continuous support are not guaranteed.
 
-The repository currently contains documentation, the mereology vocabulary and its publication tools, and development tests. It has no production conversion library, CLI, or supported installation mechanism at the consulted revision. The checks below concern the available repository material.
+The repository contains a development conversion library and CLI, documentation, the mereology vocabulary and its publication tools, and development tests. [Getting started](../getting-started.md) provides a bounded verified source installation and conversion; this does not establish a published release or complete conformance. The checks below distinguish available tooling from converter coverage.
 
 ## Contributing
 
@@ -14,7 +14,7 @@ Use the current accepted sources before changing a documented behavior:
 
 | Source | Responsibility |
 | --- | --- |
-| [Current consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/specification/transformation-specification.md) | Authoritative product behavior, supported inputs, limitations, controls and documentation requirements. Retrieve the current accepted revision from GitHub; individual pages retain their own consulted-baseline evidence. |
+| [Current consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/25bf7b2259331d0c439fe0f79f826bae0218b8f7/documentation/specification/transformation-specification.md) | Authoritative product behavior, supported inputs, limitations, controls and documentation requirements; consolidated 29 October 2026. Retrieve the current accepted revision from GitHub for new work; individual pages retain their own consulted-baseline evidence. |
 | [Approved documentation structure v2.0](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/specification/documentation-structure.md) | Public page inventory, paths, navigation, content ownership and writing/maintenance conventions. |
 | [Test Suite Structure and Location Specification v2](https://github.com/pedropaulofb/ontouml-directkg/blob/main/documentation/specification/test-suite-structure.md) | Test organization and ownership, used with the [current test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/README.md). It does not determine product mappings or production architecture. |
 
@@ -42,9 +42,9 @@ Maintain one canonical [downloadable example pair](../examples/index.md#download
 
 ### Docstrings and API generation
 
-Zensical builds the site; mkdocstrings and its Python handler are configured in `zensical.toml`. No public production modules/docstrings currently exist to render. The reserved Getting started and Python API pages are pending and absent from navigation; this is an implementation dependency, not completed API coverage.
+Zensical builds the site; mkdocstrings and its Python handler are configured in `zensical.toml`, with source discovery under `src/`. [Getting started](../getting-started.md) supplies the bounded runnable path. The [Python API wrapper](../reference/api/index.md) selects actual exported conversion, result, diagnostic, delivery and exception objects and renders their signatures, fields and available docstrings during the build.
 
-Once real public source and installation/conversion mechanics are available and verified, populate the approved destinations. Curated mkdocstrings directives must resolve actual public objects and derive signatures/docstrings from source during the build. Keep usage narrative in the Python guide. Correct source/docstring defects through separately authorized code work; do not hand-copy signatures, expose test helpers as the product API, or add unresolved imports to obtain an API page.
+Keep curated directives tied to actual public objects as the package evolves, and keep usage narrative in the [Python guide](../guides/python.md). Correct source/docstring defects through separately authorized code work; do not hand-copy signatures, expose test helpers as the product API, or add unresolved imports to obtain an API page. Inspect rendered API content as part of documentation changes; a successful render does not establish runtime conformance.
 
 ### Build and preview
 
@@ -70,12 +70,12 @@ The [vocabulary publication workflow](https://github.com/pedropaulofb/ontouml-di
 The current development-test instructions provide these independent collection and fixture/RDF-helper checks:
 
 ```bash
-python -m pip install -r tests/requirements.txt
+python -m pip install -e . -r tests/requirements.txt
 python -m pytest --rootdir=. --collect-only -q tests
 python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper'
 ```
 
-They check available test scaffolding and fixture integrity; they do not certify transformation behavior. Conversion-facing tests use an unbound adapter and cannot exercise a production converter yet. A full-suite pass is not claimed. Follow the [current test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/README.md) and [coverage inventory](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/coverage.md) for actual case ownership, pairings, review status, and pending bindings.
+Collection discovers tests; the selected fixture/helper checks exercise scaffolding and fixture integrity without certifying transformation behavior. The [actual invocation binding](https://github.com/pedropaulofb/ontouml-directkg/blob/25bf7b2259331d0c439fe0f79f826bae0218b8f7/tests/README.md#actual-invocation-binding) calls real Python conversion and CLI interfaces for scoped operations. Other protocol capabilities remain unbound, and production development guards remain. Nine focused file-input cases were executed successfully for this documentation update; a full-suite pass is not claimed. Follow the [current test instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/README.md) and [coverage inventory](https://github.com/pedropaulofb/ontouml-directkg/blob/main/tests/coverage.md) for actual case ownership, pairings, review status, and remaining limits.
 
 The publisher also runs the vocabulary unit checks:
 
@@ -84,8 +84,8 @@ python -m pip install -r vocabulary/scripts/requirements.txt
 python -m unittest discover -s vocabulary/scripts/tests -v
 ```
 
-See the [vocabulary maintenance instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/vocabulary/README.md) before any vocabulary release work, including the narrowly scoped pre-release identity correction. The [accepted DKGM import identity](../mapping/mereology.md#import-and-vocabulary-identity) is fixed; publication tests do not certify unavailable converter behavior or live resolution. DK-CONF-04 establishes no separate coverage threshold or detailed testing framework requirement.
+See the [vocabulary maintenance instructions](https://github.com/pedropaulofb/ontouml-directkg/blob/main/vocabulary/README.md) before any vocabulary release work, including the narrowly scoped pre-release identity correction. The [accepted DKGM import identity](../mapping/mereology.md#import-and-vocabulary-identity) is fixed; publication tests do not certify complete converter conformance or live resolution. DK-CONF-04 establishes no separate coverage threshold or detailed testing framework requirement.
 
 ---
 
-Governing rules: §§2.2–2.3, 15; DOC-FRAMEWORK; DK-CONF-04; approved documentation structure §§8–12; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §§2.2–2.3, 15; DOC-FRAMEWORK; DK-CONF-04; approved documentation structure §§8–12; baseline consolidated: **2026-10-29**; repository commit: `25bf7b2259331d0c439fe0f79f826bae0218b8f7`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/25bf7b2259331d0c439fe0f79f826bae0218b8f7/documentation/specification/transformation-specification.md). Source installation, the bounded conversion and the nine focused integration checks use that implementation revision.
