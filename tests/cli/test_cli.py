@@ -23,7 +23,11 @@ POLICIES=['strict','tolerant','best-effort']
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("condition", ["whitespace", "non_utf8", "duplicate"])
 def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy, condition):
-    """Rules: DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. RD-02 Alternative A."""
+    """Rules: DK-IRI-02, DK-IRI-05, DK-DIAG-04, DK-DIAG-05, DK-CONF-02; §3.4 and §15 exit codes. RD-02 Alternative A.
+
+    T1 owner-authorized maintenance: report completeness uses independent,
+    unfiltered console events, retaining their content and multiplicity.
+    """
     document = load_json("shared/base_iri")
     focus = source_element(document, "C17")
     if condition == "whitespace":
@@ -36,7 +40,8 @@ def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy,
     destination = tmp_path / "actual.ttl"
     report_path = tmp_path / "actual.json"
     process = invoke.cli(source, options={"base_iri": str(BASE), "iri_strategy": "id",
-                                        "provenance": "none", "input_policy": input_policy},
+                                        "provenance": "none", "input_policy": input_policy,
+                                        "console_level": "info"},
                          workdir=tmp_path, output_path=destination, diagnostics_path=report_path)
     assert process.command and isinstance(process.stdout, bytes) and isinstance(process.stderr, bytes)
     assert report_path.is_file()
@@ -51,7 +56,8 @@ def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy,
     assert process.returncode == expected_code
     assert process.observation.outcome == expected_outcome
     assert report.outcomes == (expected_outcome,)
-    assert diagnostic_signatures(report.diagnostics) == diagnostic_signatures(process.observation.diagnostics)
+    produced, reported = invoke.diagnostic_mirror_records(process, report)
+    assert reported == produced
     if condition == "whitespace":
         graph = Graph().parse(destination, format="turtle")
         assert set(graph.subjects(RDF.type, OWL.Class)) == {BASE._x09_x0A}

@@ -829,3 +829,40 @@ collection remains 2711 with exact inventory reconciliation. Four permitted
 programmatic-view controls now pass. Four provenance-content violations and all
 six canonicalized-digest substitutions remain rejected. All 17 Python files parse.
 The unchanged broader binding-limit selection and full suite were not rerun.
+
+## T1 — Independent CLI diagnostic-mirror evidence
+
+The owner explicitly authorized T1 audit remediation under existing DK-DIAG-04,
+waiving the Architect Reviewer OK prerequisite for this assignment only. No
+architectural review or new semantics are claimed. T1 awaits independent Test
+Reviewer review; T2–T5 remain queued.
+
+The nine existing `test_cli_opaque_identifier_policy_and_report` cases now request
+unfiltered `--console-level info` output and compare it independently with the
+JSON report. `diagnostic_mirror_records` reads the produced side exclusively from
+the real CLI's captured console records. The reported side reads native report
+events and normalizes their current inspected console presentation, including
+source locators, generated IRIs and stderr escaping of invalid identifiers.
+Counters retain event content and multiplicity without imposing diagnostic order.
+Console rendering details belong to the replaceable adapter, not the behavioral
+assertions or production contract; a renderer change requires an updated binding.
+Filtered console output raises `ImplementationUnavailable` for this operation.
+The general CLI observation remains report-derived and is not used as independent
+diagnostic-completeness evidence here. Other readers and unbound operations remain
+unchanged. No fixtures or expected graphs changed.
+
+Focused command from the repository root:
+
+```bash
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/cli/test_cli.py::test_cli_opaque_identifier_policy_and_report
+```
+
+All nine cases passed against unchanged production. Temporary interceptions after
+real CLI execution removed, duplicated or altered an `ABSTRACTNESS_ANNOTATION`
+INFO event in the JSON report; all nine mutation/policy combinations failed at
+the corrected mirror assertion. A reordered two-event report passed and both
+filtered-console guards refused completeness credit. Nine related CLI file-input
+and Python diagnostic-access regressions passed. Collection remains 2711 with
+unchanged nodes. Full-suite execution was not repeated; the previously observed
+T2–T4 failures are outside this assignment. See the T1 inventory section for
+authority, the owner exception and exact existing node/fixture traceability.

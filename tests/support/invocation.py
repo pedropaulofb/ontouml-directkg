@@ -382,6 +382,16 @@ class Invocation(Protocol):
         """Read the actual JSON using its real shared format; retain all events."""
         ...
 
+    def diagnostic_mirror_records(
+        self, process: CLIObservation, report: ReportObservation
+    ) -> tuple[Counter[bytes], Counter[bytes]]:
+        """Read independent unfiltered console and JSON events as comparable records.
+
+        Console rendering is binding knowledge, not required diagnostic wording.
+        Preserve event content and multiplicity without requiring event order.
+        """
+        ...
+
     def inspect_controls(self) -> ControlSurface:
         """Inspect actual public help/signatures, defaults and feature availability."""
         ...
@@ -459,6 +469,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_report(self, path):
+        self._unavailable()
+
+    def diagnostic_mirror_records(self, process, report):
         self._unavailable()
 
     def inspect_controls(self):
@@ -804,6 +817,45 @@ class _DirectKGInvocation(_UnboundInvocation):
         # report-format definition, not an invented JSON schema identifier.
         return ReportObservation(payload, _observed_diagnostics(events), (payload["outcome"],),
                                  schema=(export_report, NativeDiagnostic, SourceLocation))
+
+    def diagnostic_mirror_records(self, process, report):
+        """T1: compare real captured events with independently read report events.
+
+        The inspected CLI's info threshold displays every produced diagnostic.
+        Its current renderer prints the native code/message/effect, source
+        locators and generated IRI. Reconstruct that presentation only for the
+        reported events; the produced side reads captured bytes exclusively.
+        A renderer change needs a binding update, not a new expected message.
+        Filtered console output cannot establish complete production evidence.
+        """
+        from ontouml_directkg.cli import build_parser
+        from ontouml_directkg.diagnostics import Diagnostic as NativeDiagnostic
+
+        if process.command[1:3] != ("-m", "ontouml_directkg"):
+            raise ImplementationUnavailable("Interpret this CLI command before diagnostic mirroring")
+        threshold = build_parser().parse_args(process.command[3:]).console_level
+        if threshold != "info":
+            raise ImplementationUnavailable("Complete diagnostic mirroring requires unfiltered console evidence")
+        produced = Counter(event.raw["data"] for event in process.console)
+        reported = Counter()
+        for event in report.diagnostics:
+            native = event.raw
+            if not isinstance(native, NativeDiagnostic):
+                raise ImplementationUnavailable("Interpret this report event before diagnostic mirroring")
+            context = "; ".join(
+                f"{source.element_type or 'source'} {source.identifier or ''} at {source.path}"
+                for source in native.sources
+            )
+            record = (
+                f"[{native.severity}] {native.code}: {native.message} {native.effect}"
+                + (" Sources: " + context if context else "")
+                + (" Generated IRI: " + native.generated_iri if native.generated_iri else "")
+                + "\n"
+            )
+            # The inspected Python CLI's stderr escapes unencodable source
+            # identifiers; retain that observed presentation for invalid IDs.
+            reported[record.encode("utf-8", errors="backslashreplace")] += 1
+        return produced, reported
 
     def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
         if "ontology_version_iri" in options:
