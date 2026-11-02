@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-10-29
+**Consolidated:** 2026-11-02
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -1928,7 +1928,7 @@ A role is present when it is non-null and contains at least one non-whitespace c
 
 When present:
 
-- under the name strategy, its normalized value is the preferred IRI candidate;
+- under the name strategy, its normalized value is the preferred IRI candidate when usable under DK-IRI-03 and DK-IRI-10; otherwise DK-INV-06 applies;
 - under either IRI strategy, the original role name MUST be preserved as the inverse's `rdfs:label`, with language resolved under DK-LBL-02.
 
 When the inverse-facing role is absent, no synthetic `rdfs:label` is generated for the inverse under either IRI strategy.
@@ -1937,15 +1937,17 @@ Source-end descriptions MUST be preserved on the corresponding generated named i
 
 ### DK-INV-06 — Name-strategy structural fallback
 
-When no inverse-facing role is present, DirectKG MUST derive the inverse candidate from the resolved primary-property local name:
+When no inverse-facing role is present, or a present role yields no usable naming candidate under DK-IRI-03 and DK-IRI-10, DirectKG MUST derive the inverse candidate from the resolved primary-property local name:
 
 ```text
 inverseOf<ResolvedPrimaryPropertyLocalName>
 ```
 
-For example, `employs` produces `inverseOfEmploys`. As established in DK-INV-05, no synthetic `rdfs:label` is generated because the source supplies no inverse domain term.
+For example, `employs` produces `inverseOfEmploys`.
 
-This fallback applies to `all` and to `informed` when multiplicity triggers generation without a role. It is unnecessary under `named`.
+Fallback naming MUST NOT change role presence, inverse-generation eligibility, or the source-authored label requirements in DK-INV-05. An absent role produces no synthetic `rdfs:label`. A present but unusable role MUST retain its applicable original role labels; the structural fallback itself MUST NOT supply an invented label.
+
+This fallback MUST apply whenever the selected mode requires the eligible inverse and no usable role-based naming candidate exists. This includes `all`; `informed` when role presence or multiplicity triggers generation; and `named` when a role is present but unusable for naming. Subsequent collisions follow DK-INV-07–08.
 
 ### DK-INV-07 — Source-backed precedence
 
@@ -1973,16 +1975,49 @@ If the primary-based fallback collides, only the generated inverse is further qu
 inverseOf<ResolvedPrimaryPropertyLocalName>_<InverseDomain>
 ```
 
-A supported localized inverse-domain name supplying this naming component follows DK-IRI-10.
+When the inverse-domain classifier has a usable name, its normalized name supplies this component; supported localized names follow DK-IRI-10. When that classifier has no usable normalized name, DirectKG MUST use its DK-IRI-04 fallback candidate as the qualifier:
 
-If distinct generated inverses still share the qualified candidate, every inverse in that collision group receives a deterministic numeric suffix:
+```text
+unnamedClass_<escaped-domain-class-id>
+```
+
+The identifier MUST be the inverse-domain classifier's own source ID, processed using the existing DK-IRI-05 escaping for that fallback. DirectKG MUST reuse the candidate before classifier collision handling and MUST NOT include subsequently assigned classifier collision suffixes. The source-backed qualification rule in DK-PROP-02 retains its separate scope.
+
+#### Deterministic numeric allocation
+
+After the existing role-collision and primary-fallback qualification rules have been applied, a generated inverse requires numeric allocation when its qualified candidate collides with a source-backed candidate claim, a final source-backed local name, or another remaining inverse candidate. A unique inverse candidate without such collisions MUST remain unchanged.
+
+DirectKG MUST perform numeric allocation as follows:
+
+1. Establish one shared set of reserved local names for the conversion. It MUST contain all source-backed candidate claims and final source-backed local names, together with the names of inverses retained without numeric allocation.
+2. Group the inverses requiring numeric allocation by their original qualified candidate. Process groups in ascending lexicographic order of those candidate strings, comparing Unicode code points. Within each group, process inverses in ascending lexicographic order of their original inverse-facing association-end IDs, also comparing Unicode code points without trimming, normalization, case folding, or ID escaping.
+3. For each inverse in that order, select the smallest positive integer `n` for which `<original-qualified-candidate>_<n>` is not reserved. Assign that local name and immediately add it to the shared reserved set.
+4. Apply those reservations across every inverse group. Allocation MUST account for source-backed claims and final names, retained inverse names, and all previously allocated inverse names, including allocations from other groups. It MUST NOT rely on independent per-group reservation sets or on JSON/source traversal order.
+5. Every inverse in a shared-candidate collision group MUST receive a numeric suffix; none retains the unsuffixed candidate. A lone inverse colliding with a source-backed name likewise receives a numeric suffix. Source-backed resources MUST NOT participate as numbered group members or be renamed by this allocation.
+
+When the slots are available, a group of `N` inverses receives the established `_1` through `_N` suffixes in source-end-ID order, for example (non-normative):
 
 ```text
 inverseOfWorksFor_Organization_1
 inverseOfWorksFor_Organization_2
 ```
 
-The inverse-facing association-end ID is the stable ordering key for `_1 … _N`; it MUST NOT appear in the resulting IRI merely for this purpose.
+Occupied slots MUST be skipped, so numbering MAY contain gaps. This is the generated-inverse exception to DK-IRI-07's contiguous collision-group numbering; ordinary source-backed collision handling remains unchanged.
+
+DirectKG MUST retain the original qualified candidate throughout allocation. It MUST NOT recover that candidate by stripping numeric text from an existing name or resolve a blocked numeric slot by appending another suffix to an already allocated candidate. Original source-derived candidate text may itself contain numbers.
+
+The inverse-facing association-end ID supplies ordering only; it MUST NOT appear in the resulting IRI merely for that purpose. Source-backed IRIs, inverse-generation eligibility, distinct inverse identities, direction, domains, ranges, and applicable original role labels MUST remain preserved under their existing rules. These naming cases MUST NOT suppress an otherwise eligible inverse.
+
+**Examples (non-normative):** Here `Q` denotes the original qualified candidate. Multiple inverses are listed in ascending source-end-ID order, and all unlisted numeric slots are available.
+
+| Reserved source-backed local names | Inverses requiring allocation | Allocated local names |
+|---|---:|---|
+| `Q` | One | `Q_1` |
+| `Q`, `Q_1` | One | `Q_2` |
+| `Q_1` | Two sharing `Q` | `Q_2`, `Q_3` |
+| `Q_1`, `Q_2` | Two sharing `Q` | `Q_3`, `Q_4` |
+
+An inverse retained at `Q_1` also reserves that name before allocation for a group using `Q`. Shared reservations prevent one group's allocation from taking another retained or already allocated inverse name.
 
 ### DK-INV-09 — ID-strategy inverse IRI
 
@@ -1997,6 +2032,8 @@ Changing inverse-generation mode MAY change generated inverse IRIs, because a ne
 Adding or changing an inverse-facing role name MAY also change the generated inverse IRI.
 
 When `informed` or `named` intentionally omits an inverse, DirectKG MUST emit no warning, information message, or element-level report entry. This silence does not apply to malformed relations, unresolved endpoints, or failures of the primary transformation.
+
+DirectKG MUST NOT introduce an additional diagnostic solely because the structural role fallback under DK-INV-06, inverse-domain qualification, or numeric allocation under DK-INV-08 is used. Existing missing-name, input, and other independently applicable diagnostics remain required under their established conditions.
 
 ### DK-INV-11 — Multilingual scope
 
@@ -2268,6 +2305,8 @@ When inverse generation is disabled, the direct property still uses the target-e
 
 After all applicable name fallbacks and source-backed property qualification, DirectKG MUST check local-name collisions. A unique candidate remains unsuffixed. Every member of a collision group of size `N` MUST receive `_1` through `_N`; DirectKG MUST NOT leave one unsuffixed.
 
+Generated inverse allocation MUST follow the more specific source-backed precedence and naming rules in DK-INV-07–08. In particular, DK-INV-08 permits skipping reserved numeric suffixes for generated inverses while source-backed names remain fixed. This exception MUST NOT change the ordinary source-backed collision-group numbering above.
+
 Suffix allocation MUST be deterministic and stable for an unchanged source model. Stable source information, preferably element IDs or deterministic source order, SHOULD assign suffixes.
 
 Distinct source elements MUST NOT be merged. A collision between distinct escaped source IDs is exceptional and MUST NOT be silently repaired as an ordinary name collision; this specification does not define its exact disposition.
@@ -2353,7 +2392,7 @@ Selection MUST use the original source language keys. Neither `--language`, its 
 
 For inverse-generation purposes, a multilingual role MUST count as present when any of its values contains a non-whitespace character. Successful ASCII normalization MUST NOT be an additional condition for inverse eligibility. Existing inverse-generation modes and other eligibility conditions remain applicable.
 
-When no naming candidate is usable, DirectKG MUST apply the applicable fallback and diagnostic rules for the affected resource type, including DK-IRI-04's generic source-backed-resource policy. This lexical-selection rule itself establishes no additional fallback for other cases whose treatment remains unspecified.
+When no naming candidate is usable, DirectKG MUST apply the applicable fallback and diagnostic rules for the affected resource type, including DK-IRI-04's generic source-backed-resource policy. For generated inverses, DK-INV-06 establishes the fallback for a present but unusable role, and DK-INV-08 establishes the fallback for an unusable inverse-domain name. This lexical-selection rule itself establishes no additional fallback for other cases whose treatment remains unspecified.
 
 Multiple localized values alone MUST NOT introduce an additional diagnostic. Other applicable diagnostics remain unchanged. This rule introduces no additional configuration control.
 
@@ -2422,6 +2461,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | At least one material-property chain emitted under either chain-generating mode | Mode-specific compatibility notice under DK-DIAG-07, even when no cardinality or property-disjointness axiom conflicts; omission mode reports the applied policy and categories actually omitted, where applicable, with affected-source identification under existing rules; preservation mode explains preservation and possible OWL 2 DL incompatibility | No |
 | Material-property-chain mode `none` | No material chains; no DK-DIAG-07 solely because chain generation is disabled | No solely for this mode |
 | Deliberately unmapped applicable relation stereotype | Warning; use weaker fallback where transformation is otherwise defined. The `historicalDependence` boundary under DK-REL-01 retains this warning whenever its established condition applies and introduces no warning-suppression exception. | No |
+| Structural inverse-role fallback, inverse-domain qualification, or numeric allocation under DK-INV-06–08 | No additional diagnostic solely for the naming step under DK-INV-10; existing independently applicable diagnostics remain required | No solely for these naming steps |
 | Expected inverse omission under `informed` or `named` | No diagnostic or element report | No |
 | Either named inverse is absent under the selected inverse-generation mode for a mapped explicit relation generalization | Omit the additional inverse-specialization axiom without a warning under DK-INV-12 | No solely for this omission |
 | Either named inverse is absent for a primary-property pair disjoint under DK-REL-15 | Omit that inverse-disjointness pair without a warning; do not force inverse generation | No solely for this omission |
