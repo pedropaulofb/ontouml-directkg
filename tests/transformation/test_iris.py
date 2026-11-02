@@ -211,7 +211,10 @@ def test_all_members_of_name_collision_group_are_suffixed_deterministically(run)
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("state,value", NAME_STATES)
 def test_unnamed_class_uses_type_specific_fallback(run, source_json, tmp_path, input_policy, state, value):
-    """Rules: DK-IRI-04, DK-IRI-05, DK-IRI-09, DK-LBL-01, DK-DIAG-01, DK-DIAG-05."""
+    """Rules: DK-IRI-04, DK-IRI-05, DK-IRI-09, DK-LBL-01, DK-DIAG-01, DK-DIAG-05.
+
+    T3: stereotype facts must come from the actual naming warning.
+    """
     document = source_json("iris/fallbacks")
     _set_name(document["model"]["contents"][0], state, value)
     assert not fixture_issues(document)
@@ -245,7 +248,10 @@ def test_unnamed_class_in_id_mode_keeps_warning(run, source_json, tmp_path, stat
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("state,value", NAME_STATES)
 def test_generic_attribute_fallback_keeps_name_strategy(run, source_json, tmp_path, input_policy, state, value):
-    """Rules: DK-IRI-02, DK-IRI-04, DK-IRI-05, DK-IRI-09, DK-LBL-01, DK-DIAG-05."""
+    """Rules: DK-IRI-02, DK-IRI-04, DK-IRI-05, DK-IRI-09, DK-LBL-01, DK-DIAG-05.
+
+    T3: generic source-ID fallback uses its existing semantic diagnostic category.
+    """
     document = source_json("iris/fallbacks")
     _set_name(document["model"]["contents"][0]["properties"][0], state, value)
     assert not fixture_issues(document)
@@ -256,7 +262,7 @@ def test_generic_attribute_fallback_keeps_name_strategy(run, source_json, tmp_pa
     assert (BASE.Owner, RDF.type, OWL.Class) in result.ontology  # strategy did not switch
     assert (resource, RDF.type, OWL.DatatypeProperty) in result.ontology
     assert (resource, RDFS.domain, BASE.Owner) in result.ontology
-    notices = [d for d in result.diagnostics if d.kind == "missing_name" and "aFallback" in d.identified_sources]
+    notices = [d for d in result.diagnostics if d.kind == "generic_id_fallback" and "aFallback" in d.identified_sources]
     assert notices and all(d.severity == "WARNING" for d in notices)
     assert any(str(resource) in d.generated_iris for d in notices)
     if value and value.strip():

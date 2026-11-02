@@ -6,6 +6,7 @@ and fresh-file CLI JSON reports. Other capabilities remain explicitly unbound.
 Never populate observations from expected fixtures or implement mappings here.
 """
 
+from ast import literal_eval
 from dataclasses import dataclass, field
 from collections import Counter
 import json
@@ -640,6 +641,23 @@ def _observed_diagnostics(events):
             raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
         wording = (event.message + " " + event.effect).casefold()
         facts = set()
+        if event.code == "MISSING_CLASS_NAME":
+            # The inspected producer uses repr() for both the opaque ID and
+            # supplied stereotype. Read the reported literal, never the source
+            # fixture or a presumed default; quoted delimiters may occur in IDs.
+            quoted = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")"""
+            match = re.fullmatch(
+                rf"Class {quoted}, stereotype (?P<stereotype>{quoted}|None), "
+                r"has no usable (?:name-based IRI name|source name)\.",
+                event.message,
+            )
+            if match is None:
+                raise ImplementationUnavailable(
+                    f"Class naming diagnostic wording needs interpretation: {event.message!r}"
+                )
+            stereotype = literal_eval(match.group("stereotype"))
+            if stereotype is not None:
+                facts.add("stereotype:" + stereotype)
         if "aborted" in event.effect.casefold():
             facts.add("conversion_aborted")
         if event.code == "DUPLICATE_SOURCE_ID" and len(event.sources) >= 2 and "competing declarations" in wording:

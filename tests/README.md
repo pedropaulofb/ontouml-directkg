@@ -873,7 +873,8 @@ authority, the owner exception and exact existing node/fixture traceability.
 The owner relayed T1's independent OK and explicitly directed T2 next. This is
 recorded as the task-specific sequencing instruction for maintenance under the
 existing DK-IRI-01/DK-DIAG-04/§15 contract. No Architect Reviewer verdict or new
-semantics are claimed. T2 awaits independent Test Reviewer review.
+semantics are claimed. T2 received the forwarded independent Test Reviewer OK
+for `9f3e2890e58794fe7a02a40cd2836a49386ba7aa`; the owner subsequently assigned T3.
 
 The real CLI command remains `sys.executable -m ontouml_directkg`. A temporary
 `sitecustomize.py` installs a standard Python profile hook in that child process.
@@ -908,3 +909,36 @@ guards remained valid. Collection remains 2711 with unchanged nodes; all 17
 Python files parse and 2623 behavioral inventory nodes reconcile. The full suite
 was not repeated. No production, fixture or specification files changed; T3–T5
 remain queued. See the T2 inventory section for authority and exact node pairings.
+
+## T3 — Naming-warning facts and generic fallback category
+
+The owner relayed T2's independent OK and explicitly directed T3 next under the
+existing accepted contract. No Architect Reviewer verdict, new semantics or
+normative supersession is claimed. T3 awaits independent Test Reviewer review.
+
+The adapter now reads the available stereotype from the actual class naming
+warning. It interprets the current producer's quoted source-ID/stereotype
+literals and both name-mode and ID-mode warning forms, retaining the original
+native event. Neither input data nor the expected fixture supplies the fact.
+Unknown message forms remain explicitly unavailable. Native warning wording and
+codes stay within the replaceable binding rather than becoming required APIs.
+
+The generic attribute-fallback test selects the existing `generic_id_fallback`
+semantic category. It retains its WARNING, source identification, generated IRI,
+property kind/domain, name-strategy and source-label assertions. All 36 existing
+node/parameter IDs and canonical input pairing remain unchanged.
+
+Focused command from the repository root:
+
+```bash
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_iris.py::test_unnamed_class_uses_type_specific_fallback tests/transformation/test_iris.py::test_generic_attribute_fallback_keeps_name_strategy
+```
+
+All 36 formerly failing cases passed. Sixty related naming/enumeration cases and
+21 accepted T1/T2 cases passed. Temporary mutations of actual native warnings
+were rejected in 30 behavioral controls; three unknown-wording controls refused
+credit. Five actual-warning controls preserved quoted identifiers/custom
+stereotypes and did not invent an absent stereotype. Collection remains 2711
+with identical nodes; all 17 Python files parse and 2623 behavioral inventory
+nodes reconcile. The full suite was not rerun. Production, fixtures and
+specifications remain unchanged; T4–T5 remain queued.
