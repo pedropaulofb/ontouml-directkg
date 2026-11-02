@@ -441,12 +441,19 @@ def test_rdf_helper_property_expressions_require_an_actual_inverse_edge():
                          ids=['attribute_superproperty','target_superproperty','named_inverse_superproperty','anonymous_inverse_superproperty'])
 @pytest.mark.parametrize('mode',['none','omit-conflicting-constraints','preserve-conflicting-constraints'])
 def test_emitted_chain_nonsimplicity_follows_property_references_without_materializing_inverse_edges(run,source_json,tmp_path,reference,target,inverse_mode,mode):
-    """Rules: DK-PROP-03, DK-REL-07, DK-REL-09, DK-REL-10, DK-INV-04, DK-GEN-02, DK-DIAG-07."""
+    """Rules: DK-PROP-03, DK-REL-07, DK-REL-09, DK-REL-10, DK-INV-04, DK-GEN-02, DK-DIAG-07, DK-ATT-01, DK-DAT-05.
+
+    T4: use the supported custom-datatype attribute mapping while preserving
+    the material pattern. RD-14 does not require matching property ranges.
+    """
     import copy
     from tests.support.data import source_element,write_input,fixture_issues
     document=source_json('shared/material_pattern')
+    datatype=copy.deepcopy(source_element(document,'cB'))
+    datatype.update(id='dAffected',name='StructuredValue',stereotype='datatype')
+    document['model']['contents'].append(datatype)
     attribute=copy.deepcopy(source_element(document,'sUnrelated'))
-    attribute.update(id='pAffected',name='affectedValue',propertyType={'id':'cB','type':'Class'},cardinality='1..*',aggregationKind=None)
+    attribute.update(id='pAffected',name='affectedValue',propertyType={'id':'dAffected','type':'Class'},cardinality='1..*',aggregationKind=None)
     safe=copy.deepcopy(attribute);safe.update(id='pSafe',name='safeValue',propertyType=None)
     source_element(document,'cExtra')['properties']=[attribute,safe]
     target_id='pAffected' if target=='attribute' else 'tUnrelated' if target=='target_end' else 'sUnrelated'
@@ -455,6 +462,9 @@ def test_emitted_chain_nonsimplicity_follows_property_references_without_materia
     result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode)
     assert result.outcome=='completed'
     graph=result.ontology
+    assert (BASE.dAffected,RDF.type,OWL.Class) in graph
+    assert (BASE.pAffected,RDF.type,OWL.ObjectProperty) in graph
+    assert (BASE.pAffected,RDFS.range,BASE.dAffected) in graph
     expected=BASE.pAffected if target=='attribute' else BASE.tUnrelated if target=='target_end' else (
         BASE.sUnrelated if inverse_mode=='all' else ('inverse',BASE.tUnrelated))
     edges={(property_expression(graph,a),property_expression(graph,b)) for a,b in graph.subject_objects(RDFS.subPropertyOf)}

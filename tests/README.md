@@ -914,7 +914,8 @@ remain queued. See the T2 inventory section for authority and exact node pairing
 
 The owner relayed T2's independent OK and explicitly directed T3 next under the
 existing accepted contract. No Architect Reviewer verdict, new semantics or
-normative supersession is claimed. T3 awaits independent Test Reviewer review.
+normative supersession is claimed. T3 received the forwarded independent Test
+Reviewer OK for `7f28538939fb5ec80023f00f28cbd60471745012`; the owner assigned T4 next.
 
 The adapter now reads the available stereotype from the actual class naming
 warning. It interprets the current producer's quoted source-ID/stereotype
@@ -942,3 +943,35 @@ stereotypes and did not invent an absent stereotype. Collection remains 2711
 with identical nodes; all 17 Python files parse and 2623 behavioral inventory
 nodes reconcile. The full suite was not rerun. Production, fixtures and
 specifications remain unchanged; T4–T5 remain queued.
+
+## T4 — Supported input for chain/reference interaction cases
+
+The owner relayed T3's independent OK and directed T4 next under the existing
+accepted contract. T4 awaits independent Test Reviewer review. No Architect
+Reviewer verdict, new semantics or normative supersession is claimed.
+
+The 24 chain/reference cases retain the canonical `shared/material_pattern`
+input. Their existing temporary-input mutation now adds one complete custom
+datatype classifier, dAffected/StructuredValue, and uses it as pAffected's value
+type. This applies the already accepted DK-ATT-01/DK-DAT-05 object-property mapping.
+The material participants, shared input, parameter IDs and 16 existing assertions
+remain unchanged. Three explicit class/object-property/range assertions verify
+the supported prerequisite. RD-14's reference mapping does not require matching
+ranges; no ordinary kind-valued attribute mapping is selected or invented.
+
+Focused command from the repository root:
+
+```bash
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_properties.py::test_emitted_chain_nonsimplicity_follows_property_references_without_materializing_inverse_edges
+```
+
+All 24 cases passed after reproducing their prior unsupported-kind guards. Nine
+nearby property-hierarchy/custom-datatype regressions and one shared fixture
+contract passed. Temporary mutations after actual conversion removed the required
+inclusion, inverted chain presence, violated the count policy or removed
+unrelated counts; all 96 mutation/configuration controls were rejected by the
+interaction assertions. Collection remains 2711 with identical nodes, 2623
+behavioral inventory nodes reconcile, all 24 rule mappings retain their per-mode
+associations and all 17 Python files parse. The full suite was not rerun. No
+production, adapter, stored fixture or specification changes were made. T5 remains
+queued.
