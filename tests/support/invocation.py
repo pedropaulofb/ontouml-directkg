@@ -9,6 +9,7 @@ Never populate observations from expected fixtures or implement mappings here.
 from ast import literal_eval
 from dataclasses import dataclass, field
 from collections import Counter
+from contextlib import contextmanager, nullcontext
 import json
 import os
 from pathlib import Path
@@ -112,6 +113,9 @@ class Observation:
     diagnostics: tuple[Diagnostic, ...]
     configuration_error: Any = None
     native: Any = field(default=None, repr=False)
+    # Optional real-call input-processing trace, independent of returned status.
+    conversion_started: bool | None = None
+    execution_trace: Any = None
     comments: tuple[CommentMeaning, ...] = ()
     # Actual RDF statements expressing restrictedTo/nature information, read
     # from the produced graph regardless of predicate or comment wording. This
@@ -519,6 +523,33 @@ class _PythonObservation(_BasicObservation):
     _available_fields = _BasicObservation._available_fields | {"provenance"}
 
 
+class _InputObservedPython(_PythonObservation):
+    _available_fields = _PythonObservation._available_fields | {
+        "conversion_started", "execution_trace", "diagnostics_exports"}
+
+
+class _VersionControlSurface(_BoundFieldsOnly, ControlSurface):
+    _available_fields = frozenset({"cli", "python", "raw"})
+
+
+class _ScopedControls(Mapping):
+    """Bound lookups cannot imply a complete inventory or absent controls."""
+
+    def __init__(self, controls):
+        self._controls = controls
+
+    def __getitem__(self, key):
+        if key not in self._controls:
+            raise ImplementationUnavailable(f"Control inspection {key!r} is not bound")
+        return self._controls[key]
+
+    def __iter__(self):
+        raise ImplementationUnavailable("Complete control inventory is not bound")
+
+    def __len__(self):
+        raise ImplementationUnavailable("Complete control inventory is not bound")
+
+
 class _ReportProcess(_BoundFieldsOnly, CLIObservation):
     _available_fields = frozenset({"command", "returncode", "stdout", "stderr", "observation", "console",
                                    "conversion_started", "execution_trace"})
@@ -581,6 +612,42 @@ def finish():
 sys.setprofile(observe)
 atexit.register(finish)
 '''
+
+
+@contextmanager
+def _observe_python_input():
+    """Observe the actual reader and shared report writer during one Python call.
+
+    Like the CLI observer, this uses inspected native code objects and standard
+    profiling. No function is replaced and no rejection is inferred from input
+    options. Preserve any existing profile hook and refuse incomplete evidence.
+    """
+    from ontouml_directkg.conversion import read_project
+    from ontouml_directkg.diagnostics import export_report
+
+    reader_code, writer_code = read_project.__code__, export_report.__code__
+    trace = {"input_reader": read_project, "report_writer": export_report,
+             "conversion_started": False, "diagnostics_exports": []}
+    previous = sys.getprofile()
+
+    def observe(frame, event, argument):
+        if event == "call":
+            if frame.f_code is reader_code:
+                trace["conversion_started"] = True
+            elif frame.f_code is writer_code:
+                trace["diagnostics_exports"].append(Path(frame.f_locals["destination"]))
+        if previous is not None:
+            previous(frame, event, argument)
+
+    sys.setprofile(observe)
+    try:
+        yield trace
+    finally:
+        active = sys.getprofile() is observe
+        sys.setprofile(previous)
+        trace["observation_completed"] = active
+        if not active:
+            raise ImplementationUnavailable("Incomplete Python input-processing evidence")
 
 
 def _run_observed_cli(command, workdir):
@@ -706,13 +773,6 @@ class _DirectKGInvocation(_UnboundInvocation):
     """Minimal RD-02 wiring; no conversion, recovery or output rules live here."""
 
     def convert(self, source, *, options, workdir, faults=()):
-        if "ontology_version_iri" in options:
-            raise ImplementationUnavailable(
-                "RD-05 ontology-version-IRI Python control has no verified production binding; "
-                "the absence inspection at 7e17f613 is historical, and the current capability "
-                "requires a separate verified adapter binding. "
-                "ontology_version_iri is a test-side semantic option, not a proposed Python parameter."
-            )
         if faults:
             self._unavailable()
         try:
@@ -722,12 +782,43 @@ class _DirectKGInvocation(_UnboundInvocation):
         request = dict(options)
         if "stereotype_relation_naming" in request:
             request["no_stereotype_relation_naming"] = not request.pop("stereotype_relation_naming")
-        try:
-            result = convert(source, **request)
-        except ConfigurationError as exc:
-            return _BasicObservation(None, None, (), configuration_error=exc)
-        return _PythonObservation(result.ontology, result.outcome, _observed_diagnostics(result.diagnostics),
-                                  native=result, provenance=result.provenance)
+        # T5 verifies the real optional Python parameter, not an invented API.
+        # Trace only this newly bound request; unrelated readers stay unbound.
+        with (_observe_python_input() if "ontology_version_iri" in request else nullcontext()) as trace:
+            try:
+                result = convert(source, **request)
+            except ConfigurationError as exc:
+                observed = _BasicObservation(None, None, (), configuration_error=exc)
+            else:
+                observed = _PythonObservation(result.ontology, result.outcome, _observed_diagnostics(result.diagnostics),
+                                              native=result, provenance=result.provenance)
+        if trace is not None:
+            return _InputObservedPython(observed.ontology, observed.outcome, observed.diagnostics,
+                configuration_error=observed.configuration_error, native=observed.native,
+                provenance=None if observed.native is None else observed.provenance,
+                conversion_started=trace["conversion_started"], execution_trace=trace,
+                diagnostics_exports=tuple(trace["diagnostics_exports"]))
+        return observed
+
+    def inspect_controls(self):
+        """T5 binds only the version control; full-surface inspection stays open."""
+        import inspect
+        from ontouml_directkg import convert
+        from ontouml_directkg.cli import build_parser
+
+        signature = inspect.signature(convert)
+        parameter = signature.parameters.get("ontology_version_iri")
+        parser = build_parser()
+        actions = [action for action in parser._actions if "--ontology-version-iri" in action.option_strings]
+        if parameter is None or len(actions) != 1:
+            raise ImplementationUnavailable("Interpret the current ontology-version-IRI public controls")
+        action = actions[0]
+        cli = Control("--ontology-version-iri", None if action.choices is None else tuple(action.choices),
+                      action.default, action, arity=1 if action.nargs is None else action.nargs)
+        python = Control(parameter.name, None, parameter.default, parameter)
+        return _VersionControlSurface(
+            _ScopedControls({cli.parameter: cli}), _ScopedControls({"ontology_version_iri": python}),
+            {}, raw={"python_signature": signature, "cli_action": action, "cli_help": parser.format_help()})
 
     def attempt_source_input(self, source, *, options, workdir):
         try:
@@ -945,11 +1036,6 @@ class _DirectKGInvocation(_UnboundInvocation):
         return produced, reported
 
     def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
-        if "ontology_version_iri" in options:
-            raise ImplementationUnavailable(
-                "RD-05 ontology-version-IRI CLI capability is not bound here. The absence "
-                "inspection at 7e17f613 is historical; current production advertises the control."
-            )
         if (faults or extra_args or output_path is None or diagnostics_path is None
                 or Path(output_path).exists() or Path(diagnostics_path).exists()):
             self._unavailable()

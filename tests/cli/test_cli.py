@@ -77,8 +77,9 @@ def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy,
 
 DEFAULTS={'iri_strategy':'name','input_policy':'tolerant','stereotype_policy':'allow-custom','inverse_properties':'all',
           'material_property_chains':'none','relation_labels':'source-only','omit_identifiers':False,
-          'stereotype_relation_naming':True,'provenance':'embedded'}
+          'stereotype_relation_naming':True,'provenance':'embedded','ontology_version_iri':None}
 CONTROLS=[('--base-iri','base_iri',None),('--iri-strategy','iri_strategy',['name','id']),
+          ('--ontology-version-iri','ontology_version_iri',None),
           ('--input-policy','input_policy',POLICIES),('--stereotype-policy','stereotype_policy',['require-known','allow-missing','allow-custom']),
           ('--inverse-properties','inverse_properties',['all','informed','named','none']),
           ('--no-stereotype-relation-naming','stereotype_relation_naming',[True,False]),
@@ -143,7 +144,7 @@ def test_cli_and_python_expose_all_established_controls_values_and_defaults(invo
     if choices is not None:assert set(cli.choices)==set(python.choices)==set(choices)
     if semantic in DEFAULTS:assert cli.default==python.default==DEFAULTS[semantic]
     if semantic=='relation_labels':assert python.parameter=='relation_labels'
-    if semantic=='language':assert cli.arity==1
+    if semantic in {'language','ontology_version_iri'}:assert cli.arity==1
 
 
 @pytest.mark.parametrize('flag,choices,default',[('--console-level',['info','warning','error'],'info'),('--diagnostics-file',None,None)],ids=['console_level','diagnostics_file'])
@@ -350,6 +351,30 @@ def test_supplied_base_rejection_precedes_conversion_and_requested_reporting(inv
     destination=tmp_path/'out.ttl';report=tmp_path/'report.json'
     process=invoke.cli(fixture_path('shared/base_iri'),options={'base_iri':base,'input_policy':input_policy},workdir=tmp_path,output_path=destination,diagnostics_path=report)
     assert process.returncode==2 and process.conversion_started is False
+    assert process.observation is None
+    assert not destination.exists() and not report.exists()
+
+
+@pytest.mark.parametrize('version', [
+    '', ' \t', 'relative/version', ' https://example.test/version',
+    'https://example.test/ver sion', 'https://example.test/version%ZZ',
+    'https://example.test/version\nnext',
+], ids=['empty', 'whitespace', 'relative', 'leading-space', 'interior-space', 'invalid-escape', 'control-character'])
+@pytest.mark.parametrize('input_policy', POLICIES)
+def test_cli_invalid_ontology_version_iri_rejected_before_conversion(invoke, tmp_path, version, input_policy):
+    """Rules: DK-IRI-01, DK-DIAG-04, DK-DIAG-05; §15. T5 audit remediation.
+
+    Invalid supplied version IRIs are configuration errors under every policy.
+    Observe processing independently of status and the requested report file.
+    """
+    destination = tmp_path / 'out.ttl'
+    report = tmp_path / 'report.json'
+    process = invoke.cli(fixture_path('shared/base_iri'),
+        options={'base_iri': str(BASE), 'ontology_version_iri': version, 'input_policy': input_policy},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report)
+    assert process.command and isinstance(process.stdout, bytes) and isinstance(process.stderr, bytes)
+    assert process.returncode == 2
+    assert process.conversion_started is False
     assert process.observation is None
     assert not destination.exists() and not report.exists()
 

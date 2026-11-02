@@ -907,6 +907,27 @@ def test_mixed_metadata_lists_omit_invalid_values_and_keep_independent_fields_wi
     assert set(graph.objects(ONTOLOGY,SELECTED_METADATA[field]))<={permitted}
     assert (BASE.Person,RDF.type,OWL.Class) in result.ontology
 
+@pytest.mark.parametrize('version', [
+    '', ' \t', 'relative/version', ' https://example.test/version',
+    'https://example.test/ver sion', 'https://example.test/version%ZZ',
+    'https://example.test/version\nnext',
+], ids=['empty', 'whitespace', 'relative', 'leading-space', 'interior-space', 'invalid-escape', 'control-character'])
+@pytest.mark.parametrize('input_policy', POLICIES)
+def test_invalid_ontology_version_iri_rejected_before_conversion(invoke, source_path, tmp_path, version, input_policy):
+    """Rules: DK-IRI-01, DK-DIAG-04, DK-DIAG-05; §15. T5 audit remediation.
+
+    Retain the native programmatic rejection without prescribing its class.
+    Actual input-reader/report-writer observations establish non-processing.
+    """
+    result = invoke.convert(source_path('shared/base_iri'),
+        options={'base_iri': str(BASE), 'ontology_version_iri': version, 'input_policy': input_policy},
+        workdir=tmp_path)
+    assert result.configuration_error is not None
+    assert result.conversion_started is False and result.execution_trace is not None
+    assert result.native is None and result.ontology is None and result.outcome is None
+    assert result.diagnostics_exports == ()
+
+
 def _version_source_resources(result, strategy):
     """Read the fixture's source-backed resources, excluding execution metadata."""
     from tests.support.rdf import one_subject

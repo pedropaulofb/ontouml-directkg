@@ -947,7 +947,8 @@ specifications remain unchanged; T4–T5 remain queued.
 ## T4 — Supported input for chain/reference interaction cases
 
 The owner relayed T3's independent OK and directed T4 next under the existing
-accepted contract. T4 awaits independent Test Reviewer review. No Architect
+accepted contract. T4 received the forwarded independent Test Reviewer OK for
+`38ea538ed2997c94bafaf9d35f694c4cff16c094`; the owner assigned T5 next. No Architect
 Reviewer verdict, new semantics or normative supersession is claimed.
 
 The 24 chain/reference cases retain the canonical `shared/material_pattern`
@@ -973,5 +974,49 @@ unrelated counts; all 96 mutation/configuration controls were rejected by the
 interaction assertions. Collection remains 2711 with identical nodes, 2623
 behavioral inventory nodes reconcile, all 24 rule mappings retain their per-mode
 associations and all 17 Python files parse. The full suite was not rerun. No
-production, adapter, stored fixture or specification changes were made. T5 remains
-queued.
+production, adapter, stored fixture or specification changes were made.
+
+
+## T5 — Invalid ontology version IRI rejection
+
+The owner forwarded T4's independent OK for
+`38ea538ed2997c94bafaf9d35f694c4cff16c094` and directed T5 maintenance under the
+existing DK-IRI-01 / §15 contract. T5 awaits independent Test Reviewer review.
+No architectural review, new semantics or normative supersession is claimed.
+
+The existing ontology/CLI modules now cover seven invalid string forms under
+all three input policies, using the canonical `shared/base_iri/input.json`.
+The control matrix also checks the optional version setting's absent default
+and one-argument CLI arity. Exact nodes, assertions and pairings are in coverage.md.
+No stored fixture, expectation or production file changes.
+
+The adapter now forwards the inspected real `ontology_version_iri` Python
+parameter and `--ontology-version-iri` CLI flag. Historical version-control
+unavailability notes above describe earlier revisions. Python calls supplying
+this control observe the actual input-reader and shared report-writer entries
+with a standard profile hook, preserving an existing hook. Rejection retains
+the native error without inventing a result; missing profiling evidence refuses
+credit. CLI uses the existing same-process input/parser observer. This binding
+knowledge imposes no production function name or new public trace API.
+Control inspection binds only this setting; other lookups, complete enumeration
+and unrelated observation readers still raise explicit unavailability.
+
+Focused command from the repository root:
+
+```bash
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_ontology.py::test_invalid_ontology_version_iri_rejected_before_conversion tests/cli/test_cli.py::test_cli_invalid_ontology_version_iri_rejected_before_conversion 'tests/cli/test_cli.py::test_cli_and_python_expose_all_established_controls_values_and_defaults[ontology_version_iri]'
+```
+
+All 43 new cases pass, after first reproducing 43 explicit binding failures.
+The accepted T1–T4 cases and related base/file-input/diagnostic/fixture checks
+pass (130 cases). The nine older version tests yield one reuse-case pass and
+eight explicit limits: two broad provenance-absence readers, five provenance-role
+readers and one Python-delivery operation. Their expectations remain intact.
+Temporary native controls confirm 21 Python rejections, 21 uninstrumented CLI
+matches and nine omission/HTTPS/URN combinations in both interfaces. Twenty-four
+behavioral mutations and six missing-observer controls are rejected; five scoped
+control lookups/enumerations and one untraced Python read refuse unsupported
+credit. Existing profile hooks are preserved in two controls. Collection is
+2754 nodes, with all 2711 previous nodes retained; 2666 behavioral inventory
+nodes reconcile and all 17 test/support Python files parse. Full-suite execution
+and the remaining unbound capabilities were not performed or certified.
