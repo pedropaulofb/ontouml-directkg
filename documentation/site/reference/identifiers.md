@@ -84,6 +84,8 @@ If the required owner/source qualifier has no usable name, use its class fallbac
 
 After applicable fallbacks and qualification, a unique candidate remains unsuffixed. Every member of a remaining collision group of size `N` receives `_1` through `_N`; none remains unsuffixed. Allocation must be deterministic and stable for unchanged supported input, using stable source information, preferably IDs or deterministic source order. The contract does not select which member receives a particular suffix independently of those rules.
 
+Generated inverses follow the more specific [inverse numeric-allocation rules](../mapping/inverses.md#numeric-allocation): source-backed names remain fixed, reserved numeric slots are skipped, and reservations are shared across inverse groups. This permits gaps in generated-inverse numbering only; ordinary source-backed collision groups retain the contiguous `_1` through `_N` rule above. Keep original numeric text in the inverse's qualified candidate.
+
 Do not merge properties, change an object/datatype property kind, replace them through inclusion axioms, or repair a merge by introducing union domains/ranges. Name collisions are also not duplicate declaration IDs: duplicates in the [input contract's scope](input.md#structural-requirements) abort under every input policy. A collision between distinct escaped source IDs is exceptional and must not be silently repaired as an ordinary name collision; its exact disposition is unspecified.
 
 For a usable name-based enumeration value, construct `<ResolvedEnumerationLocalName>_<NormalizedValueName>`. The enumeration prefix is its class's **already resolved** local name after naming/collisions. A value's normalized name follows the same lexical selector and normalization; distinct literals remain distinct even when their names coincide (DK-IRI-08).
@@ -133,11 +135,13 @@ The naming input is `Person`, regardless of JSON key order. Both applicable labe
 
 Multiple localized values alone produce no additional diagnostic or new control. For inverse eligibility, a role is present when **any** value contains a non-whitespace character; successful ASCII normalization is not required merely to count it as present. Inverse eligibility and inverse-specific naming retain their own rules.
 
+For generated inverses, a present role without a usable naming candidate uses the [primary-based fallback](../mapping/inverses.md#role-and-structural-fallback). An unusable inverse-domain name uses that classifier's `unnamedClass_<escaped-domain-class-id>` candidate before classifier collision suffixes. These are the accepted inverse-specific fallbacks; the lexical selector does not create others.
+
 Deterministic identity does not guarantee byte-identical Turtle. See [Graph and text stability](output.md#graph-and-text-stability) for serialization, RDF-list order, and provenance boundaries.
 
 ---
 
-Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-11-02**; repository commit: `0328ae1300e99eafbce7d5f32d2476c4aa5db71f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
 
 Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).
 

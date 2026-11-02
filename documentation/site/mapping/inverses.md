@@ -1,6 +1,6 @@
 # Inverse properties
 
-These are **specified mappings**, without a verified converter implementation. A separately named inverse is an auxiliary resource; an anonymous inverse expression traverses an existing property backwards. The two serve different purposes.
+These are **specified mappings**. The A1 role/domain fallbacks and numeric allocation below describe accepted intended behavior; converter conformance for these newly resolved cases has not been verified here. A separately named inverse is an auxiliary resource; an anonymous inverse expression traverses an existing property backwards. The two serve different purposes.
 
 ## Generation and eligibility
 
@@ -52,7 +52,11 @@ These uses do not force named inverse generation, and do not establish anonymous
 
 In name mode, only the inverse-facing role supplies the preferred role-based candidate. Select supported localized role text using [Multilingual naming](../reference/identifiers.md#multilingual-naming). Under either IRI strategy, retain applicable original role labels. With no role, do not synthesize an inverse label, including when generated primary-relation labels are enabled.
 
-When no inverse-facing role is present, the name-strategy fallback is `inverseOf<ResolvedPrimaryPropertyLocalName>`; for example, resolved primary `employs` yields `inverseOfEmploys`. It uses the resolved primary name, not a new inverse role. This path serves `all` and multiplicity-triggered `informed`; `named` has no role-free generation path.
+When the inverse-facing role is absent, or is present but yields no usable naming candidate, the name-strategy fallback is `inverseOf<ResolvedPrimaryPropertyLocalName>`; for example, resolved primary `employs` yields `inverseOfEmploys`. It uses the resolved primary name, not a new inverse role.
+
+An unusable naming candidate does not make a present role absent. Keep its applicable original role labels and any applicable source-end description; the structural fallback supplies no invented label. An absent role still receives no synthetic label.
+
+Apply this fallback whenever the selected mode requires the eligible inverse: `all`; `informed` when role presence or multiplicity triggers generation; and `named` when a role is present but unusable for naming. With an absent role, `named` still omits the inverse. Subsequent collisions follow the rules below.
 
 Source-end descriptions annotate the generated named inverse; they do not cause generation. Do not automatically copy the relation description to it. Description and role language rules remain owned by [Labels and descriptions](../reference/text.md#labels-and-descriptions).
 
@@ -62,16 +66,42 @@ Resolve **all source-backed candidates and final IRIs first**. Enabling auxiliar
 
 1. Keep a unique role-derived inverse candidate unchanged.
 2. If it collides with a source-backed resource, a source-backed candidate claim, or another inverse candidate, **every** colliding inverse abandons that role candidate for its own primary-based `inverseOf<ResolvedPrimaryPropertyLocalName>` fallback. Its role label remains unchanged; inverses are not merged.
-3. If the primary-based fallback collides, further qualify only the inverse as `inverseOf<ResolvedPrimaryPropertyLocalName>_<InverseDomain>`. The inverse domain is the primary range; supported localized domain names use the original-text selector.
-4. If distinct inverses still share the qualified candidate, suffix every member deterministically `_1` through `_N`, ordered by the inverse-facing association-end ID. That ordering ID does not enter the IRI merely because it orders the group.
+3. If the primary-based fallback collides, further qualify only the inverse as `inverseOf<ResolvedPrimaryPropertyLocalName>_<InverseDomain>`. The inverse domain is the primary range. Use its normalized name when usable, with the original-text selector for supported localized names. Otherwise use `unnamedClass_<escaped-domain-class-id>`, based on that **domain classifier's own ID** and the established [technical escaping](../reference/identifiers.md#technical-source-id-escaping). Reuse this fallback candidate before classifier collision handling; do not include subsequently assigned classifier collision suffixes.
+4. If that qualified candidate collides with a source-backed candidate claim, a final source-backed local name, or another remaining inverse candidate, apply [numeric allocation](#numeric-allocation). A unique candidate without such collisions stays unchanged.
 
-Do not silently extend these rules to unspecified exceptional cases. General name normalization and technical ID escaping remain distinct processes.
+### Numeric allocation
+
+Use one shared reservation set containing all source-backed candidate claims and final source-backed local names, plus names of inverses retained without numeric allocation.
+
+Group the inverses needing allocation by their **original qualified candidate**. Process those groups in ascending lexicographic order of the candidate strings, comparing Unicode code points. Within each group, process inverses in ascending lexicographic order of their **original inverse-facing association-end IDs**, also by Unicode code points. Do not trim, normalize, case-fold or escape those ordering IDs, or use JSON/source traversal order instead.
+
+For each inverse, choose the smallest positive integer `n` for which `<original-qualified-candidate>_<n>` is not reserved. Reserve the assigned name immediately. Share reservations across all groups, including retained inverse names and every earlier allocation. Every inverse in a shared-candidate collision group receives a suffix; a lone inverse colliding with a source-backed name does too. Source-backed resources are not numbered group members and retain their IRIs.
+
+Available slots give the usual `_1` through `_N` numbering. Occupied slots are skipped, so generated-inverse numbering may contain gaps. This is the narrow exception to [ordinary collision-group numbering](../reference/identifiers.md#qualification-and-collision-groups); it does not change source-backed numbering.
+
+Keep the original qualified candidate throughout allocation. Preserve any numeric text already in it: do not reconstruct the base by stripping numbers or append a further suffix to an already allocated name to evade a blocked slot. The association-end ID supplies ordering only and does not enter the IRI merely for that purpose. Naming preserves inverse eligibility, distinct identities, direction, domains, ranges and applicable original role labels.
+
+These are **specification illustrations, not captured converter output**. `Q` denotes an original qualified candidate, multiple inverses are listed in source-end-ID order, and all unlisted numeric slots are free.
+
+| Original qualified candidate | Already reserved names | Inverses needing allocation | Assigned names |
+| --- | --- | ---: | --- |
+| `Q` | `Q` | 1 | `Q_1` |
+| `Q` | `Q`, `Q_1` | 1 | `Q_2` |
+| `Q` | `Q_1` | 2 | `Q_2`, `Q_3` |
+| `Q` | `Q_1`, `Q_2` | 2 | `Q_3`, `Q_4` |
+| `Q_1` | `Q_1` | 1 | `Q_1_1` |
+
+The last row preserves numeric text in the original candidate. By contrast, when the original candidate is `Q` and slot `Q_1` is occupied, use `Q_2`, not `Q_1_1`. An inverse retained at `Q_1` reserves that name before allocation for a group using `Q`.
+
+General name normalization and technical ID escaping remain distinct processes. These rules do not resolve the separate exceptional collision question for distinct escaped source IDs.
 
 ### ID mode and stability
 
 ID mode uses the **source association-end ID**, processed by established escaping and exceptional-collision rules. Do not substitute the association ID, target-end ID, or the name-mode `inverseOf…` form. The [designated-ID table](../reference/identifiers.md#strategy-and-renaming) also explains primary-property identity.
 
 Changing inverse mode can change generated inverse IRIs through inverse–inverse collisions, and changing the inverse-facing role can change a name-based inverse IRI. Source-backed IRIs remain unaffected by inverse-mode changes. Intentional omission under `informed` or `named` produces no warning, INFO, or element-level report entry. This silence does not cover malformed input, unresolved endpoints, or a failed primary transformation.
+
+Structural role fallback, inverse-domain qualification and numeric allocation add **no diagnostic solely for those naming steps**. Existing missing-name, input and other independently applicable diagnostics still apply. See [Diagnostic conditions](../reference/diagnostics.md#names-typing-and-source-text).
 
 The VP-plugin export path supplies at most one role name per end; the bounded language enrichment additionally supports localized fields. It does not establish arbitrary schema-conformant input or additional multilingual inverse algorithms.
 
@@ -85,6 +115,6 @@ This required mirroring is specific to relation generalizations. UML `subsets` a
 
 ---
 
-Governing rules: DK-INV-01–12; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–06, 10; DK-CONF-02; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-INV-01–12; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01; baseline consolidated: **2026-11-02**; repository commit: `0328ae1300e99eafbce7d5f32d2476c4aa5db71f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md). A1.1, A1.2 and revised A1.3 are the accepted inverse-naming resolutions in this revision; architectural acceptance does not establish their implementation.
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
