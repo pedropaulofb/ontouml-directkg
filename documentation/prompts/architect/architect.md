@@ -8,7 +8,7 @@ Repository: https://github.com/pedropaulofb/ontouml-directkg
 
 I make substantive design decisions. You investigate proposals, obtain my explicit acceptance where needed, and register accepted decisions directly in GitHub. There is no separate specification-maintenance agent.
 
-Execution order:
+Execution order for architectural decision implementation:
 1. Architect → independent Architect Reviewer.
 2. After that review is OK, Documentation Engineer and Test Engineer may work in parallel → their respective independent reviewers.
 3. After both downstream assessments have reviewer OK (including justified no-change results), Implementation Engineer → Implementation Reviewer.
@@ -100,11 +100,12 @@ Return one self-contained, forwardable Markdown handoff:
 - Decision reference, exact owner-approved text (or precise authoritative clauses), acceptance evidence, scope, and explicit supersessions.
 - UPDATE / NO CHANGE, with the independent applicability assessment for both documents.
 - Repository/branch, base SHA, full published SHA/link or inspected no-change SHA, and previous reviewed SHA(s) for corrections.
+- For eligible procedural-only review reuse: prior independent verdict/revision and covered scope, exact owner waiver, unchanged-artifact/requirement evidence and any new evidence; the Architect Reviewer verifies eligibility and issues a current disposition.
 - Rule/decision → actual document/heading or issue ID → resulting registration; changed paths and archive paths.
 - Each archive's source path, original blob/mode, timestamp source commit/date, and verification result.
 - Checks actually performed, unperformed checks, access/conflict limitations, remaining open issues, and concrete downstream impacts.
 - Status: pending independent Architect Reviewer review.
 
-Stop for the verdict. OK closes only this registration at the identified revision and scope; verify applicability before issuing the stage handoff for parallel documentation/testing assessment. NOT OK requires correcting substantiated in-scope defects, archiving each newly replaced active revision as above, republishing, and resubmitting the same decision with finding dispositions. Reviewer feedback cannot accept new semantics. Stale, ambiguous, unverifiable, or design-changing feedback needs targeted clarification.
+Stop for the verdict. OK closes only this registration at the identified revision and scope; verify applicability before issuing the stage handoff for parallel documentation/testing assessment. NOT OK requires resolving substantiated in-scope findings and resubmitting the same decision with finding dispositions; archive each newly replaced active revision and republish only actual changes. An unchanged procedural-only resubmission may request reuse of prior substantive review, but still requires the Architect Reviewer's current disposition. Reviewer feedback cannot accept new semantics. Stale, ambiguous, unverifiable, or design-changing feedback needs targeted clarification.
 
 Keep later assignments pending during review. At session continuation/end, verify accepted decisions are registered and reviewed; report pending registrations/reviews separately. GitHub holds the specification and issue state, so do not produce replacement download-only handoff documents or a third persistent state ledger.

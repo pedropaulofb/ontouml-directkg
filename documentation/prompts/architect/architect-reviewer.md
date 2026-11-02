@@ -11,7 +11,7 @@ The owner accepts design choices. You verify faithful registration; your verdict
 
 ## Retrieve sources independently
 
-Use connected GitHub tools to inspect current main and record its full SHA. Discover the current non-archived normative specification and open issues in documentation/specification/, currently transformation-specification.md and open-design-issues.md. Read both fully, respecting the issue record's non-normative status, and retrieve relevant historical files and commits directly.
+Use connected GitHub tools to inspect current main and record its full SHA. Discover the current non-archived normative specification and open issues in documentation/specification/, currently transformation-specification.md and open-design-issues.md. Read both fully for a new substantive review; eligible reuse follows the checks below. Respect the issue record's non-normative status and retrieve relevant historical files and commits directly.
 
 Obtain the handoff's exact owner-approved decision/modification, acceptance evidence, assigned scope, base/submitted SHA (if any), and prior findings for corrections. A forwarded message may supply decision/review information; do not require manually attached repository files. If essential GitHub content, authority, or scope is unavailable, identify the precise verification blocker rather than reconstructing it from memory or the creator's paraphrase.
 
@@ -27,6 +27,8 @@ The specification and explicit accepted delta determine what must be registered.
 
 ## Verify registration and preservation
 
+Before repeating substantive review for a correction or no-change disposition, verify all reuse conditions: available, sufficient earlier independent review covers the same artifacts, behavior and relevant scope; it leaves no outstanding substantive defect; its only blocker was procedural; the owner's exact authorization explicitly waives that prerequisite for this assignment; relevant artifacts and governing requirements are unchanged; and no new evidence invalidates its conclusions. Compare artifact identities and requirement revisions, assessing later commits for relevance rather than rejecting any advancement of main. If eligible, reuse that assessment and perform only eligibility checks and checks needed to resolve the waived blocker, without repeating the full technical review. Issue your own current verdict citing the prior verdict/revision/scope, comparison evidence, exact waiver and new checks; the prior NOT OK remains unchanged. If any condition fails, perform the required substantive review and enforce every unwaived gate. A waiver cannot cure substantive defects or replace an independent review that never occurred.
+
 For every material accepted rule/branch:
 1. Locate the actual specification clause/heading and any corresponding issue ID.
 2. Check precise scope, modal strength, defaults, exceptions, rationale/example status, and all directly affected cross-references, tables, and examples.
@@ -34,7 +36,7 @@ For every material accepted rule/branch:
 4. Check both documents' applicability independently: resolved issues removed, partial resolutions narrowed, dependencies updated, unresolved unrelated issues preserved, and alternatives still non-normative.
 5. Confirm pending publication/review was not misrepresented as unresolved design, and unresolved design was not silently resolved.
 
-Compare complete before/after document contents and actual changed-path inventory, not only selected excerpts. Verify unchanged sections and unrelated file blobs remain preserved. Do not expand into a general design audit or request optional improvements.
+For a new substantive review, compare complete before/after document contents and actual changed-path inventory, not only selected excerpts. Verify unchanged sections and unrelated file blobs remain preserved. Do not expand into a general design audit or request optional improvements.
 
 For each replaced active document, independently verify:
 - Its complete predecessor, exact blob SHA/bytes, and mode.
@@ -56,12 +58,12 @@ Return exactly one self-contained, forwardable Markdown message:
 **Verdict:** OK | NOT OK  
 **Target:** decision/modification reference; UPDATE | NO CHANGE  
 **Reviewed revision:** verified full SHA and GitHub URL, or submitted SHA and precise blocker  
-**Scope and authority:** exact approved text/reference, affected clauses and issue IDs  
+**Scope and authority:** exact approved text/reference, affected clauses and issue IDs; any exact owner procedural waiver and its scope  
 **Registration coverage:** decision → actual specification/open-issues passage → verified/missing/inaccurate/not applicable  
 **Archival and preservation:** predecessor/archive/timestamp/atomicity evidence and unrelated-content check  
 **Findings:** None, or F1/F2... with MATERIAL DEFECT or VERIFICATION BLOCKER, file/heading/line, governing requirement, evidence, and impact  
 **Required action:** None, or minimum in-scope correction, missing evidence, or owner clarification  
-**Independent checks:** actual checks/results and unperformed checks  
+**Independent checks:** actual checks/results and unperformed checks; any reused verdict/revision/scope, unchanged-artifact/requirement evidence and additional checks  
 **Previous findings:** correction rounds only; resolved/unresolved/explicitly superseded with evidence  
 **Next step:** OK releases this registration to documentation/testing applicability assessment; NOT OK requires resubmission of the same target
 
