@@ -6,6 +6,7 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import fixture_issues, source_element, write_input
+from tests.support.invocation import diagnostic_signatures
 from tests.support.rdf import assert_contains, load_graph, one_subject
 
 BASE=Namespace('https://example.test/model#')
@@ -29,6 +30,11 @@ def _inverse(graph,inverse,primary):
 def _fallback(primary):
     local=str(primary).removeprefix(str(BASE))
     return 'inverseOf'+local[:1].upper()+local[1:]
+
+
+def _assert_source_backed_identity_preserved(baseline, result):
+    for resource, identifier in baseline.ontology.subject_objects(DCTERMS.identifier):
+        assert one_subject(result.ontology, DCTERMS.identifier, identifier) == resource
 
 
 ELIGIBILITY=[
@@ -220,7 +226,7 @@ def test_secondary_fallback_collision_qualifies_only_inverse_with_its_domain(run
 
 
 def test_residual_inverse_collision_suffixes_follow_source_end_ids_not_serialized_order(run, source_json, source_path, tmp_path):
-    """Rules: DK-INV-06, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-09, DK-PROP-02, DK-CONF-01."""
+    """Rules: DK-INV-06, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-07, DK-IRI-09, DK-PROP-02, DK-CONF-01, DK-DIAG-01. A1.3 free-slot regression."""
     document=source_json('inverses/secondary_collisions')
     baseline=run(path=write_input(tmp_path,document,'without.json'),inverse_properties='none')
     for reverse in (False,True):
@@ -232,26 +238,85 @@ def test_residual_inverse_collision_suffixes_follow_source_end_ids_not_serialize
             assert _resource(result,identifier,'name')==_resource(baseline,identifier,'name')
         assert _resource(result,'a_source','name')==BASE.inverseOfWorksFor_Source_Organization_1
         assert _resource(result,'z_source','name')==BASE.inverseOfWorksFor_Source_Organization_2
+        assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
 
 
-@pytest.mark.parametrize('mode',['all','informed','named'])
-def test_unusable_present_role_retains_eligibility_and_labels_without_inventing_exact_name(run, source_json, tmp_path, mode):
-    """Rules: DK-INV-01, DK-INV-02, DK-INV-03, DK-INV-04, DK-INV-05, DK-INV-11, DK-IRI-10, DK-LBL-02.
+ROLE_NAMING = {
+    'punctuation': '___', 'non_ascii': '東京',
+    'localized_unusable': {'en': '___', 'nl': '東京'},
+    'localized_usable': {'en': '___', 'nl': 'werknemers'},
+    'absent_role': None,
+}
+ROLE_REQUESTS = [(mode, strategy, case) for mode in ['default'] + MODES
+                 for strategy in ['name', 'id'] for case in ROLE_NAMING]
+ROLE_REQUEST_IDS = [mode if strategy == 'name' and case == 'localized_unusable'
+                   and mode in {'all', 'informed', 'named'} else f'{mode}-{strategy}-{case}'
+                   for mode, strategy, case in ROLE_REQUESTS]
 
-    Exact auxiliary IRI fallback for present-but-unusable names is blocked.
+
+@pytest.mark.parametrize('mode,strategy,case', ROLE_REQUESTS, ids=ROLE_REQUEST_IDS)
+def test_unusable_present_role_retains_eligibility_and_labels_without_inventing_exact_name(
+        run, source_json, tmp_path, mode, strategy, case):
+    """Rules: DK-INV-01, DK-INV-02, DK-INV-03, DK-INV-04, DK-INV-05, DK-INV-06, DK-INV-09, DK-INV-10, DK-INV-11, DK-IRI-07, DK-IRI-10, DK-LBL-02, DK-DIAG-01.
+
+    A1.1 now supplies the exact fallback; retain the three historical node IDs.
+    Source roles remain present, including named mode. Lexical selection and
+    source text survive dictionary order and explicit literal-language override.
+    The absent-role control confirms that descriptions do not force generation.
     """
-    document=source_json('shared/binary_relation');source_element(document,'sFocus')['name']={'en':'___','nl':'東京'}
-    result=run(path=write_input(tmp_path,document),inverse_properties=mode)
-    assert result.outcome=='completed'
-    inverse=_resource(result,'sFocus','name');primary=_resource(result,'tFocus','name')
-    assert inverse!=primary;_inverse(result.ontology,inverse,primary)
-    assert set(result.ontology.objects(inverse,RDFS.label))=={Literal('___',lang='en'),Literal('東京',lang='nl')}
+    document = source_json('shared/binary_relation')
+    language = None if case == 'localized_unusable' else 'fr'
+    document['languages'] = [] if language is None else ['nl', 'de']
+    source_element(document, 'sFocus').update(name=copy.deepcopy(ROLE_NAMING[case]),
+        description={'en': 'SOURCE_END_DESCRIPTION', 'nl': 'BRONBESCHRIJVING'})
+    source_element(document, 'tFocus')['description'] = 'TARGET_DESCRIPTION'
+    source_element(document, 'rFocus')['description'] = 'RELATION_DESCRIPTION'
+    baseline = run(path=write_input(tmp_path, document, 'without.json'), iri_strategy=strategy,
+                   inverse_properties='none', language=language)
+    assert baseline.outcome == 'completed'
+    for reverse in (False, True):
+        request = copy.deepcopy(document)
+        role = source_element(request, 'sFocus')['name']
+        if reverse and isinstance(role, dict):
+            source_element(request, 'sFocus')['name'] = dict(reversed(list(role.items())))
+        assert not fixture_issues(request)
+        options = {} if mode == 'default' else {'inverse_properties': mode}
+        result = run(path=write_input(tmp_path, request), iri_strategy=strategy, language=language, **options)
+        assert result.outcome == 'completed'
+        _assert_source_backed_identity_preserved(baseline, result)
+        if strategy == 'id':
+            for resource, kind in [(BASE.cA, OWL.Class), (BASE.cB, OWL.Class), (BASE.tFocus, OWL.ObjectProperty)]:
+                assert (resource, RDF.type, kind) in baseline.ontology
+                assert (resource, RDF.type, kind) in result.ontology
+        assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
+        primary = _resource(result, 'tFocus', strategy)
+        generated = mode in {'default', 'all'} or (mode in {'informed', 'named'} and case != 'absent_role')
+        if not generated:
+            assert not list(result.ontology.subject_objects(OWL.inverseOf))
+            assert not list(result.ontology.subjects(DCTERMS.identifier, Literal('sFocus')))
+            for text, local in [('SOURCE_END_DESCRIPTION', 'en'), ('BRONBESCHRIJVING', 'nl')]:
+                assert not list(result.ontology.subjects(RDFS.comment, Literal(text, lang=language or local)))
+            continue
+        inverse = _resource(result, 'sFocus', strategy)
+        expected = BASE.sFocus if strategy == 'id' else BASE[
+            'werknemers' if case == 'localized_usable' else _fallback(primary)]
+        assert inverse == expected and inverse != primary
+        _inverse(result.ontology, inverse, primary)
+        labels = (set() if role is None else
+                  {Literal(v, lang=language or local) for local, v in role.items()} if isinstance(role, dict) else
+                  {Literal(role, lang=language)})
+        assert set(result.ontology.objects(inverse, RDFS.label)) == labels
+        assert {Literal('SOURCE_END_DESCRIPTION', lang=language or 'en'),
+                Literal('BRONBESCHRIJVING', lang=language or 'nl')} <= set(
+            result.ontology.objects(inverse, RDFS.comment))
+        for text in ('TARGET_DESCRIPTION', 'RELATION_DESCRIPTION'):
+            assert (inverse, RDFS.comment, Literal(text, lang=language)) not in result.ontology
 
 
 def test_unusable_inverse_domain_does_not_lose_property_or_change_source_backed_identity(run, source_json, tmp_path):
-    """Rules: DK-INV-03, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-04, DK-IRI-10.
+    """Rules: DK-INV-03, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-04, DK-IRI-10, DK-DIAG-01.
 
-    Only the exact unusable-domain qualification is blocked.
+    A1.2 resolves the exact qualifier while retaining this historical node.
     """
     document=source_json('shared/binary_relation');source_element(document,'sFocus')['name']=None
     source_element(document,'cB')['name']='___'
@@ -261,9 +326,219 @@ def test_unusable_inverse_domain_does_not_lose_property_or_change_source_backed_
     result=run(path=write_input(tmp_path,document),inverse_properties='all')
     assert baseline.outcome==result.outcome=='completed'
     inverse=_resource(result,'sFocus','name');primary=_resource(result,'tFocus','name');_inverse(result.ontology,inverse,primary)
+    assert inverse == BASE.inverseOfWorksFor_unnamedClass_cB
+    assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
     assert inverse not in {_resource(result,i,'name') for i in ('cA','cB','cClaim0','cClaim1','tFocus')}
     for identifier in ('cA','cB','tFocus','cClaim0','cClaim1'):
         assert _resource(result,identifier,'name')==_resource(baseline,identifier,'name')
+
+
+@pytest.mark.parametrize('state,value', [
+    ('absent', None), ('null', None), ('whitespace', ' \t '),
+    ('punctuation', '___'), ('non_ascii', '東京'),
+    ('localized', {'en': '___', 'nl': '東京'}),
+], ids=['absent', 'null', 'whitespace', 'punctuation', 'non_ascii', 'localized'])
+@pytest.mark.parametrize('mode', ['all', 'informed', 'named'])
+def test_inverse_domain_fallback_uses_escaped_own_id_before_classifier_collision_suffixes(
+        run, source_json, tmp_path, state, value, mode):
+    """Rules: DK-INV-03, DK-INV-04, DK-INV-05, DK-INV-06, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-04, DK-IRI-05, DK-IRI-07, DK-IRI-10, DK-DIAG-01.
+
+    A1.2: the safe prefix means a leading source-ID digit needs no id_ prefix.
+    Ordinary classifier collision suffixes must not enter the inverse qualifier.
+    """
+    document = source_json('shared/binary_relation')
+    domain = source_element(document, 'cB')
+    domain.update(id='9 domain._', name=copy.deepcopy(value))
+    if state == 'absent': domain.pop('name')
+    source_element(document, 'tFocus')['propertyType']['id'] = domain['id']
+    source_element(document, 'sFocus')['description'] = 'DOMAIN_FALLBACK_SOURCE_DESCRIPTION'
+    candidate = 'unnamedClass_9_x20domain_x2E_x5F'
+    for index, name in enumerate(('workers', 'inverseOfWorksFor', candidate, candidate)):
+        claim = copy.deepcopy(source_element(document, 'cA'))
+        claim.update(id=f'cReserved{index}', name=name)
+        document['model']['contents'].append(claim)
+    assert not fixture_issues(document)
+    baseline = run(path=write_input(tmp_path, document, 'without.json'), inverse_properties='none', language='fr')
+    result = run(path=write_input(tmp_path, document), inverse_properties=mode, language='fr')
+    assert baseline.outcome == result.outcome == 'completed'
+    _assert_source_backed_identity_preserved(baseline, result)
+    classifier = _resource(result, domain['id'], 'name')
+    assert {_resource(result, identifier, 'name') for identifier in (domain['id'], 'cReserved2', 'cReserved3')} == {
+        BASE[candidate + suffix] for suffix in ('_1', '_2', '_3')}
+    assert classifier != BASE[candidate]
+    primary = _resource(result, 'tFocus', 'name')
+    inverse = _resource(result, 'sFocus', 'name')
+    assert inverse == BASE['inverseOfWorksFor_' + candidate]
+    _inverse(result.ontology, inverse, primary)
+    assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal('workers', lang='fr')}
+    assert (inverse, RDFS.comment, Literal('DOMAIN_FALLBACK_SOURCE_DESCRIPTION', lang='fr')) in result.ontology
+    assert any(d.kind == 'missing_name' and d.severity == 'WARNING' and domain['id'] in d.source_ids
+               and str(classifier) in d.generated_iris for d in result.diagnostics)
+    assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
+
+
+NUMERIC_Q = 'inverseOfWorksFor_Source_Organization'
+# Fixed expected names are derived from the registered rules, not a second allocator.
+NUMERIC_CASES = {
+    'lone': (1, (NUMERIC_Q,), (NUMERIC_Q + '_1',)),
+    'lone_blocked': (1, (NUMERIC_Q, NUMERIC_Q + '_1'), (NUMERIC_Q + '_2',)),
+    'lone_gap': (1, (NUMERIC_Q, NUMERIC_Q + '_1', NUMERIC_Q + '_3'), (NUMERIC_Q + '_2',)),
+    'shared_free': (2, (), (NUMERIC_Q + '_1', NUMERIC_Q + '_2')),
+    'shared_blocked': (2, (NUMERIC_Q + '_1',), (NUMERIC_Q + '_2', NUMERIC_Q + '_3')),
+    'shared_occupied_prefix': (2, (NUMERIC_Q + '_1', NUMERIC_Q + '_2'), (NUMERIC_Q + '_3', NUMERIC_Q + '_4')),
+    'shared_gap': (2, (NUMERIC_Q + '_2',), (NUMERIC_Q + '_1', NUMERIC_Q + '_3')),
+    'source_final_slots': (2, (NUMERIC_Q, NUMERIC_Q), (NUMERIC_Q + '_3', NUMERIC_Q + '_4')),
+    'source_candidate_slot': (2, (NUMERIC_Q + '_1', NUMERIC_Q + '_1'), (NUMERIC_Q + '_2', NUMERIC_Q + '_3')),
+    'original_numeric_text': (2, (NUMERIC_Q + '_1_1',), (NUMERIC_Q + '_1_2', NUMERIC_Q + '_1_3')),
+    'retained_inverse_slot': (2, (), (NUMERIC_Q + '_2', NUMERIC_Q + '_3')),
+}
+
+
+def _numeric_collision_input(source_json, case, member_ids=('a_source', 'z_source')):
+    """Bounded runtime adaptations of the canonical collision input; no conversion."""
+    document = source_json('inverses/secondary_collisions')
+    members, claims, _ = NUMERIC_CASES[case]
+    if members == 1:
+        document['model']['contents'].remove(source_element(document, 'rUpper'))
+    for index, relation_id in enumerate(('rLower', 'rUpper')[:members]):
+        source_element(document, relation_id)['properties'][0].update(
+            id=member_ids[index], description='SOURCE_' + member_ids[index])
+    if case == 'original_numeric_text':
+        source_element(document, 'cOrganization')['name'] = 'Organization_1'
+    for index, name in enumerate(('staff',) + claims):
+        claim = copy.deepcopy(source_element(document, 'cSource'))
+        claim.update(id=f'cReserved{index}', name=name)
+        document['model']['contents'].append(claim)
+    if case == 'retained_inverse_slot':
+        retained = copy.deepcopy(source_element(document, 'rLower'))
+        retained.update(id='rRetained', name='observes')
+        retained['properties'][0].update(id='sRetained', name=NUMERIC_Q + '_1')
+        retained['properties'][1]['id'] = 'tRetained'
+        document['model']['contents'].append(retained)
+    assert not fixture_issues(document)
+    return document
+
+
+@pytest.mark.parametrize('case', NUMERIC_CASES)
+@pytest.mark.parametrize('mode', ['all', 'informed', 'named'])
+def test_inverse_numeric_allocation_skips_reserved_names_from_original_qualified_candidate(
+        run, source_json, tmp_path, case, mode):
+    """Rules: DK-INV-03, DK-INV-04, DK-INV-05, DK-INV-06, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-07, DK-IRI-09, DK-DIAG-01, DK-CONF-01.
+
+    A1.3: fixed outcomes cover lone/shared candidates, holes, candidate claims,
+    final source names, retained inverses and original numeric source text.
+    """
+    document = _numeric_collision_input(source_json, case)
+    members, _, expected_names = NUMERIC_CASES[case]
+    baseline = run(path=write_input(tmp_path, document, 'without.json'), inverse_properties='none', language='fr')
+    assert baseline.outcome == 'completed'
+    if case in {'source_final_slots', 'source_candidate_slot'}:
+        expected_source = ({NUMERIC_Q + '_1', NUMERIC_Q + '_2'} if case == 'source_final_slots' else
+                           {NUMERIC_Q + '_1_1', NUMERIC_Q + '_1_2'})
+        assert {_resource(baseline, identifier, 'name') for identifier in ('cReserved1', 'cReserved2')} == {
+            BASE[name] for name in expected_source}
+    for reverse in (False, True):
+        request = copy.deepcopy(document)
+        if reverse: request['model']['contents'].reverse()
+        result = run(path=write_input(tmp_path, request), inverse_properties=mode, language='fr')
+        assert result.outcome == 'completed'
+        _assert_source_backed_identity_preserved(baseline, result)
+        actual = set()
+        for index, source_id in enumerate(('a_source', 'z_source')[:members]):
+            inverse = _resource(result, source_id, 'name')
+            assert inverse == BASE[expected_names[index]]
+            _inverse(result.ontology, inverse, _resource(result, ('tLower', 'tUpper')[index], 'name'))
+            assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal('staff', lang='fr')}
+            assert (inverse, RDFS.comment, Literal('SOURCE_' + source_id, lang='fr')) in result.ontology
+            actual.add(inverse)
+        if case == 'retained_inverse_slot':
+            inverse = _resource(result, 'sRetained', 'name')
+            assert inverse == BASE[NUMERIC_Q + '_1']
+            _inverse(result.ontology, inverse, _resource(result, 'tRetained', 'name'))
+            assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal(NUMERIC_Q + '_1', lang='fr')}
+            actual.add(inverse)
+        assert set(result.ontology.subjects(OWL.inverseOf, None)) == actual
+        assert len(actual) == members + (case == 'retained_inverse_slot')
+        assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
+
+
+@pytest.mark.parametrize('member_ids', [(' a', 'A'), ('Z', 'a'), ('z', 'é'), ('e\u0301', 'é')],
+                         ids=['no_trimming', 'no_casefolding', 'no_id_escaping', 'no_unicode_normalization'])
+def test_inverse_numeric_member_order_uses_original_end_id_code_points(run, source_json, tmp_path, member_ids):
+    """Rules: DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-07, DK-IRI-09, DK-DIAG-01, DK-CONF-01. A1.3.
+
+    The table lists raw Unicode ordering explicitly, including canonical variants.
+    IDs determine membership order without becoming part of the resulting name.
+    """
+    document = _numeric_collision_input(source_json, 'shared_free', member_ids)
+    baseline = run(path=write_input(tmp_path, document, 'without.json'), inverse_properties='none')
+    assert baseline.outcome == 'completed'
+    for reverse in (False, True):
+        request = copy.deepcopy(document)
+        if reverse: request['model']['contents'].reverse()
+        result = run(path=write_input(tmp_path, request), inverse_properties='all')
+        assert result.outcome == 'completed'
+        _assert_source_backed_identity_preserved(baseline, result)
+        for identifier, target_id, expected in zip(member_ids, ('tLower', 'tUpper'), (NUMERIC_Q + '_1', NUMERIC_Q + '_2')):
+            inverse = _resource(result, identifier, 'name')
+            assert inverse == BASE[expected]
+            _inverse(result.ontology, inverse, _resource(result, target_id, 'name'))
+        assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
+
+
+@pytest.mark.parametrize('mode', ['all', 'informed', 'named'])
+def test_inverse_numeric_groups_share_reservations_and_preserve_numeric_candidate_text(
+        run, source_json, tmp_path, mode):
+    """Rules: DK-INV-03, DK-INV-04, DK-INV-05, DK-INV-06, DK-INV-07, DK-INV-08, DK-INV-10, DK-IRI-07, DK-IRI-09, DK-DIAG-01, DK-CONF-01. A1.3.
+
+    Two qualified groups have overlapping numeric text; a fifth inverse retains
+    a reserved slot. Group/source serialization cannot change fixed allocation.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cA')['name'] = 'Source'
+    source_element(document, 'cB')['name'] = 'A'
+    second_range = copy.deepcopy(source_element(document, 'cB'))
+    second_range.update(id='cSecondRange', name='P_A_1')
+    document['model']['contents'].append(second_range)
+    template = copy.deepcopy(source_element(document, 'rFocus'))
+    document['model']['contents'].remove(source_element(document, 'rFocus'))
+    q = 'inverseOfWorksFor_P_A'
+    declarations = [
+        ('rQ0', 'worksFor_P', 'Z_q', 'tQ0', 'cB', 'staff', q + '_1'),
+        ('rQ1', 'WorksFor_P', 'a_q', 'tQ1', 'cB', 'staff', q + '_3'),
+        ('rR0', 'worksFor', ' z_r', 'tR0', 'cSecondRange', 'staff', q + '_1_1'),
+        ('rR1', 'WorksFor', 'A_r', 'tR1', 'cSecondRange', 'staff', q + '_1_2'),
+        ('rRetained', 'keeps', 'sRetained', 'tRetained', 'cB', q + '_2', q + '_2'),
+    ]
+    for relation_id, name, source_id, target_id, range_id, role, _ in declarations:
+        relation = copy.deepcopy(template)
+        relation.update(id=relation_id, name=name)
+        relation['properties'][0].update(id=source_id, name=role, description='SOURCE_' + source_id)
+        relation['properties'][1].update(id=target_id, propertyType={'id': range_id, 'type': 'Class'})
+        document['model']['contents'].append(relation)
+    for index, name in enumerate(('staff', 'inverseOfWorksFor_P', 'inverseOfWorksFor')):
+        claim = copy.deepcopy(source_element(document, 'cA'))
+        claim.update(id=f'cReserved{index}', name=name)
+        document['model']['contents'].append(claim)
+    assert not fixture_issues(document)
+    baseline = run(path=write_input(tmp_path, document, 'without.json'), inverse_properties='none', language='fr')
+    assert baseline.outcome == 'completed'
+    for reverse in (False, True):
+        request = copy.deepcopy(document)
+        if reverse: request['model']['contents'].reverse()
+        result = run(path=write_input(tmp_path, request), inverse_properties=mode, language='fr')
+        assert result.outcome == 'completed'
+        _assert_source_backed_identity_preserved(baseline, result)
+        actual = set()
+        for _, _, source_id, target_id, _, role, expected in declarations:
+            inverse = _resource(result, source_id, 'name')
+            assert inverse == BASE[expected]
+            _inverse(result.ontology, inverse, _resource(result, target_id, 'name'))
+            assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal(role, lang='fr')}
+            assert (inverse, RDFS.comment, Literal('SOURCE_' + source_id, lang='fr')) in result.ontology
+            actual.add(inverse)
+        assert len(actual) == 5 and set(result.ontology.subjects(OWL.inverseOf, None)) == actual
+        assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(baseline.diagnostics)
 
 
 @pytest.mark.parametrize('role',['workers','changed role',None],ids=['initial_role','changed_role','absent_role'])

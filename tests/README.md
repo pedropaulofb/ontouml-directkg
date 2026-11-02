@@ -387,9 +387,11 @@ is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit
 `*` to `0..*` mapping is limited to relations; DK-ATT-03 does not state that
 single-value mapping. Explicit attribute intervals are tested independently.
 
-The approved exact-name blockers for present-but-unusable inverse roles and
-unusable inverse-domain qualifiers remain. Eligibility, labels, direction and
-source-backed identity are asserted independently. Five DK-REL-04 rows also lack
+A1.1/A1.2 now resolve the former exact-name blockers for present-but-unusable
+inverse roles and unusable inverse-domain qualifiers. Their exact naming,
+eligibility, labels, direction and source-backed identity are asserted in the A1
+increment below; current production guards remain visible test-first failures.
+Five DK-REL-04 rows still lack
 an explicit supported-field criterion for their directional semantic roles:
 componentOf, historicalDependence, participational, subCollectionOf and
 subQuantityOf. Ten direction cells assert only established-candidate safety;
@@ -1020,3 +1022,59 @@ credit. Existing profile hooks are preserved in two controls. Collection is
 2754 nodes, with all 2711 previous nodes retained; 2666 behavioral inventory
 nodes reconcile and all 17 test/support Python files parse. Full-suite execution
 and the remaining unbound capabilities were not performed or certified.
+
+
+## A1 — Reviewed inverse naming and numeric allocation
+
+The owner relayed Architect Reviewer OK for A1.1, A1.2 and revised A1.3 at
+`0328ae1300e99eafbce7d5f32d2476c4aa5db71f` (F1 resolved), then explicitly
+waived only the preceding-assignment sequencing restriction for A1. The older
+submission is outside this work and remains unclosed. A1 awaits its own
+independent Test Reviewer review. Inspected base:
+`642fb6e0657f65b8dc49f7c082187043e6c34add`.
+
+The existing inverse module now asserts the accepted exact role/domain fallbacks,
+occupied-slot allocation from the original qualified candidate, raw source-end-ID
+ordering, and reservations shared with retained inverses across multiple groups.
+It retains the original five relevant node IDs and all prior suite IDs, adding
+105 parameters. Existing complete binary/collision inputs are adapted only in
+pytest temporary files; no stored input/expectation or adapter is changed.
+Exact Rules, parameter IDs, fixed names, fixtures and authority are in coverage.md.
+Current former inverse-name blocker notes are updated; other historical records
+and unrelated unresolved questions remain.
+
+The real public file converter remains bound. A1 needs only the existing graph,
+structured diagnostic and outcome observations. Inverse-disabled native runs
+establish source-backed identity and independently applicable diagnostics;
+ID mode also explicitly checks its known source-resource IRIs because it has no
+DCTERMS identifiers. These comparisons implement invariance assertions, not a
+replacement converter or inferred empty observations. No additional diagnostic
+is required solely for inverse naming.
+
+Commands from the repository root:
+
+```bash
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_inverses.py -k 'unusable_present_role or unusable_inverse_domain or inverse_domain_fallback or inverse_numeric or residual_inverse_collision'
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_inverses.py
+python -m pytest --rootdir=. -p no:cacheprovider --collect-only -q tests
+```
+
+The final inverse-module execution has **144 passed, 96 failed** across 240 cases.
+Its 110 A1/relevant nodes have **46 passed and 64 production-only failures**:
+58 existing production guards plus six wrong reserved-slot allocations. No A1
+failure is adapter unavailability. Remaining inverse cases have 98 passes and
+32 existing binding limits, explicitly retained. Seven related collision/fixture
+checks pass. Eleven mutations of actual native output fail at behavioral
+assertions; 22 numeric variants validate and complete real inverse-disabled
+baselines. Unsupported production branches are not simulated or marked passing.
+Collection is **2859**, all prior 2754 IDs retained plus 105; all 17 test/support
+Python files parse and 2771 behavioral inventory nodes reconcile. The full project
+suite was not executed. No production, vocabulary, specification, stored fixture,
+new module or configuration change is included.
+
+
+Publication was reconciled onto the parallel documentation commit
+`8d846c9bee65870ed1a7744f059f3f15e1a644e3`. Its five root/site documentation
+changes are preserved. Refreshed-tree and hash checks show no changed test,
+production, fixture, packaging, vocabulary or governing-specification blob;
+AST and exact inventory checks revalidate the unchanged executed foundation.
