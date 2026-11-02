@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from rdflib import URIRef
 
 from .annotations import source_text
-from .identity import escape_id, naming_text, normalize_name
+from .identity import class_name_candidate, escape_id, naming_text, normalize_name
 from .relations import Relation
 
 
@@ -36,9 +36,7 @@ def allocate_inverses(relations: tuple[Relation, ...], resources: dict[str, URIR
         fallbacks[identifier] = "inverseOf" + local[:1].upper() + local[1:]
         role = relation.source_end.data.get("name")
         selected_text = naming_text(role)
-        if role_present(role):
-            if selected_text is None:
-                raise NotImplementedError("Present-but-unusable inverse-role naming requires the deferred Architect decision")
+        if role_present(role) and selected_text is not None:
             names[identifier], stages[identifier] = normalize_name(selected_text), 0
         else:
             names[identifier], stages[identifier] = fallbacks[identifier], 1
@@ -56,17 +54,23 @@ def allocate_inverses(relations: tuple[Relation, ...], resources: dict[str, URIR
         fallback_collisions = {identifier for identifier in collisions if stages[identifier] == 1}
         if fallback_collisions:
             for identifier in fallback_collisions:
-                domain = naming_text(selected[identifier].range.data.get("name"))
-                if domain is None:
-                    raise NotImplementedError("Unusable inverse-domain qualification requires the deferred Architect decision")
-                names[identifier] = fallbacks[identifier] + "_" + normalize_name(domain)
+                domain = selected[identifier].range.data
+                qualifier = class_name_candidate(domain["id"], domain.get("name"))
+                names[identifier] = fallbacks[identifier] + "_" + qualifier
                 stages[identifier] = 2
             continue
+        # Retained inverses reserve their names before any group is numbered.
+        reserved = claims | {name for identifier, name in names.items() if identifier not in collisions}
         groups = defaultdict(list)
         for identifier in collisions:
             groups[names[identifier]].append(identifier)
-        for name, identifiers in groups.items():
-            if name in claims or any(stages[identifier] != 2 for identifier in identifiers):
-                raise NotImplementedError("Further inverse collision disposition beyond accepted qualification remains unspecified")
-            for number, identifier in enumerate(sorted(identifiers), 1):
-                names[identifier], stages[identifier] = f"{name}_{number}", 3
+        for name in sorted(groups):
+            number = 1
+            for identifier in sorted(groups[name]):
+                # Keep the original qualified name, including source numeric text.
+                while f"{name}_{number}" in reserved:
+                    number += 1
+                names[identifier] = f"{name}_{number}"
+                reserved.add(names[identifier])
+                number += 1
+        return {identifier: URIRef(base + name) for identifier, name in names.items()}
