@@ -427,20 +427,23 @@ def test_inverse_numeric_allocation_skips_reserved_names_from_original_qualified
 
     A1.3: fixed outcomes cover lone/shared candidates, holes, candidate claims,
     final source names, retained inverses and original numeric source text.
+    F1: ordinary source collision numbering may depend on declaration order;
+    compare source identities and diagnostics for the exact same request.
     """
     document = _numeric_collision_input(source_json, case)
     members, _, expected_names = NUMERIC_CASES[case]
-    baseline = run(path=write_input(tmp_path, document, 'without.json'), inverse_properties='none', language='fr')
-    assert baseline.outcome == 'completed'
-    if case in {'source_final_slots', 'source_candidate_slot'}:
-        expected_source = ({NUMERIC_Q + '_1', NUMERIC_Q + '_2'} if case == 'source_final_slots' else
-                           {NUMERIC_Q + '_1_1', NUMERIC_Q + '_1_2'})
-        assert {_resource(baseline, identifier, 'name') for identifier in ('cReserved1', 'cReserved2')} == {
-            BASE[name] for name in expected_source}
     for reverse in (False, True):
         request = copy.deepcopy(document)
         if reverse: request['model']['contents'].reverse()
-        result = run(path=write_input(tmp_path, request), inverse_properties=mode, language='fr')
+        source = write_input(tmp_path, request)
+        baseline = run(path=source, inverse_properties='none', language='fr')
+        assert baseline.outcome == 'completed'
+        if case in {'source_final_slots', 'source_candidate_slot'}:
+            expected_source = ({NUMERIC_Q + '_1', NUMERIC_Q + '_2'} if case == 'source_final_slots' else
+                               {NUMERIC_Q + '_1_1', NUMERIC_Q + '_1_2'})
+            assert {_resource(baseline, identifier, 'name') for identifier in ('cReserved1', 'cReserved2')} == {
+                BASE[name] for name in expected_source}
+        result = run(path=source, inverse_properties=mode, language='fr')
         assert result.outcome == 'completed'
         _assert_source_backed_identity_preserved(baseline, result)
         actual = set()

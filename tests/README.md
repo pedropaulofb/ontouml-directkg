@@ -1078,3 +1078,33 @@ Publication was reconciled onto the parallel documentation commit
 changes are preserved. Refreshed-tree and hash checks show no changed test,
 production, fixture, packaging, vocabulary or governing-specification blob;
 AST and exact inventory checks revalidate the unchanged executed foundation.
+
+
+## A1 — F1 resubmission
+
+The initial A1 revision `ff09ea706c52247929c44fd571ee62776902b7e1` received
+independent Test Reviewer NOT OK for F1. The numeric test compared reordered
+input with the original-order inverse-disabled baseline. DK-IRI-07 permits
+ordinary collision suffix assignment by deterministic source ordering; A1's raw
+ID ordering requirement applies to generated inverses.
+
+The numeric test now serializes each request once and obtains its baseline and
+inverse-enabled result from that exact path/content. Source-name-set assertions
+are retained inside the same loop. All fixed inverse expectations, original
+assertions, parameter IDs and case constants remain. The 33 inventory entries
+now document the matching-input comparison. Only the test module and its two
+traceability/operating documents change; production, support and fixtures remain.
+
+Temporary native controls verify that a permitted ordinary class-suffix swap
+across declaration orders now passes in all three generating modes; the submitted
+version rejected those three controls. Same-input identity drift is still
+rejected, and both exact F1 collision-group baseline comparisons are verified.
+These controls do not simulate missing inverse allocation. The full inverse
+module remains **144 passed, 96 failed**: A1 has 46 passes and 64 production-only
+failures; the remaining 32 failures are existing binding limits. The corrected
+33 parameters have 3 passes and 30 production failures. Collection is unchanged
+at 2859; all 2771 behavioral inventory nodes and 110 A1 mappings reconcile.
+Eleven native-output mutation controls and 22 input/native baseline controls
+also pass. The full project suite was not executed. This same-target correction
+awaits independent Test Reviewer review under the existing A1 authority and
+owner sequencing exception; no implementation is initiated.
