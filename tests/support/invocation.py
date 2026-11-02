@@ -9,10 +9,12 @@ Never populate observations from expected fixtures or implement mappings here.
 from dataclasses import dataclass, field
 from collections import Counter
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 from typing import Any, Mapping, Protocol
 
 from rdflib import Graph, Literal, URIRef
@@ -275,6 +277,9 @@ class CLIObservation:
     # Observed conversion entry, from real instrumentation when needed; never
     # derive this solely from the expected exit code or configuration error.
     conversion_started: bool | None = None
+    # Raw child-process instrumentation: actual input-processing entry and
+    # native parser.error calls. This is not a production API or report.
+    execution_trace: Any = None
 
 
 @dataclass(frozen=True)
@@ -514,7 +519,8 @@ class _PythonObservation(_BasicObservation):
 
 
 class _ReportProcess(_BoundFieldsOnly, CLIObservation):
-    _available_fields = frozenset({"command", "returncode", "stdout", "stderr", "observation", "console"})
+    _available_fields = frozenset({"command", "returncode", "stdout", "stderr", "observation", "console",
+                                   "conversion_started", "execution_trace"})
 
 
 class _ConsoleDiagnostic(_BoundFieldsOnly, Diagnostic):
@@ -542,6 +548,69 @@ def _observed_console(stdout, stderr):
                 raw={"stream": stream, "data": raw},
             ))
     return tuple(events)
+
+
+_CLI_OBSERVER = '''\
+import argparse
+import atexit
+import json
+import os
+import sys
+from ontouml_directkg.conversion import read_project
+
+reader_code = read_project.__code__
+parser_error_code = argparse.ArgumentParser.error.__code__
+trace = {"input_reader": {"module": read_project.__module__, "name": read_project.__qualname__},
+         "conversion_started": False, "parser_errors": []}
+
+def observe(frame, event, argument):
+    if event == "call":
+        if frame.f_code is reader_code:
+            trace["conversion_started"] = True
+        elif frame.f_code is parser_error_code:
+            trace["parser_errors"].append(frame.f_locals["message"])
+
+def finish():
+    trace["profile_active_at_exit"] = sys.getprofile() is observe
+    sys.setprofile(None)
+    trace["observation_completed"] = True
+    with open(os.environ["DIRECTKG_TEST_CLI_TRACE"], "w", encoding="utf-8") as output:
+        json.dump(trace, output)
+
+sys.setprofile(observe)
+atexit.register(finish)
+'''
+
+
+def _run_observed_cli(command, workdir):
+    """Observe the real -m CLI without replacing conversion or parser behavior.
+
+    The inspected converter finishes configuration validation before calling
+    its actual input reader. A standard Python profile hook observes that entry
+    and native argparse rejection calls inside the same CLI execution. Startup
+    and completion evidence are mandatory; no missing trace means 'not started'.
+    Reader/renderer implementation knowledge stays in this replaceable binding.
+    """
+    with TemporaryDirectory(prefix="directkg-cli-observer-", dir=workdir) as directory:
+        directory = Path(directory)
+        (directory / "sitecustomize.py").write_text(_CLI_OBSERVER, encoding="utf-8")
+        trace_path = directory / "execution.json"
+        environment = dict(os.environ)
+        environment["DIRECTKG_TEST_CLI_TRACE"] = str(trace_path)
+        environment["PYTHONPATH"] = str(directory) + (
+            os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else ""
+        )
+        completed = subprocess.run(command, cwd=workdir, capture_output=True, check=False, env=environment)
+        try:
+            trace = json.loads(trace_path.read_bytes())
+        except (OSError, ValueError) as exc:
+            raise ImplementationUnavailable("The real CLI input-processing observer did not complete") from exc
+        if (trace.get("profile_active_at_exit") is not True
+                or trace.get("observation_completed") is not True
+                or type(trace.get("conversion_started")) is not bool
+                or not isinstance(trace.get("parser_errors"), list)):
+            raise ImplementationUnavailable("Incomplete CLI input-processing evidence")
+        return completed, trace
 
 
 _DIAGNOSTIC_KINDS = {
@@ -880,19 +949,22 @@ class _DirectKGInvocation(_UnboundInvocation):
                     command.append("--" + name.replace("_", "-"))
             else:
                 command.extend(("--" + name.replace("_", "-"), str(value)))
-        completed = subprocess.run(command, cwd=workdir, capture_output=True, check=False)
-        if source is None and not Path(diagnostics_path).exists():
-            # A real invalid invocation has no conversion report to interpret.
-            # Preserve actual streams/status; never invent a conversion outcome.
+        completed, trace = _run_observed_cli(command, workdir)
+        started = trace["conversion_started"]
+        if completed.returncode == 2 and trace["parser_errors"] and not started:
+            # Actual native rejection before input processing has no conversion
+            # result. Do not require or manufacture a conversion-diagnostics file.
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
-                                  None, _observed_console(completed.stdout, completed.stderr))
+                                  None, _observed_console(completed.stdout, completed.stderr),
+                                  conversion_started=started, execution_trace=trace)
         # Missing reports are a visible failure, never reconstructed by running
         # Python again, guessing an outcome or creating a hidden report.
         report = self.read_report(diagnostics_path)
         graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
         observed = _BasicObservation(graph, report.outcomes[0], report.diagnostics, native=report.raw)
         return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
-                              observed, _observed_console(completed.stdout, completed.stderr))
+                              observed, _observed_console(completed.stdout, completed.stderr),
+                              conversion_started=started, execution_trace=trace)
 
 
 def get_invocation() -> Invocation:

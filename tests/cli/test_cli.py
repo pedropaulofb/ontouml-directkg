@@ -342,11 +342,15 @@ def test_invalid_cli_invocation_has_no_conversion_outcome_or_ontology(invoke,tmp
 @pytest.mark.parametrize('base',['','relative/path','https://example.test/has space'])
 @pytest.mark.parametrize('input_policy',POLICIES)
 def test_supplied_base_rejection_precedes_conversion_and_requested_reporting(invoke,tmp_path,base,input_policy):
-    """Rules: DK-IRI-01, DK-DIAG-04, DK-DIAG-05. Also §15 invalid supplied base."""
+    """Rules: DK-IRI-01, DK-DIAG-04, DK-DIAG-05. Also §15 invalid supplied base.
+
+    T2: native rejection has no conversion result; input-processing evidence
+    comes from the real CLI execution rather than its status or missing report.
+    """
     destination=tmp_path/'out.ttl';report=tmp_path/'report.json'
     process=invoke.cli(fixture_path('shared/base_iri'),options={'base_iri':base,'input_policy':input_policy},workdir=tmp_path,output_path=destination,diagnostics_path=report)
     assert process.returncode==2 and process.conversion_started is False
-    assert process.observation.outcome is None and process.observation.ontology is None
+    assert process.observation is None
     assert not destination.exists() and not report.exists()
 
 
@@ -578,14 +582,19 @@ def test_cli_invalid_selected_metadata_aborts_and_exports_the_error(invoke,tmp_p
 
 @pytest.mark.parametrize('suffix',['json','ttl','ion'])
 def test_cli_external_metadata_does_not_ingest_unaccepted_formats(invoke,tmp_path,suffix):
-    """Rules: DK-GEN-09. Also §15 metadata-file control."""
+    """Rules: DK-GEN-09. Also §15 metadata-file control.
+
+    T2: preserve either observed processing or native pre-conversion rejection.
+    """
     metadata=tmp_path/('metadata.'+suffix);metadata.write_text('{"title":"UNSUPPORTED_FORMAT_TITLE"}')
     process=invoke.cli(fixture_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':'none','metadata_file':metadata,'input_policy':'best-effort'},workdir=tmp_path,output_path=tmp_path/'out.ttl',diagnostics_path=tmp_path/'report.json')
     assert process.conversion_started is not None
     if process.conversion_started:
         _report(invoke,tmp_path/'report.json',process.observation)
         if process.observation.ontology is not None:assert process.observation.external_metadata_output==()
-    else:assert process.returncode==2 and process.observation.outcome is None
+    else:
+        assert process.returncode==2 and process.observation is None
+        assert not (tmp_path/'out.ttl').exists() and not (tmp_path/'report.json').exists()
 
 def test_cli_ontology_version_iri_sidecar_records_setting_and_final_byte_digest(invoke, tmp_path):
     """Rules: DK-IRI-01, DK-GEN-04, DK-GEN-10, DK-DIAG-04; RD-05 Option B replacement Rule 5; §15.

@@ -834,8 +834,9 @@ The unchanged broader binding-limit selection and full suite were not rerun.
 
 The owner explicitly authorized T1 audit remediation under existing DK-DIAG-04,
 waiving the Architect Reviewer OK prerequisite for this assignment only. No
-architectural review or new semantics are claimed. T1 awaits independent Test
-Reviewer review; T2–T5 remain queued.
+architectural review or new semantics are claimed. T1 received the forwarded
+independent Test Reviewer OK for `51a5c93bc215167bc20f1b3424ade472b676fe97`;
+the owner subsequently assigned T2. T3–T5 remain queued.
 
 The nine existing `test_cli_opaque_identifier_policy_and_report` cases now request
 unfiltered `--console-level info` output and compare it independently with the
@@ -866,3 +867,44 @@ and Python diagnostic-access regressions passed. Collection remains 2711 with
 unchanged nodes. Full-suite execution was not repeated; the previously observed
 T2–T4 failures are outside this assignment. See the T1 inventory section for
 authority, the owner exception and exact existing node/fixture traceability.
+
+## T2 — Native configuration rejection and conversion-start evidence
+
+The owner relayed T1's independent OK and explicitly directed T2 next. This is
+recorded as the task-specific sequencing instruction for maintenance under the
+existing DK-IRI-01/DK-DIAG-04/§15 contract. No Architect Reviewer verdict or new
+semantics are claimed. T2 awaits independent Test Reviewer review.
+
+The real CLI command remains `sys.executable -m ontouml_directkg`. A temporary
+`sitecustomize.py` installs a standard Python profile hook in that child process.
+It only observes calls to the currently inspected input reader and native
+`ArgumentParser.error`; it never replaces conversion, changes parser behavior or
+supplies expected results. The original argv/status/streams and raw execution
+trace are retained. Startup imports and reader identity are implementation
+knowledge confined to the replaceable test adapter, not required public APIs.
+Observer completion and an active profile at exit are required. Missing evidence
+raises `ImplementationUnavailable` rather than supplying a false absence.
+
+Actual parser rejection with code 2 before input processing has no conversion
+result (`process.observation is None`). No report is required or manufactured for
+that branch. Completed processing and policy-driven aborts still read the actual
+requested report; a missing report remains a visible error. Existing version-IRI,
+extra-argument, fault and other unbound capabilities remain unchanged. T1's
+independent console/report comparison is preserved.
+
+Focused command from the repository root:
+
+```bash
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/cli/test_cli.py::test_supplied_base_rejection_precedes_conversion_and_requested_reporting tests/cli/test_cli.py::test_cli_external_metadata_does_not_ingest_unaccepted_formats
+```
+
+All 12 target cases passed, replacing their prior missing-report failures. The
+19 T1/file-input/diagnostic-access/fixture regression checks passed. Twelve separate
+uninstrumented native controls matched rejection behavior. Temporary negative
+controls kept three lost post-processing reports visible (including a forged
+code 2), refused two missing-observer traces and rejected two unexpected artifacts
+on rejection. T1's nine report mutations, order control and both filtered-console
+guards remained valid. Collection remains 2711 with unchanged nodes; all 17
+Python files parse and 2623 behavioral inventory nodes reconcile. The full suite
+was not repeated. No production, fixture or specification files changed; T3–T5
+remain queued. See the T2 inventory section for authority and exact node pairings.
