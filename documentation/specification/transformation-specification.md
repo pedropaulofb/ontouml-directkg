@@ -1122,7 +1122,7 @@ OntoUML source metadata: the target association end has composite aggregation.
 
 Comments are informational annotations only and introduce no additional OWL logical semantics. DirectKG MUST NOT introduce dedicated DirectKG vocabulary properties solely to represent `isReadOnly`, shared aggregation, or composite aggregation.
 
-DirectKG MUST preserve the covered comments according to characteristics explicitly present in the supported source representation. This mapping MUST NOT use `isReadOnly`, `SHARED`, or `COMPOSITE` to reverse or normalize relation direction, determine eligibility for the generic mereological mapping, replace a primary property with a named or anonymous inverse, create additional logical property characteristics, repair the source model, or infer semantics not independently established by another accepted rule. In particular, `isReadOnly` alone MUST NOT imply an existential-dependence axiom. Independently applicable mappings remain in force. The comments preserve source information for human-readable documentation and provenance without guaranteeing machine-readable reconstruction or round-tripping from the generated OWL ontology.
+DirectKG MUST preserve the covered comments according to characteristics explicitly present in the supported source representation. This mapping MUST NOT use `isReadOnly`, `SHARED`, or `COMPOSITE` to reverse or normalize relation direction, determine eligibility for the generic mereological mapping, replace a primary property with a named or anonymous inverse, create additional logical property characteristics, repair the source model, or infer semantics not independently established by another accepted rule. In particular, `isReadOnly` alone MUST NOT imply an existential-dependence axiom. Independently applicable mappings remain in force. The separate lexical-only use of a unique aggregation marker under DK-REL-04 MUST NOT alter these comment requirements or authorize any of the prohibited direction or logical-mapping changes. The comments preserve source information for human-readable documentation and provenance without guaranteeing machine-readable reconstruction or round-tripping from the generated OWL ontology.
 
 **Non-normative example:** A primary relation property may carry both `rdfs:comment "OntoUML source metadata: the target association end is read-only."@en` and `rdfs:comment "OntoUML source metadata: the target association end has composite aggregation."@en` when both characteristics occur on its target end.
 
@@ -1212,7 +1212,7 @@ If neither source label is available, the following behavior MUST apply:
 | Mode | Primary-property label behavior |
 |---|---|
 | `source-only` | DirectKG MUST NOT generate a label. |
-| `generated` | DirectKG MUST generate a fallback `rdfs:label` from the lexical naming candidate selected by the applicable name-based relation-naming rules in DK-REL-02–05. This includes established stereotype-derived naming, grounding-relator-derived naming where applicable, and endpoint synthesis, following their existing precedence and conditions. |
+| `generated` | DirectKG MUST generate a fallback `rdfs:label` from the lexical naming candidate selected by the applicable name-based relation-naming rules in DK-REL-02–05. This includes established stereotype-derived naming subject to DK-REL-04's structural-evidence and fallback conditions, grounding-relator-derived naming where applicable, and endpoint synthesis, following their existing precedence and conditions. |
 
 Supported localized inputs to the generated lexical naming candidate follow DK-IRI-10 under either IRI strategy. Generated fallback labels MUST be based on the selected lexical naming candidate before IRI-specific processing. DirectKG MUST NOT obtain them by parsing the final IRI or incorporate collision suffixes, collision qualification, IRI encoding, or other artifacts introduced solely for IRI construction.
 
@@ -1326,7 +1326,7 @@ Eligible ordinary relations carrying the recognized `historicalDependence` stere
 
 DirectKG MUST NOT introduce additional logical axioms or stereotype-preservation annotations solely because a relation carries `historicalDependence`.
 
-This omission concerns additional annotations recording the stereotype declaration. Existing source-description mappings, independently required annotations, and lexical naming and labeling rules MUST remain applicable. In particular, stereotype-derived naming under DK-REL-04 and any corresponding generated fallback label under DK-LBL-01 remain unchanged. DK-LBL-02's source-description and language rules remain applicable.
+This omission concerns additional annotations recording the stereotype declaration. Existing source-description mappings, independently required annotations, and lexical naming and labeling rules MUST remain applicable. Lexical naming MUST follow DK-REL-02–04, including DK-REL-04's structural-evidence conditions and historical-dependence endpoint fallback; any corresponding generated fallback label MUST follow DK-LBL-01. DK-LBL-02's source-description and language rules remain applicable.
 
 Existing applicable diagnostics MUST remain applicable, including the limitation warning governed by DK-DIAG-01's deliberately unmapped applicable relation-stereotype condition. This mapping establishes no warning-suppression exception.
 
@@ -1402,7 +1402,7 @@ Under the name strategy, with stereotype-derived naming enabled, the direct prop
 
 1. usable relation name;
 2. usable target-end role name;
-3. an established stereotype-derived semantic name;
+3. an established stereotype-derived semantic name when its required endpoint roles are distinguishable under DK-REL-04;
 4. synthesized `<source>_<target>`;
 5. deterministic collision resolution.
 
@@ -1434,7 +1434,7 @@ For supported localized endpoint names, DK-IRI-10 selects each original source t
 
 ### DK-REL-04 — Stereotype-derived names
 
-When the semantic naming step is reached, the following direction-specific candidates are established:
+When the semantic naming step is reached, the following direction-specific candidates are established, subject to the supported structural-evidence conditions below. The `historicalDependence` candidates are not automatically selectable under the current supported input contract.
 
 | Stereotype | Direction | Candidate |
 |---|---|---|
@@ -1469,9 +1469,49 @@ When the semantic naming step is reached, the following direction-specific candi
 | `triggers` | Situation → Event | `triggers` |
 | `triggers` | Event → Situation | `triggeredBy` |
 
+#### Supported structural evidence for endpoint roles
+
+For lexical selection, DirectKG MUST treat the structured source JSON as authoritative and preserve its explicitly represented source-target direction. In the supported binary representation, `properties[0]` is the source end and `properties[1]` is the target end; their `propertyType` references identify the corresponding endpoint classifiers. These positions establish the primary direction, not otherwise unstated semantic roles.
+
+DirectKG MUST use only supported, explicit structural evidence to select a direction-specific semantic naming candidate. It MUST NOT attempt to detect or correct potential modeling mistakes or infer intended semantics from names, labels, descriptions, or other heuristic interpretations. Using a usable relation name or target-end role name as lexical text under DK-REL-02 remains required by its earlier precedence; that text MUST NOT become a semantic-role discriminator.
+
+For the following six stereotypes, DirectKG MUST use these operational criteria. Other established stereotype-specific naming mappings remain unchanged.
+
+| Stereotype | Required evidence and role assignment for lexical naming |
+|---|---|
+| `componentOf` | Exactly one association end is whole-marked. That end is the whole occurrence; the opposite end is the component occurrence. Select `hasComponent` for Whole → Component and `componentOf` for Component → Whole, preserving the primary direction. |
+| `participational` | Exactly one association end is whole-marked. That end is the whole-event occurrence; the opposite end is the part-event occurrence. Select `hasParticipationalPart` for Whole Event → Part Event and `participationalPartOf` for Part Event → Whole Event, preserving the primary direction. |
+| `subCollectionOf` | Exactly one association end is whole-marked. That end is the supercollection occurrence; the opposite end is the subcollection occurrence. Select `hasSubCollection` for Supercollection → Subcollection and `subCollectionOf` for Subcollection → Supercollection, preserving the primary direction. |
+| `subQuantityOf` | Exactly one association end is whole-marked. That end is the superquantity occurrence; the opposite end is the subquantity occurrence. Select `hasSubQuantity` for Superquantity → Subquantity and `subQuantityOf` for Subquantity → Superquantity, preserving the primary direction. |
+| `externalDependence` | Exactly one resolved endpoint classifier explicitly has stereotype `mode`, and the other explicitly has a supported non-`mode` endurant stereotype listed below. The `mode` occurrence supplies the table's mode role. Select `externallyDependsOn` for Mode → Endurant and `isExternalDependencyOf` for Endurant → Mode, preserving the primary direction. |
+| `historicalDependence` | The current supported input contract supplies no accepted explicit discriminator for Dependent versus Antecedent. Neither semantic candidate is available for automatic selection; continue to DK-REL-03. |
+
+An end is **whole-marked** only when it explicitly carries `aggregationKind: "SHARED"` or `aggregationKind: "COMPOSITE"`. Absent, null, or `"NONE"` aggregation supplies no whole marker. Zero or two whole-marked ends leave the roles undetermined. DirectKG MUST NOT prefer `COMPOSITE` over `SHARED`, use endpoint position as a tie-breaker, or otherwise choose between competing markers.
+
+For the `externalDependence` criterion, the supported non-`mode` endurant stereotypes are `kind`, `collective`, `quantity`, `relator`, `quality`, `subkind`, `role`, `phase`, `historicalRole`, `category`, `mixin`, `roleMixin`, `phaseMixin`, and `historicalRoleMixin`. Both or neither endpoint explicitly carrying `mode`, or the other endpoint falling outside this list, leaves the required roles undetermined. The use of `mode` here identifies an endpoint occurrence for lexical naming only; it MUST NOT infer a new classifier stereotype or require separate exported intrinsic/extrinsic class-stereotype values. `restrictedTo` remains omitted under DK-CLS-01 (RD-22) and MUST NOT supply naming-role evidence.
+
+For `historicalDependence`, ordered endpoint positions, a `historicalRole` stereotype, multiplicities, and read-only flags MUST NOT be used to assign Dependent or Antecedent. For all six selectors above, DirectKG MUST NOT discover roles through inheritance searches, custom assignments, or interpretation of descriptive text.
+
+When the required roles cannot be distinguished by these criteria, DirectKG MUST continue to the established source-target naming fallback in DK-REL-03 rather than select a semantic candidate. Role uncertainty alone MUST NOT cause abortion or relation omission. Existing naming diagnostics MUST retain their established conditions under DK-REL-06; generated fallback labels under either IRI strategy MUST use the selected lexical candidate under DK-LBL-01 without adding a naming diagnostic solely for label generation.
+
+These criteria establish lexical naming only. They MUST NOT change the represented primary direction, property-identity rules, domains, ranges, cardinalities, inverse-generation rules, existing logical axioms, or independently required annotations. In particular, aggregation-based lexical selection MUST NOT change the application or direction of DK-REL-19's mereological bridge. These naming conditions do not authorize malformed input, semantic validation, source repair, or a new malformed-input recovery policy; existing structural-processing and diagnostic rules remain applicable.
+
+**Non-normative examples:** For endpoint classifiers named `A` and `B`, with primary direction A → B and no usable relation or target-role name, the following lexical candidates precede IRI-only processing:
+
+| Source declaration | Selected lexical candidate |
+|---|---|
+| `componentOf`; source end `NONE`, target end `COMPOSITE` | `componentOf` |
+| `componentOf`; source end `SHARED`, target end `NONE` | `hasComponent` |
+| `componentOf`; neither end whole-marked, or both ends whole-marked | `a_b` |
+| `externalDependence`; source classifier `mode`, target classifier `kind` | `externallyDependsOn` |
+| `externalDependence`; both classifiers `mode` | `a_b` |
+| `historicalDependence`; no accepted role discriminator | `a_b` |
+
+All examples retain A → B as the primary direction; none interprets the names `A` and `B` as semantic-role evidence.
+
 Successful ordinary stereotype-derived naming produces no warning or information message solely for that successful naming. Other applicable diagnostics retain their established conditions.
 
-For `historicalDependence`, the direction-specific naming candidates above and any corresponding generated fallback label under DK-LBL-01 remain applicable. DK-REL-01's historical-dependence boundary retains the applicable limitation warning under DK-DIAG-01; successful naming establishes no warning-suppression exception.
+For `historicalDependence`, the structural-evidence conditions above require the source-target naming fallback when the semantic naming step is reached. Earlier relation-name and target-role precedence remain applicable, and any generated fallback label under DK-LBL-01 MUST use the selected lexical candidate. DK-REL-01's ordinary mapping and omission of additional stereotype-only axioms and declaration annotations remain unchanged. Its applicable limitation warning under DK-DIAG-01 MUST remain applicable independently of naming success or fallback; no warning-suppression exception is established.
 
 `comparative` has no generic semantic name because the required predicate is domain-specific. If its semantic naming step is reached, DirectKG MUST warn and continue to the source-target fallback.
 
@@ -1501,7 +1541,7 @@ An unnamed relation using a target-role or source-target fallback MUST produce a
 
 When both an endpoint class and its relation are unnamed, separate diagnostics SHOULD identify the two conditions unless a later stereotype-specific rule replaces the generic relation warning.
 
-DirectKG currently assumes valid relation orientation and does not need a defensive semantic-orientation recovery branch.
+DirectKG assumes the explicitly represented source-target direction and MUST NOT introduce a defensive semantic-orientation validation or repair branch. This assumption MUST NOT substitute for the explicit structured evidence required by DK-REL-04 to distinguish semantic naming roles. Insufficient role evidence MUST use the established source-target naming fallback and its existing diagnostics, without treating role uncertainty alone as a structural failure. Using this lexical fallback MUST NOT introduce an additional naming diagnostic solely because DK-LBL-01 generates a fallback label.
 
 ### DK-REL-07 — Material-property-chain modes and construction (RD-17 / ODI-CONTROLS)
 
@@ -2442,7 +2482,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Ordinary designated source-ID use in ID mode in a case governed by DK-IRI-04's generic policy | No diagnostic solely for using that ID | No solely for using that ID |
 | Owner/source qualification using the classifier's DK-IRI-04 fallback candidate under DK-PROP-02 | No additional diagnostic solely because this qualification rule is used; existing missing-name, fallback, and input diagnostics remain applicable | No additional fatality solely for qualification |
 | Attribute typed by `void` | Warning; omit datatype mapping/range | No |
-| Unnamed ordinary relation using target-role or source-target fallback | Warning | No |
+| Unnamed ordinary relation using target-role or source-target fallback, including DK-REL-04's fallback for insufficient semantic-role evidence | Warning under the existing naming-diagnostic conditions; no additional naming diagnostic solely for a generated fallback label | No |
 | Successful ordinary stereotype-derived name | No diagnostic solely for successful naming; other applicable diagnostics retain their established conditions | No solely for successful naming |
 | Absence of an RDF origin marker for primary-relation fallback labels | No diagnostic or configuration control solely for that absence under DK-LBL-01 (RD-26, option A); existing naming and other applicable diagnostics remain unchanged | No solely for this condition |
 | Multiple localized naming values alone | No additional diagnostic under DK-IRI-10; other applicable diagnostics remain unchanged | No solely for this condition |
