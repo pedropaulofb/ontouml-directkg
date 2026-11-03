@@ -64,9 +64,9 @@ def read_metadata(path: Path | None, diagnostics: DiagnosticCollector,
             input_error(diagnostics, policy, "METADATA_FIELD",
                         f"Selected metadata field {field!r} in {path} has an invalid value or value shape.",
                         (location,), "Affected external metadata omitted; independent selected fields and source mappings retained.")
-            if valid and any(valid):
-                raise NotImplementedError("Valid-sibling recovery in mixed metadata lists awaits the deferred Architect decision")
-            continue
+            if entries is None:
+                continue
+            entries = [entry for entry, accepted in zip(entries, valid) if accepted]
         for entry in entries:
             values.append((predicate, URIRef(entry) if field in _IRIS else Literal(entry)))
     return MetadataInput(path, content, tuple(values))
