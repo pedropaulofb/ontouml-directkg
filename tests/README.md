@@ -482,9 +482,10 @@ all transformations require a concrete source file, regardless of provenance mod
 Programmatic ontology/provenance graphs remain supported outputs. Stdout clauses
 remain conditional on observed capability; no stdout syntax is invented and an
 unbound inspection cannot pass. Automatic sidecar writing needs a concrete output
-path. No additional rejection classification is imposed on excluded input forms. Mixed-list invalid-value rejection and independent-field
-preservation are asserted; exact valid-sibling retention is recorded as blocked for
-Architect clarification in the inventory.
+path. No additional rejection classification is imposed on excluded input forms.
+I1 Alternative A now resolves mixed-list recovery: every valid sibling must survive
+under best-effort. The inventory records the replacement assertions, native
+metadata-emission binding and unresolved production guard separately.
 
 Graph checks isolate known source roots/types/predicates across separate executions,
 normalize only permitted unordered disjointness pairs, and follow selected blank-node
@@ -1108,3 +1109,63 @@ Eleven native-output mutation controls and 22 input/native baseline controls
 also pass. The full project suite was not executed. This same-target correction
 awaits independent Test Reviewer review under the existing A1 authority and
 owner sequencing exception; no implementation is initiated.
+
+
+## I1 — Mixed metadata list recovery, Alternative A
+
+The preceding A1 F1 correction received the owner-relayed Test Reviewer OK at
+`1e128a4f1b7ac8f69d039a18bacd0b55bbe4ffbd`. This separate TEST CHANGE follows
+reviewed Architect registration `b47dd82e3544a045394ccc4c2b2828ccdacb2337`
+(Architect Reviewer OK, no findings). DK-GEN-09 now requires every valid member
+of contributor, keyword, source and list-valued landingPage to survive invalid
+siblings under best-effort. DK-DIAG-04–05 and §15 retain their existing outcomes
+and delivery rules. Strict/tolerant abortion, file failures, field shapes,
+optional/ignored values and provenance remain unchanged.
+
+The four former undecided-sibling parameters are replaced with 75 exact cases in
+the existing ontology/CLI modules. They cover valid-only, both mixed orderings,
+invalid-only, simultaneous list recovery, independent title/license and source
+mappings, source text/language boundaries, all provenance modes, mandatory source
+abortion, structured results and real CLI ontology/report delivery. Python and
+CLI both include the exact audit YAML using shared/base_iri, best-effort and
+provenance none. The complete canonical JSON is reused; only supported Project
+text/language or deliberate duplicate-source-ID variants are temporary. No
+stored fixture, module or test configuration changes.
+
+External-contribution observation is now bound through actual Graph.add events
+inside the current native external-metadata writer, through Python and the real
+CLI. It does not reconstruct expected triples from fixtures. Exact emitted RDF
+is checked against fixed expectations and the delivered graph; independently
+generated metadata outside that writer remains allowed by DK-GEN-11. A missing
+or incomplete observation refuses credit. Native metadata diagnostic categories
+are interpreted by the adapter; their internal spellings and prose are not
+normative. Existing profile hooks and T5 traces remain active, T2 rejection
+handling stays intact, and CLI reports still require independent console mirroring.
+
+Actual results: **43 passed, 32 failed** in the new 75-case selection. All 32 are
+production gaps at the unresolved mixed-list read_metadata guard: 27 direct
+Python guards and five CLI executions that terminate before the required report.
+The latter retain real status/processing/stderr evidence in the missing-report
+exception. No new adapter-unavailability failure occurs. Existing metadata
+regressions have **68 passes / 17 existing binding limits** (configuration,
+permission faults and provenance readers); shared-support regressions **64 pass**.
+The inverse module has **208 passes / 32 existing binding limits**, including all
+110 A1 cases passing after the intervening A1 implementation. Eight affected
+fixture contracts pass. Collection is **2930**, preserving every prior ID except
+the four explicitly superseded weak nodes; all 2842 behavioral inventory nodes
+and 17 Python files reconcile/parse.
+
+Temporary native controls reject 13 RDF/result/report faults and refuse three
+missing-evidence controls. Six independent generated-metadata controls remain
+allowed; two hook/trace controls pass and ten uninstrumented CLI runs match the
+instrumented status/streams. These controls execute actual supported conversions;
+no mixed-list recovery implementation is simulated or granted passing credit.
+The full project suite and full provenance conformance were not executed. Exact
+node IDs, pairings, commands, controls and execution limitations are in coverage.md.
+
+The execution base is `b47dd82e3544a045394ccc4c2b2828ccdacb2337`. Refreshed main
+`9f031398d4c73f6a41415ec35fe5ee6a6b7093b2` adds only four parallel documentation
+changes, all preserved. Test/production/specification/fixture hashes are unchanged.
+Five test-owned paths change; production, normative files and canonical fixtures
+remain untouched. I1 awaits independent Test Reviewer review. No transformation-
+engine implementation is initiated and production correctness is not certified.

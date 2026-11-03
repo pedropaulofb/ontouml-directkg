@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 from rdflib import Graph, Literal, Namespace, URIRef
-from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
+from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
 from tests.support.invocation import Fault, diagnostic_signatures
@@ -393,6 +393,84 @@ def test_cli_external_metadata_uses_shared_inputs_and_governed_best_effort_recov
     elif 'partial_invalid' in variant:assert (ONTOLOGY,DCTERMS.title,Literal('Kept Valid Title')) in result.ontology
     elif 'ignored' in variant:assert not any(d.kind=='metadata_field' for d in result.diagnostics)
     else:assert (ONTOLOGY,DCTERMS.title,Literal('External Ontology Title')) in result.ontology
+
+
+@pytest.mark.parametrize('field,predicate,valid,invalid', [
+    ('contributor', DCTERMS.contributor, ['https://example.test/person/A%2fb#One', 'urn:example:person:Two'], 'NOT_AN_IRI'),
+    ('keyword', DCAT.keyword, ['valid keyword', '  café — keep text  '], 17),
+    ('source', DCTERMS.source, ['https://example.test/citation?x=1#One', 'urn:example:citation:Two'], False),
+    ('landingPage', DCAT.landingPage, ['https://example.test/Landing/A%2fb', 'urn:example:landing:Two'], 17),
+], ids=['contributor', 'keyword', 'source', 'landing_page'])
+@pytest.mark.parametrize('scenario', ['valid_only', 'mixed', 'invalid_only'])
+def test_cli_metadata_list_recovery_delivers_ontology_and_complete_report(
+        invoke, tmp_path, field, predicate, valid, invalid, scenario):
+    """Rules: DK-GEN-09, DK-GEN-11, DK-DIAG-04, DK-DIAG-05. I1 Alternative A; §15."""
+    entries = valid if scenario == 'valid_only' else [invalid] if scenario == 'invalid_only' else [valid[0], invalid, valid[1]]
+    metadata = tmp_path / 'metadata.yaml'
+    metadata.write_text(yaml.safe_dump({'title': 'Independent valid title', field: entries,
+        'license': 'https://example.test/independent-license'}, allow_unicode=True), encoding='utf-8')
+    destination = tmp_path / 'out.ttl'
+    report_path = tmp_path / 'report.json'
+    process = invoke.cli(fixture_path('shared/base_iri'), options={'base_iri': str(BASE),
+        'metadata_file': metadata, 'input_policy': 'best-effort', 'provenance': 'none',
+        'language': 'fr', 'console_level': 'info'}, workdir=tmp_path,
+        output_path=destination, diagnostics_path=report_path)
+    bad = scenario != 'valid_only'
+    assert process.returncode == (1 if bad else 0) and process.conversion_started is True
+    assert process.observation.outcome == ('completed-with-errors' if bad else 'completed')
+    assert destination.is_file() and report_path.is_file()
+    graph = Graph().parse(destination, format='turtle')
+    assert_graph_equal(graph, process.observation.ontology)
+    expected = Graph()
+    expected.add((ONTOLOGY, DCTERMS.title, Literal('Independent valid title')))
+    expected.add((ONTOLOGY, DCTERMS.license, URIRef('https://example.test/independent-license')))
+    if scenario != 'invalid_only':
+        for value in valid: expected.add((ONTOLOGY, predicate, Literal(value) if field == 'keyword' else URIRef(value)))
+    external = Graph()
+    for triple in process.observation.external_metadata_output:
+        assert triple in graph
+        external.add(triple)
+    assert_graph_equal(external, expected)
+    assert (BASE.Person, RDF.type, OWL.Class) in graph and (ONTOLOGY, RDF.type, OWL.Ontology) in graph
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (process.observation.outcome,) and report.schema is not None
+    assert all(d.raw is not None for d in report.diagnostics)
+    if bad: assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in report.diagnostics)
+    else: assert not any(d.kind == 'metadata_field' for d in report.diagnostics)
+    produced, reported = invoke.diagnostic_mirror_records(process, report)
+    assert reported == produced
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+def test_cli_keyword_audit_reproduction_preserves_policy_and_report(invoke, tmp_path, input_policy):
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05. I1 audit reproduction and unchanged abortion; §15."""
+    metadata = tmp_path / 'metadata.yaml'
+    metadata.write_text('title: Independent valid title\nkeyword:\n  - valid keyword\n  - 17\n')
+    destination = tmp_path / 'out.ttl'
+    report_path = tmp_path / 'report.json'
+    process = invoke.cli(fixture_path('shared/base_iri'), options={'base_iri': str(BASE),
+        'metadata_file': metadata, 'input_policy': input_policy, 'provenance': 'none', 'console_level': 'info'},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report_path)
+    best_effort = input_policy == 'best-effort'
+    assert process.returncode == (1 if best_effort else 3) and process.conversion_started is True
+    assert process.observation.outcome == ('completed-with-errors' if best_effort else 'aborted')
+    assert report_path.is_file()
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (process.observation.outcome,) and report.schema is not None
+    assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in report.diagnostics)
+    produced, reported = invoke.diagnostic_mirror_records(process, report)
+    assert reported == produced
+    if best_effort:
+        assert destination.is_file()
+        graph = Graph().parse(destination, format='turtle')
+        assert (ONTOLOGY, DCTERMS.title, Literal('Independent valid title')) in graph
+        assert (ONTOLOGY, DCAT.keyword, Literal('valid keyword')) in graph
+        assert (BASE.Person, RDF.type, OWL.Class) in graph
+        assert set(process.observation.external_metadata_output) == {
+            (ONTOLOGY, DCTERMS.title, Literal('Independent valid title')),
+            (ONTOLOGY, DCAT.keyword, Literal('valid keyword'))}
+    else:
+        assert not destination.exists() and process.observation.ontology is None
 
 
 @pytest.mark.parametrize('policy,scenario',[(p,'info') for p in POLICIES]+[('best-effort','partial')],ids=['strict_completed','tolerant_completed','best_effort_completed','best_effort_partial'])

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from collections import Counter
 from contextlib import contextmanager, nullcontext
 import json
+import inspect
 import os
 from pathlib import Path
 import re
@@ -528,6 +529,18 @@ class _InputObservedPython(_PythonObservation):
         "conversion_started", "execution_trace", "diagnostics_exports"}
 
 
+class _MetadataPythonObservation(_PythonObservation):
+    _available_fields = _PythonObservation._available_fields | {"external_metadata_output"}
+
+
+class _InputObservedMetadataPython(_InputObservedPython):
+    _available_fields = _InputObservedPython._available_fields | {"external_metadata_output"}
+
+
+class _MetadataCLIObservation(_BasicObservation):
+    _available_fields = _BasicObservation._available_fields | {"external_metadata_output"}
+
+
 class _VersionControlSurface(_BoundFieldsOnly, ControlSurface):
     _available_fields = frozenset({"cli", "python", "raw"})
 
@@ -582,6 +595,65 @@ def _observed_console(stdout, stderr):
     return tuple(events)
 
 
+class _MetadataCapture:
+    """Observe actual RDF additions inside the inspected external-metadata writer.
+
+    The current writer emits the selected external values only. Observing its
+    real Graph.add calls distinguishes those contributions from independently
+    generated metadata, including duplicate additions of an existing triple.
+    This class is also copied into the temporary CLI observer, never production.
+    """
+
+    def __init__(self):
+        from ontouml_directkg.conversion import emit_metadata
+        from rdflib import Graph
+        self.writer_code = emit_metadata.__code__
+        self.add_code = Graph.add.__code__
+        self.frames = {}
+        self.entries = self.returns = 0
+        self.triples = []
+
+    def observe(self, frame, event, argument):
+        if frame.f_code is self.writer_code:
+            if event == "call":
+                self.entries += 1
+                self.frames[frame] = frame.f_locals["graph"]
+            elif event == "return":
+                self.returns += 1
+                self.frames.pop(frame, None)
+        elif event == "call" and frame.f_code is self.add_code:
+            if any(frame.f_locals["self"] is graph for graph in self.frames.values()):
+                self.triples.append(tuple(frame.f_locals["triple"]))
+
+
+@contextmanager
+def _observe_metadata_output():
+    capture = _MetadataCapture()
+    previous = sys.getprofile()
+
+    def observe(frame, event, argument):
+        capture.observe(frame, event, argument)
+        if previous is not None:
+            previous(frame, event, argument)
+
+    sys.setprofile(observe)
+    try:
+        yield capture
+    finally:
+        active = sys.getprofile() is observe
+        sys.setprofile(previous)
+        if not active or capture.frames or capture.entries != capture.returns:
+            raise ImplementationUnavailable("Incomplete native metadata-emission evidence")
+
+
+def _captured_metadata(capture, ontology):
+    if ontology is None:
+        return ()  # actual public result has no eligible ontology
+    if not capture.entries or capture.entries != capture.returns:
+        raise ImplementationUnavailable("Interpret the current external-metadata emission boundary")
+    return tuple(capture.triples)
+
+
 _CLI_OBSERVER = '''\
 import argparse
 import atexit
@@ -594,8 +666,10 @@ reader_code = read_project.__code__
 parser_error_code = argparse.ArgumentParser.error.__code__
 trace = {"input_reader": {"module": read_project.__module__, "name": read_project.__qualname__},
          "conversion_started": False, "parser_errors": []}
+metadata = _MetadataCapture()
 
 def observe(frame, event, argument):
+    metadata.observe(frame, event, argument)
     if event == "call":
         if frame.f_code is reader_code:
             trace["conversion_started"] = True
@@ -606,6 +680,9 @@ def finish():
     trace["profile_active_at_exit"] = sys.getprofile() is observe
     sys.setprofile(None)
     trace["observation_completed"] = True
+    trace["metadata"] = {"entries": metadata.entries, "returns": metadata.returns,
+                         "active_frames": len(metadata.frames),
+                         "triples": [[term.n3() for term in triple] for triple in metadata.triples]}
     with open(os.environ["DIRECTKG_TEST_CLI_TRACE"], "w", encoding="utf-8") as output:
         json.dump(trace, output)
 
@@ -661,7 +738,8 @@ def _run_observed_cli(command, workdir):
     """
     with TemporaryDirectory(prefix="directkg-cli-observer-", dir=workdir) as directory:
         directory = Path(directory)
-        (directory / "sitecustomize.py").write_text(_CLI_OBSERVER, encoding="utf-8")
+        (directory / "sitecustomize.py").write_text(inspect.getsource(_MetadataCapture) + "\n" + _CLI_OBSERVER,
+                                                    encoding="utf-8")
         trace_path = directory / "execution.json"
         environment = dict(os.environ)
         environment["DIRECTKG_TEST_CLI_TRACE"] = str(trace_path)
@@ -693,6 +771,7 @@ _DIAGNOSTIC_KINDS = {
     "EXTENSIONALITY_ANNOTATION": "extensionality",
     "VOID_DATATYPE": "void_datatype", "ORDERING_ANNOTATION": "ordering",
     "RELATION_NAMING": "relation_naming", "MISSING_RELATION_NAME": "missing_name",
+    "METADATA_FIELD": "metadata_field", "METADATA_INPUT": "metadata_input",
 }
 
 
@@ -727,6 +806,8 @@ def _observed_diagnostics(events):
                 facts.add("stereotype:" + stereotype)
         if "aborted" in event.effect.casefold():
             facts.add("conversion_aborted")
+        if event.code == "METADATA_INPUT" and "all external metadata omitted" in event.effect.casefold():
+            facts.add("external_metadata_omitted")
         if event.code == "DUPLICATE_SOURCE_ID" and len(event.sources) >= 2 and "competing declarations" in wording:
             facts.add("competing_declarations")
         if "preserved as an annotation" in wording:
@@ -784,20 +865,26 @@ class _DirectKGInvocation(_UnboundInvocation):
             request["no_stereotype_relation_naming"] = not request.pop("stereotype_relation_naming")
         # T5 verifies the real optional Python parameter, not an invented API.
         # Trace only this newly bound request; unrelated readers stay unbound.
-        with (_observe_python_input() if "ontology_version_iri" in request else nullcontext()) as trace:
+        with _observe_metadata_output() as metadata, (
+                _observe_python_input() if "ontology_version_iri" in request else nullcontext()) as trace:
             try:
                 result = convert(source, **request)
             except ConfigurationError as exc:
                 observed = _BasicObservation(None, None, (), configuration_error=exc)
             else:
-                observed = _PythonObservation(result.ontology, result.outcome, _observed_diagnostics(result.diagnostics),
-                                              native=result, provenance=result.provenance)
+                observed = _MetadataPythonObservation(
+                    result.ontology, result.outcome, _observed_diagnostics(result.diagnostics),
+                    native=result, provenance=result.provenance,
+                    external_metadata_output=_captured_metadata(metadata, result.ontology))
         if trace is not None:
-            return _InputObservedPython(observed.ontology, observed.outcome, observed.diagnostics,
+            extra = ({"external_metadata_output": observed.external_metadata_output}
+                     if observed.native is not None else {})
+            cls = _InputObservedMetadataPython if extra else _InputObservedPython
+            return cls(observed.ontology, observed.outcome, observed.diagnostics,
                 configuration_error=observed.configuration_error, native=observed.native,
                 provenance=None if observed.native is None else observed.provenance,
                 conversion_started=trace["conversion_started"], execution_trace=trace,
-                diagnostics_exports=tuple(trace["diagnostics_exports"]))
+                diagnostics_exports=tuple(trace["diagnostics_exports"]), **extra)
         return observed
 
     def inspect_controls(self):
@@ -1063,9 +1150,22 @@ class _DirectKGInvocation(_UnboundInvocation):
                                   conversion_started=started, execution_trace=trace)
         # Missing reports are a visible failure, never reconstructed by running
         # Python again, guessing an outcome or creating a hidden report.
-        report = self.read_report(diagnostics_path)
+        try:
+            report = self.read_report(diagnostics_path)
+        except FileNotFoundError as exc:
+            exc.add_note(f"Real CLI status {completed.returncode}; processing started={started}; "
+                         f"stderr={completed.stderr.decode('utf-8', errors='replace')}")
+            raise
         graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
-        observed = _BasicObservation(graph, report.outcomes[0], report.diagnostics, native=report.raw)
+        evidence = trace.get("metadata")
+        if (not isinstance(evidence, dict) or type(evidence.get("entries")) is not int
+                or evidence.get("entries") != evidence.get("returns") or evidence.get("active_frames") != 0
+                or not isinstance(evidence.get("triples"), list) or (graph is not None and not evidence["entries"])):
+            raise ImplementationUnavailable("Incomplete native CLI metadata-emission evidence")
+        from rdflib.util import from_n3
+        triples = tuple(tuple(from_n3(term) for term in triple) for triple in evidence["triples"])
+        observed = _MetadataCLIObservation(graph, report.outcomes[0], report.diagnostics, native=report.raw,
+                                          external_metadata_output=triples if graph is not None else ())
         return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                               observed, _observed_console(completed.stdout, completed.stderr),
                               conversion_started=started, execution_trace=trace)

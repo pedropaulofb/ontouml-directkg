@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 from pathlib import Path
 import io
 import json
+import copy
 
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
@@ -887,25 +888,134 @@ def test_rdf_helper_external_annotation_evidence_allows_independent_metadata():
     with pytest.raises(AssertionError):_external_graph(sample)
 
 
-@pytest.mark.parametrize('field,valid,invalid',[
-    ('contributor','https://example.test/valid-person','NOT_AN_IRI'),
-    ('keyword','valid keyword',17),('source','https://example.test/valid-citation',False),
-    ('landingPage','https://example.test/valid-landing',17)],ids=['contributor','keyword','source','landing_page'])
-def test_mixed_metadata_lists_omit_invalid_values_and_keep_independent_fields_without_deciding_sibling_recovery(run,tmp_path,field,valid,invalid):
-    """Rules: DK-GEN-09, DK-DIAG-05.
+METADATA_LIST_CASES = [
+    pytest.param('contributor', ['https://example.test/person/A%2fb#One', 'urn:example:contributor:Two'],
+                 ['NOT_AN_IRI', 17], id='contributor'),
+    pytest.param('keyword', ['valid keyword', '  café — keep text  '], [17, False], id='keyword'),
+    pytest.param('source', ['https://example.test/citation/a%2Fb?x=1#One', 'urn:example:source:Second'],
+                 ['NOT_AN_IRI', 17], id='source'),
+    pytest.param('landingPage', ['https://example.test/Landing/One%2fTwo', 'urn:example:landing:Two'],
+                 ['NOT_AN_IRI', 17], id='landing_page'),
+]
 
-    Exact valid-sibling retention is blocked for Architect clarification; both
-    whole-field and entry-level omission satisfy only these bounded assertions.
+
+def _metadata_list_entries(valid, invalid, scenario):
+    return {'valid_only': [valid[0], valid[1], valid[0]],
+            'mixed_valid_first': [valid[0], invalid[0], valid[1], invalid[1]],
+            'mixed_invalid_first': [invalid[0], valid[0], invalid[1], valid[1]],
+            'invalid_only': list(invalid)}[scenario]
+
+
+@pytest.mark.parametrize('field,valid,invalid', METADATA_LIST_CASES)
+@pytest.mark.parametrize('scenario', ['valid_only', 'mixed_valid_first', 'mixed_invalid_first', 'invalid_only'])
+@pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
+def test_metadata_lists_retain_valid_members_and_independent_output(
+        invoke, run, source_json, tmp_path, field, valid, invalid, scenario, mode):
+    """Rules: DK-GEN-08, DK-GEN-09, DK-GEN-10, DK-GEN-11, DK-LBL-02, DK-DIAG-04, DK-DIAG-05. I1 Alternative A.
+
+    Fixed emitted external RDF requires every valid sibling and no invalid
+    contribution, while independently generated metadata remains permissible.
     """
-    metadata=tmp_path/'metadata.yaml';metadata.write_text(yaml.safe_dump({field:[valid,invalid],'title':'Independent valid title'}))
-    result=run('shared/base_iri',metadata_file=metadata,input_policy='best-effort')
-    assert result.outcome=='completed-with-errors'
-    assert any(d.kind=='metadata_field' and d.severity=='ERROR' for d in result.diagnostics)
-    graph=_external_graph(result)
-    assert (ONTOLOGY,DCTERMS.title,Literal('Independent valid title')) in graph
-    permitted=Literal(valid) if field=='keyword' else URIRef(valid)
-    assert set(graph.objects(ONTOLOGY,SELECTED_METADATA[field]))<={permitted}
-    assert (BASE.Person,RDF.type,OWL.Class) in result.ontology
+    document = source_json('shared/base_iri')
+    document.update(name='I1 source project', description='I1 source description', languages=['nl'])
+    assert not fixture_issues(document)
+    metadata = tmp_path / 'metadata.yaml'
+    data = {'title': 'Independent valid title', field: _metadata_list_entries(valid, invalid, scenario),
+            'license': 'https://example.test/independent-license',
+            'language': {'ignored': 17}, 'editorialNote': 'I1_IGNORED_ANNOTATION'}
+    metadata.write_text(yaml.safe_dump(data, allow_unicode=True), encoding='utf-8')
+    result = run(path=write_input(tmp_path, document), metadata_file=metadata,
+                 input_policy='best-effort', provenance=mode, language='fr')
+    bad = scenario != 'valid_only'
+    assert result.outcome == ('completed-with-errors' if bad else 'completed')
+    assert result.native is not None
+    assert all(event.raw is not None for event in result.diagnostics)
+    assert invoke.read_outcome(result) == result.outcome
+    assert_graph_equal(invoke.read_ontology(result), result.ontology)
+    assert diagnostic_signatures(invoke.read_diagnostics(result)) == diagnostic_signatures(result.diagnostics)
+    if bad:
+        assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in result.diagnostics)
+    else:
+        assert not any(d.kind == 'metadata_field' for d in result.diagnostics)
+    expected = Graph()
+    expected.add((ONTOLOGY, DCTERMS.title, Literal('Independent valid title')))
+    expected.add((ONTOLOGY, DCTERMS.license, URIRef('https://example.test/independent-license')))
+    if scenario != 'invalid_only':
+        for value in valid:
+            expected.add((ONTOLOGY, SELECTED_METADATA[field], Literal(value) if field == 'keyword' else URIRef(value)))
+    assert_graph_equal(_external_graph(result), expected)
+    assert (ONTOLOGY, RDF.type, OWL.Ontology) in result.ontology
+    assert (ONTOLOGY, OWL.imports, DKGM_ONTOLOGY) in result.ontology
+    assert (BASE.Person, RDF.type, OWL.Class) in result.ontology
+    assert (ONTOLOGY, RDFS.label, Literal('I1 source project', lang='fr')) in result.ontology
+    assert (ONTOLOGY, RDFS.comment, Literal('I1 source description', lang='fr')) in result.ontology
+    if mode != 'none':
+        provenance = result.ontology if mode == 'embedded' else result.provenance
+        assert isinstance(provenance, Graph)
+        assert any((activity, RDF.type, PROV.Activity) in provenance
+                   for activity in provenance.objects(ONTOLOGY, PROV.wasGeneratedBy))
+
+
+@pytest.mark.parametrize('field,valid,invalid', METADATA_LIST_CASES)
+@pytest.mark.parametrize('input_policy', ['strict', 'tolerant'])
+def test_mixed_metadata_lists_still_abort_under_strict_and_tolerant(run, tmp_path, field, valid, invalid, input_policy):
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05. I1 unchanged policy boundary."""
+    metadata = tmp_path / 'metadata.yaml'
+    metadata.write_text(yaml.safe_dump({'title': 'Independent valid title', field: [valid[0], invalid[0], valid[1]]}))
+    result = run('shared/base_iri', metadata_file=metadata, input_policy=input_policy, provenance='none')
+    assert result.outcome == 'aborted' and result.ontology is None
+    assert result.native is not None
+    assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' and d.raw is not None for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('reverse', [False, True], ids=['field_order', 'reversed_fields'])
+def test_multiple_mixed_metadata_lists_recover_independently(run, tmp_path, reverse):
+    """Rules: DK-GEN-09, DK-GEN-11, DK-DIAG-04, DK-DIAG-05. I1 Alternative A."""
+    data = {'title': 'Independent valid title',
+            'contributor': ['https://example.test/person', 17], 'keyword': [False, 'valid keyword'],
+            'source': ['https://example.test/citation', 'NOT_AN_IRI'],
+            'landingPage': [17, 'https://example.test/landing'], 'license': 'https://example.test/license'}
+    if reverse: data = dict(reversed(list(data.items())))
+    metadata = tmp_path / 'metadata.yaml'
+    metadata.write_text(yaml.safe_dump(data, sort_keys=False))
+    result = run('shared/base_iri', metadata_file=metadata, input_policy='best-effort', provenance='none')
+    assert result.outcome == 'completed-with-errors'
+    assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in result.diagnostics)
+    expected = Graph()
+    for predicate, value in [(DCTERMS.title, Literal('Independent valid title')),
+            (DCTERMS.contributor, URIRef('https://example.test/person')), (DCAT.keyword, Literal('valid keyword')),
+            (DCTERMS.source, URIRef('https://example.test/citation')), (DCAT.landingPage, URIRef('https://example.test/landing')),
+            (DCTERMS.license, URIRef('https://example.test/license'))]:
+        expected.add((ONTOLOGY, predicate, value))
+    assert_graph_equal(_external_graph(result), expected)
+    assert (BASE.Person, RDF.type, OWL.Class) in result.ontology
+
+
+def test_metadata_keyword_audit_reproduction_retains_valid_sibling(invoke, source_path, tmp_path):
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05. I1 exact audit reproduction."""
+    metadata = tmp_path / 'metadata.yaml'
+    metadata.write_text('title: Independent valid title\nkeyword:\n  - valid keyword\n  - 17\n')
+    result = invoke.convert(source_path('shared/base_iri'), options={'base_iri': str(BASE),
+        'metadata_file': metadata, 'input_policy': 'best-effort', 'provenance': 'none'}, workdir=tmp_path)
+    assert result.outcome == 'completed-with-errors'
+    assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in result.diagnostics)
+    expected = Graph()
+    expected.add((ONTOLOGY, DCTERMS.title, Literal('Independent valid title')))
+    expected.add((ONTOLOGY, DCAT.keyword, Literal('valid keyword')))
+    assert_graph_equal(_external_graph(result), expected)
+    assert (BASE.Person, RDF.type, OWL.Class) in result.ontology
+
+
+def test_metadata_list_recovery_does_not_override_source_abort(run, source_json, tmp_path):
+    """Rules: DK-GEN-09, DK-IRI-02, DK-DIAG-04, DK-DIAG-05. I1 independent-abort qualifier."""
+    document = source_json('shared/base_iri')
+    document['model']['contents'].append(copy.deepcopy(document['model']['contents'][0]))  # deliberate duplicate ID
+    metadata = tmp_path / 'metadata.yaml'
+    metadata.write_text('title: Independent valid title\nkeyword: [valid keyword, 17]\n')
+    result = run(path=write_input(tmp_path, document), metadata_file=metadata,
+                 input_policy='best-effort', provenance='none')
+    assert result.outcome == 'aborted' and result.ontology is None
+    assert any(d.kind == 'duplicate_id' and d.severity == 'ERROR' for d in result.diagnostics)
 
 @pytest.mark.parametrize('version', [
     '', ' \t', 'relative/version', ' https://example.test/version',
