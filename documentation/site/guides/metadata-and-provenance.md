@@ -114,9 +114,29 @@ Do not compute a self-referential digest of embedded provenance. Accepted proven
 
 An explicitly requested file that is missing, unreadable, malformed YAML, or not a top-level mapping produces ERROR. It is not absence of optional enrichment. `strict` and `tolerant` abort without ontology delivery. `best-effort` omits **all external metadata**, retains error severity, and continues other transformable input; absent another abort condition, the outcome is `completed-with-errors`.
 
-Do not salvage fragments of malformed YAML. Once a valid mapping exists, invalid selected values follow the input-policy pattern: errors under `strict`/`tolerant`, with abortion under their structural-error rules; under `best-effort`, omit affected values and report errors. Ignored fields generate no field-validation diagnostics, although YAML syntax still must parse.
+Do not salvage fragments of malformed YAML. Once a valid mapping exists, invalid selected values follow the input-policy pattern: errors under `strict`/`tolerant`, with abortion under their structural-error rules; under `best-effort`, omit affected values and report errors, applying the member-level recovery below to supported lists. Ignored fields generate no field-validation diagnostics, although YAML syntax still must parse.
 
 Best-effort metadata omission preserves source-project metadata, required ontology structure, domain axioms, and independently available provenance. Report the file failure and whether conversion aborted or external metadata was omitted through existing diagnostic mechanisms. Provenance must not claim successful use of metadata never read/parsed; effective configuration may record that it was requested.
+
+### Recovery within metadata lists
+
+With parseable YAML and a valid top-level mapping, `best-effort` validates each member of `contributor`, `keyword`, `source`, and list-valued `landingPage` independently against the [existing field requirements](#external-field-whitelist). Keep every valid member, including valid siblings of invalid members, preserving supplied text and IRIs as separate statements under their existing mappings.
+
+**Implementation status:** At the [inspected development revision](https://github.com/pedropaulofb/ontouml-directkg/blob/b47dd82e3544a045394ccc4c2b2828ccdacb2337/src/ontouml_directkg/metadata.py), mixed valid/invalid lists still reach a `NotImplementedError` guard under `best-effort`. This section explains the accepted I1 recovery contract; no successful mixed-list conversion is asserted here.
+
+| Supported list contents | Specified `best-effort` result |
+| --- | --- |
+| All supplied members valid | Retain all members under the existing mappings. |
+| Both valid and invalid members | Retain every valid member, omit invalid members, and retain applicable ERROR diagnostics. |
+| Nonempty list containing only invalid members | Produce no statements from that field, retain applicable ERROR diagnostics, and continue independent processing. |
+
+An invalid member alone must not discard valid siblings, other independently valid selected metadata fields, or independent source transformations. Continue those contributions and preserve source-project metadata, required ontology structure, domain axioms, and independently available provenance under their existing rules.
+
+When invalid members are encountered, conversion returns `completed-with-errors` unless another condition requires abortion. Eligible ontology output, structured diagnostic access and requested diagnostics-file delivery retain their [existing contracts](../reference/diagnostics.md#outcomes-and-output-eligibility). [CLI exit codes and delivery-failure precedence](cli.md#exit-codes-and-delivery-failures) also remain unchanged.
+
+`strict` and `tolerant` still report ERROR and abort for invalid selected metadata. Member-level recovery changes neither whole-file failure handling nor the accepted field shapes, optional absent/null/empty-field handling, ignored fields, or provenance. Scalar `landingPage` remains one IRI; malformed YAML cannot be salvaged and invalid field shapes are not made acceptable.
+
+This recovery rule adds no control, diagnostic identifier or report schema, and prescribes no diagnostic count. Preserve the diagnostics actually produced through the existing access and export mechanisms.
 
 ### Required construction versus later delivery
 
@@ -135,8 +155,8 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 
 ---
 
-Governing rules: DK-GEN-08–11; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-GEN-08–11, including I1's recovery within list-valued metadata; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-03**; repository commit: `b47dd82e3544a045394ccc4c2b2828ccdacb2337`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/b47dd82e3544a045394ccc4c2b2828ccdacb2337/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5; included in the cited consolidation).
 
-Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization included in the cited consolidation).
