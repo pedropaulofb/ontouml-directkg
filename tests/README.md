@@ -391,22 +391,18 @@ A1.1/A1.2 now resolve the former exact-name blockers for present-but-unusable
 inverse roles and unusable inverse-domain qualifiers. Their exact naming,
 eligibility, labels, direction and source-backed identity are asserted in the A1
 increment below; current production guards remain visible test-first failures.
-Five DK-REL-04 rows still lack
-an explicit supported-field criterion for their directional semantic roles:
-componentOf, historicalDependence, participational, subCollectionOf and
-subQuantityOf. Ten direction cells assert only established-candidate safety;
-18 assert an exact directional candidate. The inventory quotes the
-relevant passages and records the targeted Architect question. Class labels and
-aggregation flags are not invented as a semantic orientation convention.
+A2 now resolves the earlier role-selection questions in DK-REL-04. The four
+part–whole families use a unique explicit SHARED/COMPOSITE occurrence; historical
+semantic naming uses endpoint fallback; externalDependence uses exactly one
+explicit mode and the complete approved non-mode endurant set. The existing
+30 table IDs now have exact expectations. Source labels remain lexical text,
+not semantic-role discriminators; aggregation never changes primary direction
+or DK-REL-19's bridge. Native selector guards remain visible production failures.
 
-Wave 4 reviewer correction F1 uses the exporter's `mode` stereotype for the
-characterization/manifestation inputs and material-mode dependencies. These
-positive mode inputs request `require-known`, so custom-stereotype acceptance
-cannot stand in for a recognized encoding. The two externalDependence cells
-also use `mode`, but assert only primary identity/direction and completion:
-the specification does not establish whether this encoding supplies DK-REL-04's
-"Extrinsic Mode" role. Exact lexical selection and its naming diagnostics remain
-blocked for Architect clarification; no intrinsic/extrinsic alias is assumed.
+Wave 4 reviewer correction F1's official mode encoding remains under
+require-known for positive cases. No intrinsic/extrinsic aliases are introduced.
+A2 also adds explicit ambiguous/unsupported inputs, both marker kinds and orders,
+all-policy nonfatal fallback, ignored hints and both-strategy label/control cases.
 F2 preserves specific-property disjointness when the general relation or its
 reference fails, independently of the correctly omitted hierarchy edges.
 
@@ -666,8 +662,8 @@ Observed with Python 3.12.14 and pinned requirements: **2673 collected**, all
 2660 earlier nodes unchanged plus 13. New historical selection: **13 failed,
 931 deselected**: ten missing limitation-warning assertions, after their earlier
 checks passed; three existing production NotImplementedError branches for deferred
-historical semantic naming. The prior two-candidate semantic-direction bound is
-retained; this decision supplies no role selector. Existing mapping selection:
+historical semantic naming. At that historical checkpoint the two-candidate semantic-direction bound was
+retained; A2 below now resolves it with exact endpoint fallback. Existing mapping selection:
 **51 passed, 35 failed, 858 deselected** (two deferred naming branches; 33 existing
 adapter limits: 3 comparative diagnostic, 22 fallback-origin and 8 inverse-omission
 readers). Earlier combined regression selection: **324 passed, 2349 deselected**;
@@ -1169,3 +1165,56 @@ changes, all preserved. Test/production/specification/fixture hashes are unchang
 Five test-owned paths change; production, normative files and canonical fixtures
 remain untouched. I1 awaits independent Test Reviewer review. No transformation-
 engine implementation is initiated and production correctness is not certified.
+
+
+## A2 — Structural evidence for semantic naming
+
+This TEST CHANGE follows Architect registration and initial main
+`4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`, covered by the owner-relayed
+Architect Reviewer OK, no findings. The prior I1 test gate is closed at
+`438eb677c444f48c57978c1028abd241f1ea63b0`. The current transformation
+specification blob is ce1fd740feea0a447e7315c84df53959a16060e3; test structure
+remains 250a059d46377360aeecdb5176310bd36bde7825. DK-REL-04's supported
+structural evidence controls lexical selection while preserving the other
+accepted relation, label, diagnostic and ordinary-mapping rules.
+
+In the existing relation module, 30 table parameters retain their IDs with exact
+expectations; eight historical lexical/label cases replace their former bounded
+candidates with endpoint fallback. Seven added functions provide 177 cases for
+marker states/directions, the complete explicit mode/non-mode set, ambiguity and
+unsupported combinations, ignored text/inheritance/custom/restrictedTo hints,
+historical fallback, controls/labels and all-policy nonfatal uncertainty. All
+reuse complete shared/binary_relation JSON and explicit temporary mutations.
+No fixture, module, configuration or stored expected graph is added.
+
+Public conversion/CLI invocation is unchanged. The adapter now interprets the
+actual historical limitation warning while retaining raw evidence. A narrow
+aggregation-comment reader normalizes only inspected native RDF wording and
+returns actual subject/literal/context/value evidence; unknown forms remain
+explicitly unavailable. Broader comment and label-origin readers remain unbound.
+Exact expectations and all 215 node/parameter mappings belong to coverage.md.
+
+Final relation-module execution: **307 passed, 814 failed**. A2's 215 nodes have
+**65 passes and 150 native deferred-direction guards**; the other 664 failures
+are existing explicit binding limitations. Related inverse/I1/T1/input checks:
+**293 passed, 32 existing inverse binding limitations**. All 110 A1 and 75 I1
+cases pass against current production. Temporary controls validate 157 native
+disabled-control input/mapping variants, pass nine executable function controls,
+reject 15 RDF/diagnostic mutations and refuse one unknown annotation rendering.
+These controls neither simulate nor grant passing credit to deferred A2 selection.
+
+Collection is **3107**, retaining all 2930 prior IDs plus 177; 3019 behavioral
+inventory nodes and all 17 Python files reconcile/parse. The full project suite,
+full provenance conformance and remaining unavailable operations were not run.
+Commands, actual failures, canonical pairings and binding limits are recorded in
+coverage.md. Four test-owned paths change. Production and normative documents
+remain unchanged. A2 awaits independent Test Reviewer review; transformation-
+engine implementation is not initiated and must also verify the documentation
+gate.
+
+
+Publication was reconciled onto refreshed main
+`29a798666e1e66e5d636ab7ac23905d50394be0d`. Its seven parallel A2 documentation
+changes are preserved. Complete tree and snapshot-hash checks confirm identical
+production, tests/support, fixtures, packaging, vocabulary and governing
+specifications, so the recorded execution remains applicable.

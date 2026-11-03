@@ -440,6 +440,14 @@ class Invocation(Protocol):
         """
         ...
 
+    def read_relation_aggregation_comments(self, observation: Observation, source: Path) -> tuple[CommentMeaning, ...]:
+        """Read aggregation value and end context from actual emitted comments.
+
+        Retain each RDF subject/literal. Unknown native annotation forms must
+        remain unavailable rather than establish absence. Test-side API only.
+        """
+        ...
+
 
 class _UnboundInvocation:
     def has_relation_cardinality_control(self, feature):
@@ -501,6 +509,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_historical_dependence_annotations(self, observation, source):
+        self._unavailable()
+
+    def read_relation_aggregation_comments(self, observation, source):
         self._unavailable()
 
 
@@ -772,6 +783,7 @@ _DIAGNOSTIC_KINDS = {
     "VOID_DATATYPE": "void_datatype", "ORDERING_ANNOTATION": "ordering",
     "RELATION_NAMING": "relation_naming", "MISSING_RELATION_NAME": "missing_name",
     "METADATA_FIELD": "metadata_field", "METADATA_INPUT": "metadata_input",
+    "UNMAPPED_RELATION_STEREOTYPE": "unmapped_relation_stereotype",
 }
 
 
@@ -1072,6 +1084,22 @@ class _DirectKGInvocation(_UnboundInvocation):
                 f"{triple!r}"
             )
         return ()
+
+    def read_relation_aggregation_comments(self, observation, source):
+        # Reuse the inspected producer's annotation audit: unknown wording,
+        # predicates and auxiliary structures cannot earn absence credit.
+        # It excludes actual source descriptions, not expected fixture values.
+        self.read_historical_dependence_annotations(observation, source)
+        from rdflib.namespace import RDFS
+        comments = []
+        for subject, literal in self.read_ontology(observation).subject_objects(RDFS.comment):
+            match = re.fullmatch(
+                r"OntoUML source metadata: the (source|target) association end "
+                r"has (shared|composite) aggregation\.", str(literal))
+            if match:
+                comments.append(CommentMeaning(subject, literal, "aggregationKind",
+                    match[2].upper(), context=match[1] + "_end"))
+        return tuple(comments)
 
     def read_report(self, path):
         from ontouml_directkg.diagnostics import Diagnostic as NativeDiagnostic, SourceLocation, export_report

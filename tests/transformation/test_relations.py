@@ -60,56 +60,381 @@ def _both_counts(graph, side, expected, opposite=() , mode='none', self_relation
     assert ((BASE.sFocus, RDF.type, OWL.ObjectProperty) in graph) == (mode == 'all')
 
 
-# The two directions are separate nodes. Five same-role-type families lack an
-# input-field criterion selecting their semantic direction; only their bounded
-# candidate safety is asserted. The externalDependence mode-role interpretation
-# is separately blocked; those two cases assert only independent mappings.
+# A2 resolves the former bounded directions. A whole marker belongs to an
+# association-end occurrence; class names below are only lexical source text.
 SEMANTIC_ROWS = [
- ('bringsAbout', ('event','Event'), ('situation','Situation'), 'bringsAbout', 'broughtAboutBy', False),
- ('characterization', ('kind','Bearer'), ('mode','Feature'), 'isCharacterizedBy', 'characterizes', False),
- ('componentOf', ('kind','Whole'), ('kind','Component'), 'hasComponent', 'componentOf', True),
- ('creation', ('event','Event'), ('kind','Endurant'), 'creates', 'wasCreatedIn', False),
- ('externalDependence', ('mode','Mode'), ('kind','Endurant'), 'externallyDependsOn', 'isExternalDependencyOf', True),
- ('historicalDependence', ('historicalRole','Dependent'), ('kind','Antecedent'), 'historicallyDependsOn', 'isHistoricalDependencyOf', True),
- ('manifestation', ('mode','Aspect'), ('event','Event'), 'manifestedIn', 'manifests', False),
- ('mediation', ('relator','Relator'), ('kind','Endurant'), 'mediates', 'isMediatedBy', False),
- ('memberOf', ('kind','Member'), ('collective','Collective'), 'memberOf', 'hasMember', False),
- ('participation', ('kind','Participant'), ('event','Event'), 'participatesIn', 'hasParticipant', False),
- ('participational', ('event','PartEvent'), ('event','WholeEvent'), 'participationalPartOf', 'hasParticipationalPart', True),
- ('subCollectionOf', ('collective','Subcollection'), ('collective','Collection'), 'subCollectionOf', 'hasSubCollection', True),
- ('subQuantityOf', ('quantity','Subquantity'), ('quantity','Quantity'), 'subQuantityOf', 'hasSubQuantity', True),
- ('termination', ('kind','Endurant'), ('event','Event'), 'wasTerminatedIn', 'terminates', False),
- ('triggers', ('situation','Situation'), ('event','Event'), 'triggers', 'triggeredBy', False),
+ ('bringsAbout', ('event','Event'), ('situation','Situation'), 'bringsAbout', 'broughtAboutBy', None),
+ ('characterization', ('kind','Bearer'), ('mode','Feature'), 'isCharacterizedBy', 'characterizes', None),
+ ('componentOf', ('kind','Whole'), ('kind','Component'), 'hasComponent', 'componentOf', 'source'),
+ ('creation', ('event','Event'), ('kind','Endurant'), 'creates', 'wasCreatedIn', None),
+ ('externalDependence', ('mode','Mode'), ('kind','Endurant'), 'externallyDependsOn', 'isExternalDependencyOf', None),
+ ('historicalDependence', ('historicalRole','Dependent'), ('kind','Antecedent'), 'dependent_antecedent', 'antecedent_dependent', None),
+ ('manifestation', ('mode','Aspect'), ('event','Event'), 'manifestedIn', 'manifests', None),
+ ('mediation', ('relator','Relator'), ('kind','Endurant'), 'mediates', 'isMediatedBy', None),
+ ('memberOf', ('kind','Member'), ('collective','Collective'), 'memberOf', 'hasMember', None),
+ ('participation', ('kind','Participant'), ('event','Event'), 'participatesIn', 'hasParticipant', None),
+ ('participational', ('event','PartEvent'), ('event','WholeEvent'), 'participationalPartOf', 'hasParticipationalPart', 'target'),
+ ('subCollectionOf', ('collective','Subcollection'), ('collective','Collection'), 'subCollectionOf', 'hasSubCollection', 'target'),
+ ('subQuantityOf', ('quantity','Subquantity'), ('quantity','Quantity'), 'subQuantityOf', 'hasSubQuantity', 'target'),
+ ('termination', ('kind','Endurant'), ('event','Event'), 'wasTerminatedIn', 'terminates', None),
+ ('triggers', ('situation','Situation'), ('event','Event'), 'triggers', 'triggeredBy', None),
 ]
 SEMANTIC_CASES = [pytest.param(stereo, a if not reverse else b, b if not reverse else a,
-                    {forward, backward} if blocked else {backward if reverse else forward}, blocked,
+                    backward if reverse else forward,
+                    ('target' if whole == 'source' else 'source') if reverse and whole else whole,
                     id=stereo+('_reverse' if reverse else '_forward'))
-                  for stereo,a,b,forward,backward,blocked in SEMANTIC_ROWS for reverse in (False,True)]
+                  for stereo,a,b,forward,backward,whole in SEMANTIC_ROWS for reverse in (False,True)]
 
 
-@pytest.mark.parametrize('stereotype,source,target,candidates,blocked', SEMANTIC_CASES)
-def test_stereotype_table_candidates_preserve_established_direction_when_resolvable(run, source_json, tmp_path, stereotype, source, target, candidates, blocked):
-    """Rules: DK-REL-01, DK-REL-02, DK-REL-04, DK-GEN-03, DK-PROP-02, DK-DIAG-06.
+@pytest.mark.parametrize('stereotype,source,target,candidate,whole', SEMANTIC_CASES)
+def test_stereotype_table_candidates_preserve_established_direction_when_resolvable(run, source_json, tmp_path, stereotype, source, target, candidate, whole):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-GEN-03, DK-PROP-02, DK-DIAG-01, DK-DIAG-06.
 
-    blocked=True asserts bounded candidate safety, not a selected semantic
-    direction for ten cells. The two externalDependence cells assert no lexical
-    candidate or naming-diagnostic expectation until the mode role is clarified.
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc: exact
+    structural selection, including historical endpoint fallback. Other rows
+    retain their established exact expectations. Shared/binary_relation runtime
+    variants; fixed RDF assertions, no stored expectation graph.
     """
     document = source_json('shared/binary_relation')
     source_element(document,'cA').update(stereotype=source[0], name=source[1])
     source_element(document,'cB').update(stereotype=target[0], name=target[1])
     source_element(document,'rFocus').update(stereotype=stereotype, name=None)
     source_element(document,'tFocus')['name'] = None
+    if whole:
+        source_element(document, 'sFocus' if whole == 'source' else 'tFocus')['aggregationKind'] = 'SHARED'
     assert not fixture_issues(document)
     result = run(path=write_input(tmp_path,document),inverse_properties='none',stereotype_policy='require-known')
     assert result.outcome == 'completed'
     prop = _primary(result,strategy='name')
-    if stereotype!='externalDependence':
-        _candidate(result.ontology,prop,candidates,source[1])
+    _candidate(result.ontology,prop,{candidate},source[1])
     _direction(result.ontology,prop,BASE[source[1]],BASE[target[1]])
     assert not any(d.severity == 'ERROR' for d in result.diagnostics)
-    if stereotype!='externalDependence':
+    if stereotype == 'historicalDependence':
+        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+        _historical_limitation_warning(result)
+    else:
         assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
+
+
+# A2 uses the canonical complete VP-plugin fixture and explicit runtime variants.
+# These helpers author inputs/check RDF; they do not implement a name selector.
+A2_PART_WHOLE = [
+    pytest.param('componentOf', 'kind', 'hasComponent', 'componentOf', id='component_of'),
+    pytest.param('participational', 'event', 'hasParticipationalPart', 'participationalPartOf', id='participational'),
+    pytest.param('subCollectionOf', 'collective', 'hasSubCollection', 'subCollectionOf', id='sub_collection'),
+    pytest.param('subQuantityOf', 'quantity', 'hasSubQuantity', 'subQuantityOf', id='sub_quantity'),
+]
+A2_MARKERS = [
+    pytest.param('NONE', 'NONE', None, id='none'),
+    pytest.param('absent', 'absent', None, id='absent'),
+    pytest.param(None, None, None, id='null'),
+    pytest.param('SHARED', 'NONE', 'source', id='source_shared'),
+    pytest.param('COMPOSITE', 'NONE', 'source', id='source_composite'),
+    pytest.param('NONE', 'SHARED', 'target', id='target_shared'),
+    pytest.param('NONE', 'COMPOSITE', 'target', id='target_composite'),
+    pytest.param('SHARED', 'SHARED', None, id='both_shared'),
+    pytest.param('COMPOSITE', 'COMPOSITE', None, id='both_composite'),
+    pytest.param('SHARED', 'COMPOSITE', None, id='shared_composite'),
+    pytest.param('COMPOSITE', 'SHARED', None, id='composite_shared'),
+]
+# Complete accepted non-mode endurant set, not derived from production enums.
+A2_NON_MODE_ENDURANTS = ['kind', 'collective', 'quantity', 'relator', 'quality',
+    'subkind', 'role', 'phase', 'historicalRole', 'category', 'mixin', 'roleMixin',
+    'phaseMixin', 'historicalRoleMixin']
+
+
+def _a2_document(source_json, stereotype):
+    document = source_json('shared/binary_relation')
+    document['languages'] = ['nl']
+    source_element(document, 'rFocus').update(name=None, stereotype=stereotype, description='A2 relation description.')
+    source_element(document, 'sFocus').update(cardinality='1', description='A2 source description.')
+    source_element(document, 'tFocus').update(name=None, cardinality='2..3', description='A2 target description.')
+    return document
+
+
+def _assert_a2_id_mapping(result, document):
+    """Fixed source direction/counts/inverses and independent ordinary mappings."""
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    relation = source_element(document, 'rFocus')
+    source, target = (BASE[end['propertyType']['id']] for end in relation['properties'])
+    graph = result.ontology
+    _direction(graph, BASE.tFocus, source, target)
+    _direction(graph, BASE.sFocus, target, source)
+    assert (BASE.sFocus, OWL.inverseOf, BASE.tFocus) in graph
+    assert (BASE.tFocus, OWL.inverseOf, BASE.sFocus) not in graph
+    _counts(graph, source, BASE.tFocus, {('min', 2), ('max', 3)})
+    _counts(graph, target, BASE.sFocus, {('exact', 1)})
+    assert not list(graph.objects(BASE.tFocus, DCTERMS.identifier))
+    assert not list(graph.objects(BASE.sFocus, DCTERMS.identifier))
+    assert (BASE.tFocus, RDFS.comment, Literal('A2 relation description.', lang='fr')) in graph
+    assert (BASE.tFocus, RDFS.comment, Literal('A2 target description.', lang='fr')) in graph
+    assert (BASE.sFocus, RDFS.comment, Literal('A2 source description.', lang='fr')) in graph
+    assert not list(graph.triples((None, OWL.propertyChainAxiom, None)))
+    stereotype = relation['stereotype']
+    bridge = ({URIRef('https://w3id.org/directkg/vocab/dkgm#' + stereotype)}
+              if stereotype in {'componentOf', 'subCollectionOf', 'subQuantityOf'} else set())
+    assert set(graph.objects(BASE.tFocus, RDFS.subPropertyOf)) == bridge
+    assert not list(graph.objects(BASE.sFocus, RDFS.subPropertyOf))
+    if stereotype in {'componentOf', 'subCollectionOf', 'subQuantityOf', 'participational'}:
+        assert (BASE.tFocus, RDF.type, OWL.AsymmetricProperty) in graph
+        assert (BASE.sFocus, RDF.type, OWL.AsymmetricProperty) not in graph
+    if stereotype == 'externalDependence':
+        assert (BASE.tFocus, RDF.type, OWL.IrreflexiveProperty) in graph
+    assert (None, OWL.imports, URIRef('https://w3id.org/directkg/vocab/dkgm')) in graph
+
+
+@pytest.mark.parametrize('stereotype,class_stereotype,whole_forward,part_forward', A2_PART_WHOLE)
+@pytest.mark.parametrize('source_marker,target_marker,whole', A2_MARKERS)
+def test_unique_whole_marker_selects_lexical_name_without_changing_primary_mapping(
+        run, invoke, source_json, tmp_path, stereotype, class_stereotype,
+        whole_forward, part_forward, source_marker, target_marker, whole):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-19, DK-LBL-01, DK-LBL-02, DK-PROP-04, DK-DIAG-01, DK-INV-01, DK-INV-04, DK-IRI-02, DK-GEN-04.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation runtime variants; both represented directions per
+    node. No stored expectation: fixed lexical and RDF assertions below.
+    """
+    for reverse in (False, True):
+        document = _a2_document(source_json, stereotype)
+        for identifier in ('cA', 'cB'): source_element(document, identifier)['stereotype'] = class_stereotype
+        relation = source_element(document, 'rFocus')
+        for end, marker in zip(relation['properties'], (source_marker, target_marker)):
+            if marker == 'absent': end.pop('aggregationKind')
+            else: end['aggregationKind'] = marker
+        if reverse:
+            left, right = relation['properties']
+            left['propertyType'], right['propertyType'] = right['propertyType'], left['propertyType']
+        assert not fixture_issues(document)
+        path = write_input(tmp_path, document)
+        options = dict(iri_strategy='id', inverse_properties='all', relation_labels='generated', language='fr')
+        baseline = run(path=path, no_stereotype_relation_naming=True, **options)
+        result = run(path=path, **options)
+        _assert_a2_id_mapping(result, document)
+        expected = (whole_forward if whole == 'source' else part_forward if whole == 'target' else
+                    'xMLNode_hTTPServer' if reverse else 'hTTPServer_xMLNode')
+        assert set(result.ontology.objects(BASE.tFocus, RDFS.label)) == {Literal(expected)}
+        _historical_mapping_equal(baseline, result)
+        assert _historical_other_diagnostics(baseline) == _historical_other_diagnostics(result)
+        comments = invoke.read_relation_aggregation_comments(result, path)
+        assert all((c.subject, RDFS.comment, c.literal) in result.ontology for c in comments)
+        assert {(c.subject, c.context, c.value) for c in comments} == {
+            (BASE.tFocus, context, marker) for context, marker in
+            (('source_end', source_marker), ('target_end', target_marker))
+            if marker in {'SHARED', 'COMPOSITE'}}
+
+
+@pytest.mark.parametrize('other', A2_NON_MODE_ENDURANTS, ids=A2_NON_MODE_ENDURANTS)
+@pytest.mark.parametrize('mode_side', ['source', 'target'])
+def test_external_dependence_selects_direction_for_every_supported_non_mode_endurant(
+        run, source_json, tmp_path, other, mode_side):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-04, DK-REL-09, DK-REL-10, DK-REL-11, DK-LBL-01, DK-LBL-02, DK-DIAG-01, DK-INV-01, DK-INV-04, DK-IRI-02.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation; complete explicit stereotype set and fixed RDF.
+    """
+    document = _a2_document(source_json, 'externalDependence')
+    source_element(document, 'cA')['stereotype'] = 'mode' if mode_side == 'source' else other
+    source_element(document, 'cB')['stereotype'] = other if mode_side == 'source' else 'mode'
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', inverse_properties='all',
+                 relation_labels='generated', language='fr', stereotype_policy='require-known')
+    _assert_a2_id_mapping(result, document)
+    candidate = 'externallyDependsOn' if mode_side == 'source' else 'isExternalDependencyOf'
+    assert set(result.ontology.objects(BASE.tFocus, RDFS.label)) == {Literal(candidate)}
+    assert not any(d.kind in NAMING_KINDS - {'missing_name'} for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('left,right', [
+    pytest.param('mode', 'mode', id='both_mode'), pytest.param('kind', 'quality', id='neither_mode'),
+    pytest.param('mode', 'event', id='event_not_endurant'), pytest.param('situation', 'mode', id='situation_not_endurant'),
+    pytest.param('mode', 'type', id='type_not_in_approved_set'),
+    pytest.param('mode', None, id='missing_other'), pytest.param(None, 'mode', id='missing_source'),
+    pytest.param('extrinsicMode', 'kind', id='custom_extrinsic_is_not_mode'),
+    pytest.param('kind', 'intrinsicMode', id='custom_intrinsic_is_not_mode'),
+    pytest.param('mode', 'extrinsicMode', id='custom_other_not_supported'),
+    pytest.param('intrinsicMode', 'mode', id='custom_source_not_supported'),
+])
+def test_external_dependence_ambiguous_or_unsupported_roles_use_endpoint_fallback(
+        run, source_json, tmp_path, left, right):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11, DK-LBL-01, DK-LBL-02, DK-DIAG-01, DK-DIAG-06, DK-INV-01, DK-INV-04, DK-IRI-02.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation; alias-like strings are deliberate custom negatives,
+    not new supported stereotypes. Fixed endpoint lexical/RDF assertions.
+    """
+    document = _a2_document(source_json, 'externalDependence')
+    source_element(document, 'cA')['stereotype'] = left
+    source_element(document, 'cB')['stereotype'] = right
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', inverse_properties='all',
+                 relation_labels='generated', language='fr', stereotype_policy='allow-custom')
+    _assert_a2_id_mapping(result, document)
+    assert set(result.ontology.objects(BASE.tFocus, RDFS.label)) == {Literal('hTTPServer_xMLNode')}
+
+
+@pytest.mark.parametrize('stereotype', ['componentOf', 'participational', 'subCollectionOf', 'subQuantityOf', 'externalDependence', 'historicalDependence'])
+@pytest.mark.parametrize('hint', ['descriptive_custom', 'inherited_restricted'])
+def test_semantic_role_selection_does_not_use_descriptive_inherited_or_custom_hints(
+        run, source_json, tmp_path, stereotype, hint):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-LBL-01, DK-DIAG-01, DK-CLS-01, DK-CLS-03, DK-GEN-07.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation; supported descriptions/assignments, restrictedTo
+    and complete Class/Generalization variants. Fixed endpoint fallback.
+    """
+    document = _a2_document(source_json, stereotype)
+    if hint == 'descriptive_custom':
+        # Text can supply fallback components, never semantic-role evidence.
+        names = (('Mode', 'Endurant') if stereotype == 'externalDependence' else
+                 ('Dependent', 'Antecedent') if stereotype == 'historicalDependence' else ('Whole', 'Part'))
+        candidate = ('mode_endurant' if stereotype == 'externalDependence' else
+                     'dependent_antecedent' if stereotype == 'historicalDependence' else 'whole_part')
+        for identifier, name in zip(('cA', 'cB'), names):
+            source_element(document, identifier).update(name=name, description='Claimed whole / mode / dependent role.')
+        source_element(document, 'rFocus')['propertyAssignments'] = {'semanticRole': 'whole', 'direction': 'reverse'}
+        source_element(document, 'sFocus')['propertyAssignments'] = {'aggregationKind': 'COMPOSITE', 'stereotype': 'mode'}
+    else:
+        candidate = 'hTTPServer_xMLNode'
+        source_element(document, 'cA')['restrictedTo'] = ['mode']
+        parent = copy.deepcopy(source_element(document, 'cA'))
+        parent.update(id='cHint', name='ClaimedRole', stereotype='mode', restrictedTo=None)
+        document['model']['contents'].extend([parent, {'id': 'gHint', 'type': 'Generalization',
+            'name': None, 'description': None, 'propertyAssignments': None,
+            'specific': {'id': 'cA', 'type': 'Class'}, 'general': {'id': 'cHint', 'type': 'Class'}}])
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', inverse_properties='none',
+                 relation_labels='generated', stereotype_policy='require-known')
+    assert result.outcome == 'completed'
+    _direction(result.ontology)
+    assert set(result.ontology.objects(BASE.tFocus, RDFS.label)) == {Literal(candidate)}
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    if hint == 'inherited_restricted': assert (BASE.cA, RDFS.subClassOf, BASE.cHint) in result.ontology
+    if stereotype == 'historicalDependence': _historical_limitation_warning(result)
+
+
+@pytest.mark.parametrize('reverse', [False, True], ids=['modeled_forward', 'modeled_reverse'])
+@pytest.mark.parametrize('hints', [False, True], ids=['no_roles', 'historical_role_and_flags'])
+def test_historical_semantic_step_uses_exact_endpoint_fallback_and_preserves_ordinary_mapping(
+        run, invoke, source_json, tmp_path, reverse, hints):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-DIAG-01, DK-INV-01, DK-INV-04, DK-GEN-11.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation; position, historicalRole, read-only, aggregation
+    and multiplicities do not assign dependent/antecedent. Fixed RDF checks.
+    """
+    document = _a2_document(source_json, 'historicalDependence')
+    if hints:
+        source_element(document, 'cA')['stereotype'] = 'historicalRole'
+        source_element(document, 'sFocus').update(isReadOnly=True, aggregationKind='SHARED')
+        source_element(document, 'tFocus').update(isReadOnly=True, aggregationKind='COMPOSITE')
+    if reverse:
+        a, b = source_element(document, 'rFocus')['properties']
+        a['propertyType'], b['propertyType'] = b['propertyType'], a['propertyType']
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document)
+    options = dict(iri_strategy='name', inverse_properties='all', relation_labels='generated', language='fr')
+    baseline = run(path=path, no_stereotype_relation_naming=True, **options)
+    result = run(path=path, **options)
+    assert baseline.outcome == result.outcome == 'completed'
+    prop = _primary(result, strategy='name')
+    candidate, source, target = (('xMLNode_hTTPServer', BASE.XMLNode, BASE.HTTPServer) if reverse else
+                                 ('hTTPServer_xMLNode', BASE.HTTPServer, BASE.XMLNode))
+    _candidate(result.ontology, prop, {candidate}, 'XMLNode' if reverse else 'HTTPServer')
+    _direction(result.ontology, prop, source, target)
+    assert set(result.ontology.objects(prop, RDFS.label)) == {Literal(candidate)}
+    _counts(result.ontology, source, prop, {('min', 2), ('max', 3)})
+    inverse = _primary(result, 'sFocus', 'name')
+    _counts(result.ontology, target, inverse, {('exact', 1)})
+    _historical_mapping_equal(baseline, result)
+    assert _historical_other_diagnostics(baseline) == _historical_other_diagnostics(result)
+    assert invoke.read_historical_dependence_annotations(result, path) == ()
+    assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+    _historical_limitation_warning(result)
+
+
+@pytest.mark.parametrize('stereotype', ['componentOf', 'externalDependence', 'historicalDependence'])
+@pytest.mark.parametrize('branch', ['relation', 'target_role', 'selected', 'insufficient', 'disabled'])
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('label_mode', ['source-only', 'generated'])
+def test_structural_naming_preserves_precedence_controls_and_label_modes(
+        run, source_json, tmp_path, stereotype, branch, strategy, label_mode):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-IRI-02, DK-IRI-06, DK-DIAG-01, DK-INV-01, DK-INV-04.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation; representative aggregation, mode and historical
+    selectors. Source labels versus exact generated lexical labels, both IRI
+    strategies; fixed RDF expectations and no diagnostic from labels alone.
+    """
+    document = _a2_document(source_json, stereotype)
+    if stereotype == 'componentOf': source_element(document, 'sFocus')['aggregationKind'] = 'SHARED'
+    elif stereotype == 'externalDependence': source_element(document, 'cA')['stereotype'] = 'mode'
+    else: source_element(document, 'cA')['stereotype'] = 'historicalRole'
+    if branch == 'relation':
+        source_element(document, 'rFocus')['name'] = ' Assigned, To '
+        source_element(document, 'tFocus')['name'] = 'target role'
+    elif branch == 'target_role': source_element(document, 'tFocus')['name'] = 'target role'
+    elif branch == 'insufficient':
+        source_element(document, 'sFocus')['aggregationKind'] = 'NONE'
+        source_element(document, 'cA')['stereotype'] = 'category'
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document)
+    options = dict(iri_strategy=strategy, inverse_properties='all', language='fr',
+                   no_stereotype_relation_naming=branch == 'disabled')
+    result = run(path=path, relation_labels=label_mode, **options)
+    assert result.outcome == 'completed'
+    prop = _primary(result, strategy=strategy)
+    candidate = ('Assigned_To' if branch == 'relation' else 'target_role' if branch == 'target_role' else
+        'hTTPServer_xMLNode' if branch in {'insufficient', 'disabled'} or stereotype == 'historicalDependence' else
+        'hasComponent' if stereotype == 'componentOf' else 'externallyDependsOn')
+    if strategy == 'name': _candidate(result.ontology, prop, {candidate}, 'HTTPServer')
+    source, target = (BASE.cA, BASE.cB) if strategy == 'id' else (BASE.HTTPServer, BASE.XMLNode)
+    _direction(result.ontology, prop, source, target)
+    assert set(result.ontology.objects(prop, DCTERMS.identifier)) == ({Literal('tFocus')} if strategy == 'name' else set())
+    expected = ({Literal(' Assigned, To ', lang='fr')} if branch == 'relation' else
+                {Literal('target role', lang='fr')} if branch == 'target_role' else
+                {Literal(candidate)} if label_mode == 'generated' else set())
+    assert set(result.ontology.objects(prop, RDFS.label)) == expected
+    inverse = _primary(result, 'sFocus', strategy)
+    _direction(result.ontology, inverse, target, source)
+    assert (inverse, OWL.inverseOf, prop) in result.ontology
+    assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal('workers', lang='fr')}
+    _counts(result.ontology, source, prop, {('min', 2), ('max', 3)})
+    _counts(result.ontology, target, inverse, {('exact', 1)})
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    if strategy == 'name':
+        warning = branch in {'target_role', 'insufficient', 'disabled'} or (stereotype == 'historicalDependence' and branch == 'selected')
+        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics) == warning
+        if not warning: assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
+    if stereotype == 'historicalDependence': _historical_limitation_warning(result)
+    if label_mode == 'generated':
+        baseline = run(path=path, relation_labels='source-only', **options)
+        _historical_mapping_equal(baseline, result)
+        assert _historical_other_diagnostics(baseline) == _historical_other_diagnostics(result)
+
+
+@pytest.mark.parametrize('stereotype', ['componentOf', 'participational', 'subCollectionOf', 'subQuantityOf', 'externalDependence', 'historicalDependence'])
+@pytest.mark.parametrize('input_policy', POLICIES)
+def test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy(
+        run, source_json, tmp_path, stereotype, input_policy):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-LBL-01, DK-PROP-02, DK-DIAG-01, DK-DIAG-05.
+
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Shared/binary_relation; role uncertainty is not a structural error under
+    strict, tolerant or best-effort. Fixed endpoint candidate and direction.
+    """
+    document = _a2_document(source_json, stereotype)
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), input_policy=input_policy,
+                 iri_strategy='name', inverse_properties='none', relation_labels='generated')
+    assert result.outcome == 'completed'
+    prop = _primary(result, strategy='name')
+    _candidate(result.ontology, prop, {'hTTPServer_xMLNode'}, 'HTTPServer')
+    _direction(result.ontology, prop, BASE.HTTPServer, BASE.XMLNode)
+    assert set(result.ontology.objects(prop, RDFS.label)) == {Literal('hTTPServer_xMLNode')}
+    assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    if stereotype == 'historicalDependence': _historical_limitation_warning(result)
 
 
 PRECEDENCE = [
@@ -1463,7 +1788,7 @@ def _historical_mapping_equal(first, second):
 def _historical_limitation_warning(result):
     # This semantic kind describes an observed limitation warning; it is not
     # a prescribed native diagnostic code or literal message template. The
-    # current producer emits none; a future renderer requires adapter binding.
+    # native event remains raw; its renderer is interpreted by the adapter.
     assert any(d.severity == 'WARNING' and d.kind == 'unmapped_relation_stereotype'
                for d in result.diagnostics), result.diagnostics
     assert not any(d.severity == 'ERROR' for d in result.diagnostics)
@@ -1562,9 +1887,9 @@ def test_historical_dependence_keeps_lexical_naming_and_labels_without_stereotyp
         run, invoke, source_json, tmp_path, branch, strategy, label_mode):
     """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-IRI-06, DK-IRI-09, DK-INV-01, DK-INV-04, DK-DIAG-01, DK-GEN-11.
 
-    RD-17 historicalDependence Alternative A does not resolve the baseline's
-    deferred semantic-direction selector. Preserve its two-candidate bound;
-    generated lexical labels must agree with whichever candidate is selected.
+    A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc resolves
+    the former bound: the semantic step uses dependent_antecedent. Preserve
+    source precedence, generated labels and the historical limitation warning.
     """
     document = source_json('shared/binary_relation')
     document['languages'] = ['nl']
@@ -1582,8 +1907,7 @@ def test_historical_dependence_keeps_lexical_naming_and_labels_without_stereotyp
                BASE.cB if strategy == 'id' else BASE.Antecedent)
     assert set(result.ontology.objects(primary, DCTERMS.identifier)) == ({Literal('tFocus')} if strategy == 'name' else set())
     candidates = ({'historical_role'} if branch == 'target_role' else
-                  {'dependent_antecedent'} if branch == 'disabled' else
-                  {'historicallyDependsOn', 'isHistoricalDependencyOf'})
+                  {'dependent_antecedent'})
     if strategy == 'name': _candidate(result.ontology, primary, candidates, 'Dependent')
     labels = set(result.ontology.objects(primary, RDFS.label))
     if branch == 'target_role':
@@ -1601,9 +1925,7 @@ def test_historical_dependence_keeps_lexical_naming_and_labels_without_stereotyp
     assert invoke.read_historical_dependence_annotations(result, path) == ()
     # The condition is the semantic limitation, independent of primary naming,
     # ID strategy, label mode, or disabled stereotype-derived naming.
-    if branch == 'semantic':
-        assert not any(d.kind in NAMING_KINDS - {'missing_name'} for d in result.diagnostics)
-    elif strategy == 'name':
+    if strategy == 'name':
         assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
     _historical_limitation_warning(result)
 
