@@ -126,11 +126,33 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
 
 
 def _semantic_name(relation: Relation) -> str | None:
-    """Use only settled, distinguishable roles; never guess ambiguous directions."""
+    """Select lexical roles only, preserving primary direction and property logic."""
     stereotype = relation.source.data.get("stereotype")
-    if stereotype in {"componentOf", "historicalDependence", "participational",
-                      "subCollectionOf", "subQuantityOf", "externalDependence"}:
-        raise NotImplementedError("This stereotype's directional naming criterion requires the deferred Architect decision")
+    part_whole = {
+        "componentOf": ("hasComponent", "componentOf"),
+        "participational": ("hasParticipationalPart", "participationalPartOf"),
+        "subCollectionOf": ("hasSubCollection", "subCollectionOf"),
+        "subQuantityOf": ("hasSubQuantity", "subQuantityOf"),
+    }
+    if stereotype in part_whole:
+        source_whole = relation.source_end.data.get("aggregationKind") in {"SHARED", "COMPOSITE"}
+        target_whole = relation.target_end.data.get("aggregationKind") in {"SHARED", "COMPOSITE"}
+        if source_whole != target_whole:
+            return part_whole[stereotype][0 if source_whole else 1]
+        return None
+    a, b = relation.domain.data.get("stereotype"), relation.range.data.get("stereotype")
+    if stereotype == "externalDependence":
+        endurants = {"kind", "collective", "quantity", "relator", "quality", "subkind", "role",
+                     "phase", "historicalRole", "category", "mixin", "roleMixin", "phaseMixin",
+                     "historicalRoleMixin"}
+        if a == "mode" and b in endurants:
+            return "externallyDependsOn"
+        if b == "mode" and a in endurants:
+            return "isExternalDependencyOf"
+        return None
+    if stereotype == "historicalDependence":
+        # No supported explicit discriminator assigns dependent/antecedent roles.
+        return None
     selectors = {
         "bringsAbout": ("event", "bringsAbout", "broughtAboutBy"),
         "creation": ("event", "creates", "wasCreatedIn"),
@@ -141,7 +163,6 @@ def _semantic_name(relation: Relation) -> str | None:
         "termination": ("event", "terminates", "wasTerminatedIn"),
         "triggers": ("situation", "triggers", "triggeredBy"),
     }
-    a, b = relation.domain.data.get("stereotype"), relation.range.data.get("stereotype")
     if stereotype == "characterization":
         left, right = a in {"mode", "quality"}, b in {"mode", "quality"}
         if left != right:
