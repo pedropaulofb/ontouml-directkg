@@ -23,6 +23,8 @@ For a successfully generated primary property, both relation-label modes first u
 
 That lexical candidate retains the established source-field/stereotype/grounding-relator/endpoint naming precedence and conditions. See [Primary direction and naming](../mapping/relations.md#primary-direction-and-naming) for the relation-naming algorithm. The fallback label uses the candidate **before IRI-specific processing**, under both IRI strategies; do not parse the final IRI or include IRI-only encoding, collision qualification, or suffixes.
 
+Stereotype-derived candidates follow the [supported structural-evidence conditions](../mapping/relations.md#structural-evidence-for-semantic-naming). When required roles remain undetermined, the selected endpoint fallback also supplies the generated label; this includes `historicalDependence` when the semantic naming step is reached. Generating that label adds no naming diagnostic solely for label generation; independently applicable naming and limitation warnings remain.
+
 Generated fallback labels receive no automatic source-language propagation, including the explicit language override. Do not add RDF markers, annotations, or auxiliary resources solely to distinguish them from source-authored labels. Absence of such a marker adds no diagnostic or control. These modes leave inverse-label rules and existing naming diagnostics unchanged. See [Controls](controls.md#established-controls) for the canonical options and Python `relation_labels` parameter.
 
 ### Description targets
@@ -97,4 +99,4 @@ Produced INFO and warnings remain accessible/exportable under the diagnostic con
 
 ---
 
-Governing rules: DK-LBL-01–02; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-04, 16, 19; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-LBL-01–02; DK-REL-02–06; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-01, 04, 16, 19; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).

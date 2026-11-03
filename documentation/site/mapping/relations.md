@@ -12,7 +12,7 @@ Under name-based identity, choose the primary property's lexical candidate in th
 
 1. Usable relation name.
 2. Usable **target-end** role name.
-3. Applicable stereotype-derived semantic name, when enabled.
+3. Applicable stereotype-derived semantic name, when enabled and its required endpoint roles are distinguishable.
 4. Synthesized source–target name.
 5. Applicable qualification and deterministic collision resolution.
 
@@ -20,7 +20,7 @@ The source-end role does not name the primary property. Supported localized fiel
 
 ### Semantic naming candidates
 
-The following candidates apply when the stereotype step is reached and the source has the indicated direction. This table does not authorize semantic orientation checks, reversal, or repair.
+The following candidates apply when the stereotype step is reached, subject to the [structural-evidence conditions](#structural-evidence-for-semantic-naming). Source–target positions alone do not establish every semantic role in the table. This table does not authorize semantic orientation checks, reversal, or repair.
 
 | Stereotype | Primary direction | Candidate |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ The following candidates apply when the stereotype step is reached and the sourc
 | `componentOf` | Whole → Component / Component → Whole | `hasComponent` / `componentOf` |
 | `creation` | Event → Endurant / Endurant → Event | `creates` / `wasCreatedIn` |
 | `externalDependence` | Extrinsic Mode → Endurant / Endurant → Extrinsic Mode | `externallyDependsOn` / `isExternalDependencyOf` |
-| `historicalDependence` | Dependent → Antecedent / Antecedent → Dependent | `historicallyDependsOn` / `isHistoricalDependencyOf` |
+| `historicalDependence` | Dependent → Antecedent / Antecedent → Dependent | **Unavailable for automatic selection:** `historicallyDependsOn` / `isHistoricalDependencyOf` |
 | `manifestation` | Aspect/Disposition → Event / Event → Aspect/Disposition | `manifestedIn` / `manifests` |
 | `mediation` | Relator → Endurant / Endurant → Relator | `mediates` / `isMediatedBy` |
 | `memberOf` | Member → Collective / Collective → Member | `memberOf` / `hasMember` |
@@ -48,13 +48,49 @@ An unnamed `material` relation without a usable target role instead attempts its
 
 Original relation/target-role labels and descriptions have their [separate text rules](../reference/text.md#labels-and-descriptions); lexical identity is not a substitute for a label. Primary-property IDs use the target association-end ID under ID-based construction, as specified in [Strategy and renaming](../reference/identifiers.md#strategy-and-renaming).
 
+### Structural evidence for semantic naming
+
+Use the structured JSON and its represented direction as authoritative. In the supported binary representation, `properties[0]` is the source end and `properties[1]` the target end; their `propertyType` references identify the endpoint classifiers. These positions establish the primary direction, without supplying unstated semantic roles. Earlier usable relation names and target-end role names still supply lexical text in their established precedence; do not interpret that text as role evidence.
+
+**Implementation status:** These A2 selectors and fallbacks are accepted intended behavior. At the [inspected development revision](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/src/ontouml_directkg/relations.py), reaching semantic naming for any of these six stereotypes still raises `NotImplementedError`. No successful A2 conversion is asserted here.
+
+| Stereotype | Supported evidence for the table's lexical roles |
+| --- | --- |
+| `componentOf` | Exactly one whole-marked end identifies the whole occurrence; the opposite occurrence is the component. |
+| `participational` | Exactly one whole-marked end identifies the whole event; the opposite occurrence is the part event. |
+| `subCollectionOf` | Exactly one whole-marked end identifies the supercollection; the opposite occurrence is the subcollection. |
+| `subQuantityOf` | Exactly one whole-marked end identifies the superquantity; the opposite occurrence is the subquantity. |
+| `externalDependence` | Exactly one endpoint classifier explicitly has stereotype `mode`; the other explicitly has a supported non-`mode` endurant stereotype listed below. The mode occurrence supplies the lexical mode role. |
+| `historicalDependence` | No accepted explicit discriminator identifies Dependent versus Antecedent under the current input contract. Use endpoint fallback; see [Historical dependence](#historical-dependence). |
+
+An end is **whole-marked** only by explicit `aggregationKind: "SHARED"` or `aggregationKind: "COMPOSITE"`. Absent, null and `"NONE"` values supply no marker. With zero or two marked ends, the roles remain undetermined: do not prefer `COMPOSITE` over `SHARED` or break ties using endpoint position. A unique marker supplies the whole/super role for lexical selection while preserving the primary direction shown in the candidate table.
+
+For `externalDependence`, the complete supported non-`mode` endurant set is `kind`, `collective`, `quantity`, `relator`, `quality`, `subkind`, `role`, `phase`, `historicalRole`, `category`, `mixin`, `roleMixin`, `phaseMixin`, and `historicalRoleMixin`. Both or neither endpoint explicitly carrying `mode`, or an opposite endpoint outside this set, leaves the roles undetermined. The table's “Extrinsic Mode” denotes a lexical role, not a separate required exported stereotype. Do not introduce intrinsic/extrinsic stereotype aliases or use `restrictedTo`, which remains deliberately omitted.
+
+For these six selectors, do not infer roles through inheritance searches, custom assignments, names, labels, descriptions or other heuristics. DirectKG does not detect or correct potential modeling mistakes. When evidence is insufficient, continue to the established source–target fallback; that uncertainty alone neither omits the relation nor aborts conversion. Existing malformed-input, reference-resolution and diagnostic rules still apply.
+
+These criteria select lexical candidates only. Identity construction, inverses, domains/ranges, cardinalities, annotations and logical mappings retain their existing rules. In particular, an aggregation marker does not change the eligibility or direction of the [DKGM bridge](mereology.md#source-specific-properties). Generated labels under either IRI strategy use the selected lexical candidate before IRI-only processing, without an additional naming diagnostic solely for label generation. Other stereotype-specific naming, normalization, collision and control rules remain unchanged.
+
+The following are **specification illustrations, not converter output**. Assume endpoint names `A` and `B`, primary direction A → B, no usable relation or target-role name, and stereotype naming enabled:
+
+| Source declaration | Selected lexical candidate |
+| --- | --- |
+| `componentOf`; source end `NONE`, target end `COMPOSITE` | `componentOf` |
+| `componentOf`; source end `SHARED`, target end `NONE` | `hasComponent` |
+| `componentOf`; zero or two whole-marked ends | `a_b` |
+| `externalDependence`; source classifier `mode`, target classifier `kind` | `externallyDependsOn` |
+| `externalDependence`; both classifiers `mode` | `a_b` |
+| `historicalDependence`; no accepted role discriminator | `a_b` |
+
+Every row retains A → B as the primary direction; neither endpoint name supplies semantic-role evidence.
+
 ### Historical dependence
 
 An eligible ordinary relation carrying recognized `historicalDependence` retains its ordinary property identity, direction, naming, labels, descriptions, domain, range, inverses, cardinalities, and applicable generalization mappings. **Historical-dependence semantics are only partially translated** through this ordinary mapping. The stereotype alone supplies no additional logical axioms or annotations recording its declaration. The general metadata permission in DK-GEN-11 does not override this omission.
 
-Source-description mappings and independently required annotations remain applicable. The stereotype-derived names in the table above and any corresponding [generated fallback label](../reference/text.md#primary-relation-labels) retain their existing conditions, as do source-label and language rules. Omitting a stereotype-declaration annotation does not suppress these lexical or descriptive mappings.
+Source-description mappings and independently required annotations remain applicable. Earlier relation-name and target-role terminology retains precedence. When the semantic naming step is reached, neither specialized historical-dependence candidate is automatically selectable: use the source–target fallback and its corresponding [generated fallback label](../reference/text.md#primary-relation-labels) when enabled. Endpoint positions, `historicalRole`, multiplicities and read-only flags do not identify Dependent or Antecedent. Source-label and language rules remain unchanged; omitting a stereotype-declaration annotation does not suppress these lexical or descriptive mappings.
 
-The existing nonfatal [limitation warning](../reference/diagnostics.md#names-typing-and-source-text) for a deliberately unmapped applicable relation stereotype still applies under DK-DIAG-01. Successful stereotype-derived naming does not suppress this warning; no warning-suppression exception is established for `historicalDependence`.
+The existing nonfatal [limitation warning](../reference/diagnostics.md#names-typing-and-source-text) for a deliberately unmapped applicable relation stereotype still applies under DK-DIAG-01. Naming success or fallback does not suppress this warning; no warning-suppression exception is established for `historicalDependence`.
 
 ## Additional relation axioms
 
@@ -181,10 +217,10 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–06, 09–17, 20; DK-GEN-03; DK-INV-12; DK-DIAG-07, 09–12, 14; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03; DK-INV-12; DK-LBL-01; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
-Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 
-Accepted update: **RD-17 — Ordinary mapping of `historicalDependence` with the applicable limitation warning (Alternative A)** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-17 — Ordinary mapping of `historicalDependence` with the applicable limitation warning (Alternative A)** (project-owner formalization included in the cited consolidation).

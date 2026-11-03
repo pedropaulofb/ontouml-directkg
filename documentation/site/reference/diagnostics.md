@@ -78,13 +78,15 @@ The following groups explain when diagnostics occur. Their linked mapping pages 
 | Owner/source fallback qualification | No additional event solely for qualification; existing missing-name/input diagnostics remain |
 | Structural inverse-role fallback, inverse-domain qualification or numeric allocation | No additional diagnostic solely for the [inverse naming step](../mapping/inverses.md#inverse-naming); existing missing-name, input and other independently applicable diagnostics remain |
 | Attribute explicitly typed by recognized unsupported `void` | Nonfatal warning identifying available attribute/owner/type information and omitted mapping/range; null typing is separately supported |
-| Unnamed ordinary relation uses target-role or endpoint fallback | Nonfatal warning unless a specific rule replaces it; comparative reaching its deliberately unmapped semantic-name step warns before fallback |
+| Unnamed ordinary relation uses target-role or endpoint fallback, including insufficient [semantic-role evidence](../mapping/relations.md#structural-evidence-for-semantic-naming) | Nonfatal warning under existing naming conditions unless a specific rule replaces it; comparative reaching its deliberately unmapped semantic-name step warns before fallback. No additional naming diagnostic solely for generating a fallback label. |
 | Successful ordinary stereotype naming / successful relator naming | Ordinary stereotype success adds no event solely for that success; relator-derived success should produce informational provenance reporting, without a warning merely for success. Independently applicable diagnostics remain. |
-| Deliberately unmapped applicable relation stereotype, including `historicalDependence` | Nonfatal limitation warning under DK-DIAG-01; retain the weaker ordinary mapping where defined. Successful stereotype-derived naming does not suppress the warning. See [Historical dependence](../mapping/relations.md#historical-dependence). |
+| Deliberately unmapped applicable relation stereotype, including `historicalDependence` | Nonfatal limitation warning under DK-DIAG-01; retain the weaker ordinary mapping where defined. Naming success or fallback does not suppress the warning. See [Historical dependence](../mapping/relations.md#historical-dependence). |
 | Usable material semantic name unavailable | Warning, then accepted source–target fallback |
 | Multiple project languages with no local tag or override for a supported value | Nonfatal WARNING and untagged value; may consolidate to avoid unnecessary repetition |
 
 [Identifiers](identifiers.md#unnamed-or-unusably-named-resources) owns fallback prerequisites and exceptions; [Binary relations](../mapping/relations.md#primary-direction-and-naming) owns naming precedence. Collision after injective ID escaping remains exceptional: do not merge; its exact disposition is unspecified rather than an invented ordinary warning/recovery.
+
+Insufficient semantic-role evidence alone is not a structural failure: use the established endpoint naming fallback without omitting the relation or aborting solely for that uncertainty. Structured JSON remains authoritative; this creates no semantic-orientation validation or source-repair branch. Malformed input and unresolved required references retain their existing policies.
 
 Multiple localized naming values alone and multilingual primitive recognition add no new diagnostic/conflict check. An explicit local language or override avoids the project-language ambiguity condition; multiple explicit local languages are not themselves ambiguous. Absent/null/empty supported names on the project or supported descriptions add no diagnostic solely for that absence. Source labels, comments, and generated-label boundaries remain in [Labels, comments, and language](text.md).
 
@@ -173,7 +175,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-GEN-09–10, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-03**; repository commit: `b47dd82e3544a045394ccc4c2b2828ccdacb2337`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/b47dd82e3544a045394ccc4c2b2828ccdacb2337/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-02–06; DK-LBL-01; DK-GEN-09–10, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

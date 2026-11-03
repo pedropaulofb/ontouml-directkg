@@ -48,7 +48,7 @@ Here `dkgm:` is the **`U#` namespace**, `https://w3id.org/directkg/vocab/dkgm#`.
 
     The recognized stereotype alone selects the bridge. Use the already established **primary direction**, even when it fails to express the author's intended part–whole orientation. Do not use `aggregationKind` to determine eligibility/direction, repair or reverse the relation, substitute a named/anonymous inverse, or create an inverse solely for the bridge. Source-specific naming, identity, domains/ranges, inverses, multiplicities, and generalizations retain their independently applicable mappings.
 
-`isExtensional` adds no mereological logical axioms beyond its [comment mapping](classes.md#class-declarations-preserved-as-comments). Read-only and aggregation declarations similarly have [comment-only preservation](property-features.md#read-only-and-aggregation-comments); they do not redefine this mapping's orientation.
+`isExtensional` adds no mereological logical axioms beyond its [comment mapping](classes.md#class-declarations-preserved-as-comments). Read-only and aggregation declarations retain their [comment mappings](property-features.md#read-only-and-aggregation-comments). The separate [lexical naming use of a unique aggregation marker](relations.md#structural-evidence-for-semantic-naming) changes neither this bridge's eligibility nor its direction.
 
 ## Generic chains and direction
 
@@ -74,6 +74,6 @@ These imports, generic chains, bridges, and source-specific asymmetry are part o
 
 ---
 
-Governing rules: DK-GEN-04; DK-REL-19; DK-CLS-01; DK-PROP-04; baseline consolidated: **2026-10-21**, with the **2026-10-24** accepted DKGM identity correction; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-GEN-04; DK-REL-04, 19; DK-CLS-01; DK-PROP-04; baseline consolidated: **2026-11-03**, including the **2026-10-24** accepted DKGM identity correction; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).

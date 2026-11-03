@@ -44,6 +44,8 @@ Preserve each covered occurrence, including both ends or several characteristics
 
 These annotations do not enforce read-only access or add aggregation logic. They introduce no dedicated DirectKG predicate, additional logical property characteristic, or existential dependence solely from `isReadOnly`. They do not determine [mereological eligibility or orientation](mereology.md#source-specific-properties), reverse a relation, substitute an inverse, or repair the source. Independently accepted mappings still apply.
 
+A unique aggregation marker has a separate [lexical role in semantic naming](relations.md#structural-evidence-for-semantic-naming). This does not change comment preservation: retain every covered occurrence, including two competing whole markers when naming must use endpoint fallback. It authorizes none of the direction or logical-mapping changes excluded above.
+
 Comment preservation supports human inspection, without guaranteeing machine-readable reconstruction or round-tripping. DK-PROP-04 establishes no additional diagnostic solely for preserving these comments; ordering has its separate INFO rule below. Generated explanatory text does not acquire source-language propagation or the source-language override. See [Language resolution](../reference/text.md#language-resolution).
 
 ## Boundary stereotype comments
@@ -86,6 +88,6 @@ Derived status, both true and false, has its distinct [cross-cutting comment map
 
 ---
 
-Governing rules: DK-PROP-03–05; §§3.3–3.4; DK-GEN-02; DK-INV-04; DK-DIAG-18; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-PROP-03–05; DK-REL-04, 19; §§3.3–3.4; DK-GEN-02; DK-INV-04; DK-DIAG-18; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
