@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-02
+**Consolidated:** 2026-11-03
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -412,13 +412,31 @@ Invalid selected metadata values MUST follow the accepted input-policy pattern: 
 
 Under `best-effort`, DirectKG MUST preserve source-project metadata, required ontology structure, domain axioms, and independently available provenance according to their existing rules. If no other condition requires abort, the outcome MUST be `completed-with-errors`.
 
-DirectKG MUST NOT attempt to salvage fragments of malformed YAML. Once a valid top-level mapping is available, invalid selected field values MUST follow the field-level recovery rules above. Ignored fields remain excluded from field validation; their presence or values MUST NOT independently trigger field-validation diagnostics. The document must nevertheless be syntactically parseable as YAML.
+DirectKG MUST NOT attempt to salvage fragments of malformed YAML. Once a valid top-level mapping is available, invalid selected field values MUST follow the input-policy rules above, with the member-level recovery below applying to supported lists. Ignored fields remain excluded from field validation; their presence or values MUST NOT independently trigger field-validation diagnostics. The document must nevertheless be syntactically parseable as YAML.
 
 The diagnostic MUST identify the metadata-file failure and its effect: conversion aborted or external metadata omitted. It MUST be available through the existing console, programmatic, and requested diagnostics-file mechanisms under DK-DIAG-04.
 
 Provenance MUST NOT claim successful use of metadata that was never read or parsed. The effective configuration MAY record that external metadata was requested.
 
 The existing CLI exit-code contract applies: `3` for abortion, `1` for a result delivered with errors, and `4` taking precedence when requested diagnostics cannot be written. Requested diagnostics MUST still be written on abort, subject to the existing diagnostics-delivery rules. Provenance-sidecar delivery failures remain governed separately by DK-GEN-10 and §15.
+
+#### Recovery within list-valued metadata
+
+For a parseable `metadata.yaml` with a valid top-level mapping, under `best-effort`, DirectKG MUST process members of `contributor`, `keyword`, `source`, and list-valued `landingPage` independently against their existing accepted validity requirements. It MUST omit invalid members and retain every valid member, including valid siblings in the same list. Supplied text and IRIs MUST remain preserved under the existing mapping rules.
+
+DirectKG MUST retain applicable ERROR diagnostics and continue processing independently valid selected metadata fields and source transformations. An invalid list member MUST NOT, by itself, cause valid siblings, other independently valid metadata fields, or independent source mappings to be discarded.
+
+| Supported list contents | Required `best-effort` treatment |
+|---|---|
+| All supplied members are valid | Retain all members under the existing mappings. |
+| Both valid and invalid members | Retain every valid member, omit invalid members, and retain applicable ERROR diagnostics. |
+| Nonempty list containing only invalid members | Generate no statements from that field, retain applicable ERROR diagnostics, and continue independent metadata and source processing. |
+
+If no other condition requires abortion, conversion MUST complete with outcome `completed-with-errors` when invalid members were encountered. Ontology-output eligibility, structured diagnostic access, requested diagnostics-file delivery, and CLI exit-code selection and delivery-failure precedence MUST follow DK-DIAG-04–05 and §15.
+
+The `strict` and `tolerant` policies MUST retain their existing ERROR-and-abort behavior for invalid selected metadata. Existing whole-file failure handling, accepted field shapes, absent/null/empty-field handling, ignored-field handling, and provenance rules remain unchanged. In particular, this member-level recovery does not authorize salvaging malformed YAML, accepting a new field shape, or changing the accepted scalar-IRI representation of `landingPage`.
+
+This rule establishes recovery granularity only. It introduces no new control, diagnostic identifier, report schema, or diagnostic-count requirement.
 
 ### DK-GEN-10 — Transformation provenance (RD-05 / RD-27 / ODI-CONTROLS)
 
