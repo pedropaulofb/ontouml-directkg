@@ -73,7 +73,8 @@ def emit_attribute_multiplicity(graph: Graph, owner: URIRef, property_iri: URIRe
                                 bounds: Multiplicity) -> None:
     """Use unqualified necessary restrictions; ranges remain global axioms."""
     if bounds.standalone_star:
-        raise NotImplementedError("Standalone attribute '*' is recognized; its exact restriction output remains deferred")
+        # The explicit token denotes 0..*: neither bound requires a restriction.
+        return
     lower, upper = bounds.lower, bounds.upper
     if lower is not None and upper is not None and lower == upper:
         restrictions = [(OWL.cardinality, lower)]
