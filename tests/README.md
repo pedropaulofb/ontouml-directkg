@@ -1237,8 +1237,9 @@ cardinality predicates, redundant zero minima and qualified variants. A new
 36-case function checks raw/surrounding-whitespace star across all policies,
 both IRI strategies and primitive/custom datatypes. Real 0..*, normalized
 zero-unbounded, positive-unbounded and exact-zero controls preserve property
-identity/typing/domain/range and a peer's independent 2..5 restrictions. Scoped
-logical RDF comparisons allow descriptive metadata variation. Complete canonical
+identity/typing/domain/range and a peer's independent 2..5 restrictions. Fixed mapping
+RDF comparisons allow descriptive metadata variation; every conversion's peer
+cardinalities are checked separately with their permitted representations. Complete canonical
 value_types JSON is reused through checked temporary variants; no fixture or
 new support module is added.
 
@@ -1249,7 +1250,7 @@ supply existing authority; this test work introduces no semantics or production
 mapping. Coverage.md records the full pinned source, reviewed derivation and
 all 45 exact mappings.
 
-Final attribute module: **184 passed, 39 native guard failures, 19 existing
+Initial submitted attribute-module execution: **184 passed, 39 native guard failures, 19 existing
 binding limits** (18 comments reads, one removed-control inspection). The D3/A4
 subset has six passes and 39 guard failures, without assertion or binding
 failures. Affected relation/T1/input regressions: **214 passed**. Temporary native
@@ -1260,7 +1261,39 @@ Collection is **3143**, retaining all 3107 prior IDs plus 36; 3055 behavioral
 inventory nodes and all 17 Python files reconcile/parse. The full project suite,
 full provenance conformance and remaining unavailable operations were not run.
 
-Four test-owned paths change. Production, stored fixtures and governing
-specifications remain unchanged. D3/A4 awaits independent Test Reviewer review.
+The initial submission changed four test-owned paths and received NOT OK for
+F1/F2. Its invocation binding remains unchanged by the correction below.
+Production, stored fixtures and governing specifications remain unchanged.
 Implementation also requires the applicable Documentation Reviewer OK, including
 justified NO CHANGE; no transformation-engine implementation is initiated here.
+
+
+## D3/A4 — F1/F2 correction
+
+Same-target correction of the independent Test Reviewer NOT OK for
+`ac2f2bf943be1f0800931368cd87400eaf614b3d`, also the verified correction base.
+Existing D3/A4 architectural authority and reviewer gates remain applicable.
+
+F1 reproduced four false rejections of equivalent qualified peer restrictions.
+The RDF comparison now selects fixed class/property mappings and source-class
+links. Each conversion independently verifies the peer's positive 2..5 counts,
+allowing qualified/unqualified forms. F2 reproduced twelve false passes for
+cardinality predicates directly on the focus property. The existing empty-count
+helper now rejects all six direct predicates as well as referencing restrictions.
+All 45 node IDs/parameters, control inputs, Rules and canonical fixtures remain.
+
+Current module results remain **184 passed, 39 production guards, 19 existing
+binding limits**; D3/A4 remains six passes and 39 guards. All **214** affected
+regressions pass. Twelve permitted qualified-peer combinations reach the real
+star guard after their controls; 60 direct-predicate faults and twelve invalid-
+peer cases fail at assertions. The original 36 fault controls and 144 pre-star
+conversions remain effective, with permitted metadata variation. Collection
+remains **3143**, inventory **3055** behavioral nodes and all **17** Python files
+parse. Guarded star output receives no completed-conversion credit.
+
+Only the attribute test module and these two traceability documents change.
+Invocation/production/fixtures/specifications remain unchanged. Detailed commands,
+before/after controls and all 45 mappings are in coverage.md. The full project
+suite, full provenance conformance and unavailable operations were not run.
+F1/F2 are corrected in scope; this D3/A4 resubmission awaits independent Test
+Reviewer review. No transformation-engine implementation is initiated.

@@ -42,6 +42,10 @@ def _counts(graph, owner, prop, expected, range_=None):
     nodes = {node for _, _, _, node in facts}
     cardinality_predicates = {OWL.cardinality, OWL.minCardinality, OWL.maxCardinality,
                              OWL.qualifiedCardinality, OWL.minQualifiedCardinality, OWL.maxQualifiedCardinality}
+    if not expected:
+        # Empty means no contribution, including malformed/direct counts on
+        # the property resource rather than an owl:onProperty restriction.
+        assert not any((prop, predicate, None) in graph for predicate in cardinality_predicates)
     for node in graph.subjects(OWL.onProperty, prop):
         if any(list(graph.objects(node, predicate)) for predicate in cardinality_predicates):
             assert node in nodes
@@ -295,7 +299,8 @@ def test_null_absent_and_unbounded_attribute_cardinality_are_distinguished(run, 
     assert result.outcome == 'completed'
     _focus(result.ontology, OWL.DatatypeProperty, XSD.int)
     # The existing reader checks all six OWL cardinality predicates, including
-    # qualified forms and restrictions outside the owner's necessary path.
+    # qualified forms, direct property triples and restrictions outside the
+    # owner's necessary path.
     _counts(result.ontology, BASE.cOwner, BASE.pFocus, set())
     if condition == 'standalone_star':
         assert not any(d.kind == 'invalid_cardinality' for d in result.diagnostics)
@@ -319,8 +324,9 @@ def test_standalone_star_matches_zero_unbounded_without_losing_attribute_or_inde
 
     D3/A4 reviewed NO CHANGE assessment at 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
     Complete attributes_datatypes/value_types runtime variants; no stored
-    expectation. Compare scoped RDF by isomorphism, including the unaffected
-    peer attribute's finite counts. No whole-output or Turtle-byte equality.
+    expectation. Compare fixed mapping RDF by isomorphism; verify the peer's
+    finite counts separately, allowing qualified/unqualified alternatives.
+    D3/A4 F1/F2 correction of ac2f2bf943be1f0800931368cd87400eaf614b3d.
     """
     template = source_json('attributes_datatypes/value_types')
     if value_kind == 'custom': source_element(template, 'dValue')['name'] = 'Address'
@@ -330,11 +336,19 @@ def test_standalone_star_matches_zero_unbounded_without_losing_attribute_or_inde
     owner, other = (BASE.cOwner, BASE.cOther) if iri_strategy == 'id' else (BASE.Owner, BASE.Other)
     kind = OWL.DatatypeProperty if value_kind == 'primitive' else OWL.ObjectProperty
     range_ = XSD.int if value_kind == 'primitive' else BASE.dValue if iri_strategy == 'id' else BASE.Address
-    predicates = {RDF.type, RDFS.domain, RDFS.range, RDFS.subClassOf, OWL.onProperty,
-        OWL.cardinality, OWL.minCardinality, OWL.maxCardinality,
-        OWL.qualifiedCardinality, OWL.minQualifiedCardinality, OWL.maxQualifiedCardinality,
-        OWL.onClass, OWL.onDataRange, OWL.intersectionOf, RDF.first, RDF.rest}
-    types = {OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.Restriction}
+    classifiers = {owner, other} | ({range_} if value_kind == 'custom' else set())
+
+    def mapping_scope(graph, prop, independent):
+        # Class/property declarations and source-class links are fixed here.
+        # Restriction representations are checked by _counts, not frozen.
+        selected = rooted_graph(graph, classifiers | {prop, independent},
+            {RDF.type, RDFS.domain, RDFS.range},
+            type_objects={OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty})
+        for classifier in classifiers:
+            for parent in set(graph.objects(classifier, RDFS.subClassOf)) & classifiers:
+                selected.add((classifier, RDFS.subClassOf, parent))
+        return selected
+
     reference = identity = diagnostics = None
     controls = [('0..*', set()), (' \t00 .. *\n', set()),
                 ('1..*', {('min', 1)}), ('0', {('exact', 0)}), (star, set())]
@@ -358,13 +372,12 @@ def test_standalone_star_matches_zero_unbounded_without_losing_attribute_or_inde
         if reference is None:
             identity = (prop, independent)
             diagnostics = diagnostic_signatures(result.diagnostics)
-            reference = rooted_graph(graph, {owner, other, prop, independent, range_}, predicates, type_objects=types)
+            reference = mapping_scope(graph, prop, independent)
         else:
             assert (prop, independent) == identity
             assert diagnostic_signatures(result.diagnostics) == diagnostics
             if not expected:
-                assert_graph_equal(rooted_graph(graph, {owner, other, prop, independent, range_},
-                    predicates, type_objects=types), reference)
+                assert_graph_equal(mapping_scope(graph, prop, independent), reference)
 
 
 INVALID_COUNTS = [
