@@ -784,6 +784,8 @@ _DIAGNOSTIC_KINDS = {
     "RELATION_NAMING": "relation_naming", "MISSING_RELATION_NAME": "missing_name",
     "METADATA_FIELD": "metadata_field", "METADATA_INPUT": "metadata_input",
     "UNMAPPED_RELATION_STEREOTYPE": "unmapped_relation_stereotype",
+    "MISSING_CARDINALITY": "missing_cardinality",
+    "INVALID_CARDINALITY": "invalid_cardinality",
 }
 
 

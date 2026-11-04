@@ -6,8 +6,9 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
-from tests.support.rdf import (assert_contains, cardinality_facts, load_graph,
-                               necessary_restrictions, one_object, one_subject)
+from tests.support.invocation import diagnostic_signatures
+from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
+                               necessary_restrictions, one_object, one_subject, rooted_graph)
 
 BASE = Namespace('https://example.test/model#')
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -278,7 +279,12 @@ def test_attribute_counts_are_necessary_and_preserve_numeric_boundaries(run, sou
 @pytest.mark.parametrize('input_policy', POLICIES)
 @pytest.mark.parametrize('condition', ['null', 'absent', 'standalone_star'])
 def test_null_absent_and_unbounded_attribute_cardinality_are_distinguished(run, source_json, tmp_path, input_policy, condition):
-    """Rules: DK-ATT-03, DK-DIAG-09, DK-DIAG-11, DK-DIAG-05."""
+    """Rules: DK-ATT-01, DK-ATT-02, DK-ATT-03, DK-ATT-04, DK-DIAG-09, DK-DIAG-11, DK-DIAG-05.
+
+    D3/A4 reviewed NO CHANGE assessment at 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc:
+    the supported exporter gives * bounds (0, unbounded), so ATT-03 requires
+    an empty contribution. Canonical value_types input; fixed RDF assertions.
+    """
     document = source_json('attributes_datatypes/value_types')
     focus = source_element(document, 'pFocus')
     if condition == 'absent':
@@ -288,11 +294,10 @@ def test_null_absent_and_unbounded_attribute_cardinality_are_distinguished(run, 
     result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
     assert result.outcome == 'completed'
     _focus(result.ontology, OWL.DatatypeProperty, XSD.int)
-    if condition != 'standalone_star':
-        _counts(result.ontology, BASE.cOwner, BASE.pFocus, set())
-    else:
-        # DIAG-11 requires recognition for attributes; REL-12's exact standalone
-        # star mapping is relation-specific. Do not import that representation.
+    # The existing reader checks all six OWL cardinality predicates, including
+    # qualified forms and restrictions outside the owner's necessary path.
+    _counts(result.ontology, BASE.cOwner, BASE.pFocus, set())
+    if condition == 'standalone_star':
         assert not any(d.kind == 'invalid_cardinality' for d in result.diagnostics)
     missing = [d for d in result.diagnostics if d.kind == 'missing_cardinality']
     if condition == 'absent':
@@ -301,6 +306,65 @@ def test_null_absent_and_unbounded_attribute_cardinality_are_distinguished(run, 
     else:
         assert not missing
         assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['name', 'id'])
+@pytest.mark.parametrize('value_kind', ['primitive', 'custom'])
+@pytest.mark.parametrize('star', [pytest.param('*', id='bare'),
+    pytest.param(' \t* \n', id='spaces_tab_newline'), pytest.param('\n *\t ', id='newline_spaces_tab')])
+def test_standalone_star_matches_zero_unbounded_without_losing_attribute_or_independent_counts(
+        run, source_json, tmp_path, input_policy, iri_strategy, value_kind, star):
+    """Rules: DK-ATT-01, DK-ATT-02, DK-ATT-03, DK-ATT-04, DK-DAT-01, DK-DAT-05, DK-GEN-03, DK-IRI-02, DK-IRI-06, DK-DIAG-05, DK-DIAG-11.
+
+    D3/A4 reviewed NO CHANGE assessment at 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
+    Complete attributes_datatypes/value_types runtime variants; no stored
+    expectation. Compare scoped RDF by isomorphism, including the unaffected
+    peer attribute's finite counts. No whole-output or Turtle-byte equality.
+    """
+    template = source_json('attributes_datatypes/value_types')
+    if value_kind == 'custom': source_element(template, 'dValue')['name'] = 'Address'
+    peer = copy.deepcopy(source_element(template, 'pFocus'))
+    peer.update(id='pPeer', name='independent', cardinality='2..5')
+    source_element(template, 'cOwner')['properties'].append(peer)
+    owner, other = (BASE.cOwner, BASE.cOther) if iri_strategy == 'id' else (BASE.Owner, BASE.Other)
+    kind = OWL.DatatypeProperty if value_kind == 'primitive' else OWL.ObjectProperty
+    range_ = XSD.int if value_kind == 'primitive' else BASE.dValue if iri_strategy == 'id' else BASE.Address
+    predicates = {RDF.type, RDFS.domain, RDFS.range, RDFS.subClassOf, OWL.onProperty,
+        OWL.cardinality, OWL.minCardinality, OWL.maxCardinality,
+        OWL.qualifiedCardinality, OWL.minQualifiedCardinality, OWL.maxQualifiedCardinality,
+        OWL.onClass, OWL.onDataRange, OWL.intersectionOf, RDF.first, RDF.rest}
+    types = {OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty, OWL.Restriction}
+    reference = identity = diagnostics = None
+    controls = [('0..*', set()), (' \t00 .. *\n', set()),
+                ('1..*', {('min', 1)}), ('0', {('exact', 0)}), (star, set())]
+    for cardinality, expected in controls:
+        document = copy.deepcopy(template)
+        source_element(document, 'pFocus')['cardinality'] = cardinality
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
+        assert result.outcome == 'completed'
+        assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
+        graph = result.ontology
+        prop, independent = ((BASE.pFocus, BASE.pPeer) if iri_strategy == 'id' else
+            (one_subject(graph, DCTERMS.identifier, Literal('pFocus')),
+             one_subject(graph, DCTERMS.identifier, Literal('pPeer'))))
+        _focus(graph, kind, range_, owner, prop)
+        _focus(graph, kind, range_, owner, independent)
+        _counts(graph, owner, prop, expected, range_)
+        _counts(graph, owner, independent, {('min', 2), ('max', 5)}, range_)
+        assert (owner, RDF.type, OWL.Class) in graph and (other, RDF.type, OWL.Class) in graph
+        if value_kind == 'custom': assert (range_, RDF.type, OWL.Class) in graph
+        if reference is None:
+            identity = (prop, independent)
+            diagnostics = diagnostic_signatures(result.diagnostics)
+            reference = rooted_graph(graph, {owner, other, prop, independent, range_}, predicates, type_objects=types)
+        else:
+            assert (prop, independent) == identity
+            assert diagnostic_signatures(result.diagnostics) == diagnostics
+            if not expected:
+                assert_graph_equal(rooted_graph(graph, {owner, other, prop, independent, range_},
+                    predicates, type_objects=types), reference)
 
 
 INVALID_COUNTS = [

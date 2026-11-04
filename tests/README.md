@@ -382,10 +382,12 @@ vocabulary/bridge checks and approved wave obligations remain in the inventory.
 All six waves and the latest configuration-recording correction have
 their applicable forwarded OKs; no wave remains under review.
 
-Attribute standalone `*` recognition is asserted. Its exact restriction graph
-is recorded as blocked: DK-DIAG-11 includes attributes, but DK-REL-12's explicit
-`*` to `0..*` mapping is limited to relations; DK-ATT-03 does not state that
-single-value mapping. Explicit attribute intervals are tested independently.
+D3/A4's reviewed existing-authority derivation resolves the historical standalone
+attribute `*` coverage blocker. The supported exporter supplies bounds (0,
+unbounded); DK-ATT-03 contributes no cardinality restriction. DK-DIAG-11 governs
+recognition/normalization, while DK-REL-12 remains relation-specific. Exact empty
+assertions now remain test-first at the native implementation guard; historical
+execution results below retain their original meaning.
 
 A1.1/A1.2 now resolve the former exact-name blockers for present-but-unusable
 inverse roles and unusable inverse-domain qualifiers. Their exact naming,
@@ -1218,3 +1220,47 @@ Publication was reconciled onto refreshed main
 changes are preserved. Complete tree and snapshot-hash checks confirm identical
 production, tests/support, fixtures, packaging, vocabulary and governing
 specifications, so the recorded execution remains applicable.
+
+
+## D3/A4 — Standalone attribute star
+
+One consolidated finding follows the owner-relayed Architect Reviewer OK, no
+findings, for the specification NO CHANGE / open issues NO CHANGE assessment
+inspected at `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`. Initial main is
+`2af023c6a67c8c205d409b37f00e6b564ad9f1f9`. The earlier pending entry condition
+is superseded. The explicit owner exception waives unrelated queue restrictions
+only; D3/A4 retains its own independent reviewer gates.
+
+The existing nine null/absent/star nodes retain their IDs and diagnostics. Star
+now receives the same exact empty-cardinality assertion, excluding all six OWL
+cardinality predicates, redundant zero minima and qualified variants. A new
+36-case function checks raw/surrounding-whitespace star across all policies,
+both IRI strategies and primitive/custom datatypes. Real 0..*, normalized
+zero-unbounded, positive-unbounded and exact-zero controls preserve property
+identity/typing/domain/range and a peer's independent 2..5 restrictions. Scoped
+logical RDF comparisons allow descriptive metadata variation. Complete canonical
+value_types JSON is reused through checked temporary variants; no fixture or
+new support module is added.
+
+The adapter interprets actual native missing/invalid-cardinality diagnostics,
+retaining raw events and locators. Public invocation remains unchanged. The
+supported exporter Cardinality.java and §3.2 / DK-ATT-01–04 / DK-DIAG-05/09–11
+supply existing authority; this test work introduces no semantics or production
+mapping. Coverage.md records the full pinned source, reviewed derivation and
+all 45 exact mappings.
+
+Final attribute module: **184 passed, 39 native guard failures, 19 existing
+binding limits** (18 comments reads, one removed-control inspection). The D3/A4
+subset has six passes and 39 guard failures, without assertion or binding
+failures. Affected relation/T1/input regressions: **214 passed**. Temporary native
+controls complete 144 pre-star conversions and reject 36 forbidden-output or
+diagnostic faults; metadata variation passes scoped comparisons before reaching
+the real guard. No star conversion is simulated or granted passing credit.
+Collection is **3143**, retaining all 3107 prior IDs plus 36; 3055 behavioral
+inventory nodes and all 17 Python files reconcile/parse. The full project suite,
+full provenance conformance and remaining unavailable operations were not run.
+
+Four test-owned paths change. Production, stored fixtures and governing
+specifications remain unchanged. D3/A4 awaits independent Test Reviewer review.
+Implementation also requires the applicable Documentation Reviewer OK, including
+justified NO CHANGE; no transformation-engine implementation is initiated here.
