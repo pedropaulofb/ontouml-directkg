@@ -44,7 +44,7 @@ The required ontology-serialization capability uses RDF 1.1 Turtle. Prefix names
 
 ## Diagnostics and aborts
 
-For each conversion that runs, expose exactly one transformation outcome: `completed`, `completed-with-errors`, or `aborted`. Their conditions and output eligibility are defined in [Outcomes and output eligibility](../reference/diagnostics.md#outcomes-and-output-eligibility). Fixed names do not select a result type or JSON member name.
+For each conversion that runs, expose exactly one transformation outcome: `completed`, `completed-with-errors`, or `aborted`. Their conditions and output eligibility are defined in [Outcomes and output eligibility](../reference/diagnostics.md#outcomes-and-output-eligibility). JSON exports store this value in the required `outcome` member; Python result types and representations remain unspecified.
 
 Structured access must retain **every diagnostic actually produced**, including severity, meaning, and applicable source information. It remains available after a policy-driven abort, including duplicate-ID abortion, for everything produced before termination. Do not derive success solely from a quiet console or treat every ERROR as proof that conversion aborted.
 
@@ -54,7 +54,7 @@ Structured access must retain **every diagnostic actually produced**, including 
 
 The specification does not prescribe whether the API communicates these outcomes through return values or exceptions.
 
-Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. Exact runtime diagnostic codes, required-field matrices, and report schemas remain unspecified.
+Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. The shared JSON contract fixes report fields and types; exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
 
 Requested ontology-file creation/write failure, after successful ontology serialization and construction of any required provenance, must be exposed programmatically with diagnostics still accessible. It does not alter the established outcome or graph. A failed write cannot be presented as a valid delivered ontology; an older destination left in place must be identified as not updated. Other unresolved output failures remain outside that specifically accepted failure policy.
 
@@ -62,7 +62,7 @@ Requested ontology-file creation/write failure, after successful ontology serial
 
 ### Diagnostic JSON
 
-Python conversion must **not automatically write a diagnostics file**. Provide a separate operation, explicitly called by the application, to export produced diagnostics to its chosen JSON destination. This operation uses the same report schema and content contract as the CLI, including the exposed outcome and complete mirror of produced diagnostics.
+Python conversion must **not automatically write a diagnostics file**. Provide a separate operation, explicitly called by the application, to export produced diagnostics to its chosen JSON destination. This operation uses the same [shared JSON report contract](../reference/diagnostics.md#shared-json-report-contract) as the CLI: required fields and types, empty/null context, compatible extensions, the exposed outcome, and a complete mirror of produced diagnostics.
 
 The CLI's `--diagnostics-file` spelling does not prescribe a Python parameter or operation name. Persistent diagnostics writing is separate from transformation-control parity; applications may inspect diagnostics without saving them.
 
@@ -80,8 +80,8 @@ See the [metadata/provenance failure reference](metadata-and-provenance.md#failu
 
 ---
 
-Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 
-Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization included in the cited consolidation).

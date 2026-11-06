@@ -32,9 +32,9 @@ The specification fixes the Python parameter `relation_labels`, with values `"so
 
 RD-05 requires an optional Python equivalent of `--ontology-version-iri`; its parameter name is not prescribed by the specification. The CLI parser and public conversion signature declare this control in the [inspected source at `794dd121661245a7a59a91a64d48bb5310a89b74`](https://github.com/pedropaulofb/ontouml-directkg/tree/794dd121661245a7a59a91a64d48bb5310a89b74/src/ontouml_directkg).
 
-Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same report schema/content contract as the CLI. Python conversion does not automatically write that file. Exact report member names and runtime diagnostic codes remain unspecified.
+Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same [shared JSON report contract](diagnostics.md#shared-json-report-contract) as the CLI. Python conversion does not automatically write that file. Required JSON members, types, context representations, and compatibility rules are fixed; exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
 
-Python must also expose semantically equivalent metadata/provenance controls with the same provenance default, and make separate provenance available as a graph with explicit file serialization. Source-generated API reference content has not been verified for this documentation update.
+Python must also expose semantically equivalent metadata/provenance controls with the same provenance default, and make separate provenance available as a graph with explicit file serialization. The [generated API reference](api/index.md) describes actual public objects; the shared JSON contract does not prescribe their Python representations.
 
 ## Control boundaries
 
@@ -70,8 +70,8 @@ No independent ontology-IRI, format-selection, prefix-selection, sorting/canonic
 
 ---
 
-Governing rules: §15; DK-GEN-09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-07; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §15; DK-GEN-09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-07; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).

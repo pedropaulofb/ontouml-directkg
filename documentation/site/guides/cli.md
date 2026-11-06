@@ -24,7 +24,7 @@ Treat the artifacts independently:
 
 The [console-level control](../reference/controls.md#established-controls) filters presentation: `info` shows INFO/WARNING/ERROR, `warning` shows WARNING/ERROR, and `error` shows ERROR. It changes neither diagnostic production/collection nor transformation behavior, output eligibility, outcome, or exit-code selection. Hidden events remain available through the requested report. This contract does not select stdout/stderr routing or console formatting.
 
-The report is a **mirror of produced diagnostics**, not an inventory of every possible loss. Export must not create extra transformation events, alter their severity, or turn deliberate silence into warnings. The fixed outcome names and diagnostic content are explained in [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-collection-and-export); exact JSON member names, schema, and runtime diagnostic identifiers remain unspecified.
+The report is a **mirror of produced diagnostics**, not an inventory of every possible loss. Export must not create extra transformation events, alter their severity, or turn deliberate silence into warnings. [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-collection-and-export) explains collection and content; the [shared JSON report contract](../reference/diagnostics.md#shared-json-report-contract) fixes required fields and types, empty/null context, and compatible extensions for both interfaces. Exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
 
 ## Exit codes and delivery failures
 
@@ -81,8 +81,8 @@ The [Python guide](python.md) explains equivalent transformation capabilities an
 
 ---
 
-Governing rules: §15; DK-DIAG-04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §15; DK-DIAG-04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 
-Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization included in the cited consolidation).

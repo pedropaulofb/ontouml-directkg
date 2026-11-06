@@ -1,6 +1,6 @@
 # Diagnostics and recovery
 
-This reference explains **specified diagnostic behavior**, not observed converter execution. Source rule IDs are traceability references, not invented runtime diagnostic codes. The specification fixes capabilities and outcome names without selecting a complete JSON schema or Python result/exception mechanism.
+This reference explains **accepted diagnostic behavior**, with bounded implementation evidence identified below. Source rule IDs are traceability references, not runtime diagnostic codes. The specification fixes the minimum shared JSON report structure; Python result/exception mechanisms remain unspecified.
 
 ## Policies and precedence
 
@@ -59,9 +59,61 @@ Console thresholds filter only display: `info` shows INFO/WARNING/ERROR, `warnin
 
 Access/export must not generate additional transformation diagnostics, change their meaning/severity, or alter continuation/output eligibility. A report is not required to invent an event for every documented limitation. Deliberate silence remains silent; absence of an event does not prove complete semantic preservation.
 
-Where applicable, a diagnostic should provide enough structured information to explain and locate the event: severity, diagnostic code, source ID/type, human-readable message, and output effect. These are content recommendations, **not fixed JSON keys or a required-field matrix**. Exact codes, schema, aggregation, and Python representations remain unspecified. Console and JSON may present an event differently while preserving its content boundary.
+Where applicable, a diagnostic should provide enough structured information to explain and locate the event. The shared JSON report contract below fixes its required fields and representations. Console and JSON may present an event differently while preserving its meaning and content boundary.
 
 A requested diagnostics-file creation/write failure is a separate delivery failure. CLI reports a destination/reason console error and uses code `4` with its defined precedence. Python's explicit export signals failure programmatically while retaining transformation diagnostics. Neither changes the outcome, severities, or ontology eligibility; a report failure must not replace/conceal a prior abort. No unwritable-destination recovery is prescribed. See [Separate exports](../guides/python.md#separate-exports) and [CLI reporting](../guides/cli.md#reporting-and-retained-results).
+
+## Shared JSON report contract
+
+CLI diagnostics files and Python's separate JSON export use the same minimum structure (DK-DIAG-04 / RD-04). A report is a JSON object; each entry in `diagnostics` is a diagnostic object, and each entry in a diagnostic's `sources` array is a source-location object.
+
+| Object | Required member | Type and meaning |
+| --- | --- | --- |
+| Report | `outcome` | String: `"completed"`, `"completed-with-errors"`, or `"aborted"`, classified under the [outcome rules](#outcomes-and-output-eligibility). |
+| Report | `diagnostics` | Array of every produced diagnostic; `[]` when none were produced. Existing consolidation rules still apply. |
+| Diagnostic | `severity` | String: `"INFO"`, `"WARNING"`, or `"ERROR"`. |
+| Diagnostic | `code` | String identifying the diagnostic condition. |
+| Diagnostic | `message` | String explaining the condition for a human reader. |
+| Diagnostic | `effect` | String explaining its effect on transformation or delivery. |
+| Diagnostic | `sources` | Array of relevant source-location objects; `[]` when none apply. |
+| Diagnostic | `generated_iri` | Relevant generated IRI as a string; otherwise JSON `null`. |
+| Source location | `path` | String locating the relevant source position or file. |
+| Source location | `identifier` | Source identifier as a string when available; otherwise JSON `null`. |
+| Source location | `element_type` | Source element type as a string when available; otherwise JSON `null`. |
+
+**Every listed member is required** on its object. Optional context uses the specified empty arrays or nulls; do not omit those members. Existing diagnostic-content rules determine which context must be retained. Empty/null representations do not permit discarding required source information or copying discarded association values into a report; the [instantiation payload boundary](../mapping/instantiation.md#discarded-association-information) remains applicable.
+
+Additional members may be added compatibly while required names, types, and meanings remain preserved. Consumers must ignore unrecognized members. No `schema_version` member is required.
+
+Exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved. This contract adds no stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Python object representations, API names, signatures, and result/exception mechanisms remain outside this JSON contract.
+
+The following is a **specification illustration**, not captured converter output. `PLACEHOLDER_BASE` is an existing implementation code used to illustrate the shape; this decision standardizes neither that identifier nor the example wording:
+
+```json
+{
+  "outcome": "completed",
+  "diagnostics": [
+    {
+      "severity": "WARNING",
+      "code": "PLACEHOLDER_BASE",
+      "message": "A placeholder base IRI was used.",
+      "effect": "Generated entities use https://example.org/directkg#.",
+      "sources": [],
+      "generated_iri": null
+    }
+  ]
+}
+```
+
+A completed conversion with no produced diagnostics has the following report shape:
+
+```json
+{"outcome": "completed", "diagnostics": []}
+```
+
+The structure introduces no diagnostic event, outcome, control, or change to consolidation, console filtering, abortion, output eligibility, or failure policies. Reports retain all produced events, including those hidden by console filtering or produced before an accepted abort. Delivery failures remain separate from transformation outcomes; rejection of a supplied base or ontology version IRI before conversion still produces no conversion report.
+
+**Implementation evidence:** With Python 3.12.14 at [revision `37e68764202a2a18e0c54ac264df1536ff47e28c`](https://github.com/pedropaulofb/ontouml-directkg/tree/37e68764202a2a18e0c54ac264df1536ff47e28c), ten CLI/Python exports passed bounded shape and mirroring checks covering all three outcomes, source context, empty diagnostics, and events hidden by console filtering. This verifies these report cases; it does not establish complete transformation conformance.
 
 ## Diagnostic conditions and intentional silence
 
@@ -177,7 +229,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-02–06; DK-LBL-01; DK-GEN-09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-06**; repository commit: `2b427908a7e29d546486a616a22495ea0424f294`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-02–06; DK-LBL-01; DK-GEN-09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 
