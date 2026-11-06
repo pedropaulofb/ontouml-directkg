@@ -191,6 +191,8 @@ Property disjointness means the same ordered pair cannot belong to both properti
 
 ## Relation-set completeness
 
+Count members using the [generalization-set membership rule](../reference/input.md#generalization-set-membership). Repeated references to one declaration count once within the set; a fully resolved `[g1, g1]` follows the singleton mapping below when complete. Distinct declarations remain distinct members even when their endpoint classifiers coincide. The input reference records the implementation status of this accepted rule.
+
 **Coverage for a complete relation set with at least two distinct specifics is not represented** (E05 / DK-REL-16). DirectKG emits neither a completeness axiom nor a substitute validation constraint. A nonfatal warning identifies the set and omitted coverage, even under `strict`. Properties, ordinary subproperty mappings, inverses, and applicable disjointness remain. OWL property chains express composition, not a union of alternative properties; they do not repair this omission.
 
 `isComplete: false` contributes no completeness axiom or warning solely for that flag. This relation limitation does not change [class-set coverage](classes.md#generalization-sets).
@@ -201,7 +203,7 @@ For exactly one member generalization in a fully resolved complete relation set,
 
 If both named inverses exist, add the corresponding general-inverse-to-specific-inverse inclusion alongside their ordinary specialization. An absent inverse means this extra axiom is omitted without a warning; do not create a named or anonymous inverse solely for completeness. Applying singleton completeness requires nonfatal INFO identifying the set, general, specific, and equivalence consequence. Membership alone is not a warning and supplies no disjoint pair.
 
-The added hierarchy participates in material-chain non-simplicity propagation; the hierarchy axioms themselves are not targeted for omission. Do not apply singleton completeness merely because partial failure leaves one member of a larger set. An explicitly empty membership array follows the structural-error policy: `strict`/`tolerant` abort; `best-effort` reports the error and omits that set's contribution. Duplicate membership and missing/malformed membership-container handling remain unspecified. Class-set recovery does not establish an additional relation-set recovery algorithm.
+The added hierarchy participates in material-chain non-simplicity propagation; the hierarchy axioms themselves are not targeted for omission. Do not apply singleton completeness merely because partial failure leaves one member of a larger set, including after counting repeated references once. An explicitly empty membership array follows the structural-error policy: `strict`/`tolerant` abort; `best-effort` reports the error and omits that set's contribution. Missing/malformed membership-container handling remains unspecified. Class-set recovery does not establish an additional relation-set recovery algorithm.
 
 ## Relation-valued endpoints
 
@@ -217,7 +219,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03; DK-INV-12; DK-LBL-01; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03, 12; DK-INV-12; DK-LBL-01; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-06**; repository commit: `2b427908a7e29d546486a616a22495ea0424f294`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 

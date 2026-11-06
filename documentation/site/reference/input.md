@@ -68,6 +68,24 @@ Other structural failures follow their applicable recovery rules. `best-effort` 
 
 An explicit attribute `propertyType: null` is supported as [unspecified typing](../mapping/attributes-and-datatypes.md#untyped-and-void); it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. See [Multiplicity parsing and recovery](diagnostics.md#multiplicity-parsing-and-recovery) for the detailed rules and [Policies and precedence](diagnostics.md#policies-and-precedence) for continuation and abortion.
 
+### Generalization-set membership
+
+Within each set's `generalizations` array, otherwise valid references resolving to the same source `Generalization` declaration count as **one membership** (DK-GEN-12). Identity uses the exact decoded source-ID string, without trimming, normalization, or case folding. Counting is separate for each set and applies under `strict`, `tolerant`, and `best-effort`. The existing class, relation, and categorizer mappings use that effective membership.
+
+Distinct generalization declarations remain distinct members even when they share endpoint classifiers. Repeated references are also distinct from separate declarations sharing an ID: duplicate declaration IDs still abort under every input policy. Repetition alone adds no diagnostic or control; independently required diagnostics remain applicable.
+
+These are **specification illustrations** using shorthand references to declarations, not complete JSON inputs or observed conversion results:
+
+| References in one set | Accepted treatment |
+| --- | --- |
+| Fully resolved `[g1, g1]` | One member. Apply the existing singleton rules, including required INFO when completeness is applied. |
+| Fully resolved `[g1, g2, g1]`, with distinct declarations | Two members. Apply the existing mappings and their prerequisites. |
+| `[g1, g1, g2]`, with `g2` unresolved or its transformation failed | Retain the existing error/recovery treatment. Counting `g1` once cannot authorize singleton completeness. |
+
+Counting repeated references once does not authorize ignoring invalid references, unresolved references, or failed member transformations. Explicitly empty arrays retain their existing structural-error treatment. Missing/malformed membership containers and unresolved categorizer/powertype recovery remain outside this decision. See [class-set recovery](../mapping/classes.md#singleton-and-recovery-boundaries), [relation-set completeness](../mapping/relations.md#relation-set-completeness), and [diagnostic conditions](diagnostics.md#structural-failures-sets-and-connectors).
+
+**Implementation status:** At the [inspected source revision `2b427908a7e29d546486a616a22495ea0424f294`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/src/ontouml_directkg/generalizations.py), both class- and relation-set processing still raise `NotImplementedError` for repeated references. This section explains accepted intended behavior; no successful repeated-reference conversion is asserted here.
+
 ## Intentional omissions
 
 | Source information | Accepted treatment |
@@ -82,8 +100,8 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 19; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07, 12; DK-CLS-08–09; DK-REL-20; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 12, 14, 19; baseline consolidated: **2026-11-06**; repository commit: `2b427908a7e29d546486a616a22495ea0424f294`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/documentation/specification/transformation-specification.md).
 
-Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).
+Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization included in the cited consolidation).
 
-Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization included in the cited consolidation).

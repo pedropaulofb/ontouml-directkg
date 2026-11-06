@@ -29,6 +29,8 @@ The same accepted rule can apply recursively at further classification orders, c
 
 A generalization set's `categorizer` supplies a higher-order classifier. DirectKG emits a classification for **every explicit specific** in that set. Multiple categorizer declarations are all transformed; one classification does not replace another.
 
+The [generalization-set membership rule](../reference/input.md#generalization-set-membership) counts repeated references to the same declaration once within each set before applying these existing categorizer and powertype mappings. That reference also distinguishes the accepted rule from its implementation status.
+
 | Categorizer setting | Classifiers receiving `rdf:type` of the categorizer from this mapping |
 | --- | --- |
 | `isPowertype: false` or `null` | Only the set's explicit specific classifiers; not the common general or specializations outside that set. |
@@ -46,8 +48,8 @@ DirectKG does not reconcile explicit `instantiation` declarations with `Generali
 
 `restrictedTo` is recognized and omitted. It does not replace a stereotype, guide powertype membership, or authorize semantic-appropriateness checks. See [Class declarations preserved as comments](classes.md#class-declarations-preserved-as-comments) for its omission boundary and the separate order-comment rule.
 
-Structural processing still matters. Explicitly empty generalization arrays have their defined error handling. Categorizer recovery when a class-set member is unresolved or fails transformation, duplicate-member handling, and missing/malformed membership containers remain unspecified; class-set constraint recovery does not independently establish a categorizer recovery rule. [Instantiation associations](instantiation.md#no-reconciliation) explains the separate declaration and discarded-data boundary.
+Structural processing still matters. Explicitly empty generalization arrays have their defined error handling. Categorizer recovery after an unresolved or failed class-set member and handling of missing/malformed membership containers remain unspecified; class-set constraint recovery does not independently establish a categorizer recovery rule. [Instantiation associations](instantiation.md#no-reconciliation) explains the separate declaration and discarded-data boundary.
 
 ---
 
-Governing rules: DK-HO-01–04; DK-CLS-01, 05–09; DK-DIAG-12; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01, 05–09; DK-DIAG-12; baseline consolidated: **2026-11-06**; repository commit: `2b427908a7e29d546486a616a22495ea0424f294`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/documentation/specification/transformation-specification.md).

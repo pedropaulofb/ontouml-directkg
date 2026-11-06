@@ -94,7 +94,9 @@ Multiple localized naming values alone and multilingual primitive recognition ad
 
 For directional relation generation, missing/invalid end IDs or null/unresolved end types mean **neither primary nor inverse property is generated in any policy**. Diagnose the structural problem; a valid end ID does not make a null type resolvable. Accepted best-effort continuation concerns other transformable information, not invention of that relation (DK-DIAG-03).
 
-An explicitly empty `generalizations` array is an ERROR under every flag combination: `strict`/`tolerant` abort; `best-effort` omits the set contribution and continues elsewhere. Do not infer a general, invent members, or assert an empty class extension. This decision does not define missing/malformed containers, duplicates, or a set emptied by failed transformations (DK-DIAG-12).
+An explicitly empty `generalizations` array is an ERROR under every flag combination: `strict`/`tolerant` abort; `best-effort` omits the set contribution and continues elsewhere. Do not infer a general, invent members, or assert an empty class extension. This empty-array rule does not define missing/malformed containers or a set emptied by failed transformations (DK-DIAG-12).
+
+Otherwise valid repeated references to one generalization count as one membership under every input policy, with no additional diagnostic solely for repetition. The [membership-identity rule](input.md#generalization-set-membership) preserves existing errors and independently required diagnostics; it cannot turn a partially failed larger set into a complete singleton. The linked reference records the implementation status of this accepted behavior.
 
 Unresolved/failed class-set members are errors. `strict`/`tolerant` abort; `best-effort` omits coverage while retaining applicable surviving pairwise disjointness and independent mappings. Never apply singleton coverage merely because one member survives. See [Class-set recovery](../mapping/classes.md#singleton-and-recovery-boundaries).
 
@@ -110,7 +112,7 @@ Intentional non-representation or either valid endpoint order of a supported mat
 
 | Applied preservation condition | INFO content and limits |
 | --- | --- |
-| Singleton class/relation completeness actually applied | Identify set, general, specific, and extensional-equivalence consequence with distinct identifiers. Membership alone or a survivor count does not trigger it. |
+| Singleton class/relation completeness actually applied | Identify set, general, specific, and extensional-equivalence consequence with distinct identifiers. This includes a fully resolved complete `[g1, g1]` after counting one membership. Membership alone or a survivor count does not trigger it. |
 | `abstract` stereotype or explicit Boolean `isAbstract` preserved as comments | Explain annotation preservation without extra logical enforcement; do not imply existing stereotype disjointness was omitted. Both Boolean values retain this rule. |
 | `isDerived: true` whose eligible local comment is generated | Identify element and explain no derivation rule is supplied by the annotation; do not claim an independently applied explicit derivation was omitted. False/no eligible target alone adds no event. |
 | `isExtensional: true` | Identify class and explain annotation preservation without enforced essential-parthood semantics. False alone adds no event. |
@@ -175,7 +177,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-02–06; DK-LBL-01; DK-GEN-09–10, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-02–06; DK-LBL-01; DK-GEN-09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-06**; repository commit: `2b427908a7e29d546486a616a22495ea0424f294`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 
