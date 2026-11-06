@@ -1297,3 +1297,55 @@ before/after controls and all 45 mappings are in coverage.md. The full project
 suite, full provenance conformance and unavailable operations were not run.
 F1/F2 are corrected in scope; this D3/A4 resubmission awaits independent Test
 Reviewer review. No transformation-engine implementation is initiated.
+
+## RD-02 — Repeated generalization-set membership
+
+Initial TEST CHANGE for the owner's unified handoff; architectural registration
+`2b427908a7e29d546486a616a22495ea0424f294` received the owner-relayed independent
+Architect Reviewer OK with no findings. This test submission awaits its own
+independent Test Reviewer. No other downstream disposition is an entry gate.
+DK-GEN-12 supersedes only the former unspecified duplicate-membership treatment.
+Current governing paths are `documentation/specification/transformation-specification.md`
+and `documentation/specification/test-suite-structure.md`.
+
+121 new cases in classes, higher-order and relations reuse their owning canonical
+inputs, with explicit synthetic mutations and inline expectations. They assert
+repeated-reference equivalence; singleton completeness/INFO; ordinary categorizer
+and powertype extension; per-set identity; case/whitespace/Unicode-distinct IDs;
+distinct declarations sharing endpoints; fatal duplicate declarations; invalid
+same-ID references; partial failures; and inverse/material-chain interactions.
+Union members are compared without requiring list order. No stored data is added,
+modified, promoted or copied. Version/source evidence and every exact node/parameter,
+rule and fixture path are in the final RD-02 section of coverage.md.
+
+The real conversion/CLI binding now interprets six existing generalization/set
+diagnostics and their actual equivalence/coverage wording. It retains native raw
+events and observed locators. Unbound readers and delivery/fault operations still
+raise ImplementationUnavailable; no empty evidence or missing behavior is supplied.
+
+Validated with Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0 and PyYAML 6.0.3:
+
+```bash
+python -m pytest --rootdir=. --collect-only -q tests
+python -m pytest --rootdir=. -q tests -k repeated_membership --tb=short -rN
+python -m pytest --rootdir=. -q tests -k 'generalization or singleton or partial_set or categorizers_pun or duplicate_declaration or fixture_contract or rdf_helper' --tb=no -rN
+```
+
+Collection: 3,264, retaining all 3,143 previous nodes. New cases: 15 passes and
+106 native production guards (102 repeated memberships; four distinct declarations
+with equal endpoints). No assertion failure, skip, xfail or collection error was
+observed in the new selection. The same 278 existing regression nodes improve from
+148 passes / 130 unbound failures to 201 passes / 77 unbound failures after scoped
+diagnostic interpretation; all 88 fixture/helper checks pass and no earlier pass
+regresses. Remaining unbound readers are enumerated in coverage.md. Canonical
+controls run before repeated inputs in paired cases. Two native CLI controls
+produce correct INFO/WARNING JSON reports; both repeated counterparts stop at the
+production guard and deliver no artifacts, without completed-conversion credit.
+
+All 17 test/support and 21 production Python files parse; git diff --check passes.
+Main advanced to documentation-only commit
+`93eae0d771ff11ee49e5d5a881706de51838baf6`; its seven documentation changes were
+preserved and all test/production/governing-source blobs remained unchanged.
+No production or specification file changes. Full project execution and full
+provenance conformance are unperformed. Historical execution notes above retain
+their original meaning; this test review does not certify passing production.

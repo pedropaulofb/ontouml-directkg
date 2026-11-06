@@ -51,6 +51,46 @@ def test_categorizers_pun_same_iris_and_materialize_only_applicable_extension(ru
 
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+@pytest.mark.parametrize("size", [1, 2], ids=["singleton", "multi_member"])
+def test_repeated_membership_preserves_categorizer_and_powertype_extensions(run, source_json, tmp_path, input_policy, powertype, size):
+    """Rules: DK-GEN-12, DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-02, DK-DIAG-05.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Both sets explicitly
+    reference gOne; counting is per set and must preserve both classifications.
+    """
+    document = source_json("higher_order/categorizers")
+    source_element(document, "cCategorizer")["isPowertype"] = powertype
+    first = source_element(document, "gsFirst")
+    first["generalizations"] = first["generalizations"][:size]
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            first["generalizations"].append(copy.deepcopy(first["generalizations"][0]))
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document, f"categorized_{repeated}.json"), iri_strategy="id", input_policy=input_policy)
+        observations.append(result)
+        assert result.outcome == "completed"
+        assert set(result.ontology.subject_objects(RDFS.subClassOf)) == {
+            (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+            (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside)}
+        extension = {BASE.cOne, BASE.cTwo} if size == 2 else {BASE.cOne}
+        if powertype:
+            extension = {BASE.cBase, BASE.cOne, BASE.cTwo, BASE.cOutside, BASE.cDeep}
+        assert set(result.ontology.subjects(RDF.type, BASE.cCategorizer)) == extension
+        assert set(result.ontology.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+        assert set(result.ontology.subjects(RDF.type, OWL.NamedIndividual)) == extension
+        assert set(result.ontology.subjects(RDF.type, OWL.Class)) == MODELED
+        assert not list(result.ontology.objects(BASE.cBase, RDFS.subClassOf))
+        for subject in extension:
+            assert (subject, RDF.type, OWL.Class) in result.ontology
+            assert (subject, RDF.type, OWL.NamedIndividual) in result.ontology
+        assert not any(event.kind == "singleton_completeness" or event.severity in {"WARNING", "ERROR"}
+                       for event in result.diagnostics)
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
 def test_restricted_to_order_and_stereotype_do_not_validate_higher_order_assertions(run, source_json, tmp_path, input_policy, powertype):
     """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-01, DK-CLS-05, DK-GEN-02.
 

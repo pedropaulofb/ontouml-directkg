@@ -786,6 +786,12 @@ _DIAGNOSTIC_KINDS = {
     "UNMAPPED_RELATION_STEREOTYPE": "unmapped_relation_stereotype",
     "MISSING_CARDINALITY": "missing_cardinality",
     "INVALID_CARDINALITY": "invalid_cardinality",
+    "SINGLETON_COMPLETENESS": "singleton_completeness",
+    "RELATION_SET_COMPLETENESS": "relation_set_completeness",
+    "EMPTY_GENERALIZATION_SET": "empty_generalization_set",
+    "FAILED_CLASS_GENERALIZATION": "failed_class_generalization",
+    "FAILED_RELATION_GENERALIZATION": "failed_relation_generalization",
+    "UNRESOLVED_GENERALIZATION_SET_MEMBER": "unresolved_generalization_set_member",
 }
 
 
@@ -830,6 +836,13 @@ def _observed_diagnostics(events):
             facts.add("not_logically_enforced")
         if "missing descriptive name" in wording:
             facts.add("missing_name")
+        if event.code == "SINGLETON_COMPLETENESS":
+            if "extensionally equivalent" in wording or "extensions equivalent" in wording:
+                facts.add("extensional_equivalence")
+            if "identifiers remain distinct" in wording:
+                facts.add("distinct_identifiers")
+        if event.code == "RELATION_SET_COMPLETENESS" and "coverage is not represented" in wording:
+            facts.add("coverage_not_represented")
         if event.code == "ORDERING_ANNOTATION" and "value order is not represented" in wording:
             facts.add("ordering_not_represented")
         if event.code == "VOID_DATATYPE":

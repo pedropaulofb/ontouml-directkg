@@ -8,6 +8,7 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
+from tests.support.invocation import diagnostic_signatures
 from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
@@ -927,6 +928,152 @@ def test_empty_relation_generalization_set_is_structural_under_every_flag_combin
         assert not any(d.kind=='singleton_completeness' for d in result.diagnostics)
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("inverse_mode", ["all", "none"])
+@pytest.mark.parametrize("case", ["singleton_complete", "singleton_open", "multi_complete"])
+def test_repeated_membership_preserves_relation_set_mappings(run, source_json, tmp_path, input_policy, inverse_mode, case):
+    """Rules: DK-GEN-12, DK-REL-14, DK-REL-15, DK-REL-16, DK-REL-20, DK-INV-12, DK-DIAG-14, DK-DIAG-05.
+
+    RD-02 membership identity, reviewed registration 2b427908a7e29d546486a616a22495ea0424f294.
+    """
+    document = source_json("relations/hierarchy")
+    gs = source_element(document, "gsRelations")
+    singleton = case != "multi_complete"
+    complete = case != "singleton_open"
+    gs.update(isComplete=complete, isDisjoint=True, generalizations=gs["generalizations"][:1 if singleton else 2])
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].append(copy.deepcopy(gs["generalizations"][0]))
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document, f"relation_set_{repeated}.json"), iri_strategy="id",
+                     input_policy=input_policy, inverse_properties=inverse_mode)
+        observations.append(result)
+        assert result.outcome == "completed"
+        edges = [("Middle", "General"), ("Leaf", "Middle"), ("Sibling", "General")]
+        if singleton and complete:
+            edges.append(("General", "Middle"))
+        named = {"General", "Middle", "Leaf", "Sibling"} if inverse_mode == "all" else set()
+        _, _, expected = _hierarchy_expected(result, "id", named, edges)
+        assert _edges(result.ontology) == expected
+        for key, source, target in [("General", "cA", "cB"), ("Middle", "cB", "cC"),
+                                    ("Leaf", "cC", "cA"), ("Sibling", "cD", "cA")]:
+            _direction(result.ontology, BASE["t" + key], BASE[source], BASE[target])
+        pairs = set() if singleton else {frozenset((BASE.tMiddle, BASE.tSibling))}
+        if not singleton and inverse_mode == "all":
+            pairs.add(frozenset((BASE.sMiddle, BASE.sSibling)))
+        assert _pairs(result.ontology) == pairs
+        for predicate in (OWL.equivalentProperty, OWL.unionOf, OWL.disjointUnionOf):
+            assert not list(result.ontology.triples((None, predicate, None)))
+        notices = [event for event in result.diagnostics if event.kind == "singleton_completeness"]
+        if singleton and complete:
+            assert any(event.severity == "INFO" and {"gsRelations", "rGeneral", "rMiddle"} <= set(event.identified_sources)
+                       and {"extensional_equivalence", "distinct_identifiers"} <= event.facts for event in notices)
+        else:
+            assert not notices
+        coverage = [event for event in result.diagnostics if event.kind == "relation_set_completeness"]
+        if not singleton and complete:
+            assert any(event.severity == "WARNING" and "gsRelations" in event.identified_sources
+                       and "coverage_not_represented" in event.facts for event in coverage)
+        else:
+            assert not coverage
+        assert not any(event.severity == "ERROR" for event in result.diagnostics)
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_repeated_membership_keeps_distinct_relation_generalization_declarations(run, source_json, tmp_path, input_policy):
+    """Rules: DK-GEN-12, DK-REL-14, DK-REL-20, DK-DIAG-14, DK-DIAG-05; §3.4.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Distinct declaration
+    IDs with equal endpoints must not acquire singleton completeness.
+    """
+    document = source_json("relations/hierarchy")
+    first = source_element(document, "gMiddle")
+    other = copy.deepcopy(first)
+    other["id"] = " gMiddle "
+    document["model"]["contents"].append(other)
+    gs = source_element(document, "gsRelations")
+    gs.update(isComplete=True, isDisjoint=False,
+              generalizations=[{"id": identifier, "type": "Generalization"} for identifier in ("gMiddle", " gMiddle ")])
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].append(copy.deepcopy(gs["generalizations"][0]))
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document, f"distinct_relations_{repeated}.json"), iri_strategy="id", input_policy=input_policy)
+        assert result.outcome == "completed"
+        assert (BASE.tMiddle, RDFS.subPropertyOf, BASE.tGeneral) in result.ontology
+        for prefix in ("t", "s"):
+            assert (BASE[prefix + "General"], RDFS.subPropertyOf, BASE[prefix + "Middle"]) not in result.ontology
+        assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+        assert not list(result.ontology.triples((None, OWL.equivalentProperty, None)))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("inverse_mode", ["all", "none"])
+@pytest.mark.parametrize("failure", ["unresolved_member", "invalid_reference", "failed_member"])
+@pytest.mark.parametrize("survivors", [1, 2], ids=["one_survivor", "two_survivors"])
+def test_repeated_membership_preserves_relation_set_failure_boundaries(run, source_json, tmp_path, input_policy, inverse_mode, failure, survivors):
+    """Rules: DK-GEN-12, DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-03, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294; failed member recovery
+    retains errors, independent properties and surviving specific disjointness.
+    """
+    document = source_json("relations/hierarchy")
+    gs = source_element(document, "gsRelations")
+    gs.update(isComplete=True, isDisjoint=True)
+    if survivors == 2:
+        extra = copy.deepcopy(source_element(document, "gMiddle"))
+        extra.update(id="gLeafGeneral", specific={"id": "rLeaf", "type": "Relation"})
+        document["model"]["contents"].append(extra)
+        gs["generalizations"].insert(1, {"id": "gLeafGeneral", "type": "Generalization"})
+    if failure == "unresolved_member":
+        gs["generalizations"][-1]["id"] = "missingMember"
+        expected_defects = {"unresolved_reference:missingMember"}
+    elif failure == "invalid_reference":
+        gs["generalizations"][-1] = {"id": "gMiddle", "type": "Class"}
+        expected_defects = {"reference_type_mismatch:gMiddle"}
+    else:
+        source_element(document, "tSibling")["propertyType"] = None
+        expected_defects = {"unresolved_endpoint"}
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].insert(1, copy.deepcopy(gs["generalizations"][0]))
+        assert fixture_issues(document) == expected_defects
+        result = run(path=write_input(tmp_path, document, f"partial_relations_{repeated}.json"), iri_strategy="id",
+                     input_policy=input_policy, inverse_properties=inverse_mode)
+        observations.append(result)
+        assert any(event.severity == "ERROR" for event in result.diagnostics)
+        assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+        if input_policy != "best-effort":
+            assert result.outcome == "aborted" and result.ontology is None
+            continue
+        assert result.outcome == "completed-with-errors"
+        edges = [("Middle", "General"), ("Leaf", "Middle")]
+        if failure != "failed_member":
+            edges.append(("Sibling", "General"))
+        if survivors == 2:
+            edges.append(("Leaf", "General"))
+        prefixes = ("t", "s") if inverse_mode == "all" else ("t",)
+        assert _edges(result.ontology) == {(BASE[prefix + a], BASE[prefix + b]) for prefix in prefixes for a, b in edges}
+        pairs = {frozenset((BASE[prefix + "Middle"], BASE[prefix + "Leaf"])) for prefix in prefixes} if survivors == 2 else set()
+        assert _pairs(result.ontology) == pairs
+        valid = {"General", "Middle", "Leaf", "Sibling"} - ({"Sibling"} if failure == "failed_member" else set())
+        assert {node for node in result.ontology.subjects(RDF.type, OWL.ObjectProperty)
+                if isinstance(node, URIRef) and str(node).startswith(str(BASE))} == {
+            BASE[prefix + key] for prefix in prefixes for key in valid}
+        assert set(result.ontology.subject_objects(OWL.inverseOf)) == (
+            {(BASE["s" + key], BASE["t" + key]) for key in valid} if inverse_mode == "all" else set())
+        assert (BASE.cD, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.tGeneral, RDFS.subPropertyOf, BASE.tMiddle) not in result.ontology
+        assert (BASE.sGeneral, RDFS.subPropertyOf, BASE.sMiddle) not in result.ontology
+        if failure == "failed_member":
+            assert (BASE.tSibling, RDF.type, OWL.ObjectProperty) not in result.ontology
+            assert (BASE.sSibling, RDF.type, OWL.ObjectProperty) not in result.ontology
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
+
+
 @pytest.mark.parametrize('state',[True,False,'absent'],ids=['true','false','absent'])
 @pytest.mark.parametrize('mode',['all','none'])
 def test_relation_abstractness_is_comment_only_and_keeps_counts_and_direction(run, source_json, tmp_path, state, mode):
@@ -1271,6 +1418,56 @@ def test_chain_constraint_policy_propagates_only_through_actual_generated_hierar
                    and {'extensional_equivalence','distinct_identifiers'}<=d.facts for d in notices)
     else:assert not notices
     _no_connector(result)
+
+
+@pytest.mark.parametrize("mode", CHAIN_MODES)
+@pytest.mark.parametrize("inverse_mode", ["all", "none"])
+def test_repeated_membership_preserves_singleton_chain_constraint_propagation(run, source_json, tmp_path, mode, inverse_mode):
+    """Rules: DK-GEN-12, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-07, DK-DIAG-14.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Effective singleton
+    reverse inclusion must propagate material-chain non-simplicity to Peer.
+    """
+    document = source_json("relations/chain_constraints")
+    gs = source_element(document, "gsSingleton")
+    gs["isComplete"] = True
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].append(copy.deepcopy(gs["generalizations"][0]))
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document, f"chain_set_{repeated}.json"), iri_strategy="id",
+                     inverse_properties=inverse_mode, material_property_chains=mode)
+        observations.append(result)
+        assert result.outcome == "completed"
+        assert (BASE.tSuper, RDFS.subPropertyOf, BASE.tPeer) in result.ontology
+        assert (BASE.tPeer, RDFS.subPropertyOf, BASE.tSuper) in result.ontology
+        if inverse_mode == "all":
+            assert (BASE.sSuper, RDFS.subPropertyOf, BASE.sPeer) in result.ontology
+            assert (BASE.sPeer, RDFS.subPropertyOf, BASE.sSuper) in result.ontology
+        else:
+            assert (BASE.sPeer, RDF.type, OWL.ObjectProperty) not in result.ontology
+            assert (BASE.sSuper, RDF.type, OWL.ObjectProperty) not in result.ontology
+        omitted = mode == "omit-conflicting-constraints"
+        reverse = BASE.sPeer if inverse_mode == "all" else ("inverse", BASE.tPeer)
+        _counts(result.ontology, BASE.cA, BASE.tPeer, set() if omitted else {("exact", 2)})
+        _counts(result.ontology, BASE.cB, reverse, set() if omitted else {("exact", 1)})
+        _counts(result.ontology, BASE.cA, BASE.tPeerTwo, {("exact", 2)})
+        _counts(result.ontology, BASE.cA, BASE.tUnrelated, {("exact", 4)})
+        prefixes = ("t", "s") if inverse_mode == "all" else ("t",)
+        keys = ["Material", "Peer", "PeerTwo"]
+        expected_pairs = set() if omitted else {
+            frozenset((BASE[prefix + left], BASE[prefix + right]))
+            for prefix in prefixes for index, left in enumerate(keys) for right in keys[index + 1:]}
+        assert _pairs(result.ontology) == expected_pairs
+        expected_chain = {(('inverse', BASE.tLeft), BASE.tRight)} if mode != "none" else set()
+        assert property_chains(result.ontology, BASE.tMaterial) == expected_chain
+        _compatibility(result, mode, mode != "none", {"cardinalities_omitted", "property_disjointness_omitted"} if omitted else ())
+        assert any(event.kind == "singleton_completeness" and event.severity == "INFO"
+                   and {"gsSingleton", "rSuper", "rPeer"} <= set(event.identified_sources)
+                   and {"extensional_equivalence", "distinct_identifiers"} <= event.facts for event in result.diagnostics)
+        assert not any(event.severity == "ERROR" for event in result.diagnostics)
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
 
 
 @pytest.mark.parametrize('grounding',GROUNDINGS)

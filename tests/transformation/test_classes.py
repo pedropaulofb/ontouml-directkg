@@ -278,6 +278,181 @@ def test_partial_non_disjoint_set_does_not_invent_disjointness(run, source_json,
     assert (BASE.cC, RDFS.subClassOf, BASE.cA) in result.ontology
 
 
+def _class_set_membership_output(result, general, specifics, *, complete):
+    """Read the promised set constraints without fixing OWL union-list order."""
+    graph = result.ontology
+    assert result.outcome == "completed"
+    for classifier in [general, *specifics]:
+        assert (classifier, RDF.type, OWL.Class) in graph
+    for specific in specifics:
+        assert (specific, RDFS.subClassOf, general) in graph
+        assert ((general, RDFS.subClassOf, specific) in graph) == (complete and len(specifics) == 1)
+    assert _pairs(graph) == _pair_set(specifics)
+    unions = [node for node in graph.objects(general, RDFS.subClassOf) if isinstance(node, BNode)]
+    if complete and len(specifics) > 1:
+        assert len(unions) == 1 and (unions[0], RDF.type, OWL.Class) in graph
+        members = rdf_list(graph, one_object(graph, unions[0], OWL.unionOf))
+        assert len(members) == len(specifics) and set(members) == set(specifics)
+    else:
+        assert not unions
+        assert not list(graph.triples((None, OWL.unionOf, None)))
+    for predicate in (OWL.equivalentClass, OWL.disjointUnionOf):
+        assert not list(graph.triples((None, predicate, None)))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("iri_strategy", ["name", "id"])
+@pytest.mark.parametrize("case", ["singleton_complete", "singleton_open", "multi_complete"])
+def test_repeated_membership_preserves_class_set_mappings(run, source_json, tmp_path, input_policy, iri_strategy, case):
+    """Rules: DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-07, DK-CLS-08, DK-DIAG-14, DK-DIAG-05.
+
+    RD-02 membership identity, reviewed registration 2b427908a7e29d546486a616a22495ea0424f294.
+    Canonical and repeated inputs are checked independently before comparison.
+    """
+    document = source_json("classes/generalization_sets")
+    size = 2 if case == "multi_complete" else 1
+    complete = case != "singleton_open"
+    gs = source_element(document, "gsMain")
+    gs.update(isComplete=complete, isDisjoint=True, generalizations=gs["generalizations"][:size])
+    general = BASE.cA if iri_strategy == "id" else BASE.A
+    specifics = [BASE.cB, BASE.cC][:size] if iri_strategy == "id" else [BASE.B, BASE.C][:size]
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].append(copy.deepcopy(gs["generalizations"][0]))
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document, f"class_set_{repeated}.json"), iri_strategy=iri_strategy, input_policy=input_policy)
+        observations.append(result)
+        _class_set_membership_output(result, general, specifics, complete=complete)
+        notices = [event for event in result.diagnostics if event.kind == "singleton_completeness"]
+        if complete and size == 1:
+            assert any(event.severity == "INFO" and {"gsMain", "cA", "cB"} <= set(event.identified_sources)
+                       and {"extensional_equivalence", "distinct_identifiers"} <= event.facts for event in notices)
+        else:
+            assert not notices
+        assert not any(event.severity in {"WARNING", "ERROR"} for event in result.diagnostics)
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_repeated_membership_is_counted_within_each_class_set(run, source_json, tmp_path, input_policy):
+    """Rules: DK-GEN-12, DK-CLS-08, DK-DIAG-14, DK-DIAG-05.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294; no conversion-wide deduplication.
+    """
+    document = source_json("classes/generalization_sets")
+    first = source_element(document, "gsMain")
+    first.update(isComplete=True, isDisjoint=True, generalizations=first["generalizations"][:1])
+    second = copy.deepcopy(first)
+    second.update(id="gsOther", name="Other set")
+    document["model"]["contents"].append(second)
+    first["generalizations"].append(copy.deepcopy(first["generalizations"][0]))
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    _class_set_membership_output(result, BASE.cA, [BASE.cB], complete=True)
+    notices = [event for event in result.diagnostics if event.kind == "singleton_completeness"]
+    for identifier in ("gsMain", "gsOther"):
+        assert any(event.severity == "INFO" and {identifier, "cA", "cB"} <= set(event.identified_sources)
+                   and {"extensional_equivalence", "distinct_identifiers"} <= event.facts for event in notices)
+    assert not any(event.severity in {"WARNING", "ERROR"} for event in result.diagnostics)
+
+
+@pytest.mark.parametrize("identity", ["case", "whitespace", "unicode", "same_endpoints"])
+def test_repeated_membership_keeps_distinct_class_generalization_declarations(run, source_json, tmp_path, identity):
+    """Rules: DK-GEN-12, DK-CLS-02, DK-CLS-07, DK-CLS-08, DK-DIAG-14; §3.4.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Two declarations remain
+    two members even with identical endpoints; no new coverage mapping is chosen
+    for the same-endpoint case. Only singleton treatment is forbidden there.
+    """
+    document = source_json("classes/generalization_sets")
+    first, second = source_element(document, "gB"), source_element(document, "gC")
+    identifiers = {"case": ("gB", "gb"), "whitespace": ("gB", " gB "),
+                   "unicode": ("g\u00e9", "ge\u0301"), "same_endpoints": ("gB", "otherDeclaration")}[identity]
+    first["id"], second["id"] = identifiers
+    if identity == "same_endpoints":
+        second["specific"] = copy.deepcopy(first["specific"])
+    gs = source_element(document, "gsMain")
+    gs.update(isComplete=True, isDisjoint=False,
+              generalizations=[{"id": identifier, "type": "Generalization"} for identifier in identifiers])
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].append(copy.deepcopy(gs["generalizations"][0]))
+        assert not fixture_issues(document)
+        result = run(path=write_input(tmp_path, document, f"distinct_{repeated}.json"), iri_strategy="id")
+        assert result.outcome == "completed"
+        assert (BASE.cB, RDFS.subClassOf, BASE.cA) in result.ontology
+        assert (BASE.cA, RDFS.subClassOf, BASE.cB) not in result.ontology
+        assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+        assert not list(result.ontology.triples((None, OWL.equivalentClass, None)))
+        if identity != "same_endpoints":
+            assert (BASE.cC, RDFS.subClassOf, BASE.cA) in result.ontology
+            expression = one_object(result.ontology, BASE.cA, RDFS.subClassOf)
+            values = rdf_list(result.ontology, one_object(result.ontology, expression, OWL.unionOf))
+            assert len(values) == 2 and set(values) == {BASE.cB, BASE.cC}
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("failure", ["unresolved_member", "invalid_reference", "failed_member"])
+@pytest.mark.parametrize("survivors", [1, 2], ids=["one_survivor", "two_survivors"])
+def test_repeated_membership_preserves_class_set_failure_boundaries(run, source_json, tmp_path, input_policy, failure, survivors):
+    """Rules: DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Categorizer remains null;
+    unresolved categorizer/powertype recovery is outside the assignment.
+    """
+    document = source_json("classes/generalization_sets")
+    gs = source_element(document, "gsMain")
+    gs.update(isComplete=True, isDisjoint=True, generalizations=gs["generalizations"][:survivors + 1])
+    failed_id = gs["generalizations"][-1]["id"]
+    if failure == "unresolved_member":
+        gs["generalizations"][-1]["id"] = "missingMember"
+        expected_defects = {"unresolved_reference:missingMember"}
+    elif failure == "invalid_reference":
+        gs["generalizations"][-1] = {"id": "gB", "type": "Class"}
+        expected_defects = {"reference_type_mismatch:gB"}
+    else:
+        source_element(document, failed_id)["specific"] = None
+        expected_defects = {"malformed_reference"}
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].insert(1, copy.deepcopy(gs["generalizations"][0]))
+        assert fixture_issues(document) == expected_defects
+        result = run(path=write_input(tmp_path, document, f"partial_{repeated}.json"), iri_strategy="id", input_policy=input_policy)
+        observations.append(result)
+        assert any(event.severity == "ERROR" for event in result.diagnostics)
+        assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+        if input_policy != "best-effort":
+            assert result.outcome == "aborted" and result.ontology is None
+        else:
+            assert result.outcome == "completed-with-errors"
+            for specific in [BASE.cB, BASE.cC][:survivors]:
+                assert (specific, RDFS.subClassOf, BASE.cA) in result.ontology
+            assert _pairs(result.ontology) == _pair_set([BASE.cB, BASE.cC][:survivors])
+            assert not list(result.ontology.objects(BASE.cA, RDFS.subClassOf))
+            for predicate in (OWL.unionOf, OWL.equivalentClass, OWL.disjointUnionOf):
+                assert not list(result.ontology.triples((None, predicate, None)))
+            assert (BASE.cF, RDF.type, OWL.Class) in result.ontology
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_repeated_membership_does_not_hide_duplicate_generalization_declarations(run, source_json, tmp_path, input_policy):
+    """Rules: DK-GEN-12, DK-DIAG-05, DK-CONF-02; §3.4 duplicate declaration IDs.
+
+    RD-02 at 2b427908a7e29d546486a616a22495ea0424f294.
+    """
+    document = source_json("classes/generalization_sets")
+    document["model"]["contents"].append(copy.deepcopy(source_element(document, "gB")))
+    source_element(document, "gsMain")["generalizations"] = [{"id": "gB", "type": "Generalization"}] * 2
+    assert fixture_issues(document) == {"duplicate_id:gB"}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "aborted" and result.ontology is None
+    assert any(event.kind == "duplicate_id" and event.severity == "ERROR"
+               and "gB" in event.source_ids and "conversion_aborted" in event.facts for event in result.diagnostics)
+
+
 @pytest.mark.parametrize("count", [1, 2, 3], ids=["one_value", "two_values", "three_values"])
 @pytest.mark.parametrize("iri_strategy", ["name", "id"])
 def test_complete_enumeration_membership_closure_and_difference(run, source_json, source_path, tmp_path, count, iri_strategy):
