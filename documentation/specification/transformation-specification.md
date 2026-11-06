@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-03
+**Consolidated:** 2026-11-06
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -169,7 +169,7 @@ These definitions establish the valid/usable source-ID prerequisite in the appli
 
 For source IDs valid under the definitions above, separate declarations participating in DirectKG's accepted mappings or required reference resolution MUST NOT share an ID. DirectKG MUST compare decoded JSON ID strings exactly, without trimming, normalization, or case folding.
 
-Repeated reference objects identifying one declaration MUST NOT be treated as duplicate declarations. This rule introduces no validation of intentionally omitted diagram or custom-metadata content.
+Repeated reference objects identifying one declaration MUST NOT be treated as duplicate declarations. Within a generalization set, repeated membership references follow DK-GEN-12. This rule introduces no validation of intentionally omitted diagram or custom-metadata content.
 
 Duplicate declaration IDs within this scope follow DK-DIAG-05's fatal duplicate-ID rule under every input policy, including when the separate declarations have identical contents.
 
@@ -534,6 +534,26 @@ This permission remains subject to the selected provenance mode, the sidecar-onl
 
 All metadata and provenance MUST use appropriate established external vocabulary terms. DirectKG MUST NOT define or emit DirectKG-specific metadata or provenance predicates. Where no appropriate standard representation has been identified, the concept MUST remain unsupported pending identification of such a representation or a separate explicit design decision.
 
+### DK-GEN-12 — Generalization-set membership identity (RD-02 / RD-13)
+
+Within each source generalization set, otherwise valid member references in `generalizations` that resolve to the same source `Generalization` declaration MUST count as one membership. DirectKG MUST identify that declaration using its exact decoded source-ID string under §3.4, without trimming, normalization, or case folding. This treatment MUST apply under every input policy.
+
+DirectKG MUST apply the existing class, relation, and categorizer mappings to that effective membership. A fully resolved set whose references all identify one generalization MUST receive the existing singleton treatment, including the INFO required by DK-DIAG-14 when singleton completeness is applied under DK-CLS-08 or DK-REL-20.
+
+Repeated membership alone MUST NOT produce an additional diagnostic. Independently required diagnostics MUST remain applicable.
+
+Distinct source generalization declarations MUST remain distinct members; sharing endpoint classifiers MUST NOT make them duplicate memberships. This rule MUST NOT authorize ignoring invalid or unresolved references or failed member transformations. Existing duplicate-declaration-ID, structural-error, and partial-recovery rules remain unchanged. In particular, deduplication MUST NOT turn a partially failed larger set into a complete singleton.
+
+This rule establishes membership identity only. Missing or malformed membership containers and unresolved categorizer/powertype recovery remain outside its scope. Explicitly empty `generalizations` arrays remain governed by DK-DIAG-12.
+
+**Rationale and examples (non-normative):** Repeating a reference does not introduce another source generalization. Counting the referenced declarations once lets the existing mappings operate on the same members regardless of redundant array entries.
+
+| References in one set | Existing processing after counting repeated references once |
+|---|---|
+| `[g1, g1]`, fully resolved | One member; apply the existing singleton rules, including INFO when completeness is applied. |
+| `[g1, g2, g1]`, with two distinct, fully resolved declarations | Two members; apply the existing mappings and their prerequisites. |
+| `[g1, g1, g2]`, with `g2` unresolved or its transformation failed | Preserve the existing error and partial-recovery treatment; deduplication does not authorize singleton completeness. |
+
 ## 6. Class transformation
 
 ### DK-CLS-01 — Domain classes
@@ -679,7 +699,7 @@ Existing subclass and disjointness mappings MUST remain applicable. DirectKG MUS
 
 Completeness and disjointness MUST be represented separately. DirectKG MUST NOT replace these mappings with `owl:disjointUnionOf`.
 
-This union-based mapping applies to fully resolved class generalization sets with at least two distinct specific classes. DK-CLS-08 extends completeness to fully resolved singleton sets using a reverse subclass axiom. When a member reference is unresolved or a member transformation fails, DK-CLS-09 prohibits constructing coverage from the surviving members. Explicitly empty `generalizations` arrays are governed by DK-DIAG-12. Duplicate-member handling and missing or malformed membership containers remain outside these decisions.
+This union-based mapping applies to fully resolved class generalization sets with at least two distinct specific classes. DK-CLS-08 extends completeness to fully resolved singleton sets using a reverse subclass axiom. When a member reference is unresolved or a member transformation fails, DK-CLS-09 prohibits constructing coverage from the surviving members. Explicitly empty `generalizations` arrays are governed by DK-DIAG-12. Repeated references to the same generalization are counted once under DK-GEN-12. Missing or malformed membership containers remain outside these decisions.
 
 **Rationale and example (non-normative):** For a complete set of specializations of `A` by `B`, `C`, and `D`:
 
@@ -716,7 +736,7 @@ DirectKG MUST NOT issue a warning solely because the generalization set contains
 
 If `isDisjoint: true`, this singleton set MUST generate no disjointness statement, because there is no pair of specific classes to constrain. Disjointness required by other accepted mappings remains applicable.
 
-This extends the completeness mapping to fully resolved singleton sets and does not replace DK-CLS-07's mapping for sets with at least two distinct specific classes. DK-CLS-09 prohibits applying this singleton-completeness mapping merely because partial failure leaves one surviving member. Explicitly empty `generalizations` arrays are governed by DK-DIAG-12. Duplicate-member handling remains excluded from this decision.
+This extends the completeness mapping to fully resolved singleton sets and does not replace DK-CLS-07's mapping for sets with at least two distinct specific classes. DK-CLS-09 prohibits applying this singleton-completeness mapping merely because partial failure leaves one surviving member. Explicitly empty `generalizations` arrays are governed by DK-DIAG-12. Membership is counted under DK-GEN-12, including repeated references to the same generalization.
 
 **Rationale (non-normative):** The two subclass axioms entail that `A` and `B` have the same instances. Their identifiers remain distinct. The reverse subclass axiom preserves the stated completeness without requiring a one-member union.
 
@@ -843,7 +863,7 @@ DirectKG MUST NOT:
 
 Different higher-order types are not treated as conflicting merely because they classify related elements.
 
-The class generalization-set `isDisjoint` mapping is specified in DK-CLS-06 and completeness in DK-CLS-07–08 (RD-13). Partial recovery of those class-set constraints is specified in DK-CLS-09 (RD-13 / RD-02). Explicitly empty `generalizations` arrays are structural errors under DK-DIAG-12 (RD-13 / RD-02). Relation generalization-set disjointness is specified in DK-REL-15 (RD-13). DK-REL-16 establishes the explicit coverage limitation for complete relation sets with two or more distinct specific relations. DK-REL-20 specifies fully resolved singleton relation-set completeness. Duplicate-member handling, handling for missing or malformed membership containers, and categorizer recovery when a class-set member is unresolved or fails transformation remain unspecified.
+The class generalization-set `isDisjoint` mapping is specified in DK-CLS-06 and completeness in DK-CLS-07–08 (RD-13). Partial recovery of those class-set constraints is specified in DK-CLS-09 (RD-13 / RD-02). Explicitly empty `generalizations` arrays are structural errors under DK-DIAG-12 (RD-13 / RD-02). Relation generalization-set disjointness is specified in DK-REL-15 (RD-13). DK-REL-16 establishes the explicit coverage limitation for complete relation sets with two or more distinct specific relations. DK-REL-20 specifies fully resolved singleton relation-set completeness. Repeated references to the same generalization are counted once under DK-GEN-12. Handling for missing or malformed membership containers and categorizer recovery when a class-set member is unresolved or fails transformation remain unspecified.
 
 ## 8. Attributes and datatypes
 
@@ -1914,7 +1934,7 @@ The existing specific-to-general inverse specialization under DK-INV-12 MUST rem
 
 Singleton membership alone MUST NOT produce a warning. For `isDisjoint: true`, a singleton relation generalization set MUST generate no disjointness statement from that set because no pair of specific relations exists. Independently applicable disjointness mappings remain in force.
 
-DirectKG MUST NOT apply singleton completeness merely because partial processing failure leaves one surviving member of a larger set. Existing structural-error policies remain unchanged. This rule does not define duplicate-membership handling or handling of missing or malformed membership containers.
+DirectKG MUST NOT apply singleton completeness merely because partial processing failure leaves one surviving member of a larger set. Existing structural-error policies remain unchanged. Membership is counted under DK-GEN-12, including repeated references to the same generalization. This rule does not define handling of missing or malformed membership containers.
 
 The added subproperty axioms MUST participate in DK-REL-07's non-simplicity propagation through the generated property hierarchy when material chains are emitted. These hierarchy axioms are not themselves subject to that rule's targeted omission of cardinality restrictions and property-disjointness axioms.
 
@@ -2545,6 +2565,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Missing or invalid source identifier within §3.4's existing identity/reference scope | Apply §3.4's minimal opaque identifier definitions and the existing structural-error policies under DK-DIAG-05; no replacement identifier | Governed by the existing structural-error policies; no additional recovery established |
 | Duplicate declaration ID within §3.4's scope | ERROR identifies the duplicated ID, available competing-declaration location information, and abort under DK-DIAG-05; selecting, merging, or assigning replacement IDs is prohibited even for identical declaration contents | Yes under every input policy, including `best-effort` |
 | Repeated reference objects identifying one declaration | MUST NOT be treated as duplicate declarations under §3.4 | No duplicate-ID failure solely for the repeated references |
+| Repeated membership references resolving to the same generalization within one set | Count as one membership under DK-GEN-12; no additional diagnostic solely for repetition; existing errors and independently required diagnostics remain applicable | No additional fatality solely for repetition under any input policy |
 | Structurally unprocessable source | Error; continuation follows DK-DIAG-05 | Policy-dependent; failure preventing meaningful document processing always aborts |
 | Requested ontology file cannot be created or written after successful ontology serialization and construction of any required provenance | ERROR identifies destination, available failure reason, and failed delivery under DK-DIAG-04; CLI code `6`, subject to diagnostics-file code `4`; retain diagnostic access and attempt requested CLI JSON export | No transformation abort; established outcome unchanged under every input policy |
 | Collision after injective ID escaping | Exceptional; do not merge | Exact behavior not specified |

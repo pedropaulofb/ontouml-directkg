@@ -4,6 +4,8 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
+**Targeted maintenance:** 2026-11-06, covering RD-02 membership resolution and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
+
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
 - `ontouml-directkg-current-specification(6).md`, **Consolidated: 2026-10-29**, stored revision **7**, read after the specification was updated during this handoff. Storage revision numbers are not DirectKG releases.
@@ -15,7 +17,7 @@ All eleven issue IDs in the recovered prior lists were accounted for. Only their
 
 **Completeness limitation:** RD-27 inherits a reference to unspecified “other previously raised descriptive fields.” The prior files identify no concrete remaining field, and the original discussion identifying any such field is not accessible here. That conditional entry remains blocked. This document is therefore not a complete historical reconciliation of that unidentified scope; it does not reconstruct missing fields or acceptances. The older handoff's access warnings concerning named questions already settled in the current specification do not reopen those questions.
 
-Alternatives and the advisory discussion order below are non-normative. No new mapping, recovery policy, or conformance guarantee is selected by preparing this document.
+Alternatives and the advisory prioritization below are non-normative. No new mapping, recovery policy, or conformance guarantee is selected by preparing this document.
 
 ## Remaining relation semantics
 
@@ -52,7 +54,7 @@ Material–relator/mode chains and derivation treatment (DK-REL-07–08), compar
 **Decisions still needed:**
 
 - Bound the affected contributions and dependent output that may safely be omitted after a missing/invalid identifier or unresolved reference, where no explicit local recovery rule already settles the case.
-- Specify handling of missing or malformed generalization-set membership containers and duplicate memberships.
+- Specify handling of missing or malformed generalization-set membership containers.
 - Specify categorizer/powertype recovery when a relevant member cannot be resolved or transformed.
 - Classify any still-unsettled structural condition that prevents meaningful document-level processing even under `best-effort`, rather than assuming that every failure permits local omission.
 
@@ -60,11 +62,11 @@ The exceptional escaped-ID collision question is retained once, under ODI-IRI be
 
 **Why it matters and accepted boundaries:** Recovery must not invent missing information, merge source elements, attach axioms to the wrong resource, or deliver invalid RDF. Source-ID validity is already fixed by §3.4's minimal opaque identifier definitions; duplicate declaration IDs already abort under every input policy. Those questions are not open. Unparseable JSON already prevents transformation in every policy.
 
-DK-DIAG-03, DK-DIAG-05, DK-DIAG-09–13, DK-CLS-09, and DK-REL-20 settle substantial local behavior. In particular, a failed larger class set must not be covered using survivors or acquire singleton completeness merely because one member survives. DK-HO-04 expressly leaves duplicate memberships, missing/malformed membership containers, and categorizer recovery unspecified. Metadata and provenance failures retain their separate DK-GEN-09–10 rules. The file-only source-input boundary in §3.2 and §15 remains applicable.
+DK-DIAG-03, DK-DIAG-05, DK-DIAG-09–13, DK-CLS-09, and DK-REL-20 settle substantial local behavior. In particular, a failed larger class set must not be covered using survivors or acquire singleton completeness merely because one member survives. Membership identity is governed by DK-GEN-12 and is not an open question. DK-HO-04 leaves missing/malformed membership containers and categorizer recovery unspecified. Metadata and provenance failures retain their separate DK-GEN-09–10 rules. The file-only source-input boundary in §3.2 and §15 remains applicable.
 
 **Alternatives — non-normative:** Abort when identity or meaningful processing cannot be preserved; otherwise omit only affected contributions where independent transformation remains technically well-defined. Preserve established error severities, fallbacks, and nonfatal conditions. No general semantic validator, exhaustive malformed-input taxonomy, or additional input mechanism is proposed.
 
-**Evidence, blockers, and next step:** Use a few concrete supported-file examples and fundamental correctness cases to determine the residual boundaries. Missing containers, duplicate memberships, and incomplete categorizer/powertype inputs need distinct examination; the accepted empty-array and failed-class-coverage rules must not be generalized without a decision. No additional corpus occurrence is asserted here.
+**Evidence, blockers, and next step:** Investigate a residual boundary when a concrete supported-file example or a first-implementation blocker establishes its relevance. Missing containers and incomplete categorizer/powertype inputs need distinct examination; the accepted empty-array and failed-class-coverage rules must not be generalized without a decision. No additional corpus occurrence is asserted here.
 
 **Dependencies:** Coordinate exceptional identity failures with ODI-IRI and externally observable recovery/reporting with RD-04.
 
@@ -142,15 +144,21 @@ The exact report schema remains unspecified in DK-DIAG-04. §15 explicitly leave
 
 **Dependencies:** Establish source scope before any new mapping discussion; coordinate with RD-02 only if an actual construct exposes an unsettled recovery question.
 
-## Advisory dependency order
+## Advisory prioritization and dependencies
 
-This is a non-normative discussion order, not an implementation plan or an accepted decision.
+This is non-normative guidance for choosing future Architect discussions. It does not establish transformation requirements, an implementation plan, or completion claims.
 
-1. Establish the missing source evidence for RD-27 and ODI-INSTANCES before retaining any additional mapping question from those checks.
-2. Examine concrete residual recovery cases under RD-02; investigate ODI-IRI only after its technical condition is identified.
-3. Complete RD-17 in coherent stereotype groups. The RD-04 profile claim depends on the relevant semantic decisions, while its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
+Following the owner's 2026-11-06 direction, prioritize decisions that materially affect completion of the first transformation implementation and demonstrated supported use cases. Give hypothetical malformed-input and edge-case questions lower priority unless a concrete blocker or observed need establishes their relevance. An unresolved entry alone does not make its resolution a prerequisite for the first implementation.
 
-The source-evidence checks and independent semantic/recovery questions need not block one another. Accepted scope exclusions and transfers awaiting integration are not unresolved design alternatives.
+The owner reports that repeated generalization-set membership does not occur in any of the over 200 models in the OntoUML/UFO Catalog. This corpus-wide absence is owner-reported; this registration does not claim a new Catalog-wide audit.
+
+Apply the remaining dependencies proportionately:
+
+- The RD-04 profile claim depends on the relevant RD-17 semantic decisions; its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
+- Establish source evidence before proposing an additional mapping from RD-27 or ODI-INSTANCES. Their blocked evidence checks do not by themselves establish a missing implementation feature.
+- Investigate ODI-IRI only after identifying its reachable technical condition. Preserve its unresolved status without treating hypothetical collision recovery as an automatic implementation prerequisite.
+
+The source-evidence checks and independent semantic/recovery questions need not block one another. Accepted scope exclusions and registrations awaiting independent review are not unresolved design alternatives.
 
 ## Retained research anchors and continuation
 
