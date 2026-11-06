@@ -118,7 +118,9 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
             continue
         identifier = member.data["id"]
         if identifier in seen:
-            raise NotImplementedError("Duplicate generalization-set member handling remains unspecified")
+            # Validate each reference before counting its exact declaration ID
+            # once within this set (DK-GEN-12).
+            continue
         seen.add(identifier)
         if identifier not in edges:
             # The underlying transformation already produced its ERROR. Do not
@@ -127,8 +129,6 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
         else:
             resolved.append(edges[identifier])
     specifics = {specific.data["id"]: specific for specific, _ in resolved}
-    if len(specifics) != len(resolved):
-        raise NotImplementedError("Repeated-specific generalization-set membership handling remains unspecified")
     general_ids = {general.data["id"] for _, general in resolved}
     if data.get("isDisjoint") is True:
         for left, right in combinations(sorted(specifics), 2):
@@ -136,7 +136,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
     if complete and data.get("isComplete") is True and len(general_ids) == 1:
         general = resolved[0][1]
         gid = general.data["id"]
-        if len(members) == 1:
+        if len(seen) == 1:
             specific = resolved[0][0]
             graph.add((resources[gid], RDFS.subClassOf, resources[specific.data["id"]]))
             diagnostics.add("INFO", "SINGLETON_COMPLETENESS",
@@ -144,7 +144,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
                             "extensionally equivalent while their identifiers remain distinct.",
                             "Reverse subclass axiom emitted; existing forward subclass axiom retained.",
                             (element.location, general.location, specific.location))
-        else:
+        elif len(specifics) >= 2:
             expression, head = BNode(), BNode()
             Collection(graph, head, [resources[sid] for sid in sorted(specifics)])
             graph.add((expression, RDF.type, OWL.Class))
@@ -247,13 +247,12 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                 raise NotImplementedError("Mixed class/relation set membership remains unspecified")
             identifier = member.data["id"]
             if identifier in seen:
-                raise NotImplementedError("Duplicate generalization-set membership remains unspecified")
+                # Reference validation above still applies to every occurrence.
+                continue
             seen.add(identifier)
             specific, general = declared[identifier]
             if specific is not None:
                 sid = specific.data["id"]
-                if sid in specific_ids:
-                    raise NotImplementedError("Repeated-specific generalization-set membership remains unspecified")
                 specific_ids.add(sid)
                 if sid in primaries:
                     specifics[sid] = specific
@@ -268,7 +267,7 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                     graph.add((inverses[sid], OWL.propertyDisjointWith, inverses[other]))
         if data.get("isComplete") is not True:
             continue
-        if complete and len(members) == 1:
+        if complete and len(seen) == 1:
             specific, general = resolved[0]
             sid, gid = specific.data["id"], general.data["id"]
             graph.add((primaries[gid], RDFS.subPropertyOf, primaries[sid]))
