@@ -2,6 +2,7 @@
 
 import copy
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -100,6 +101,134 @@ def _report(invoke,path,result):
     assert report.outcomes==(result.outcome,)
     assert diagnostic_signatures(report.diagnostics)==diagnostic_signatures(result.diagnostics)
     return report
+
+
+def _cli_json_report_contract(payload):
+    """Assert the minimum JSON contract without closing compatible extensions."""
+    assert isinstance(payload, dict)
+    assert {"outcome", "diagnostics"} <= payload.keys()
+    assert isinstance(payload["outcome"], str)
+    assert payload["outcome"] in {"completed", "completed-with-errors", "aborted"}
+    assert isinstance(payload["diagnostics"], list)
+    records = []
+    for event in payload["diagnostics"]:
+        assert isinstance(event, dict)
+        assert {"severity", "code", "message", "effect", "sources", "generated_iri"} <= event.keys()
+        assert all(isinstance(event[name], str) for name in ("severity", "code", "message", "effect"))
+        assert event["severity"] in {"INFO", "WARNING", "ERROR"}
+        assert event["generated_iri"] is None or isinstance(event["generated_iri"], str)
+        assert isinstance(event["sources"], list)
+        sources = []
+        for source in event["sources"]:
+            assert isinstance(source, dict)
+            assert {"path", "identifier", "element_type"} <= source.keys()
+            assert isinstance(source["path"], str)
+            assert all(source[name] is None or isinstance(source[name], str) for name in ("identifier", "element_type"))
+            sources.append((source["path"], source["identifier"], source["element_type"]))
+        records.append((event["severity"], event["code"], event["message"], event["effect"],
+                        tuple(sorted(sources, key=repr)), event["generated_iri"]))
+    return payload["outcome"], Counter(records)
+
+
+def _json_contract_cli_source(tmp_path, scenario):
+    document = load_json("shared/instantiation" if scenario == "instantiation" else "shared/base_iri")
+    for element in source_elements(document):
+        if element.get("type") == "Class":
+            element.update(isAbstract=None, isDerived=None, isExtensional=None)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none"}
+    if scenario == "info":
+        source_element(document, "C17")["isAbstract"] = True
+    elif scenario == "generated_iri":
+        source_element(document, "C17")["name"] = None
+        options["iri_strategy"] = "name"
+    elif scenario == "global_warning":
+        options.pop("base_iri")
+    elif scenario == "metadata_failure":
+        options["metadata_file"] = tmp_path / "missing" / "metadata.yaml"
+    elif scenario == "untyped_location":
+        document["model"]["contents"].append({"id": "unknownItem", "name": None, "description": None,
+                                               "type": None, "propertyAssignments": None})
+    elif scenario == "partial":
+        source_element(document, "C17")["id"] = None
+        options["input_policy"] = "best-effort"
+    elif scenario == "duplicate_abort":
+        document["model"]["contents"].append(copy.deepcopy(source_element(document, "C17")))
+        options.update(input_policy="best-effort")
+        options.pop("base_iri")
+    elif scenario == "unprocess":
+        path = tmp_path / "source.json"
+        path.write_bytes(b'{"id":')
+        return path, options
+    elif scenario == "instantiation":
+        association = source_element(document, "rInstantiation")
+        association.update(name="DISCARDED_ASSOCIATION_SENTINEL", description="DISCARDED_DESCRIPTION_SENTINEL")
+        for end, role, cardinality in zip(association["properties"], ["DISCARDED_SOURCE_ROLE_SENTINEL", "DISCARDED_TARGET_ROLE_SENTINEL"], ["37..41", "43..47"]):
+            end.update(name=role, cardinality=cardinality)
+    defects = {"invalid_id"} if scenario == "partial" else {"duplicate_id:C17"} if scenario == "duplicate_abort" else {"unknown_element"} if scenario == "untyped_location" else set()
+    assert fixture_issues(document) == defects
+    return write_input(tmp_path, document, "source.json"), options
+
+
+@pytest.mark.parametrize("console_level", ["info", "warning", "error"])
+@pytest.mark.parametrize("scenario", ["clean", "info", "generated_iri", "global_warning", "partial",
+                                      "unprocess", "metadata_failure", "untyped_location", "duplicate_abort", "instantiation"])
+def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering(invoke, tmp_path, console_level, scenario):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels.
+
+    RD-04 alternative A at 37e68764202a2a18e0c54ac264df1536ff47e28c. All fields
+    are checked against actual native data captured within this CLI execution;
+    no fixed code catalogue, messages, or cross-execution ordering is required.
+    """
+    source, options = _json_contract_cli_source(tmp_path, scenario)
+    destination, report_path = tmp_path / "output.ttl", tmp_path / "diagnostics.json"
+    process = invoke.cli(source, options={**options, "console_level": console_level}, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report_path)
+    assert process.conversion_started is True
+    converted, native = invoke.cli_report_content(process)
+    assert converted.raw is not None and native.raw is not None
+    assert converted.outcome == native.outcome
+    produced_records = Counter((severity, code, message, effect, tuple(sorted(sources, key=repr)), iri)
+                               for severity, code, message, effect, sources, iri in converted.events)
+    expected_records = Counter((severity, code, message, effect, tuple(sorted(sources, key=repr)), iri)
+                               for severity, code, message, effect, sources, iri in native.events)
+    assert produced_records <= expected_records, "CLI presentation/delivery discarded produced diagnostics"
+    payload = json.loads(report_path.read_bytes())
+    assert _cli_json_report_contract(payload) == (native.outcome, expected_records)
+    expected_outcome = "completed-with-errors" if scenario == "partial" else "aborted" if scenario in {"unprocess", "metadata_failure", "duplicate_abort"} else "completed"
+    assert native.outcome == process.observation.outcome == expected_outcome
+    assert process.returncode == {"completed": 0, "completed-with-errors": 1, "aborted": 3}[expected_outcome]
+    allowed = {"info": {"INFO", "WARNING", "ERROR"}, "warning": {"WARNING", "ERROR"}, "error": {"ERROR"}}[console_level]
+    assert Counter(event.severity for event in process.console) == Counter(event[0] for event in native.events if event[0] in allowed)
+    if expected_outcome == "aborted":
+        assert not destination.exists() and process.observation.ontology is None
+    else:
+        assert len(Graph().parse(destination, format="turtle")) > 0
+    events = payload["diagnostics"]
+    if scenario in {"partial", "unprocess", "metadata_failure", "duplicate_abort"}:
+        assert any(event["severity"] == "ERROR" for event in events)
+    if scenario == "clean":
+        assert events == []
+    elif scenario == "info":
+        assert any(event["severity"] == "INFO" and event["sources"] for event in events)
+    elif scenario == "generated_iri":
+        assert any(event["severity"] == "WARNING" and isinstance(event["generated_iri"], str) and event["sources"] for event in events)
+    elif scenario == "global_warning":
+        assert any(event["severity"] == "WARNING" and event["sources"] == [] and event["generated_iri"] is None for event in events)
+    elif scenario == "partial":
+        assert any(source["identifier"] is None and isinstance(source["element_type"], str)
+                   for event in events for source in event["sources"])
+    elif scenario == "untyped_location":
+        assert any(isinstance(source["identifier"], str) and source["element_type"] is None
+                   for event in events for source in event["sources"])
+    elif scenario == "duplicate_abort":
+        assert {"WARNING", "ERROR"} <= {event["severity"] for event in events}
+        assert any(len(event["sources"]) >= 2 for event in events)
+    elif scenario == "instantiation":
+        losses = [event for event in events if any(source["identifier"] == "rInstantiation" for source in event["sources"])]
+        assert len(losses) == 1 and losses[0]["severity"] == "WARNING"
+        discarded = ("DISCARDED_ASSOCIATION_SENTINEL", "DISCARDED_DESCRIPTION_SENTINEL",
+                     "DISCARDED_SOURCE_ROLE_SENTINEL", "DISCARDED_TARGET_ROLE_SENTINEL", "37..41", "43..47")
+        assert not any(value in json.dumps(payload) for value in discarded)
 
 
 def _source(tmp_path,scenario):
@@ -268,7 +397,9 @@ def test_cli_exit_outcome_and_json_mirror_cover_success_recovery_abort_and_loss_
         warnings=[d for d in report.diagnostics if d.kind=='discarded_instantiation_data']
         assert len(warnings)==1 and warnings[0].severity=='WARNING' and 'rInstantiation' in warnings[0].source_ids
         assert result.discarded_instantiation_output==()
-        assert 'DISCARDED_' not in path.read_text() and '37..41' not in path.read_text() and '43..47' not in path.read_text()
+        discarded = ('DISCARDED_ASSOCIATION_SENTINEL', 'DISCARDED_SOURCE_ROLE_SENTINEL',
+                     'DISCARDED_TARGET_ROLE_SENTINEL', 'DISCARDED_DESCRIPTION_SENTINEL', '37..41', '43..47')
+        assert not any(value in path.read_text() for value in discarded)
     elif scenario=='partial':assert any(d.severity=='ERROR' for d in report.diagnostics)
 
 

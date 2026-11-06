@@ -1349,3 +1349,52 @@ preserved and all test/production/governing-source blobs remained unchanged.
 No production or specification file changes. Full project execution and full
 provenance conformance are unperformed. Historical execution notes above retain
 their original meaning; this test review does not certify passing production.
+
+## RD-04 — Shared JSON diagnostics contract
+
+Initial TEST CHANGE for the owner's unified handoff and Architect Reviewer OK,
+no findings, at `37e68764202a2a18e0c54ac264df1536ff47e28c`. This submission awaits
+independent Test Reviewer review. The earlier RD-02 test submission is accepted
+and closed. Current sources are transformation-specification.md (blob
+9feeb4c88090735196ceb43ed4f34f67f5672cfb) and test-suite-structure.md (unchanged
+blob 250a059d46377360aeecdb5176310bd36bde7825), under documentation/specification/.
+Only former unspecified JSON-structure qualifications are superseded.
+
+43 native acceptance cases and one reader/harness case cover the required shared
+JSON envelope, diagnostic/source members and types, empty/null context, all three
+outcomes, explicit Python export, CLI filtering, abortion, consolidation and the
+instantiation discarded-value boundary. Required members are a minimum: compatible
+extra members and reordered data are accepted; schema_version and an exact code
+catalogue/message wording are not imposed. All 44 cases pass. Every exact parameter
+ID, rule, canonical input and inline expectation is in the final RD-04 inventory.
+No stored JSON/Turtle/YAML, fixture location, dependency or pytest configuration changes.
+
+The adapter now binds real public Python diagnostic export and its actual failure.
+Its existing profiler observes automatic export calls during Python conversion.
+For CLI mirroring, independent snapshots copy native diagnostics on conversion
+return and after delivery, before comparing against the JSON file. Presentation
+must retain produced events, including hidden INFO/WARNING. The reader preserves
+raw JSON while ignoring compatible members. Three actual native codes are added
+to semantic interpretation as binding knowledge; no normative code is registered.
+Broader fault, serialization, delivery and semantic readers remain unbound.
+
+```bash
+python -m pytest --rootdir=. --collect-only -q tests
+python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py tests/cli/test_cli.py -k shared_json_contract --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py tests/cli/test_cli.py -k 'not shared_json_contract' --tb=no -rN
+```
+
+Python 3.12.14; pytest 9.1.1; RDFLib 7.6.0; PyYAML 6.0.3. Collection: 3,308,
+retaining all 3,264 previous nodes. The same 526 existing diagnostics/CLI nodes
+improve from 371 passes / 155 unbound failures to 385 passes / 141 unbound
+failures, with no previous pass regressing. Additional adapter regressions: 176
+passed. All 88 existing fixture/RDF-helper checks pass. Shape/mirroring controls
+reject 27 + 7 faults per checker while accepting four permitted variants. The new
+reader/harness case receives no transformation credit. All Python files parse and
+git diff --check passes; detailed commands and evidence limits are in coverage.md.
+No production/specification changes. Full-suite and full-provenance execution and
+unbound operations are unperformed. Historical results above retain their meaning.
+
+Before publication, main advanced through documentation-only revision
+`c9bd97c970ef6789c0edb35cf0cac757ba3c5c51`. All six intervening root/site changes
+are preserved; test, fixture, production and governing-source blobs are unchanged.

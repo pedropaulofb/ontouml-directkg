@@ -1,14 +1,19 @@
 # Requirement-to-test inventory
 
-**Current assignment authority:** RD-02 — repeated generalization-set membership,
+**Current assignment authority:** RD-04 — shared JSON diagnostics contract,
 registered and independently Architect-reviewed OK, with no findings, at
-`2b427908a7e29d546486a616a22495ea0424f294`. The current behavioral source is
+`37e68764202a2a18e0c54ac264df1536ff47e28c`. The current behavioral source is
 `documentation/specification/transformation-specification.md`, blob
-`8c4bc255b9c99429bf32262febd848ae919f625f`; organization is governed by
+`9feeb4c88090735196ceb43ed4f34f67f5672cfb`; organization is governed by
 `documentation/specification/test-suite-structure.md`, blob
 `250a059d46377360aeecdb5176310bd36bde7825`. See the assignment-scoped table at
 the end of this inventory. Historical baseline and review records below retain
 their original scope and execution dates.
+
+The prior RD-02 membership test submission at
+`fdfa2dd61bd0492a87f1ee9d403006b0e5f7cd9d` received the owner-relayed independent
+Test Reviewer OK with no findings and is closed. Its earlier execution evidence
+remains historical; the later production revision is preserved.
 
 **Behavioral authority:** `documentation/specification/2026-10-21 - specification handoff.md`, consolidated 2026-10-21, at commit `7870042a02e094dca772d6fdd6570ad7b2d02578`.
 **Organizational authority:** `documentation/specification/2026-10-21 - test suite structure.md`, v2, same commit; the project owner supplied the matching corrected attachment for incremental work.
@@ -5276,3 +5281,200 @@ pytest IDs, not planned names. Function `Rules:` lines supply the same rule IDs.
 | `tests/transformation/test_relations.py::test_repeated_membership_preserves_singleton_chain_constraint_propagation[none-none]` | DK-GEN-12, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-07, DK-DIAG-14 | Key: `relations/chain_constraints`. Input: `tests/fixtures/transformation/relations/chain_constraints/input.json`. Expectation: inline; runtime mutations explicit in node. | Effective singleton hierarchy participates in actual-chain non-simplicity propagation; preserve/omit Peer counts and disjointness by mode; unrelated counts, direction, anonymous chain steps and INFO remain. | Production guard: repeated membership |
 | `tests/transformation/test_relations.py::test_repeated_membership_preserves_singleton_chain_constraint_propagation[none-omit-conflicting-constraints]` | DK-GEN-12, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-07, DK-DIAG-14 | Key: `relations/chain_constraints`. Input: `tests/fixtures/transformation/relations/chain_constraints/input.json`. Expectation: inline; runtime mutations explicit in node. | Effective singleton hierarchy participates in actual-chain non-simplicity propagation; preserve/omit Peer counts and disjointness by mode; unrelated counts, direction, anonymous chain steps and INFO remain. | Production guard: repeated membership |
 | `tests/transformation/test_relations.py::test_repeated_membership_preserves_singleton_chain_constraint_propagation[none-preserve-conflicting-constraints]` | DK-GEN-12, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-07, DK-DIAG-14 | Key: `relations/chain_constraints`. Input: `tests/fixtures/transformation/relations/chain_constraints/input.json`. Expectation: inline; runtime mutations explicit in node. | Effective singleton hierarchy participates in actual-chain non-simplicity propagation; preserve/omit Peer counts and disjointness by mode; unrelated counts, direction, anonymous chain steps and INFO remain. | Production guard: repeated membership |
+
+## RD-04 — Shared JSON diagnostics contract
+
+**Disposition:** TEST CHANGE. **Status:** pending independent Test Reviewer review.
+**Assignment:** owner's unified downstream handoff; Architect Reviewer **OK, no
+findings**, for registration `37e68764202a2a18e0c54ac264df1536ff47e28c`, verified
+as the direct successor of `8ef05dff0d5bc942b7b5f35a3545a5efff56676f`. This is the
+initial RD-04 test submission; no procedural waiver or prior-review reuse applies.
+The owner authorizes independent downstream work after architectural OK without
+another downstream sign-off. The previously accepted RD-02 test assignment is closed.
+
+**Accepted basis:** DK-DIAG-04's shared report contract and its DK-DIAG-05/§15
+qualifications. The report, diagnostic entries and source-location entries are JSON
+objects. Required members are: report `outcome` and `diagnostics`; diagnostic
+`severity`, `code`, `message`, `effect`, `sources`, `generated_iri`; source location
+`path`, `identifier`, `element_type`. The accepted enum/string/array/object/null
+representations and required presence are asserted directly. Empty diagnostics
+and source context use arrays, not omitted keys. Additional members are permitted;
+consumers ignore them. No schema_version, fixed message, key order, event order or
+condition-to-code catalogue is imposed. Only the former unspecified JSON structure
+and member-name qualifications are superseded; Python API representations remain
+implementation choices. Diagnostic production, consolidation, content restrictions,
+console filtering, outcomes, abort/output eligibility and delivery failures retain
+their meaning. No new normative behavior is introduced by test wiring.
+
+**Initialization and source evidence:** both governing specifications were read
+fully at role initialization. The complete RD-04 registration delta and affected
+current diagnostic/API clauses were subsequently retrieved and checked; structure
+blob `250a059d46377360aeecdb5176310bd36bde7825` is unchanged. Current transformation
+blob is `9feeb4c88090735196ceb43ed4f34f67f5672cfb`. Main at inspection is the
+Architect-reviewed revision above. Available public conversion/result/CLI interfaces,
+actual producer fields, existing pytest assertions, support and inventory were
+inspected independently. Production determines binding only, not expected fields.
+
+**Publication reconciliation:** before publication, main advanced to
+`c9bd97c970ef6789c0edb35cf0cac757ba3c5c51`. The intervening commit changes six
+root/site-documentation files only. Its changes are incorporated; every test,
+fixture, production and governing-specification blob remains unchanged. Source
+and scope comparison, not repeated production execution, verifies that this
+documentation-only advance does not affect the recorded runs.
+
+**Fixture contracts:** reuse only `shared/base_iri/input.json` and
+`shared/instantiation/input.json` under `tests/fixtures/`. Each node selects its
+exact complete source, with explicit runtime mutations written to pytest temporary
+files. Stored sources and Turtle/YAML companions are unchanged. There is no new
+fixture bundle, source builder framework or structural exception. Malformed JSON,
+null source IDs, duplicate declarations, a missing metadata.yaml and an unrecognized
+null-typed element are deliberate governed negatives, not new supported shapes.
+Recognized-class flags set to null use their accepted no-explicit-Boolean behavior.
+The missing metadata path has the required metadata.yaml basename and no file is
+invented or automatically discovered.
+
+The existing VP-plugin 0.5.3 provenance remains applicable. One Catalog source was
+reinspected: `models/library/ontology.json` at Catalog revision
+`99d23ff1e1c2bf58a7bd99ef0156eba79a611c99`, blob
+`0ef9f0b0543eb31035489907160d9759c6166d45`. Its Project/Package/Class structure
+and nullable fields corroborate the canonical fixtures. It declares no exporter
+version; no claim that it is a certified 0.5.3 export is made. No raw Catalog model
+is copied or processed by the suite and no Catalog-wide audit is performed.
+
+**Actual invocation evidence:** the replaceable adapter calls the real public
+ConversionResult.export_diagnostics and adapts its native success or actual
+DiagnosticsExportError, retaining the original exception. Python's existing reader/
+report-writer profile observes whether conversion automatically exports diagnostics;
+it now applies to ordinary calls as well as version-IRI calls. It does not infer
+absence from an option or create reports to satisfy an expectation.
+
+For CLI completeness, the existing same-process profile independently copies the
+native result immediately on conversion return and after CLI delivery. Both
+snapshots precede interpretation of the test's JSON observations; neither is read
+from a report or generated by export_report/asdict. Tests require preservation of
+conversion-time events and compare the final native events to the raw JSON, with
+multiplicity retained and ordering ignored. Console severity counts are read from
+captured bytes and checked against the selected threshold. This remains valid with
+INFO/WARNING hidden from the console; filtered presentation is never evidence that
+no event was produced. The extra snapshot data is test-side instrumentation, not a
+production API requirement. Missing observation evidence remains explicitly unbound.
+
+The JSON reader retains complete raw files while interpreting only known members;
+extra members at report/diagnostic/source levels are ignored compatibly. Existing
+PLACEHOLDER_BASE, DERIVED_STATUS_ANNOTATION and
+DISCARDED_INSTANTIATION_INFORMATION values are interpreted only as inspected
+implementation binding knowledge, not as registered normative identifiers. Placeholder
+facts are read from actual wording. Code/message/effect values in assertions come
+from actual native events, never fixed expected literals. The existing CLI
+instantiation row below is corrected to reject exact discarded source values,
+rather than a prefix also occurring in a legitimate diagnostic code; its node,
+consolidation check and other assertions are preserved.
+
+**Branches:** ten Python export scenarios and the same ten CLI scenarios at all
+three console levels cover clean output, INFO, generated-IRI WARNING, a global
+WARNING without sources, recoverable ERROR, malformed-source abort, metadata-file
+abort, unavailable element type, WARNING followed by duplicate-ID abort, and
+instantiation consolidation/value restrictions. Three real Python export failures
+preserve native diagnostics, graph eligibility and outcome. No fake conversion,
+blanket skip/xfail or production fault hook is introduced.
+
+The compatibility-reader case is **harness only**: a real exported file is augmented
+with permitted members and reordered, then consumed by the adapter. It receives no
+DirectKG transformation credit. All other new rows exercise real conversion and/or
+public export behavior. Expected field/type assertions remain in the owning tests;
+the invocation layer never supplies expected output.
+
+**Validation:** Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0 and PyYAML 6.0.3.
+Collection is **3,308**, retaining all **3,264** prior nodes. There are **43 new
+behavioral cases plus one reader/harness case**, all **44 passed**, with no skips,
+xfails, assertion failures or collection errors in that selection. Current inventory
+contains **3,219 behavioral nodes**; 89 fixture/helper/reader nodes receive no
+transformation coverage credit.
+
+The same **526 pre-existing input-diagnostics/CLI nodes** change from **371 passed /
+155 unbound failures** at the publication baseline to **385 passed / 141 existing
+unbound failures**. No previous pass regresses and no old node disappears. Remaining
+failures are all ImplementationUnavailable: 92 operations, 16 console-kind reads,
+eight prohibited-feature reads, seven provenance-role reads, fourteen broader
+control inspections and four other unbound provenance/configuration/stdout readers.
+Unavailable fault, serialization, delivery and broader interpretation capabilities
+are not credited as passing. This is a scoped adapter extension, not a full binding.
+
+Additional affected adapter regressions: **176 passed**, including the accepted
+RD-02 membership nodes, opaque identities and generic fallback behavior. All **88
+existing fixture/RDF-helper checks** pass. Both JSON checkers independently reject
+27 required-member/type/container/enum faults and detect seven mirroring faults;
+they each accept four permitted extension/null/opaque-code/ordering variants. These
+scratch controls use actual produced reports and do not earn transformation credit.
+Two further real-CLI controls truncate only the final test-observation snapshot;
+both reject lost hidden diagnostics using the independent conversion-return copy.
+All 17 test/support and 21 production Python files parse; production files are read
+only. Inventory/rule/path consistency and git diff --check pass.
+
+Actual commands (repository root; isolated Python environment, XML/log destinations
+outside the repository):
+
+```bash
+python -m pytest --rootdir=. --collect-only -q tests
+python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py tests/cli/test_cli.py -k shared_json_contract --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py tests/cli/test_cli.py -k 'not shared_json_contract' --tb=no -rN
+python -m pytest --rootdir=. -q tests/transformation/test_classes.py tests/transformation/test_higher_order.py tests/transformation/test_relations.py tests/transformation/test_iris.py -k 'repeated_membership or opaque_identifiers or generic_fallback' --tb=no -rN
+python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper' --tb=short -rN
+```
+
+The baseline was independently rerun from a detached worktree at
+`37e68764202a2a18e0c54ac264df1536ff47e28c` with its source directory on PYTHONPATH,
+not by reverting the active work. Full-suite execution, full provenance conformance,
+external deployment and unbound operations remain unperformed. Published test
+artifacts require independent Test Reviewer review and do not certify whole-project
+production correctness.
+
+All new rows use **RD-04 alternative A / DK-DIAG-04, registration
+37e68764202a2a18e0c54ac264df1536ff47e28c**. No new code catalogue is inferred.
+
+| Actual pytest node | Rules / section | Canonical input and expectation | Assertion branch | Disposition |
+| --- | --- | --- | --- | --- |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[clean-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[clean-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[clean-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[duplicate_abort-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[duplicate_abort-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[duplicate_abort-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[generated_iri-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[generated_iri-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[generated_iri-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[global_warning-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[global_warning-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[global_warning-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[info-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[info-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[info-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[instantiation-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/instantiation`. Input: `tests/fixtures/shared/instantiation/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[instantiation-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/instantiation`. Input: `tests/fixtures/shared/instantiation/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[instantiation-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/instantiation`. Input: `tests/fixtures/shared/instantiation/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[metadata_failure-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[metadata_failure-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[metadata_failure-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[partial-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[partial-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[partial-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[unprocess-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[unprocess-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[unprocess-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[untyped_location-error]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[untyped_location-info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/cli/test_cli.py::test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering[untyped_location-warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context; all actual events retained from conversion through presentation/delivery and JSON export; threshold affects console only; status/output eligibility and instantiation restrictions retained. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_export_failure_preserves_native_diagnostics_and_outcome[clean]` | DK-DIAG-04, DK-DIAG-05; §15 explicit Python export failure | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Real directory destination fails explicitly; native event content, outcome and eligible graph remain unchanged. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_export_failure_preserves_native_diagnostics_and_outcome[duplicate_abort]` | DK-DIAG-04, DK-DIAG-05; §15 explicit Python export failure | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Real directory destination fails explicitly; native event content, outcome and eligible graph remain unchanged. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_export_failure_preserves_native_diagnostics_and_outcome[partial]` | DK-DIAG-04, DK-DIAG-05; §15 explicit Python export failure | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Real directory destination fails explicitly; native event content, outcome and eligible graph remain unchanged. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[clean]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[duplicate_abort]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[generated_iri]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[global_warning]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[info]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[instantiation]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/instantiation`. Input: `tests/fixtures/shared/instantiation/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[metadata_failure]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[partial]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[unprocess]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_python_export_preserves_required_fields_and_actual_events[untyped_location]` | DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Required fields/types/context and raw/native event mirroring; explicit export only; source/metadata errors and instantiation restrictions; no state/graph/diagnostic mutation. | Passed; native acceptance |
+| `tests/transformation/test_input_diagnostics.py::test_shared_json_contract_reader_accepts_compatible_members_and_reordered_entries` | DK-DIAG-04 | Key: `shared/base_iri`. Input: `tests/fixtures/shared/base_iri/input.json`; exact case mutation inline; expected JSON structure and event comparison inline. No stored expectation. | Read a real export plus compatible extra members and reordered objects/arrays; retain raw evidence and event content; no schema_version requirement. | Passed; harness only, no transformation credit |

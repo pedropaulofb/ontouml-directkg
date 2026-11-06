@@ -9,7 +9,7 @@ Never populate observations from expected fixtures or implement mappings here.
 from ast import literal_eval
 from dataclasses import dataclass, field
 from collections import Counter
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 import json
 import inspect
 import os
@@ -260,6 +260,20 @@ class ReportObservation:
     schema: Any = None
 
 
+@dataclass(frozen=True)
+class ReportContent:
+    """Actual outcome and native events, independent of JSON serialization.
+
+    Each test-side record is (severity, code, message, effect, source triples,
+    generated IRI); a source triple is (path, identifier, element type). These
+    tuple representations are not a required Python production interface.
+    """
+
+    outcome: str
+    events: tuple[tuple[Any, ...], ...]
+    raw: Any
+
+
 @dataclass
 class SerializationObservation:
     data: bytes | None
@@ -393,6 +407,14 @@ class Invocation(Protocol):
         """Read the actual JSON using its real shared format; retain all events."""
         ...
 
+    def report_content(self, observation: Observation) -> ReportContent:
+        """Read actual public Python result fields without calling its writer."""
+        ...
+
+    def cli_report_content(self, process: CLIObservation) -> tuple[ReportContent, ReportContent]:
+        """Read native conversion-return and post-delivery snapshots, independent of JSON."""
+        ...
+
     def diagnostic_mirror_records(
         self, process: CLIObservation, report: ReportObservation
     ) -> tuple[Counter[bytes], Counter[bytes]]:
@@ -488,6 +510,12 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_report(self, path):
+        self._unavailable()
+
+    def report_content(self, observation):
+        self._unavailable()
+
+    def cli_report_content(self, process):
         self._unavailable()
 
     def diagnostic_mirror_records(self, process, report):
@@ -671,16 +699,35 @@ import atexit
 import json
 import os
 import sys
-from ontouml_directkg.conversion import read_project
+from ontouml_directkg.conversion import read_project, convert
 
 reader_code = read_project.__code__
+conversion_code = convert.__code__
 parser_error_code = argparse.ArgumentParser.error.__code__
 trace = {"input_reader": {"module": read_project.__module__, "name": read_project.__qualname__},
-         "conversion_started": False, "parser_errors": []}
+         "conversion_started": False, "parser_errors": [],
+         "conversion_calls": 0, "conversion_returns": 0}
 metadata = _MetadataCapture()
+native_result = None
+
+def report_snapshot(result):
+    # Copy public field values immediately, without calling the report writer.
+    return {"outcome": result.outcome,
+            "events": [[event.severity, event.code, event.message, event.effect,
+                        [[source.path, source.identifier, source.element_type] for source in event.sources],
+                        event.generated_iri] for event in result.diagnostics]}
 
 def observe(frame, event, argument):
+    global native_result
     metadata.observe(frame, event, argument)
+    if frame.f_code is conversion_code:
+        if event == "call":
+            trace["conversion_calls"] += 1
+        elif event == "return":
+            trace["conversion_returns"] += 1
+            native_result = argument
+            if argument is not None:
+                trace["conversion_report"] = report_snapshot(argument)
     if event == "call":
         if frame.f_code is reader_code:
             trace["conversion_started"] = True
@@ -694,6 +741,10 @@ def finish():
     trace["metadata"] = {"entries": metadata.entries, "returns": metadata.returns,
                          "active_frames": len(metadata.frames),
                          "triples": [[term.n3() for term in triple] for triple in metadata.triples]}
+    if native_result is not None:
+        # Copy the actual public result after CLI delivery has finished. Do not
+        # call export_report/asdict or read its report to obtain these records.
+        trace["native_report"] = report_snapshot(native_result)
     with open(os.environ["DIRECTKG_TEST_CLI_TRACE"], "w", encoding="utf-8") as output:
         json.dump(trace, output)
 
@@ -792,6 +843,9 @@ _DIAGNOSTIC_KINDS = {
     "FAILED_CLASS_GENERALIZATION": "failed_class_generalization",
     "FAILED_RELATION_GENERALIZATION": "failed_relation_generalization",
     "UNRESOLVED_GENERALIZATION_SET_MEMBER": "unresolved_generalization_set_member",
+    "PLACEHOLDER_BASE": "placeholder_base",
+    "DERIVED_STATUS_ANNOTATION": "derived_status",
+    "DISCARDED_INSTANTIATION_INFORMATION": "discarded_instantiation_data",
 }
 
 
@@ -836,6 +890,11 @@ def _observed_diagnostics(events):
             facts.add("not_logically_enforced")
         if "missing descriptive name" in wording:
             facts.add("missing_name")
+        if event.code == "PLACEHOLDER_BASE":
+            if "placeholder namespace" in wording:
+                facts.add("placeholder_namespace")
+            if "not recommended for publication" in wording:
+                facts.add("not_recommended_for_publication")
         if event.code == "SINGLETON_COMPLETENESS":
             if "extensionally equivalent" in wording or "extensions equivalent" in wording:
                 facts.add("extensional_equivalence")
@@ -890,10 +949,9 @@ class _DirectKGInvocation(_UnboundInvocation):
         request = dict(options)
         if "stereotype_relation_naming" in request:
             request["no_stereotype_relation_naming"] = not request.pop("stereotype_relation_naming")
-        # T5 verifies the real optional Python parameter, not an invented API.
-        # Trace only this newly bound request; unrelated readers stay unbound.
-        with _observe_metadata_output() as metadata, (
-                _observe_python_input() if "ontology_version_iri" in request else nullcontext()) as trace:
+        # Observe real input/report-writer calls for explicit persistence checks;
+        # no input option is used to infer that a report was or was not written.
+        with _observe_metadata_output() as metadata, _observe_python_input() as trace:
             try:
                 result = convert(source, **request)
             except ConfigurationError as exc:
@@ -1116,10 +1174,46 @@ class _DirectKGInvocation(_UnboundInvocation):
                     match[2].upper(), context=match[1] + "_end"))
         return tuple(comments)
 
+    def export_diagnostics(self, observation, path, *, faults=()):
+        if faults:
+            self._unavailable()
+        from ontouml_directkg import DiagnosticsExportError
+        try:
+            observation.native.export_diagnostics(path)
+        except DiagnosticsExportError as exc:
+            return DeliveryObservation(observation, DeliveryFailure("diagnostics", Path(path), str(exc), exc))
+        return DeliveryObservation(observation)
+
+    def report_content(self, observation):
+        result = observation.native
+        events = tuple((event.severity, event.code, event.message, event.effect,
+                        tuple((source.path, source.identifier, source.element_type) for source in event.sources),
+                        event.generated_iri) for event in result.diagnostics)
+        return ReportContent(result.outcome, events, result)
+
+    def cli_report_content(self, process):
+        trace = process.execution_trace
+        if (not isinstance(trace, dict) or trace.get("conversion_calls") != 1
+                or trace.get("conversion_returns") != 1
+                or not {"conversion_report", "native_report"} <= trace.keys()):
+            raise ImplementationUnavailable("Complete same-execution native CLI report evidence is unavailable")
+        snapshots = []
+        for key in ("conversion_report", "native_report"):
+            actual = trace[key]
+            events = tuple((event[0], event[1], event[2], event[3], tuple(tuple(source) for source in event[4]), event[5])
+                           for event in actual["events"])
+            snapshots.append(ReportContent(actual["outcome"], events, trace))
+        return tuple(snapshots)
+
     def read_report(self, path):
         from ontouml_directkg.diagnostics import Diagnostic as NativeDiagnostic, SourceLocation, export_report
         payload = json.loads(Path(path).read_bytes())
-        events = tuple(NativeDiagnostic(**{**entry, "sources": tuple(SourceLocation(**s) for s in entry["sources"])})
+        # Unknown members are compatible extensions. Retain the complete raw
+        # payload while interpreting only the inspected native fields.
+        events = tuple(NativeDiagnostic(
+                           **{name: entry[name] for name in ("severity", "code", "message", "effect", "generated_iri")},
+                           sources=tuple(SourceLocation(**{name: source[name] for name in ("path", "identifier", "element_type")})
+                                         for source in entry["sources"]))
                        for entry in payload["diagnostics"])
         # The actual shared writer and its actual dataclasses are the inspected
         # report-format definition, not an invented JSON schema identifier.
