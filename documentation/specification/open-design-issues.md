@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-06, covering RD-02 membership resolution and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-06, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -93,7 +93,7 @@ Generic source-ID naming fallback, owner/source qualification, supplied-base val
 **Decisions still needed:**
 
 1. State a precise general OWL conformance/profile claim consistent with the accepted mappings and import closure.
-2. Select exact diagnostic identifiers and the shared JSON report contract: envelope and member names, required-field rules, and aggregation structure. Preserve all existing diagnostic-content and outcome requirements.
+2. Select exact diagnostic identifiers and the complete condition-to-code catalogue. Preserve the accepted shared JSON report contract and all existing diagnostic-content and outcome requirements.
 3. Establish externally observable behavior for unexpected runtime failures and ontology-output delivery failures outside the already resolved scope, including treatment of available results, diagnostics, transformation outcomes, and exit-code precedence.
 
 **Why it matters:** Consumers need an accurate interoperability claim and a stable report/failure contract. The five RD-17 additions' compatibility gate is not a global profile guarantee. A result outside OWL 2 DL must not automatically be characterized as conforming to some other particular profile or regime.
@@ -102,17 +102,16 @@ Generic source-ID naming fallback, owner/source qualification, supplied-base val
 
 DK-DIAG-04–05 and §15 settle structured Python access, separate JSON export, diagnostic mirroring, the three named transformation outcomes, aborted-output suppression, and existing delivery precedence. DK-GEN-10 settles required-provenance generation failure and provenance-sidecar delivery failure. DK-DIAG-04 and §15 settle ontology-file creation/write failure after successful serialization and construction of required provenance. Invalid base/version-IRI configuration is also already covered before conversion. Preserve these distinctions; do not assign their policies again or treat every failure as an input-policy failure.
 
-The exact report schema remains unspecified in DK-DIAG-04. §15 explicitly leaves other ontology-output delivery failures and unexpected runtime failures outside its resolved mapping. Exact Python signatures, exception classes, internal file-writing design, extra console features, and optional formats are not added as Architect backlog items.
+DK-DIAG-04 fixes the shared JSON report's minimum structure, required member names and types, context representation, flat diagnostic array, and compatible-extension rules. Those questions are not open; exact diagnostic identifiers and the complete condition-to-code catalogue remain unspecified. §15 explicitly leaves other ontology-output delivery failures and unexpected runtime failures outside its resolved mapping. Exact Python signatures, exception classes, internal file-writing design, extra console features, and optional formats are not added as Architect backlog items.
 
 **Alternatives — non-normative:**
 
 | Remaining question | Alternatives and trade-offs |
 |---|---|
 | General profile claim | A qualified, bounded claim versus a stronger guarantee that would require justification against all accepted mappings. A stronger proposal does not authorize removing accepted axioms. |
-| Diagnostic report | Select a fixed shared envelope and diagnostic-record schema, balancing a small contract against sufficient source/effect information. No concrete schema or code set is accepted. |
 | Uncovered failures | Shared or distinct public failure treatment, preserving the already established separation of transformation outcomes and delivery status. No additional status or exit-code mapping is selected. |
 
-**Dependencies and next step:** Analyze the profile claim with the remaining RD-17 semantics and actual hierarchy/import effects. Coordinate the report and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
+**Dependencies and next step:** Analyze the profile claim with the remaining RD-17 semantics and actual hierarchy/import effects. Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
 
 ## Source-scope evidence checks
 

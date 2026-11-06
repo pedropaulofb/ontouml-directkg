@@ -2608,13 +2608,57 @@ The INFO diagnostic required whenever class or relation singleton completeness i
 
 The persistent export MUST NOT independently create diagnostics for every known limitation or information loss documented by this specification. Rules that intentionally require no diagnostic remain in force and do not become reportable merely because export is enabled. The DK-INS-02 warning is a produced diagnostic and MUST be included in the JSON mirror, observing DK-INS-02's boundary between source-locator and discarded-value content. Its console and JSON forms MAY differ in presentation but MUST represent the same underlying diagnostic event.
 
-Each exported diagnostic SHOULD contain sufficient structured information to identify what happened and, where applicable, trace it to the relevant source element. As applicable, this information includes severity, diagnostic code, source element identifier, source element type, human-readable message, and effect on the generated output. This specification does not define the exact diagnostic identifiers, JSON member names, required-field matrix, aggregation format, or report schema.
+Each exported diagnostic SHOULD contain sufficient structured information to identify what happened and, where applicable, trace it to the relevant source element. The shared JSON report contract below fixes the minimum structure, required member names and types, context representation, and compatibility rules. Exact diagnostic identifiers and the complete condition-to-code catalogue remain unspecified.
 
-The Python API and, when exported, the shared JSON diagnostics report MUST expose exactly one transformation outcome for each conversion, using the outcome names and classification defined in DK-DIAG-05: `completed`, `completed-with-errors`, or `aborted`. This applies to reports exported through either the CLI or Python. Exposing the outcome MUST NOT itself introduce additional diagnostics. JSON member names and Python representations remain unspecified.
+The Python API and, when exported, the shared JSON diagnostics report MUST expose exactly one transformation outcome for each conversion, using the outcome names and classification defined in DK-DIAG-05: `completed`, `completed-with-errors`, or `aborted`. This applies to reports exported through either the CLI or Python. Exposing the outcome MUST NOT itself introduce additional diagnostics. The JSON report structure and member names follow DK-DIAG-04's shared report contract. Python representations remain unspecified.
 
 The INFO diagnostics produced for `isDerived: true` under DK-DIAG-16 and `isExtensional: true` under DK-DIAG-17 MUST be exposed and exported under these diagnostic-delivery rules.
 
 Provenance-sidecar delivery errors under DK-GEN-10 MUST be reported through console and programmatic diagnostics and included in the requested diagnostics file. DirectKG MUST attempt that file delivery after recording the sidecar failure. These delivery errors MUST NOT change the transformation outcome.
+
+#### Shared JSON report contract (RD-04, alternative A)
+
+CLI JSON diagnostics export and the separate Python JSON export operation MUST use the same minimum report structure below. The report MUST be a JSON object. Each diagnostic entry MUST be a JSON object representing one produced diagnostic; the `diagnostics` array MUST mirror every produced diagnostic under this rule. Existing diagnostic consolidation requirements remain applicable.
+
+| Object | Required member | Required representation |
+|---|---|---|
+| Report | `outcome` | A string with one of the values `"completed"`, `"completed-with-errors"`, or `"aborted"`, classified under DK-DIAG-05. |
+| Report | `diagnostics` | An array of diagnostic objects containing every produced diagnostic; `[]` when none were produced. |
+| Diagnostic | `severity` | A string with one of the values `"INFO"`, `"WARNING"`, or `"ERROR"`. |
+| Diagnostic | `code` | A string identifying the diagnostic condition. |
+| Diagnostic | `message` | A string providing a human-readable explanation. |
+| Diagnostic | `effect` | A string providing a human-readable account of the effect on transformation or delivery. |
+| Diagnostic | `sources` | An array of relevant source-location objects; `[]` when no locations apply. |
+| Diagnostic | `generated_iri` | The relevant generated IRI as a string when applicable; otherwise `null`. |
+| Source location | `path` | A string locator for the relevant source position or file. |
+| Source location | `identifier` | A string when the source identifier is available; otherwise `null`. |
+| Source location | `element_type` | A string when the source element type is available; otherwise `null`. |
+
+All listed members MUST be present in their respective objects. Optional context MUST use the empty-array or null representations specified above rather than omission of the required members. Existing diagnostic-content requirements determine the context to preserve; these representations MUST NOT override required source information or content restrictions, including DK-INS-02's discarded-value boundary.
+
+Additional members MAY be added compatibly. Required members MUST retain their specified names, types, and meanings; consumers MUST ignore unrecognized members. This contract requires no `schema_version` member.
+
+Human-readable messages remain explanatory text. This contract establishes no new stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Exact diagnostic identifiers and the complete condition-to-code catalogue remain outside this decision.
+
+This structure MUST NOT change diagnostic production, consolidation, severity, meaning, console filtering, transformation outcomes, abortion, output eligibility, or existing failure and delivery policies. It does not prescribe Python object representations, API names, function signatures, or a result or exception mechanism.
+
+**Example (non-normative):** The following illustrative report uses an existing implementation identifier to demonstrate the shape. It does not register that identifier or exact message wording as part of the still-unselected diagnostic-code catalogue.
+
+```json
+{
+  "outcome": "completed",
+  "diagnostics": [
+    {
+      "severity": "WARNING",
+      "code": "PLACEHOLDER_BASE",
+      "message": "A placeholder base IRI was used.",
+      "effect": "Generated entities use https://example.org/directkg#.",
+      "sources": [],
+      "generated_iri": null
+    }
+  ]
+}
+```
 
 #### Ontology-file creation and write failures (RD-04, option A)
 
@@ -2724,7 +2768,7 @@ An abort MUST take precedence over the number or severity of diagnostics already
 
 The `completed` outcome MUST NOT be interpreted as a guarantee of lossless conversion, semantic consistency, or conformance to a particular OWL profile. Diagnostics-delivery failure under DK-DIAG-04, ontology-file delivery failure within that rule's scope, and provenance-sidecar delivery failure under DK-GEN-10 MUST remain separate from the transformation outcome and MUST NOT change it. Exposing the outcome MUST NOT itself introduce additional diagnostics.
 
-The outcome names are fixed as shown above. JSON member names and Python representations remain unspecified. The CLI exit-code mapping and its scope are specified in §15; code `1` MUST NOT suppress otherwise eligible ontology output. Invalid CLI invocation occurs before conversion starts and MUST NOT create a transformation outcome for a conversion that never ran.
+The outcome names are fixed as shown above. The JSON report structure and member names follow DK-DIAG-04's shared report contract. Python representations remain unspecified. The CLI exit-code mapping and its scope are specified in §15; code `1` MUST NOT suppress otherwise eligible ontology output. Invalid CLI invocation occurs before conversion starts and MUST NOT create a transformation outcome for a conversion that never ran.
 
 **Rationale and example (non-normative):** Explicit outcomes let callers distinguish completed error recovery from abortion without deriving that distinction themselves. A transformation may be `completed` while the CLI exits unsuccessfully because a requested diagnostics file could not be written.
 
@@ -3087,7 +3131,7 @@ The Python library MUST provide the structured diagnostic access and separate, e
 
 The Python API and, when exported, the shared JSON diagnostics report MUST expose exactly one outcome for each conversion under DK-DIAG-04–05: `completed`, `completed-with-errors`, or `aborted`. Exposing it MUST NOT itself introduce additional diagnostics.
 
-These requirements establish capabilities and outcome names without selecting exact API names, Python representations, a result or exception mechanism, JSON member names, or the complete JSON report schema. Diagnostics-delivery failure behavior is specified in DK-DIAG-04 without prescribing file-writing internals or requiring recovery from an unwritable destination.
+DK-DIAG-04 fixes the shared JSON report's minimum structure, required member names and types, context representation, and compatibility rules. Exact API names, Python representations, and a result or exception mechanism remain unspecified. Diagnostics-delivery failure behavior is specified in DK-DIAG-04 without prescribing file-writing internals or requiring recovery from an unwritable destination.
 
 **Rationale (non-normative):** Python applications can inspect diagnostics directly and choose whether to save a report afterward. A shared JSON format avoids requiring callers to reconstruct the CLI report format. Access after a policy-driven abort preserves the diagnostics needed to understand the failure.
 
