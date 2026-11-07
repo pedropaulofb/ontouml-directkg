@@ -452,6 +452,14 @@ class Invocation(Protocol):
         """
         ...
 
+    def read_relation_stereotype_annotations(self, observation: Observation, source: Path) -> tuple[tuple[Node, Node, Node], ...]:
+        """Audit actual relation-declaration output; unknown forms are unbound.
+
+        Source text and independently required annotations are retained.
+        This is a replaceable test-side reader, not a production API.
+        """
+        ...
+
     def read_historical_dependence_annotations(self, observation: Observation, source: Path) -> tuple[tuple[Node, Node, Node], ...]:
         """Read additional stereotype-declaration annotations in actual RDF.
 
@@ -534,6 +542,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_property_stereotype_comments(self, observation):
+        self._unavailable()
+
+    def read_relation_stereotype_annotations(self, observation, source):
         self._unavailable()
 
     def read_historical_dependence_annotations(self, observation, source):
@@ -1080,6 +1091,16 @@ class _DirectKGInvocation(_UnboundInvocation):
                     f"inspect and adapt its actual wording: {(subject, RDFS.comment, literal)!r}"
                 )
         return ()
+
+    def read_relation_stereotype_annotations(self, observation, source):
+        """Reuse the inspected producer's RDF audit for RD-17's three relations.
+
+        The current writer emits no declaration annotations for these stereotypes.
+        The existing audit reads every actual triple, source text and known flag
+        form. Unknown output raises unavailability; no empty evidence is assumed.
+        Positive declaration forms remain unbound until actually inspectable.
+        """
+        return self.read_historical_dependence_annotations(observation, source)
 
     def read_historical_dependence_annotations(self, observation, source):
         """Audit the current producer's actual annotation forms for absence.

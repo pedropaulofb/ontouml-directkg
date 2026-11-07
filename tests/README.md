@@ -1424,3 +1424,65 @@ Full-suite execution and unbound operations remain unperformed.
 Correction base: `6962d68f972466e7b8d5445cfe1e72cca4a0c282`. The intervening
 RD-17 registration and instantiation documentation correction are preserved;
 they change no RD-04 clause, test, support, fixture or production blob.
+
+## RD-17 — participation, creation and termination, alternative A
+
+TEST CHANGE for the owner's unified handoff and Architect Reviewer **OK, no
+findings**, at `8bfc90fc40d732212ea84e583986c7ae0b96c65b`. This submission is
+pending independent Test Reviewer review. The preceding RD-04 F1 correction at
+`d74c0e7da378d88abbf5c400d2e7b3d6488dc35a` is accepted and closed; its earlier
+pending-review notes describe the historical submission. No review reuse or
+procedural waiver applies. Downstream work proceeds independently under the
+owner's explicit sequencing instruction.
+
+DK-REL-01 retains ordinary mapping for all three stereotypes, excludes additional
+stereotype-only axioms/declaration annotations and preserves independent output.
+DK-GEN-11, DK-REL-04 and DK-DIAG-01 align that boundary. Limitation warnings are
+required despite successful naming and remain nonfatal under every input policy.
+No previous accepted mapping is superseded. `participational` and its per-axiom
+compatibility gate retain their existing treatment. Current transformation blob:
+`07c3b20ae236500efd9bf59299c6e31f249fbcd0`; structure blob:
+`250a059d46377360aeecdb5176310bd36bde7825`.
+
+The existing relations module adds 39 cases and strengthens six existing exact
+direction/name cases. Canonical complete inputs remain `shared/binary_relation`
+and `relations/hierarchy`. No fixture, stored expectation, dependency or pytest
+configuration changes. Fixed RDF/naming assertions cover ordinary output, default
+controls, all input policies, named/anonymous inverses, counts, descriptions,
+source-ID annotations/omission, source and generated labels, language handling,
+disabled stereotype naming and explicit relation hierarchy. Logical graph
+comparisons and the audited annotation reader reject additional output while
+preserving independently required comments, including authored stereotype text.
+
+The logical-comparison, other-diagnostic and limitation-warning helpers now have
+general relation names; every historical consumer is updated without changing
+their behavior or node IDs. The adapter's scoped `read_relation_stereotype_annotations`
+reuses its existing actual-RDF audit. Unknown annotation forms remain explicitly
+unbound; the reader does not assume empty evidence. No diagnostic is fabricated,
+and no native identifier, exact message, count, Turtle order or blank-node label
+becomes a requirement.
+
+Validation with Python 3.12.14 and the pinned dependencies: **3,347 collected**,
+all **3,308 previous exact nodes retained**. Combined affected execution:
+**127 passed, 45 failed**. All failures are the missing required limitation
+warning: 39 new nodes and six intentionally strengthened naming nodes. Their
+preceding mapping/annotation assertions pass; both naming directions execute
+before the warning check. All 127 unchanged selected cases retain their passes.
+The earlier five-axiom selection remains **90 passed**, including `participational`
+asymmetry and per-axiom compatibility. All **88 fixture/RDF-helper checks** pass.
+
+Scratch controls over real outputs reject 21 logical mutations, report 12 unknown
+annotation forms as unbound, and accept three timestamp variants and three actual
+source descriptions naming the stereotype. These are harness validation, not
+passing conversion coverage. No positive warning or replacement conversion is
+supplied. Inventory/fixture-path checks, all Python parsing and git diff --check
+pass. Full-suite execution, full provenance conformance, positive declaration
+annotation interpretation and broader unbound operations remain unperformed.
+Actual commands, Catalog/exporter evidence and exact nodes are in coverage.md.
+
+Initial inspection: `d74c0e7da378d88abbf5c400d2e7b3d6488dc35a`. The refreshed
+main first advanced through `005185ed9591c42d50e6bc84d036c68b5acfbaf8`, changing
+only the diagnostics module's explanatory docstring. Publication base
+`dd30b88011638c808bcbfd12a8f22cf55fd1fc68` additionally updates six root/site
+documentation paths. All intervening content is preserved; test, fixture and
+governing-source blobs are unchanged, with no executable production change.
