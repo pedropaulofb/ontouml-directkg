@@ -132,7 +132,7 @@ The following groups explain when diagnostics occur. Their linked mapping pages 
 | Attribute explicitly typed by recognized unsupported `void` | Nonfatal warning identifying available attribute/owner/type information and omitted mapping/range; null typing is separately supported |
 | Unnamed ordinary relation uses target-role or endpoint fallback, including insufficient [semantic-role evidence](../mapping/relations.md#structural-evidence-for-semantic-naming) | Nonfatal warning under existing naming conditions unless a specific rule replaces it; comparative reaching its deliberately unmapped semantic-name step warns before fallback. No additional naming diagnostic solely for generating a fallback label. |
 | Successful ordinary stereotype naming / successful relator naming | Ordinary stereotype success adds no event solely for that success; relator-derived success should produce informational provenance reporting, without a warning merely for success. Independently applicable diagnostics remain. |
-| Deliberately unmapped applicable relation stereotype, including `historicalDependence` | Nonfatal limitation warning under DK-DIAG-01; retain the weaker ordinary mapping where defined. Naming success or fallback does not suppress the warning. See [Historical dependence](../mapping/relations.md#historical-dependence). |
+| Deliberately unmapped applicable relation stereotype, including `historicalDependence`, `participation`, `creation`, and `termination` | Nonfatal limitation warning under DK-DIAG-01; retain the ordinary mapping where defined. For the latter three, the warning remains nonfatal under every input policy, including `strict`. Naming success, fallback, or disabling stereotype naming does not suppress independently applicable limitation reporting. See [Historical dependence](../mapping/relations.md#historical-dependence) and [Participation, creation, and termination](../mapping/relations.md#participation-creation-and-termination), including the implementation status. |
 | Usable material semantic name unavailable | Warning, then accepted source–target fallback |
 | Multiple project languages with no local tag or override for a supported value | Nonfatal WARNING and untagged value; may consolidate to avoid unnecessary repetition |
 
@@ -229,7 +229,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-02–06; DK-LBL-01; DK-GEN-09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-07**; repository commit: `8bfc90fc40d732212ea84e583986c7ae0b96c65b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/8bfc90fc40d732212ea84e583986c7ae0b96c65b/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

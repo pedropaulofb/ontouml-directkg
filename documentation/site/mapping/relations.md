@@ -92,6 +92,34 @@ Source-description mappings and independently required annotations remain applic
 
 The existing nonfatal [limitation warning](../reference/diagnostics.md#names-typing-and-source-text) for a deliberately unmapped applicable relation stereotype still applies under DK-DIAG-01. Naming success or fallback does not suppress this warning; no warning-suppression exception is established for `historicalDependence`.
 
+### Participation, creation, and termination
+
+Eligible ordinary relations carrying `participation`, `creation`, or `termination` retain their existing property identity, direction, naming, labels, descriptions, domains, ranges, cardinalities, inverses, and applicable generalization mappings. **Their stereotype semantics are only partially translated.** Ordinary properties and explicit source constraints do not, by themselves, enforce the full participation, creation, or termination semantics (DK-REL-01 / RD-17).
+
+These stereotypes alone add no logical axioms or annotations recording their declaration. This exclusion does not remove source descriptions, labels, applicable source-ID annotations, association-end annotations, or other independently required output. The [automatic metadata permission](../guides/metadata-and-provenance.md#optional-automatic-enrichment) does not override it.
+
+The existing naming precedence and [semantic candidates](#semantic-naming-candidates) remain applicable: relation names and target-role names take precedence over stereotype naming. Successful naming does not establish full semantic preservation or suppress the applicable [limitation warning](../reference/diagnostics.md#names-typing-and-source-text). Disabling stereotype-derived naming changes lexical selection under its existing rules; it does not suppress independently applicable limitation reporting.
+
+The limitation warning is **nonfatal under every input policy, including `strict`**. Independently applicable errors and abort conditions remain in force. Existing diagnostic consolidation, content restrictions, console filtering, JSON reporting, and delivery rules still apply; this decision selects no diagnostic identifier or diagnostic-count requirement.
+
+`participation` and `participational` are distinct stereotypes. The accepted [asymmetry for `participational`](#additional-relation-axioms) and its [per-axiom compatibility gate](#compatibility-of-each-addition) remain unchanged. No temporal subsystem, semantic validation, source repair, or general OWL-profile guarantee is introduced.
+
+For example, suppose an unnamed `creation` relation runs from an endurant class `active_entity` to an event class `process`, with no usable target-role name and stereotype naming enabled. Assume entity base `https://example.org/model#` and no naming collisions. Under the applicable name-based rules, this **specification illustration** shows only the primary property's core mapping:
+
+```turtle
+@prefix : <https://example.org/model#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:wasCreatedIn a owl:ObjectProperty ;
+    rdfs:domain :active_entity ;
+    rdfs:range :process .
+```
+
+This is a partial graph, not captured converter output. It omits the ontology header/import, class declarations, annotations, cardinality restrictions, named inverse, and provenance; their independently applicable mappings still apply. The fragment does not establish a complete temporal lifecycle theory. Domain and range retain their [inferential meaning](../concepts/semantics.md#domain-graph-and-inferential-axioms).
+
+**Implementation status:** At the [inspected source revision `d74c0e7da378d88abbf5c400d2e7b3d6488dc35a`](https://github.com/pedropaulofb/ontouml-directkg/blob/d74c0e7da378d88abbf5c400d2e7b3d6488dc35a/src/ontouml_directkg/relations.py), ordinary relation processing has a limitation-warning branch for `historicalDependence` but none for these three stereotypes. Their required limitation reporting is an implementation gap at that revision. This subsection describes accepted intended behavior; no complete end-to-end verification of these treatments is asserted here.
+
 ## Additional relation axioms
 
 The following additions apply to successfully mapped primary `owl:ObjectProperty` resources, subject to the [compatibility check for each addition](#compatibility-of-each-addition):
@@ -219,7 +247,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03, 12; DK-INV-12; DK-LBL-01; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-06**; repository commit: `2b427908a7e29d546486a616a22495ea0424f294`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-07**; repository commit: `8bfc90fc40d732212ea84e583986c7ae0b96c65b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/8bfc90fc40d732212ea84e583986c7ae0b96c65b/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
