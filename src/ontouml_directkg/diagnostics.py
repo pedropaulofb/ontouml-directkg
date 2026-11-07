@@ -1,7 +1,8 @@
-"""Production diagnostics and explicit JSON export (DK-DIAG-04).
+"""Production diagnostics and shared CLI/Python JSON export (DK-DIAG-04).
 
-Code names and JSON keys are implementation representations, not additional
-transformation requirements. The future CLI can use this same report writer.
+The report's required member names, types and context representations follow
+the shared JSON contract. The CLI and explicit Python export use this writer.
+Exact diagnostic identifiers and the complete code catalogue remain unspecified.
 """
 
 from dataclasses import asdict, dataclass
