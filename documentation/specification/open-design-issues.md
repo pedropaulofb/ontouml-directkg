@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-06, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-07, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's `participation`/`creation`/`termination` treatment, and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -28,10 +28,10 @@ Alternatives and the advisory prioritization below are non-normative. No new map
 **Decision still needed:** Complete the previously recorded stereotype-treatment decisions for these groups:
 
 - `mediation`, `characterization`, and `externalDependence`: determine whether their remaining treatment is adequately covered by the accepted partial mappings and applicable limitation reporting, or whether another justified mapping is needed. The accepted grounding roles and five additional axioms are not open alternatives.
-- `participation`, `participational`, `creation`, `termination`, and `manifestation`: decide the remaining stereotype-specific treatment. Asymmetry for `participational` is settled; this acceptance does not extend to `participation`.
+- `participational` and `manifestation`: decide the remaining stereotype-specific treatment. The accepted asymmetry for `participational` remains unchanged.
 - `bringsAbout` and `triggers`: decide whether an additional justified logical mapping, declaration annotation, or explicit ordinary-mapping/limitation treatment is appropriate.
 
-`historicalDependence` is outside these remaining questions: its ordinary mapping, applicable limitation warning, and omission of extra stereotype-only axioms and declaration annotations are settled in DK-REL-01.
+`historicalDependence`, `participation`, `creation`, and `termination` are outside these remaining questions: their ordinary mappings, applicable limitation warnings, and omission of extra stereotype-only axioms and declaration annotations are settled in DK-REL-01.
 
 **Why it matters and constraints:** Ordinary properties may preserve only part of a source stereotype's meaning. A stereotype name alone does not justify functionality, transitivity, chains, or other characteristics. Partial logical translation is also not, by itself, a reason to add a stereotype annotation. The domain-graph and lightweight-output goals in §3.1 and the no-semantic-validation boundary in §3.4 continue to apply. No universal stereotype-annotation policy or temporal subsystem is implied.
 
@@ -173,6 +173,12 @@ These are research pointers retained from the inspected prior state and session;
 - Catalog: https://github.com/OntoUML/ontouml-models
   - Historical prior inspection snapshots: 198 JSON models at `8ea0398cc273a49d9ea28aa534b1bb0316c6687c`; 202 JSON files at `2a60b2f77f9e43734d1fdd98ebdec954a840dc18`. These are historical scopes, not current counts.
   - The retained RD-09 study reported 84 enumerations and 290 direct literals in the latter snapshot, without malformed or partially transformable direct literals observed. This supports proportionate investigation, not a claim that malformed inputs are impossible.
+- Bounded event-relation investigation:
+  - Supported exporter 0.5.3 at `9fc02b8162db9910f21b8713549cafce2627dad0`: inspected `ontouml/model/RelationStereotype.java`, `vp2ontouml/IAssociationTransformer.java`, `ontouml/serialization/RelationSerializer.java`, and `ontouml/serialization/ClassifierSerializer.java` under `src/main/java/it/unibz/inf/ontouml/vp/model/`. The enum recognizes `participation`, `creation`, and `termination`; the association transformer preserves ordered source/target ends. Source: https://github.com/OntoUML/ontouml-vp-plugin/tree/9fc02b8162db9910f21b8713549cafce2627dad0/src/main/java/it/unibz/inf/ontouml/vp/model
+  - Catalog snapshot `99d23ff1e1c2bf58a7bd99ef0156eba79a611c99`: `models/garcia2022human-genome-events/ontology.json` contains one relation of each stereotype: `Entity_in_process` to `participation_in_biological_event` (`participation`), `active_entity` to `process` (`creation`), and `degraded_entity` to `process` (`termination`). Source: https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/garcia2022human-genome-events/ontology.json
+  - The second selected Catalog file, `models/rodrigues2019ontocrime/ontology.json` at that snapshot, contained none of these three relation stereotypes. The bounded check establishes occurrence, not Catalog-wide frequency, verified exporter provenance, or end-to-end compatibility.
+  - Almeida, Falbo, and Guizzardi (2019), *Events as Entities in Ontology-Driven Conceptual Modeling*, §3.2, supplies OntoUML event/endurant semantics: https://nemo.inf.ufes.br/wp-content/papercite-data/pdf/events_as_entities_in_ontology_driven_conceptual_modeling_2019.pdf
+  - gUFO 1.0.0, `wasCreatedIn` and `wasTerminatedIn` documentation, was inspected as comparison evidence: https://nemo-ufes.github.io/gufo/ . Its implementation choices are not automatically DirectKG requirements.
 - OWL 2 structural specification, Second Edition, especially property simplicity and global restrictions (§§11.1–11.2): https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/
 - Standard provenance/metadata references, if a remaining question requires them: https://www.w3.org/TR/prov-o/ ; https://www.dublincore.org/specifications/dublin-core/dcmi-terms/ ; https://spdx.org/rdf/terms/
 
