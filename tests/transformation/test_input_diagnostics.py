@@ -599,6 +599,7 @@ def test_shared_json_contract_python_export_preserves_required_fields_and_actual
 
     RD-04 alternative A, reviewed registration 37e68764202a2a18e0c54ac264df1536ff47e28c.
     Codes and wording are observed event data, never fixed expected identifiers.
+    Re-read the live ontology after export to verify continued output eligibility.
     """
     source, options = _json_contract_source(source_json, tmp_path, scenario)
     result = invoke.convert(source, options=options, workdir=tmp_path)
@@ -612,10 +613,12 @@ def test_shared_json_contract_python_export_preserves_required_fields_and_actual
     payload = json.loads(destination.read_bytes())
     assert _json_report_contract(payload) == before
     assert _native_report_records(invoke.report_content(result)) == before
+    observed_graph = invoke.read_ontology(result)
     if graph is None:
-        assert result.ontology is None
+        assert observed_graph is None
     else:
-        assert_graph_equal(result.ontology, graph)
+        assert observed_graph is not None
+        assert_graph_equal(observed_graph, graph)
     events = payload["diagnostics"]
     if scenario in {"partial", "unprocess", "metadata_failure", "duplicate_abort"}:
         assert any(event["severity"] == "ERROR" for event in events)
@@ -688,6 +691,7 @@ def test_shared_json_contract_export_failure_preserves_native_diagnostics_and_ou
     """Rules: DK-DIAG-04, DK-DIAG-05; §15 explicit Python export failure.
 
     RD-04 at 37e68764202a2a18e0c54ac264df1536ff47e28c; real destination failure.
+    Re-read the live ontology after failure to verify continued output eligibility.
     """
     source, options = _json_contract_source(source_json, tmp_path, scenario)
     result = invoke.convert(source, options=options, workdir=tmp_path)
@@ -699,10 +703,12 @@ def test_shared_json_contract_export_failure_preserves_native_diagnostics_and_ou
     assert exported.failure is not None and exported.failure.raw is not None
     assert exported.failure.destination == destination and exported.failure.reason
     assert _native_report_records(invoke.report_content(result)) == before
+    observed_graph = invoke.read_ontology(result)
     if graph is None:
-        assert result.ontology is None
+        assert observed_graph is None
     else:
-        assert_graph_equal(result.ontology, graph)
+        assert observed_graph is not None
+        assert_graph_equal(observed_graph, graph)
 
 
 def _report_source(source_json,tmp_path,scenario):

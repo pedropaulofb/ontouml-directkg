@@ -1352,13 +1352,17 @@ their original meaning; this test review does not certify passing production.
 
 ## RD-04 — Shared JSON diagnostics contract
 
-Initial TEST CHANGE for the owner's unified handoff and Architect Reviewer OK,
-no findings, at `37e68764202a2a18e0c54ac264df1536ff47e28c`. This submission awaits
-independent Test Reviewer review. The earlier RD-02 test submission is accepted
-and closed. Current sources are transformation-specification.md (blob
-9feeb4c88090735196ceb43ed4f34f67f5672cfb) and test-suite-structure.md (unchanged
-blob 250a059d46377360aeecdb5176310bd36bde7825), under documentation/specification/.
-Only former unspecified JSON-structure qualifications are superseded.
+Same-target F1 correction following Test Reviewer **NOT OK** for
+`021961b767e3bc461708c86671b0f7fbc0a9c5fd`. The owner's unified handoff and
+Architect Reviewer **OK, no findings**, at
+`37e68764202a2a18e0c54ac264df1536ff47e28c` remain applicable. This correction
+awaits independent Test Reviewer review; no review reuse or waiver applies.
+The earlier RD-02 test submission is accepted and closed. Current sources are
+transformation-specification.md (blob 07c3b20ae236500efd9bf59299c6e31f249fbcd0)
+and test-suite-structure.md (unchanged blob
+250a059d46377360aeecdb5176310bd36bde7825), under documentation/specification/.
+DK-DIAG-04, DK-DIAG-05 and §15 are unchanged from the RD-04 registration. Only
+former unspecified JSON-structure qualifications are superseded.
 
 43 native acceptance cases and one reader/harness case cover the required shared
 JSON envelope, diagnostic/source members and types, empty/null context, all three
@@ -1384,7 +1388,8 @@ python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py t
 python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py tests/cli/test_cli.py -k 'not shared_json_contract' --tb=no -rN
 ```
 
-Python 3.12.14; pytest 9.1.1; RDFLib 7.6.0; PyYAML 6.0.3. Collection: 3,308,
+Initial submission validation: Python 3.12.14; pytest 9.1.1; RDFLib 7.6.0;
+PyYAML 6.0.3. Collection: 3,308,
 retaining all 3,264 previous nodes. The same 526 existing diagnostics/CLI nodes
 improve from 371 passes / 155 unbound failures to 385 passes / 141 unbound
 failures, with no previous pass regressing. Additional adapter regressions: 176
@@ -1395,6 +1400,27 @@ git diff --check passes; detailed commands and evidence limits are in coverage.m
 No production/specification changes. Full-suite and full-provenance execution and
 unbound operations are unperformed. Historical results above retain their meaning.
 
-Before publication, main advanced through documentation-only revision
+Before initial publication, main advanced through documentation-only revision
 `c9bd97c970ef6789c0edb35cf0cac757ba3c5c51`. All six intervening root/site changes
 are preserved; test, fixture, production and governing-source blobs are unchanged.
+
+**F1 correction validation (2026-11-07):** both successful and failed Python
+export checks now use `invoke.read_ontology(result)` after export. A copied
+pre-export graph is compared with the live graph by isomorphism; aborted results
+must still expose no graph. The existing adapter already binds this reader to
+the real result. No adapter, fixture, parameter ID or normative behavior changes.
+
+Six controls performed real exports, then replaced only the live result's graph:
+eligible graphs were removed and aborted results acquired a graph. The unchanged
+tests falsely passed all six controls; the corrected assertions reject all six.
+Normal RD-04 execution: **44 passed**. Directly affected pre-existing diagnostic
+access/export checks: **8 passed, 1 existing ImplementationUnavailable failure**
+for the unbound required-provenance fault injection. Collection remains **3,308**
+with every prior node retained. Inventory, Python parsing and git diff --check
+pass. Detailed commands are in coverage.md. Earlier broad regression, fixture,
+shape and CLI controls are historical results, not reruns for this correction.
+Full-suite execution and unbound operations remain unperformed.
+
+Correction base: `6962d68f972466e7b8d5445cfe1e72cca4a0c282`. The intervening
+RD-17 registration and instantiation documentation correction are preserved;
+they change no RD-04 clause, test, support, fixture or production blob.
