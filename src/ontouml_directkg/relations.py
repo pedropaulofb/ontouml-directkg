@@ -313,9 +313,10 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
         if stereotype in {"memberOf", "subCollectionOf", "subQuantityOf", "componentOf"}:
             graph.add((primary, RDFS.subPropertyOf, URIRef("https://w3id.org/directkg/vocab/dkgm#" + stereotype)))
             graph.add((primary, RDF.type, OWL.AsymmetricProperty))
-        elif stereotype == "historicalDependence":
+        elif stereotype in {"historicalDependence", "participation", "creation", "termination"}:
+            stereotype_label = "Historical-dependence" if stereotype == "historicalDependence" else stereotype.capitalize()
             diagnostics.add("WARNING", "UNMAPPED_RELATION_STEREOTYPE",
-                            "Historical-dependence semantics are only partially translated.",
+                            f"{stereotype_label} semantics are only partially translated.",
                             "Ordinary relation mappings are retained; no additional axioms or "
                             "stereotype-declaration annotations are supplied solely by this stereotype.",
                             (source.location,), str(primary))
