@@ -1486,3 +1486,62 @@ only the diagnostics module's explanatory docstring. Publication base
 `dd30b88011638c808bcbfd12a8f22cf55fd1fc68` additionally updates six root/site
 documentation paths. All intervening content is preserved; test, fixture and
 governing-source blobs are unchanged, with no executable production change.
+
+## RD-17 — participational and manifestation, alternative A
+
+TEST CHANGE for the owner's unified handoff and Architect Reviewer **OK, no
+findings**, at `fb05478031e290b123e766ad5188e4cef9935357`. Pending independent
+Test Reviewer review; no prior-review reuse or additional waiver applies. The
+owner's independent downstream sequencing instruction remains applicable. The
+preceding participation/creation/termination test gate is closed at
+`363d0d37bb1ae56a0ef3cdc762dd3ca7d4994dc6`; its earlier pending-review and
+execution notes above describe that historical submission.
+
+DK-REL-01 preserves ordinary mappings, the existing guarded participational
+asymmetry, and independently required output. Manifestation supplies no additional
+property characteristic. No further stereotype-only axioms/declaration annotations
+are permitted. Both stereotypes require a nonfatal residual-semantics WARNING
+under every input policy, whether naming succeeds or the asymmetry is generated
+or gate-omitted. DK-GEN-11, DK-REL-04 and DK-DIAG-01 align this boundary. No
+accepted mapping is superseded; no code, wording or diagnostic count is fixed.
+Current transformation blob: `54510d68a663643db75d7bb4ea8e30329e06c074`;
+unchanged structure blob: `250a059d46377360aeecdb5176310bd36bde7825`.
+
+Extend the existing partial-relation tests with **26 parameters**: six ordinary
+mapping profiles, sixteen naming/control cases (each checks both directions),
+and four hierarchy cases. Add **nine gate/policy cases** using the original gate
+assertions, now shared through a helper without changing the old nodes. Strengthen
+**18 existing nodes**: four semantic naming cells, eleven whole-marker variants
+and three insufficient-role policy cells. Zero, one or two whole markers retain
+their accepted lexical treatment and independently required warning.
+
+Canonical complete inputs remain at `shared/binary_relation`, `relations/hierarchy`
+and `relations/chain_constraints`; no stored fixture, expectation, dependency or
+pytest configuration changes. Logical comparisons admit only the explicitly
+expected pre-existing primary asymmetry where compatible. They do not mutate
+either actual graph or infer a replacement conversion. Manifestation is compared
+with ordinary logic without an added characteristic. Descriptions (including
+authored stereotype text), labels, source IDs/omission, counts, inverse forms,
+independent flags/end annotations and other diagnostics are retained. The existing
+RDF annotation reader remains bound; only its description is generalized.
+
+Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0, PyYAML 6.0.3. Full collection:
+**3,382**, retaining all **3,347** previous exact nodes. Combined affected
+execution: **216 passed, 53 failed**. Every failure is the missing residual
+WARNING: 35 new and 18 deliberately strengthened nodes. Earlier mapping, naming,
+annotation and asymmetry-gate assertions pass; both naming directions and every
+gate/policy branch execute before the warning assertion. The same pre-existing
+selection at the publication baseline yields **234 passed**. All 216 unchanged
+selected nodes retain their passes. The 90-case compatibility subset passes;
+all **88 fixture/RDF-helper checks** pass.
+
+Scratch actual-RDF controls reject fourteen extra logical mutations and detect
+removal of required asymmetry. Eight unfamiliar annotation forms remain explicitly
+unbound. Real source text, blank-node relabeling and timestamp variants are
+accepted; no positive diagnostic is fabricated. Inventory/path/Rules checks,
+Python parsing and whitespace checks pass. Full-suite execution, full provenance
+conformance, positive declaration interpretation and broader unbound operations
+remain unperformed. This is test-first evidence, not production conformance.
+Detailed commands, selected Catalog/exporter evidence and all 53 exact affected
+nodes are in coverage.md. Initial inspected main is
+`fb05478031e290b123e766ad5188e4cef9935357`.

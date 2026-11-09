@@ -1093,7 +1093,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         return ()
 
     def read_relation_stereotype_annotations(self, observation, source):
-        """Reuse the inspected producer's RDF audit for RD-17's three relations.
+        """Reuse the inspected producer's RDF audit for RD-17's settled relations.
 
         The current writer emits no declaration annotations for these stereotypes.
         The existing audit reads every actual triple, source text and known flag
