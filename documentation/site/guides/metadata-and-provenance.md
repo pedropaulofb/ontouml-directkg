@@ -94,7 +94,7 @@ Descriptive citations through `dcterms:source` differ from execution inputs actu
 
 The seven-field whitelist limits only external-file ingestion. Additional metadata/provenance may be generated when reliably determined from source, ontology, execution, or output context and meaningfully useful. It remains subject to the selected mode, output-file boundary, and explicit omission rules. It cannot indirectly ingest ignored fields or add RDF origin markers solely to distinguish generated relation labels.
 
-This permission does not authorize additional annotations solely recording the `participation`, `creation`, or `termination` stereotype declarations. Their [ordinary-mapping boundary](../mapping/relations.md#participation-creation-and-termination) still preserves independently required source descriptions, labels, applicable source-ID annotations, and association-end annotations under their own rules.
+This permission does not authorize additional annotations solely recording the `participation`, `creation`, `termination`, `participational`, or `manifestation` stereotype declarations. Their [ordinary-mapping](../mapping/relations.md#participation-creation-and-termination) and [partial-mapping](../mapping/relations.md#participational-and-manifestation) boundaries still preserve independently required source descriptions, labels, applicable source-ID annotations, and association-end annotations under their own rules.
 
 Use appropriate **established external vocabulary terms**, without DirectKG-specific metadata/provenance predicates. Where no appropriate standard representation has been identified, the concept remains unsupported pending such identification or an accepted decision. Unavailable optional enrichment alone does not require abortion.
 
@@ -157,7 +157,7 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 
 ---
 
-Governing rules: DK-GEN-08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-07**; repository commit: `8bfc90fc40d732212ea84e583986c7ae0b96c65b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/8bfc90fc40d732212ea84e583986c7ae0b96c65b/documentation/specification/transformation-specification.md).
+Governing rules: DK-GEN-08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-09**; repository commit: `fb05478031e290b123e766ad5188e4cef9935357`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5; included in the cited consolidation).
 

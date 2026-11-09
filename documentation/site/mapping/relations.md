@@ -102,7 +102,7 @@ The existing naming precedence and [semantic candidates](#semantic-naming-candid
 
 The limitation warning is **nonfatal under every input policy, including `strict`**. Independently applicable errors and abort conditions remain in force. Existing diagnostic consolidation, content restrictions, console filtering, JSON reporting, and delivery rules still apply; this decision selects no diagnostic identifier or diagnostic-count requirement.
 
-`participation` and `participational` are distinct stereotypes. The accepted [asymmetry for `participational`](#additional-relation-axioms) and its [per-axiom compatibility gate](#compatibility-of-each-addition) remain unchanged. No temporal subsystem, semantic validation, source repair, or general OWL-profile guarantee is introduced.
+`participation` and `participational` are distinct stereotypes. The accepted [asymmetry for `participational`](#additional-relation-axioms) and its [per-axiom compatibility gate](#compatibility-of-each-addition) remain unchanged; its [remaining semantic limitation](#participational-and-manifestation) has separate warning requirements. No temporal subsystem, semantic validation, source repair, or general OWL-profile guarantee is introduced.
 
 For example, suppose an unnamed `creation` relation runs from an endurant class `active_entity` to an event class `process`, with no usable target-role name and stereotype naming enabled. Assume entity base `https://example.org/model#` and no naming collisions. Under the applicable name-based rules, this **specification illustration** shows only the primary property's core mapping:
 
@@ -119,6 +119,38 @@ For example, suppose an unnamed `creation` relation runs from an endurant class 
 This is a partial graph, not captured converter output. It omits the ontology header/import, class declarations, annotations, cardinality restrictions, named inverse, and provenance; their independently applicable mappings still apply. The fragment does not establish a complete temporal lifecycle theory. Domain and range retain their [inferential meaning](../concepts/semantics.md#domain-graph-and-inferential-axioms).
 
 **Implementation status:** At the [inspected source revision `d74c0e7da378d88abbf5c400d2e7b3d6488dc35a`](https://github.com/pedropaulofb/ontouml-directkg/blob/d74c0e7da378d88abbf5c400d2e7b3d6488dc35a/src/ontouml_directkg/relations.py), ordinary relation processing has a limitation-warning branch for `historicalDependence` but none for these three stereotypes. Their required limitation reporting is an implementation gap at that revision. This subsection describes accepted intended behavior; no complete end-to-end verification of these treatments is asserted here.
+
+### Participational and manifestation
+
+Eligible ordinary `participational` and `manifestation` relations retain their existing property identity, direction, naming, labels, descriptions, domains, ranges, explicit cardinalities, inverses, generalizations, and independently required annotations. **Their semantics are only partially translated:** ordinary mappings and applicable `participational` asymmetry do not, by themselves, establish full participant-dependent decomposition or manifestation semantics (DK-REL-01 / RD-17).
+
+`participational` retains its [asymmetry declaration](#additional-relation-axioms), subject to the existing [compatibility gate](#compatibility-of-each-addition). That gate considers the property hierarchy, inverse relationships, and import closure in every material-chain mode. `manifestation` alone supplies no additional property characteristic. Neither stereotype supplies further stereotype-only logical axioms or annotations recording its declaration. Independently required source descriptions, labels, source-ID annotations, association-end annotations, and other axioms remain applicable; the [automatic metadata permission](../guides/metadata-and-provenance.md#optional-automatic-enrichment) does not override this exclusion.
+
+Existing naming precedence, language handling, and controls remain applicable. In particular, `participational` semantic naming still requires [exactly one whole-marked end](#structural-evidence-for-semantic-naming); endpoint positions or descriptive text cannot supply missing role evidence. Successful naming does not establish complete semantic preservation.
+
+When an eligible ordinary relation carrying either stereotype is successfully mapped, report the remaining semantic limitation through a **WARNING, nonfatal under every input policy, including `strict`**. Successful naming or generation of `participational` asymmetry does not suppress this warning; it also applies when the compatibility gate omits that asymmetry. Disabling stereotype naming does not suppress it. Independently applicable errors and abort conditions retain their existing behavior. Existing diagnostic consolidation, content restrictions, console filtering, [JSON reporting](../reference/diagnostics.md#shared-json-report-contract), and delivery rules apply; this decision prescribes no exact diagnostic identifier, wording, or count.
+
+For a **specification illustration**, assume unnamed relations with no usable target-role names: event `ParticipantEvent` → event `Meeting`, with exactly one whole-marked end at `Meeting`; and mode `Disposition` → event `ManifestationEvent`. Assume name-based identity, stereotype naming enabled, entity base `https://example.org/model#`, no naming collisions, and a passing asymmetry compatibility check:
+
+```turtle
+@prefix : <https://example.org/model#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:participationalPartOf
+    a owl:ObjectProperty, owl:AsymmetricProperty ;
+    rdfs:domain :ParticipantEvent ;
+    rdfs:range :Meeting .
+
+:manifestedIn
+    a owl:ObjectProperty ;
+    rdfs:domain :Disposition ;
+    rdfs:range :ManifestationEvent .
+```
+
+These are partial graph fragments, not captured converter output. The ontology header/import, class declarations, explicit cardinalities, inverses, labels, descriptions, identifiers, other applicable annotations, and provenance are omitted from the illustration; their governing rules remain applicable. The fragments supply neither a full participant-based decomposition of the meeting nor a complete dispositional or triggering theory. This decision introduces no temporal subsystem, generic event-parthood vocabulary extension, semantic validation, source repair, or overall OWL-profile guarantee.
+
+**Implementation status:** Static inspection at [revision `fb05478031e290b123e766ad5188e4cef9935357`](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relations.py) finds no residual-semantics warning for either stereotype in ordinary relation processing. The [existing axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relation_axioms.py) contains guarded `participational` asymmetry. This subsection explains accepted intended behavior; required warning coverage remains an implementation dependency at that revision. No end-to-end verification of these treatments is asserted here.
 
 ## Additional relation axioms
 
@@ -247,7 +279,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-07**; repository commit: `8bfc90fc40d732212ea84e583986c7ae0b96c65b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/8bfc90fc40d732212ea84e583986c7ae0b96c65b/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-09**; repository commit: `fb05478031e290b123e766ad5188e4cef9935357`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
