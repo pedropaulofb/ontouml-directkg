@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-07, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's `participation`/`creation`/`termination` treatment, and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-09, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's `participation`/`creation`/`termination` and `participational`/`manifestation` treatments, and owner-directed prioritization for the first implementation. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -28,10 +28,9 @@ Alternatives and the advisory prioritization below are non-normative. No new map
 **Decision still needed:** Complete the previously recorded stereotype-treatment decisions for these groups:
 
 - `mediation`, `characterization`, and `externalDependence`: determine whether their remaining treatment is adequately covered by the accepted partial mappings and applicable limitation reporting, or whether another justified mapping is needed. The accepted grounding roles and five additional axioms are not open alternatives.
-- `participational` and `manifestation`: decide the remaining stereotype-specific treatment. The accepted asymmetry for `participational` remains unchanged.
 - `bringsAbout` and `triggers`: decide whether an additional justified logical mapping, declaration annotation, or explicit ordinary-mapping/limitation treatment is appropriate.
 
-`historicalDependence`, `participation`, `creation`, and `termination` are outside these remaining questions: their ordinary mappings, applicable limitation warnings, and omission of extra stereotype-only axioms and declaration annotations are settled in DK-REL-01.
+`historicalDependence`, `participation`, `creation`, `termination`, `participational`, and `manifestation` are outside these remaining questions: their ordinary/partial mappings, limitation reporting, and exclusions of further stereotype-only axioms and declaration annotations are settled in DK-REL-01. The accepted `participational` asymmetry and its compatibility gate remain applicable.
 
 **Why it matters and constraints:** Ordinary properties may preserve only part of a source stereotype's meaning. A stereotype name alone does not justify functionality, transitivity, chains, or other characteristics. Partial logical translation is also not, by itself, a reason to add a stereotype annotation. The domain-graph and lightweight-output goals in §3.1 and the no-semantic-validation boundary in §3.4 continue to apply. No universal stereotype-annotation policy or temporal subsystem is implied.
 
@@ -179,6 +178,12 @@ These are research pointers retained from the inspected prior state and session;
   - The second selected Catalog file, `models/rodrigues2019ontocrime/ontology.json` at that snapshot, contained none of these three relation stereotypes. The bounded check establishes occurrence, not Catalog-wide frequency, verified exporter provenance, or end-to-end compatibility.
   - Almeida, Falbo, and Guizzardi (2019), *Events as Entities in Ontology-Driven Conceptual Modeling*, §3.2, supplies OntoUML event/endurant semantics: https://nemo.inf.ufes.br/wp-content/papercite-data/pdf/events_as_entities_in_ontology_driven_conceptual_modeling_2019.pdf
   - gUFO 1.0.0, `wasCreatedIn` and `wasTerminatedIn` documentation, was inspected as comparison evidence: https://nemo-ufes.github.io/gufo/ . Its implementation choices are not automatically DirectKG requirements.
+- Bounded follow-up inspection for `participational` and `manifestation` (2026-11-07):
+  - The same supported exporter 0.5.3 enum at `9fc02b8162db9910f21b8713549cafce2627dad0` recognizes both stereotypes; `vp2ontouml/IAssociationTransformer.java` retains the same ordered binary ends. The inspected source paths are under the exporter root linked above.
+  - At Catalog snapshot `99d23ff1e1c2bf58a7bd99ef0156eba79a611c99`, `models/garcia2022human-genome-events/ontology.json` contains one `participational` relation, ID `DJwh6r6EifjQiREu`, from `participation_in_biological_event` to `process` (both `event`), with the target end marked `COMPOSITE`. The source and target cardinalities are `1..*` and `1`, respectively. Source: https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/garcia2022human-genome-events/ontology.json
+  - At the same snapshot, `models/guizzardi2022ufo/ontology.json` contains one `manifestation` relation, ID `j7Yr.V6GAqACDCIB`, from `Jog` (`mode`) to `Jogging Event` (`event`), with source and target cardinalities `1` and `1..*`. Source: https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/guizzardi2022ufo/ontology.json
+  - The third selected file, `models/zhou2017hazard/ontology.json` at that snapshot, contained neither stereotype. These three selected files establish concrete occurrences and source shapes, not Catalog-wide frequency, verified exporter provenance, or end-to-end compatibility.
+  - The same Almeida, Falbo, and Guizzardi (2019) paper, §2 and §3.3, describes disposition manifestation and participant-dependent event portions, including decomposition semantics beyond asymmetry. gUFO 1.0.0's `manifestedIn`, `isEventProperPartOf`, and `isProperPartOf` documentation supplied comparison evidence; it does not create DirectKG requirements. OWL 2 §§11.1–11.2 below supplied the property-simplicity constraints relevant to additional transitivity and the retained compatibility gate.
 - OWL 2 structural specification, Second Edition, especially property simplicity and global restrictions (§§11.1–11.2): https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/
 - Standard provenance/metadata references, if a remaining question requires them: https://www.w3.org/TR/prov-o/ ; https://www.dublincore.org/specifications/dublin-core/dcmi-terms/ ; https://spdx.org/rdf/terms/
 
