@@ -152,6 +152,26 @@ These are partial graph fragments, not captured converter output. The ontology h
 
 **Implementation status:** Static inspection at [revision `fb05478031e290b123e766ad5188e4cef9935357`](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relations.py) finds no residual-semantics warning for either stereotype in ordinary relation processing. The [existing axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relation_axioms.py) contains guarded `participational` asymmetry. This subsection explains accepted intended behavior; required warning coverage remains an implementation dependency at that revision. No end-to-end verification of these treatments is asserted here.
 
+### Mediation, characterization, and external dependence
+
+Eligible ordinary `mediation`, `characterization`, and `externalDependence` relations retain their existing property identity, direction, naming, labels, descriptions, domains, ranges, explicit cardinalities, inverses, generalizations, and independently required annotations. **These are partial semantic translations:** the retained structural constraints do not encode the complete modal/existential-dependence semantics of these stereotypes (DK-REL-01 / RD-17).
+
+The accepted [property characteristics](#additional-relation-axioms) remain: asymmetry for `mediation` and `characterization`, and irreflexivity for `externalDependence`. [Characterization–external-dependence disjointness](#characterization-and-external-dependence), including its partial illustration, retains its eligibility and direction-alignment rules. The [per-axiom compatibility gate](#compatibility-of-each-addition) applies in every material-chain mode. Existing grounding roles, [derivation treatment and optional material chains](derivations-and-chains.md#recognized-derivations), and mode-specific constraint policies remain applicable.
+
+Beyond these accepted mappings, the three stereotypes supply no further logical axioms or annotations solely recording their declarations. Source descriptions, labels, applicable source-ID annotations, association-end annotations, and other independently required output remain governed by their existing rules. The [automatic metadata permission](../guides/metadata-and-provenance.md#optional-automatic-enrichment) does not override this exclusion. Naming precedence, structural-evidence conditions, language handling, and controls remain unchanged.
+
+Successfully mapping an eligible ordinary relation with any of these three stereotypes requires a **residual-semantics WARNING, nonfatal under every input policy, including `strict`**. Successful naming, generation of accepted axioms or eligible material chains, and gate-based axiom omission do not suppress it. Disabling stereotype naming does not suppress it either. The warning reports partial translation; it does not imply that the ordinary properties or applicable accepted axioms were discarded.
+
+Independently applicable errors and abort conditions retain their established behavior. Existing diagnostic consolidation, content restrictions, console filtering, [JSON reporting](../reference/diagnostics.md#shared-json-report-contract), and delivery rules apply. This decision selects no exact diagnostic identifier, wording, or count and establishes no new reasoning subsystem, semantic validation, or overall OWL-profile guarantee.
+
+**Implementation status for these three stereotypes and `bringsAbout`/`triggers`:** At [inspected revision `490f209e0d70533bac56674e2844a7463fe77a09`](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/src/ontouml_directkg/relations.py), ordinary relation processing's limitation-warning branch includes none of these five stereotypes. The [axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/src/ontouml_directkg/relation_axioms.py) contains the accepted guarded characteristics and paired disjointness. Required residual-warning coverage for these five remains an implementation dependency at that revision. These explanations describe accepted intended behavior; no end-to-end verification is asserted here.
+
+### BringsAbout and triggers
+
+Successfully mapped eligible ordinary `bringsAbout` and `triggers` relations also require a **residual-semantics WARNING, nonfatal under every input policy, including `strict`**. Successful naming does not suppress it. Existing ordinary mappings, direction, naming, and independently required output retain their rules. Existing diagnostic consolidation, content restrictions, filtering, JSON reporting, and delivery policies apply; this decision selects no exact diagnostic identifier, wording, or count. Other diagnostics and failure conditions remain applicable. The implementation-status note above covers these two warning cases too.
+
+**Warning treatment is settled; further graph treatment remains unresolved.** A further stereotype-specific logical mapping or declaration annotation for this pair is still unspecified. The exclusion of further stereotype-only axioms and declaration annotations for `mediation`, `characterization`, and `externalDependence` does not extend to `bringsAbout` or `triggers`. The warning reports the residual semantics of their current ordinary mapping without selecting that remaining graph treatment.
+
 ## Additional relation axioms
 
 The following additions apply to successfully mapped primary `owl:ObjectProperty` resources, subject to the [compatibility check for each addition](#compatibility-of-each-addition):
@@ -279,7 +299,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–06, 09–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-09**; repository commit: `fb05478031e290b123e766ad5188e4cef9935357`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-10**; repository commit: `490f209e0d70533bac56674e2844a7463fe77a09`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
