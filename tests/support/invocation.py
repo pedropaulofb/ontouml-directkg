@@ -452,6 +452,15 @@ class Invocation(Protocol):
         """
         ...
 
+    def read_relation_limitation_stereotypes(self, observation: Observation, source: Path) -> frozenset[str]:
+        """Read which relation-stereotype limitations actual warnings identify.
+
+        Consolidated events may identify several conditions. Uninterpreted
+        reported locators remain unbound; no event is inferred from input.
+        This reader is not a production API or prescribed locator format.
+        """
+        ...
+
     def read_relation_stereotype_annotations(self, observation: Observation, source: Path) -> tuple[tuple[Node, Node, Node], ...]:
         """Audit actual relation-declaration output; unknown forms are unbound.
 
@@ -542,6 +551,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_property_stereotype_comments(self, observation):
+        self._unavailable()
+
+    def read_relation_limitation_stereotypes(self, observation, source):
         self._unavailable()
 
     def read_relation_stereotype_annotations(self, observation, source):
@@ -1091,6 +1103,39 @@ class _DirectKGInvocation(_UnboundInvocation):
                     f"inspect and adapt its actual wording: {(subject, RDFS.comment, literal)!r}"
                 )
         return ()
+
+    def read_relation_limitation_stereotypes(self, observation, source):
+        """Interpret reported ID locators against the actual supplied document.
+
+        The inspected native residual-warning renderer reports relation IDs.
+        Resolve only those actually reported locators, never all declarations
+        or an expected affected element. Preserve consolidation without an
+        event count requirement. Other locator/rendering forms need binding
+        when inspectable; their absence cannot earn invented condition coverage.
+        """
+        from tests.support.data import source_elements
+        declarations = {}
+        for element in source_elements(json.loads(Path(source).read_bytes())):
+            identifier = element.get('id')
+            if isinstance(identifier, str):
+                declarations.setdefault(identifier, []).append(element)
+        reported = set()
+        for event in self.read_diagnostics(observation):
+            if event.kind != 'unmapped_relation_stereotype' or event.severity != 'WARNING':
+                continue
+            identified = event.identified_sources or event.source_ids
+            conditions = set()
+            for identifier in identified:
+                matches = declarations.get(identifier, ())
+                if len(matches) != 1:
+                    raise ImplementationUnavailable('Residual-warning source locator is not unambiguously bound')
+                element = matches[0]
+                if element.get('type') == 'Relation' and isinstance(element.get('stereotype'), str):
+                    conditions.add(element['stereotype'])
+            if not conditions:
+                raise ImplementationUnavailable('This actual residual warning has no interpretable relation locator')
+            reported.update(conditions)
+        return frozenset(reported)
 
     def read_relation_stereotype_annotations(self, observation, source):
         """Reuse the inspected producer's RDF audit for RD-17's settled relations.
