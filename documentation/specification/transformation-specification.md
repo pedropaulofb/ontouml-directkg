@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-10
+**Consolidated:** 2026-11-11
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -530,7 +530,7 @@ DK-GEN-09's seven-field whitelist MUST limit only ingestion from external `metad
 
 DirectKG MAY generate additional metadata or provenance when it can be determined reliably from the transformation context, source artifact, generated ontology, software execution, or output process, and it meaningfully improves description, traceability, reproducibility, or usability.
 
-This permission remains subject to the selected provenance mode, the sidecar-only output-file boundary, and existing explicit omission rules, including DK-LBL-01's prohibition on RDF markers, annotations, or auxiliary resources solely to distinguish primary-relation fallback labels from source-authored labels, and DK-REL-01's omission of additional annotations solely recording the `historicalDependence`, `participation`, `creation`, `termination`, `participational`, `manifestation`, `mediation`, `characterization`, or `externalDependence` stereotype declarations. It MUST NOT be used to ingest excluded external metadata fields indirectly.
+This permission remains subject to the selected provenance mode, the sidecar-only output-file boundary, and existing explicit omission rules, including DK-LBL-01's prohibition on RDF markers, annotations, or auxiliary resources solely to distinguish primary-relation fallback labels from source-authored labels, and DK-REL-01's omission of additional annotations solely recording the `historicalDependence`, `participation`, `creation`, `termination`, `participational`, `manifestation`, `mediation`, `characterization`, `externalDependence`, `bringsAbout`, or `triggers` stereotype declarations. It MUST NOT be used to ingest excluded external metadata fields indirectly.
 
 All metadata and provenance MUST use appropriate established external vocabulary terms. DirectKG MUST NOT define or emit DirectKG-specific metadata or provenance predicates. Where no appropriate standard representation has been identified, the concept MUST remain unsupported pending identification of such a representation or a separate explicit design decision.
 
@@ -1396,7 +1396,7 @@ When an eligible ordinary relation carrying either stereotype is successfully ma
 
 Documentation MUST explain the partial semantic translation: the ordinary mappings and applicable `participational` asymmetry do not, by themselves, establish the full participant-dependent decomposition or manifestation semantics.
 
-This decision settles only the remaining treatment of `participational` and `manifestation`. Other accepted mappings, all five existing RD-17 additions and their compatibility gate, and other unresolved stereotype groups remain unchanged.
+This decision settles only the remaining treatment of `participational` and `manifestation`. Other accepted mappings and all five existing RD-17 additions and their compatibility gate remain applicable.
 
 **Example (non-normative):** For simplified unnamed relations where stereotype-derived naming is selected, the following core fragments illustrate the retained mappings. The `participational` example assumes exactly one whole-marked end, attached to `Meeting`, and a passing asymmetry compatibility check.
 
@@ -1448,11 +1448,33 @@ This decision settles only the remaining treatment of `mediation`, `characteriza
 
 This partial fragment illustrates retained accepted axioms. Domains, ranges, explicit cardinalities, inverses, annotations, and any eligible selected material chains still follow their governing rules. The fragment does not encode the full modal dependence theory.
 
-#### Residual-semantics warnings for `bringsAbout` and `triggers` (RD-17)
+#### Ordinary mapping of `bringsAbout` and `triggers` with residual-semantics warnings (RD-17)
+
+Eligible ordinary relations carrying the recognized `bringsAbout` or `triggers` stereotype MUST retain their existing ordinary relation mappings, including property identity, source direction, naming, labels, descriptions, domains, ranges, explicit cardinalities, inverses, applicable generalization mappings, and independently required annotations and axioms. Naming continues to follow DK-REL-02–04, including the direction-specific lexical candidates under DK-REL-04.
+
+DirectKG MUST NOT generate additional logical axioms or additional stereotype-declaration annotations solely from either stereotype. DK-GEN-11's general metadata permission is subject to this exclusion.
 
 For a successfully mapped eligible ordinary relation carrying the recognized `bringsAbout` or `triggers` stereotype, DirectKG MUST report the residual semantics of its current ordinary mapping through a WARNING. This warning MUST be nonfatal under every input policy, including `strict`, and successful naming MUST NOT suppress it. Existing diagnostic consolidation, content, and delivery rules under DK-DIAG-04 MUST apply; no exact diagnostic identifier, message wording, or diagnostic-count requirement is selected.
 
-Existing ordinary mappings, direction, naming, and independently required output MUST retain their governing rules. This clause settles residual-semantics warning treatment only. Any further stereotype-specific logical mapping or declaration-annotation treatment for `bringsAbout` and `triggers` remains unspecified by this decision.
+Documentation MUST explain the partial semantic translation. The ordinary properties and explicit source constraints preserve the modeled links. On their own, they do not encode when a result or trigger situation obtains or establish causal links between event occurrences.
+
+**Non-normative example.** In a simplified event–situation model, a `bringsAbout` relation links `TrustorAction` to `HazardousSituation`, and a `triggers` relation links `HazardousSituation` to `ThreatEvent`. The following partial fragment uses illustrative IRIs.
+
+```turtle
+@prefix : <https://example.org/trust#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:broughtAboutHazardousSituation a owl:ObjectProperty ;
+    rdfs:domain :TrustorAction ;
+    rdfs:range :HazardousSituation .
+
+:contributedToTriggerThreatEvent a owl:ObjectProperty ;
+    rdfs:domain :HazardousSituation ;
+    rdfs:range :ThreatEvent .
+```
+
+Explicit multiplicities, inverses, generalizations, labels, descriptions, and other applicable annotations follow their governing rules.
 
 #### Additional relation property characteristics (RD-17)
 
@@ -2641,7 +2663,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Deliberately unmapped applicable relation stereotype | Warning; use weaker fallback where transformation is otherwise defined. The `historicalDependence` boundary under DK-REL-01 retains this warning whenever its established condition applies and introduces no warning-suppression exception. The `participation`, `creation`, and `termination` boundaries under DK-REL-01 likewise retain the applicable nonfatal limitation warning, independently of naming success. | No |
 | Residual semantics of a successfully mapped eligible ordinary `participational` or `manifestation` relation | WARNING under DK-REL-01; ordinary mappings and the applicable guarded `participational` asymmetry remain applicable. Report the partial translation independently of successful naming or asymmetry generation; existing diagnostic consolidation and delivery rules apply. | No solely for this limitation under any input policy, including `strict` |
 | Residual semantics of a successfully mapped eligible ordinary `mediation`, `characterization`, or `externalDependence` relation | WARNING under DK-REL-01; preserve existing ordinary mappings, applicable accepted axioms, grounding roles, derivation treatment, and selected eligible material chains. Naming, accepted-axiom/chain generation, or gate-based axiom omission does not suppress reporting; existing diagnostic consolidation and delivery rules apply. | No solely for this limitation under any input policy, including `strict` |
-| Residual semantics of a successfully mapped eligible ordinary `bringsAbout` or `triggers` relation | WARNING under DK-REL-01; existing ordinary mappings remain applicable and successful naming does not suppress reporting. This settles warning treatment without selecting further logical or declaration-annotation treatment. Existing diagnostic consolidation and delivery rules apply. | No solely for this limitation under any input policy, including `strict` |
+| Residual semantics of a successfully mapped eligible ordinary `bringsAbout` or `triggers` relation | WARNING under DK-REL-01; existing ordinary mappings remain applicable and successful naming does not suppress reporting. Existing diagnostic consolidation and delivery rules apply. | No solely for this limitation under any input policy, including `strict` |
 | Structural inverse-role fallback, inverse-domain qualification, or numeric allocation under DK-INV-06–08 | No additional diagnostic solely for the naming step under DK-INV-10; existing independently applicable diagnostics remain required | No solely for these naming steps |
 | Expected inverse omission under `informed` or `named` | No diagnostic or element report | No |
 | Either named inverse is absent under the selected inverse-generation mode for a mapped explicit relation generalization | Omit the additional inverse-specialization axiom without a warning under DK-INV-12 | No solely for this omission |

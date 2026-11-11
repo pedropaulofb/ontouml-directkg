@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-10, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's registered partial mappings and residual-semantics warning treatment, and owner-directed first-implementation prioritization and warning consistency. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-11, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, and owner-directed first-implementation prioritization and warning consistency. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -18,30 +18,6 @@ All eleven issue IDs in the recovered prior lists were accounted for. Only their
 **Completeness limitation:** RD-27 inherits a reference to unspecified “other previously raised descriptive fields.” The prior files identify no concrete remaining field, and the original discussion identifying any such field is not accessible here. That conditional entry remains blocked. This document is therefore not a complete historical reconciliation of that unidentified scope; it does not reconstruct missing fields or acceptances. The older handoff's access warnings concerning named questions already settled in the current specification do not reopen those questions.
 
 Alternatives and the advisory prioritization below are non-normative. No new mapping, recovery policy, or conformance guarantee is selected by preparing this document.
-
-## Remaining relation semantics
-
-### RD-17 — Remaining semantics of recognized relation stereotypes
-
-**Status:** Partially resolved.
-
-**Decision still needed:** Complete the previously recorded treatment decision for this remaining group:
-
-- `bringsAbout` and `triggers`: decide whether a further justified logical mapping or declaration annotation is appropriate, or whether to retain the existing ordinary mapping without those additions. Their nonfatal residual-semantics WARNING treatment is settled in DK-REL-01 and is not an open alternative.
-
-`historicalDependence`, `participation`, `creation`, `termination`, `participational`, `manifestation`, `mediation`, `characterization`, and `externalDependence` are outside these remaining questions: their ordinary/partial mappings, limitation reporting, and exclusions of further stereotype-only axioms and declaration annotations are settled in DK-REL-01. All existing accepted property characteristics, paired disjointness, grounding roles, derivation treatment, material-chain policies, and applicable compatibility gates remain in force.
-
-**Why it matters and constraints:** Ordinary properties may preserve only part of a source stereotype's meaning. A stereotype name alone does not justify functionality, transitivity, chains, or other characteristics. Partial logical translation is also not, by itself, a reason to add a stereotype annotation. The domain-graph and lightweight-output goals in §3.1 and the no-semantic-validation boundary in §3.4 continue to apply. No universal stereotype-annotation policy or temporal subsystem is implied.
-
-**Accepted boundaries to preserve:** DK-REL-01's five additions have per-axiom simplicity conditions based on the hierarchy, inverse relationships, and import closure. Those conditions apply in every material-chain mode, including `preserve-conflicting-constraints`; chain-body use alone does not make a property non-simple. Keep the accepted pairing, direction-alignment, and named/anonymous-inverse rules. Do not remove accepted axioms to accommodate another proposal or infer an overall OWL 2 DL guarantee from this limited gate.
-
-Material–relator/mode chains and derivation treatment (DK-REL-07–08), comparative–quality limitations (DK-REL-18), covered mereological mappings (DK-REL-19 and DK-GEN-04), and instantiation treatment (DK-INS-01–03) remain settled. The accepted `begin`/`end` comments under DK-PROP-06 do not automatically establish annotation treatment for other stereotypes.
-
-**Alternatives still available — non-normative:** Retain the existing ordinary/partial mapping with the applicable diagnostics and documented limitation; add a specifically justified OWL mapping; or preserve a declaration through an appropriate annotation where a concrete benefit is established. These differ in semantic coverage, graph size, compatibility effects, and implementation/documentation cost. No further logical-mapping or declaration-annotation alternative has been accepted for the remaining pair. Its residual-warning treatment is settled; that reporting rule does not select one of these graph-treatment alternatives.
-
-**Evidence and next step:** Study one coherent group at a time using authoritative OntoUML meaning and the actual VP-plugin 0.5.3 export representation. Retained exporter paths include `src/main/java/it/unibz/inf/ontouml/vp/model/ontouml/model/RelationStereotype.java` and the `vp2ontouml` property, association, and stereotype transformers. Distinguish language semantics from exporter recognition and standalone-schema capability. The 2013 OntoUML-to-OWL/SWRL transformation paper remains precedent, not DirectKG authority. Research anchors are listed below.
-
-**Dependency:** Coordinate any remaining logical-mapping proposal with RD-04's general profile claim. Do not reopen accepted mappings through that coordination.
 
 ## Structural identity and recovery
 
@@ -109,7 +85,7 @@ DK-DIAG-04 fixes the shared JSON report's minimum structure, required member nam
 | General profile claim | A qualified, bounded claim versus a stronger guarantee that would require justification against all accepted mappings. A stronger proposal does not authorize removing accepted axioms. |
 | Uncovered failures | Shared or distinct public failure treatment, preserving the already established separation of transformation outcomes and delivery status. No additional status or exit-code mapping is selected. |
 
-**Dependencies and next step:** Analyze the profile claim with the remaining RD-17 semantics and actual hierarchy/import effects. Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
+**Dependencies and next step:** Analyze the profile claim against the accepted mappings and their effects through property hierarchies, inverses, and the import closure. Include DK-REL-01's per-axiom compatibility gate and DK-REL-07's material-property-chain modes. Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
 
 ## Source-scope evidence checks
 
@@ -147,13 +123,13 @@ This is non-normative guidance for choosing future Architect discussions. It doe
 
 Following the owner's 2026-11-06 direction, prioritize decisions that materially affect completion of the first transformation implementation and demonstrated supported use cases. Give hypothetical malformed-input and edge-case questions lower priority unless a concrete blocker or observed need establishes their relevance. An unresolved entry alone does not make its resolution a prerequisite for the first implementation.
 
-Following the owner's 2026-11-10 direction, the Architect applies previously accepted residual-semantics warning treatment to demonstrably similar remaining related cases without seeking owner approval case by case. A concrete reason for different treatment is brought forward as a proposal. This authorization concerns warning treatment; it does not settle other logical-mapping or declaration-annotation choices, override explicit accepted diagnostic exceptions, or bypass independent Architect review. The current warning application to `bringsAbout` and `triggers` is registered in DK-REL-01; their further mapping/annotation questions remain open.
+Following the owner's 2026-11-10 direction, the Architect applies previously accepted residual-semantics warning treatment to demonstrably similar remaining related cases without seeking owner approval case by case. A concrete reason for different treatment is brought forward as a proposal. This authorization concerns warning treatment; it does not settle other logical-mapping or declaration-annotation choices, override explicit accepted diagnostic exceptions, or bypass independent Architect review.
 
 The owner reports that repeated generalization-set membership does not occur in any of the over 200 models in the OntoUML/UFO Catalog. This corpus-wide absence is owner-reported; this registration does not claim a new Catalog-wide audit.
 
 Apply the remaining dependencies proportionately:
 
-- The RD-04 profile claim depends on the relevant RD-17 semantic decisions; its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
+- Assess the RD-04 profile claim against the accepted mappings and import closure. Its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
 - Establish source evidence before proposing an additional mapping from RD-27 or ODI-INSTANCES. Their blocked evidence checks do not by themselves establish a missing implementation feature.
 - Investigate ODI-IRI only after identifying its reachable technical condition. Preserve its unresolved status without treating hypothetical collision recovery as an automatic implementation prerequisite.
 
@@ -194,7 +170,12 @@ These are research pointers retained from the inspected prior state and session;
 - Bounded application of owner-directed warning consistency (2026-11-10):
   - The same 0.5.3 relation enum explicitly recognizes `bringsAbout` and `triggers`; DirectKG's `relations.py` at inspected main `98481308e0e3592e369e2d1b9241f1afecf83497` contains ordinary event/situation naming selectors for them. Existing source direction and naming rules remain authoritative.
   - Almeida, Falbo, and Guizzardi (2019), *Events as Entities in Ontology-Driven Conceptual Modeling*, §2, describes event/situation change and triggering semantics beyond those ordinary properties. The source URL is retained above. This supports applying the already accepted nonfatal residual-warning treatment; it does not select a new logical mapping, annotation policy, or vocabulary import.
-  - No additional Catalog occurrence or corpus-wide count for this pair is asserted. The remaining logical/declaration-annotation question is preserved; warning consistency does not resolve it.
+  - The reported evidence from the 2026-11-10 inspection covers exporter recognition and language background. The inspection established no Catalog occurrence or corpus-wide count for the pair.
+- Bounded follow-up inspection for `bringsAbout` and `triggers` (2026-11-11):
+  - At exporter 0.5.3 commit `9fc02b8162db9910f21b8713549cafce2627dad0`, the linked `ontouml/model/RelationStereotype.java` recognizes both declarations and `vp2ontouml/IAssociationTransformer.java` preserves the source and target order. The inspected `ontouml/serialization/RelationSerializer.java`, `ClassifierSerializer.java`, `DecoratableSerializer.java`, and `PropertySerializer.java` show how the stereotype, ordered properties, classifier references, and cardinalities are serialized.
+  - At Catalog snapshot `99d23ff1e1c2bf58a7bd99ef0156eba79a611c99`, all three selected files contain both stereotypes. In the Reference Ontology of Trust, `Trustor Action` links via `bringsAbout` to `Hazardous Situation`, which links via `triggers` to `Threat Event`. The latter relation's source name is `contributed to trigger threat event`. [Reference Ontology of Trust](https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/amaral2019rot/ontology.json), [PPO-O](https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/ppo-o2021/ontology.json), and [Common Ontology of Value and Risk](https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/sales2018cover/ontology.json).
+  - Guizzardi et al. (2013), [*Towards Ontological Foundations for the Conceptual Modeling of Events*](https://www.researchgate.net/publication/290226494_Towards_Ontological_Foundations_for_the_Conceptual_Modeling_of_Events), axioms S1–S6, formalizes event timing, the complete triggering and maximal resulting situations, and direct causation. The gUFO 1.0.0 `broughtAbout` and `contributedToTrigger` definitions describe partial results and contributing situations as comparison evidence.
+  - The Catalog check covered selected relation records and their resolved endpoints. Catalog-wide frequency, the exporter provenance of each file, and end-to-end compatibility were outside its scope.
 - OWL 2 structural specification, Second Edition, especially property simplicity and global restrictions (§§11.1–11.2): https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/
 - Standard provenance/metadata references, if a remaining question requires them: https://www.w3.org/TR/prov-o/ ; https://www.dublincore.org/specifications/dublin-core/dcmi-terms/ ; https://spdx.org/rdf/terms/
 
