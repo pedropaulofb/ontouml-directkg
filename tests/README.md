@@ -1549,9 +1549,10 @@ nodes are in coverage.md. Initial inspected main is
 ## RD-17 — Dependency relations and warning consistency
 
 TEST CHANGE for the owner's unified handoff and Architect Reviewer **OK, no
-findings**, at `490f209e0d70533bac56674e2844a7463fe77a09`. Pending independent
-Test Reviewer review; no prior-review reuse or additional waiver applies. The
-owner's independent downstream workflow remains applicable. The preceding
+findings**, at `490f209e0d70533bac56674e2844a7463fe77a09`. The Test Reviewer
+returned **NOT OK** at `545d995b68fd4f97ca7c0c2183ea02fd53328328`. The F1–F3
+correction is pending independent Test Reviewer review. The owner's independent
+downstream workflow applies. The preceding
 participational/manifestation test gate is closed at
 `00f9bf1503b271da1c84728d0ce511efaf505483`; earlier pending-review and execution
 records retain their historical meaning.
@@ -1562,27 +1563,24 @@ optional chains. No further stereotype-only axioms or declaration annotations ar
 introduced. Residual WARNING reporting is required under every input policy and
 independently of naming, accepted-axiom/chain generation or gate-based omission.
 The simultaneous owner direction applies that warning treatment to bringsAbout
-and triggers only; their further logical/declaration choices remain unresolved.
-No previous mapping or explicit diagnostic exception is superseded. DK-GEN-11,
-DK-REL-04 and DK-DIAG-01 align the boundary. No code, wording or count is fixed.
-Current transformation blob: `6492a064d62ee6c742dd4a27b0f83e6bf0adb92b`;
-structure blob: `250a059d46377360aeecdb5176310bd36bde7825`.
+and triggers in the reviewed registration. DK-GEN-11, DK-REL-04 and DK-DIAG-01
+align the boundary, with diagnostic code, wording, and count left open.
+The correction builds on `2521e3bde7e26ac06b3abd0b879d165babe07793`, which
+separately registers the pair's graph treatment. Its active transformation blob
+`8d212d427c0ee7a02ca84f19d9e363b27c9c6d94` retains the warning, naming, and
+class-disjointness clauses exercised here. The structure blob is
+`250a059d46377360aeecdb5176310bd36bde7825`.
 
-Add **90 parameters** in the existing relations module: 39 mapping/naming/hierarchy
-extensions for the trio, 27 gate/policy cases, 18 grounding/chain/policy cases,
-and six warning-only event/situation cases. Strengthen **13 existing nodes**:
-ten successful semantic-name cells and three external-dependence fallback-policy
-cells. Every previous node ID remains. Original chain assertions are shared through
-a helper with unchanged default options, as already done for the gate assertions.
-The warning-only pair receives no graph-exclusion or annotation-policy assertions.
+The initial submission added **90 cases** and strengthened **13 existing nodes**.
+The correction retains all previous IDs and adds one `strict` naming-disabled
+case each for `bringsAbout` and `triggers`. Both check the endpoint fallback,
+direction, inverse, completed outcome, naming warning, and residual warning.
 
-The adapter's scoped read_relation_limitation_stereotypes reader identifies
-conditions only from actually produced WARNING events and their reported source
-locators, resolved unambiguously against the actual source. It does not credit
-every input declaration or require one event per relation. In particular, an
-existing participational warning cannot stand in for a missing dependency warning.
-Other locator/rendering formats remain explicitly unbound when uninterpretable;
-no production API or locator representation is prescribed. Native events remain raw.
+The adapter's `read_relation_limitation_source_ids` reader returns the affected
+relation IDs identified by actual WARNING events. It resolves reported locators
+against the supplied source document and retains distinct declarations of the
+same stereotype. The chain tests require both `rLeft` and `rRight` and accept
+consolidated evidence. Uninterpretable locators are explicitly unbound.
 
 Canonical complete inputs remain shared/binary_relation, shared/material_pattern,
 relations/hierarchy and relations/chain_constraints. No stored fixtures, expected
@@ -1590,27 +1588,23 @@ graphs, dependencies or pytest configuration change. The trio retains explicit
 ordinary RDF, names, language, labels, IDs, descriptions, counts, inverses and
 independent annotations. Only fixed already-accepted characteristics may differ
 from ordinary controls; gate/chain cases preserve the existing exact assertions.
-Both represented naming directions use distinct temporary source files.
+The ordinary comparison checks class disjointness by unordered pairs under
+DK-CLS-03/04. Both represented naming directions use distinct temporary files.
 
-Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0, PyYAML 6.0.3. Collection:
-**3,472**, retaining all **3,382** previous exact nodes. Combined affected run:
-**256 passed, 103 failed**. All failures concern missing required warnings or
-missing reported trio conditions: 90 new and 13 intentionally strengthened nodes.
-Earlier output, annotation, naming, grounding and gate assertions pass. The same
-269 pre-existing cases pass at the pinned baseline; all 256 unchanged selected
-nodes retain passes. All 90 existing compatibility cases pass within the combined
-run, and all **88 fixture/RDF-helper checks** pass.
+Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0 and PyYAML 6.0.3 collected **3,474**
+cases, retaining all **3,472** reviewed IDs. The affected selection had **256
+passes**, **78** missing-warning failures and **27** missing-source-attribution
+failures. Both new cases reach the required residual-warning assertion after
+the naming and mapping checks pass. The **90** existing compatibility cases,
+**68** additional mapping/disjointness cases, **88** fixture/RDF-helper cases
+and **4** CLI parity cases passed. The 12 derivation cases encounter the same
+unbound connector-output reader at the reviewed and corrected revisions.
 
-Actual-output controls reject 21 extra logical mutations, three removed accepted
-characteristics and 12 unfamiliar annotation forms (explicitly unbound). Source
-text, blank-node relabeling and timestamps are accepted. Warning-reader controls
-confirm no credit from an unrelated warning or absent events, accept event
-reordering, and leave uninterpretable locators explicitly unbound. No positive
-dependency warning or replacement conversion is fabricated. Inventory/Rules/path
-checks, Python parsing and whitespace checks pass. Full-suite execution, full
-provenance conformance and broader unbound operations remain unperformed.
-Exact nodes, selected Catalog/exporter evidence and actual commands are in
-coverage.md. Initial inspected main is `490f209e0d70533bac56674e2844a7463fe77a09`.
-The publication base `58cfb7efd40a7a3ee478bc6105bd8d359500f4a3` includes six
-intervening root/site documentation edits. The production, governing
-specification, test and fixture blobs match the execution baseline.
+Controls on real output reproduced F1 and F3 at the reviewed revision. The
+corrected reader requires evidence for both relation IDs and accepts either
+separate or consolidated coverage. The corrected graph comparison accepts
+reversed and reciprocal disjointness statements and rejects missing or added
+pairs. Exact nodes, selected Catalog/exporter evidence and commands are in
+`tests/coverage.md`. Full-suite execution, full provenance conformance and
+positive end-to-end execution of the five newly required warnings remain
+unperformed.

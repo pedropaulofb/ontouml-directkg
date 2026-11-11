@@ -452,10 +452,10 @@ class Invocation(Protocol):
         """
         ...
 
-    def read_relation_limitation_stereotypes(self, observation: Observation, source: Path) -> frozenset[str]:
-        """Read which relation-stereotype limitations actual warnings identify.
+    def read_relation_limitation_source_ids(self, observation: Observation, source: Path) -> frozenset[str]:
+        """Read the affected relation IDs identified by actual limitation warnings.
 
-        Consolidated events may identify several conditions. Uninterpreted
+        Consolidated events may identify several relations. Uninterpreted
         reported locators remain unbound; no event is inferred from input.
         This reader is not a production API or prescribed locator format.
         """
@@ -553,7 +553,7 @@ class _UnboundInvocation:
     def read_property_stereotype_comments(self, observation):
         self._unavailable()
 
-    def read_relation_limitation_stereotypes(self, observation, source):
+    def read_relation_limitation_source_ids(self, observation, source):
         self._unavailable()
 
     def read_relation_stereotype_annotations(self, observation, source):
@@ -1104,7 +1104,7 @@ class _DirectKGInvocation(_UnboundInvocation):
                 )
         return ()
 
-    def read_relation_limitation_stereotypes(self, observation, source):
+    def read_relation_limitation_source_ids(self, observation, source):
         """Interpret reported ID locators against the actual supplied document.
 
         The inspected native residual-warning renderer reports relation IDs.
@@ -1124,17 +1124,17 @@ class _DirectKGInvocation(_UnboundInvocation):
             if event.kind != 'unmapped_relation_stereotype' or event.severity != 'WARNING':
                 continue
             identified = event.identified_sources or event.source_ids
-            conditions = set()
+            relation_ids = set()
             for identifier in identified:
                 matches = declarations.get(identifier, ())
                 if len(matches) != 1:
                     raise ImplementationUnavailable('Residual-warning source locator is not unambiguously bound')
                 element = matches[0]
                 if element.get('type') == 'Relation' and isinstance(element.get('stereotype'), str):
-                    conditions.add(element['stereotype'])
-            if not conditions:
+                    relation_ids.add(identifier)
+            if not relation_ids:
                 raise ImplementationUnavailable('This actual residual warning has no interpretable relation locator')
-            reported.update(conditions)
+            reported.update(relation_ids)
         return frozenset(reported)
 
     def read_relation_stereotype_annotations(self, observation, source):

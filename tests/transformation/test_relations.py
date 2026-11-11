@@ -1993,6 +1993,7 @@ def test_existing_mereological_asymmetry_survives_non_simple_material_superprope
 def _ordinary_relation_mapping_equal(first, second, *, expected_additions=()):
     """Compare logic, allowing independent metadata and fixed accepted additions.
 
+    DK-CLS-03/04 class disjointness is compared as unordered pairs.
     Callers supply explicit expected RDF, never inferred production behavior.
     The ordinary observation and the actual graph remain untouched.
     """
@@ -2025,7 +2026,10 @@ def _ordinary_relation_mapping_equal(first, second, *, expected_additions=()):
         for classifier in tuple(roots):
             for predicate in (RDFS.domain, RDFS.range):
                 roots.update(graph.subjects(predicate, classifier))
-        projections.append(rooted_graph(graph, roots, predicates, type_objects=types))
+        for left, right in graph.subject_objects(OWL.disjointWith):
+            roots.update((left, right))
+        projections.append(rooted_graph(graph, roots, predicates, type_objects=types,
+                                        unordered_predicates={OWL.disjointWith}))
     assert_graph_equal(*projections)
 
 
@@ -2166,7 +2170,7 @@ def test_partial_semantic_relations_preserve_ordinary_mapping_and_limitation_war
     assert any(d.kind == 'ordering' and d.severity == 'INFO' for d in result.diagnostics)
     _relation_limitation_warning(result)
     if stereotype in DEPENDENCY_RELATIONS:
-        assert stereotype in invoke.read_relation_limitation_stereotypes(result, path)
+        assert 'rFocus' in invoke.read_relation_limitation_source_ids(result, path)
 
 
 @pytest.mark.parametrize('stereotype,forward,backward', PARTIAL_SEMANTIC_RELATIONS)
@@ -2260,7 +2264,7 @@ def test_partial_semantic_relations_keep_naming_labels_and_warning_independent(
     for result, path in observations:
         _relation_limitation_warning(result)
         if stereotype in DEPENDENCY_RELATIONS:
-            assert stereotype in invoke.read_relation_limitation_stereotypes(result, path)
+            assert 'rFocus' in invoke.read_relation_limitation_source_ids(result, path)
 
 
 @pytest.mark.parametrize('stereotype', ['participation', 'creation', 'termination', 'participational', 'manifestation'] + DEPENDENCY_RELATIONS)
@@ -2302,7 +2306,7 @@ def test_partial_semantic_relations_preserve_explicit_hierarchy_without_addition
     assert _other_relation_diagnostics(result) == _other_relation_diagnostics(ordinary)
     _relation_limitation_warning(result)
     if stereotype in DEPENDENCY_RELATIONS:
-        assert stereotype in invoke.read_relation_limitation_stereotypes(result, path)
+        assert 'rLeaf' in invoke.read_relation_limitation_source_ids(result, path)
 
 
 @pytest.mark.parametrize('mode', CHAIN_MODES)
@@ -2343,14 +2347,18 @@ def test_dependency_residual_warnings_survive_accepted_axiom_gates(
 
     RD-17 registration 490f209e0d70533bac56674e2844a7463fe77a09.
     Canonical relations/chain_constraints: retain every original gate assertion
-    across modes/policies and identify the required trio condition from actual
+    across modes/policies and identify the affected relation from actual
     reported diagnostics, independently of another relation's warning.
     """
-    case = 'external_dependence' if stereotype == 'externalDependence' else stereotype
+    case, relation_id = {
+        'mediation': ('mediation', 'rPeer'),
+        'characterization': ('characterization', 'rLeft'),
+        'externalDependence': ('external_dependence', 'rRight'),
+    }[stereotype]
     result, path = _assert_relation_axiom_gate(run, source_json, tmp_path, mode, case, input_policy)
     assert invoke.read_relation_stereotype_annotations(result, path) == ()
     _relation_limitation_warning(result)
-    assert stereotype in invoke.read_relation_limitation_stereotypes(result, path)
+    assert relation_id in invoke.read_relation_limitation_source_ids(result, path)
 
 
 @pytest.mark.parametrize('grounding', GROUNDINGS)
@@ -2362,29 +2370,35 @@ def test_dependency_residual_warnings_survive_material_chain_generation(
 
     RD-17 registration 490f209e0d70533bac56674e2844a7463fe77a09.
     Canonical shared/material_pattern preserves grounding, ordered chains,
-    accepted characteristics/disjointness and mode-specific counts. Required
-    warnings remain applicable without imposing an event count or native code.
+    accepted characteristics/disjointness and mode-specific counts. Actual
+    warnings must identify both grounding relations, including both mediations
+    in the relator variant. A consolidated warning may cover both.
     """
     result, path = _assert_chain_body_additions(run, source_json, tmp_path, grounding, mode, input_policy)
     assert invoke.read_relation_stereotype_annotations(result, path) == ()
     _relation_limitation_warning(result)
-    required = {'mediation'} if grounding == 'relator' else {'characterization', 'externalDependence'}
-    assert required <= invoke.read_relation_limitation_stereotypes(result, path)
+    assert {'rLeft', 'rRight'} <= invoke.read_relation_limitation_source_ids(result, path)
 
 
-@pytest.mark.parametrize('stereotype,source_kind,source_name,target_kind,target_name,candidate', [
-    pytest.param('bringsAbout', 'event', 'Event', 'situation', 'Situation', 'bringsAbout', id='bringsAbout'),
-    pytest.param('triggers', 'situation', 'Situation', 'event', 'Event', 'triggers', id='triggers'),
+@pytest.mark.parametrize('stereotype,source_kind,source_name,target_kind,target_name,semantic_name,fallback_name', [
+    pytest.param('bringsAbout', 'event', 'Event', 'situation', 'Situation',
+                 'bringsAbout', 'event_situation', id='bringsAbout'),
+    pytest.param('triggers', 'situation', 'Situation', 'event', 'Event',
+                 'triggers', 'situation_event', id='triggers'),
 ])
-@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('input_policy,naming_disabled', [
+    *(pytest.param(policy, False, id=policy) for policy in POLICIES),
+    pytest.param('strict', True, id='strict-naming-disabled'),
+])
 def test_remaining_event_relations_report_nonfatal_residual_warning(
         run, invoke, source_json, tmp_path, stereotype, source_kind, source_name,
-        target_kind, target_name, candidate, input_policy):
-    """Rules: DK-REL-01, DK-REL-02, DK-REL-04, DK-GEN-03, DK-PROP-02, DK-INV-01, DK-INV-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06.
+        target_kind, target_name, semantic_name, fallback_name, input_policy, naming_disabled):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-GEN-03, DK-PROP-02, DK-INV-01, DK-INV-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06.
 
     RD-17 registration 490f209e0d70533bac56674e2844a7463fe77a09 applies the
     owner's warning-consistency direction only. Complete shared/binary_relation;
-    retain the existing successful name/direction and nonfatal residual warning.
+    retain direction and the nonfatal residual warning with semantic naming
+    enabled under all policies and disabled under strict.
     No assertion selects further logical or declaration-annotation treatment.
     """
     document = source_json('shared/binary_relation')
@@ -2394,16 +2408,20 @@ def test_remaining_event_relations_report_nonfatal_residual_warning(
     source_element(document, 'tFocus')['name'] = None
     assert not fixture_issues(document)
     path = write_input(tmp_path, document)
-    result = run(path=path, input_policy=input_policy, stereotype_policy='require-known')
+    naming_options = {'no_stereotype_relation_naming': True} if naming_disabled else {}
+    result = run(path=path, input_policy=input_policy, stereotype_policy='require-known', **naming_options)
     assert result.outcome == 'completed'
     primary = _primary(result, strategy='name')
-    _candidate(result.ontology, primary, {candidate}, source_name)
+    _candidate(result.ontology, primary, {fallback_name if naming_disabled else semantic_name}, source_name)
     _direction(result.ontology, primary, BASE[source_name], BASE[target_name])
     inverse = _primary(result, 'sFocus', 'name')
     assert (inverse, OWL.inverseOf, primary) in result.ontology
-    assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
+    if naming_disabled:
+        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+    else:
+        assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
     _relation_limitation_warning(result)
-    assert stereotype in invoke.read_relation_limitation_stereotypes(result, path)
+    assert 'rFocus' in invoke.read_relation_limitation_source_ids(result, path)
 
 
 @pytest.mark.parametrize('strategy,mode,input_policy', [
