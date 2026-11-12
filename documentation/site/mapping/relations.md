@@ -164,13 +164,35 @@ Successfully mapping an eligible ordinary relation with any of these three stere
 
 Independently applicable errors and abort conditions retain their established behavior. Existing diagnostic consolidation, content restrictions, console filtering, [JSON reporting](../reference/diagnostics.md#shared-json-report-contract), and delivery rules apply. This decision selects no exact diagnostic identifier, wording, or count and establishes no new reasoning subsystem, semantic validation, or overall OWL-profile guarantee.
 
-**Implementation status for these three stereotypes and `bringsAbout`/`triggers`:** At [inspected revision `490f209e0d70533bac56674e2844a7463fe77a09`](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/src/ontouml_directkg/relations.py), ordinary relation processing's limitation-warning branch includes none of these five stereotypes. The [axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/src/ontouml_directkg/relation_axioms.py) contains the accepted guarded characteristics and paired disjointness. Required residual-warning coverage for these five remains an implementation dependency at that revision. These explanations describe accepted intended behavior; no end-to-end verification is asserted here.
+**Implementation status for the five warnings.** Source inspection at `8d4e4acd2ad3bee98c1a425026faa05199381a67` shows a residual-semantics WARNING branch in the ordinary relation handler for `mediation`, `characterization`, `externalDependence`, `bringsAbout` and `triggers`. The separate axiom handler contains the guarded characteristics and paired disjointness. [Warning branch](https://github.com/pedropaulofb/ontouml-directkg/blob/8d4e4acd2ad3bee98c1a425026faa05199381a67/src/ontouml_directkg/relations.py#L327) · [Axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/8d4e4acd2ad3bee98c1a425026faa05199381a67/src/ontouml_directkg/relation_axioms.py)
 
 ### BringsAbout and triggers
 
-Successfully mapped eligible ordinary `bringsAbout` and `triggers` relations also require a **residual-semantics WARNING, nonfatal under every input policy, including `strict`**. Successful naming does not suppress it. Existing ordinary mappings, direction, naming, and independently required output retain their rules. Existing diagnostic consolidation, content restrictions, filtering, JSON reporting, and delivery policies apply; this decision selects no exact diagnostic identifier, wording, or count. Other diagnostics and failure conditions remain applicable. The implementation-status note above covers these two warning cases too.
+An eligible ordinary binary `bringsAbout` or `triggers` relation with resolved classifier endpoints becomes a primary `owl:ObjectProperty` in the source direction. The ordinary mapping retains its identity, labels, descriptions, domain, range, explicit cardinalities, inverses, applicable generalizations, and independently required output. Existing relation-name and target-role precedence and the [direction-specific naming candidates](#semantic-naming-candidates) apply.
 
-**Warning treatment is settled; further graph treatment remains unresolved.** A further stereotype-specific logical mapping or declaration annotation for this pair is still unspecified. The exclusion of further stereotype-only axioms and declaration annotations for `mediation`, `characterization`, and `externalDependence` does not extend to `bringsAbout` or `triggers`. The warning reports the residual semantics of their current ordinary mapping without selecting that remaining graph treatment.
+Omit additional logical axioms and declaration annotations based solely on either stereotype. The annotation exclusion also applies to [automatic metadata enrichment](../guides/metadata-and-provenance.md#optional-automatic-enrichment). Preserve independently required annotations and axioms, including applicable source identifiers and association-end annotations. An authored description mentioning either stereotype follows the ordinary [source description and language rules](../reference/text.md#labels-and-descriptions).
+
+**Partial temporal and causal translation.** The ordinary properties and explicit source constraints preserve the modeled event–situation links. The mapping leaves unexpressed when a resulting or triggering situation obtains and which event occurrences cause others.
+
+A successfully mapped eligible ordinary relation carrying either stereotype requires a **residual-semantics WARNING, nonfatal under every input policy, including `strict`**, even when naming succeeds. Existing consolidation, content restrictions, console filtering, Python access and requested JSON delivery follow [the diagnostic contract](../reference/diagnostics.md#diagnostic-collection-and-export). Exact diagnostic identifiers, wording and counts remain unspecified for these warnings. Independently applicable errors and abort conditions retain their governing rules. The implementation-status note above covers both warning cases.
+
+In this **specification illustration**, `TrustorAction` is an event that brings about the situation `HazardousSituation`, which triggers the event `ThreatEvent`. Assume usable source relation names `broughtAboutHazardousSituation` and `contributedToTriggerThreatEvent`, name-based identity with entity base `https://example.org/trust#`, and no naming collisions. The partial Turtle shows the primary properties with illustrative IRIs.
+
+```turtle
+@prefix : <https://example.org/trust#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:broughtAboutHazardousSituation a owl:ObjectProperty ;
+    rdfs:domain :TrustorAction ;
+    rdfs:range :HazardousSituation .
+
+:contributedToTriggerThreatEvent a owl:ObjectProperty ;
+    rdfs:domain :HazardousSituation ;
+    rdfs:range :ThreatEvent .
+```
+
+The fragment omits class declarations, the ontology header and import, applicable explicit cardinalities, inverses, generalizations, annotations and provenance. These outputs follow their existing rules.
 
 ## Additional relation axioms
 
@@ -299,7 +321,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-10**; repository commit: `490f209e0d70533bac56674e2844a7463fe77a09`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-11**; repository commit: `2521e3bde7e26ac06b3abd0b879d165babe07793`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2521e3bde7e26ac06b3abd0b879d165babe07793/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 

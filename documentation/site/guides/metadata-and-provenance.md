@@ -96,7 +96,7 @@ The seven-field whitelist limits only external-file ingestion. Additional metada
 
 This permission does not authorize additional annotations solely recording the `participation`, `creation`, `termination`, `participational`, or `manifestation` stereotype declarations. Their [ordinary-mapping](../mapping/relations.md#participation-creation-and-termination) and [partial-mapping](../mapping/relations.md#participational-and-manifestation) boundaries still preserve independently required source descriptions, labels, applicable source-ID annotations, and association-end annotations under their own rules.
 
-The same exclusion applies to [`mediation`, `characterization`, and `externalDependence`](../mapping/relations.md#mediation-characterization-and-external-dependence), while their independently required annotations and accepted axioms remain applicable. Further declaration-annotation treatment for [`bringsAbout` and `triggers`](../mapping/relations.md#bringsabout-and-triggers) remains unresolved; their settled residual-semantics warnings do not select that treatment or extend the trio's exclusion to them.
+The same exclusion applies to [`mediation`, `characterization`, and `externalDependence`](../mapping/relations.md#mediation-characterization-and-external-dependence), while their independently required annotations and accepted axioms remain applicable. For [`bringsAbout` and `triggers`](../mapping/relations.md#bringsabout-and-triggers), omit annotations added solely to record either stereotype declaration. Authored descriptions that mention the stereotype and other independently required annotations follow their existing rules.
 
 Use appropriate **established external vocabulary terms**, without DirectKG-specific metadata/provenance predicates. Where no appropriate standard representation has been identified, the concept remains unsupported pending such identification or an accepted decision. Unavailable optional enrichment alone does not require abortion.
 
@@ -159,7 +159,7 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 
 ---
 
-Governing rules: DK-GEN-08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-10**; repository commit: `490f209e0d70533bac56674e2844a7463fe77a09`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/490f209e0d70533bac56674e2844a7463fe77a09/documentation/specification/transformation-specification.md).
+Governing rules: DK-GEN-08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-11**; repository commit: `2521e3bde7e26ac06b3abd0b879d165babe07793`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2521e3bde7e26ac06b3abd0b879d165babe07793/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5; included in the cited consolidation).
 
