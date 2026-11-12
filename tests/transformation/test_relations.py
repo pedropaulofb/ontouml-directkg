@@ -10,7 +10,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.invocation import diagnostic_signatures
-from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
+from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
 BASE = Namespace('https://example.test/model#')
@@ -2390,6 +2390,24 @@ def test_dependency_residual_warnings_survive_material_chain_generation(
     assert {'rLeft', 'rRight'} <= invoke.read_relation_limitation_source_ids(result, path)
 
 
+def _assert_event_situation_mapping_equal(ordinary, stereotyped, *, property_iris=None):
+    """Compare matched ordinary graphs after allowing the selected lexical IRIs."""
+    def mapping(graph, iris):
+        projected = Graph()
+        for subject, predicate, value in graph:
+            # Independently generated execution dates may vary across runs.
+            if (predicate in {DCTERMS.created, DCTERMS.modified}
+                    and isinstance(value, Literal) and value.datatype == XSD.dateTime):
+                continue
+            projected.add(tuple(iris.get(term, term) for term in (subject, predicate, value)))
+        return projected
+
+    actual = mapping(stereotyped, {})
+    expected = mapping(ordinary, property_iris or {})
+    predicates = set(actual.predicates()) | set(expected.predicates())
+    assert_selected_equal(actual, expected, predicates, unordered_predicates={OWL.disjointWith})
+
+
 @pytest.mark.parametrize('stereotype,source_kind,source_name,target_kind,target_name,semantic_name,fallback_name', [
     pytest.param('bringsAbout', 'event', 'Event', 'situation', 'Situation',
                  'bringsAbout', 'event_situation', id='bringsAbout'),
@@ -2403,36 +2421,112 @@ def test_dependency_residual_warnings_survive_material_chain_generation(
 def test_remaining_event_relations_report_nonfatal_residual_warning(
         run, invoke, source_json, tmp_path, stereotype, source_kind, source_name,
         target_kind, target_name, semantic_name, fallback_name, input_policy, naming_disabled):
-    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-GEN-03, DK-PROP-02, DK-INV-01, DK-INV-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06.
+    """Rules: DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11.
 
     RD-17 registration 490f209e0d70533bac56674e2844a7463fe77a09 applies the
-    owner's warning-consistency direction only. Complete shared/binary_relation;
-    retain direction and the nonfatal residual warning with semantic naming
-    enabled under all policies and disabled under strict. When naming is
-    disabled, both warning meanings can share one diagnostic.
-    No assertion selects further logical or declaration-annotation treatment.
+    owner's warning-consistency direction. Registration
+    2521e3bde7e26ac06b3abd0b879d165babe07793 settles ordinary graph treatment.
+    Complete shared/binary_relation variants preserve independent annotations
+    and axioms. Compare the matched ordinary control after accounting for the
+    allowed lexical IRIs. Naming-disabled warnings may share one diagnostic.
     """
     document = source_json('shared/binary_relation')
     source_element(document, 'cA').update(stereotype=source_kind, name=source_name)
     source_element(document, 'cB').update(stereotype=target_kind, name=target_name)
-    source_element(document, 'rFocus').update(stereotype=stereotype, name=None)
-    source_element(document, 'tFocus')['name'] = None
+    description = f'The author mentions {stereotype} in this description.'
+    source_element(document, 'rFocus').update(stereotype=None, name=None, description=description)
+    source_element(document, 'tFocus').update(
+        name=None, description='Target-end description.', cardinality='2..5', aggregationKind='SHARED')
+    source_element(document, 'sFocus').update(description='Source-end description.', cardinality='1')
+    naming_options = {'no_stereotype_relation_naming': True} if naming_disabled else {}
+    assert not fixture_issues(document)
+    ordinary = run(path=write_input(tmp_path, document, 'ordinary.json'), input_policy=input_policy,
+                   stereotype_policy='allow-missing', **naming_options)
+    source_element(document, 'rFocus')['stereotype'] = stereotype
     assert not fixture_issues(document)
     path = write_input(tmp_path, document)
-    naming_options = {'no_stereotype_relation_naming': True} if naming_disabled else {}
     result = run(path=path, input_policy=input_policy, stereotype_policy='require-known', **naming_options)
-    assert result.outcome == 'completed'
+    assert result.outcome == ordinary.outcome == 'completed'
+
+    graph = result.ontology
     primary = _primary(result, strategy='name')
-    _candidate(result.ontology, primary, {fallback_name if naming_disabled else semantic_name}, source_name)
-    _direction(result.ontology, primary, BASE[source_name], BASE[target_name])
     inverse = _primary(result, 'sFocus', 'name')
-    assert (inverse, OWL.inverseOf, primary) in result.ontology
+    source, target = BASE[source_name], BASE[target_name]
+    _candidate(graph, primary, {fallback_name if naming_disabled else semantic_name}, source_name)
+    _candidate(graph, inverse, {'workers'}, target_name)
+    _direction(graph, primary, source, target)
+    _chain_inverse(graph, inverse, primary)
+    _counts(graph, source, primary, {('min', 2), ('max', 5)})
+    _counts(graph, target, inverse, {('exact', 1)})
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == {frozenset((source, target))}
+    assert not list(graph.objects(primary, RDFS.label))
+    assert set(graph.objects(inverse, RDFS.label)) == {Literal('workers')}
+    assert (primary, RDFS.comment, Literal(description)) in graph
+    assert (primary, RDFS.comment, Literal('Target-end description.')) in graph
+    assert (inverse, RDFS.comment, Literal('Source-end description.')) in graph
+
+    ordinary_primary = _primary(ordinary, strategy='name')
+    ordinary_inverse = _primary(ordinary, 'sFocus', 'name')
+    _candidate(ordinary.ontology, ordinary_primary, {fallback_name}, source_name)
+    _candidate(ordinary.ontology, ordinary_inverse, {'workers'}, target_name)
+    _assert_event_situation_mapping_equal(
+        ordinary.ontology, graph, property_iris={ordinary_primary: primary, ordinary_inverse: inverse})
+    comments = invoke.read_relation_aggregation_comments(result, path)
+    assert {(comment.subject, comment.context, comment.value) for comment in comments} == {
+        (primary, 'target_end', 'SHARED'),
+    }
+
     if naming_disabled:
         _source_target_naming_warning(result, 'rFocus')
     else:
         assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
     _relation_limitation_warning(result)
     assert 'rFocus' in invoke.read_relation_limitation_source_ids(result, path)
+
+
+@pytest.mark.parametrize('stereotype', ['bringsAbout', 'triggers'])
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+def test_event_situation_relations_preserve_explicit_hierarchy(
+        run, invoke, source_json, tmp_path, stereotype, inverse_mode):
+    """Rules: DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14.
+
+    RD-17 registration 2521e3bde7e26ac06b3abd0b879d165babe07793.
+    Canonical relations/hierarchy variant with event and situation endpoints.
+    Preserve the explicit primary and available inverse specialization edges,
+    the authored leaf name, and the applicable source-end description.
+    """
+    document = source_json('relations/hierarchy')
+    source_kind, target_kind = ('event', 'situation') if stereotype == 'bringsAbout' else ('situation', 'event')
+    source_element(document, 'cC')['stereotype'] = source_kind
+    source_element(document, 'cA')['stereotype'] = target_kind
+    description = 'Leaf source-end description.'
+    source_element(document, 'sLeaf')['description'] = description
+    relation = source_element(document, 'rLeaf')
+    relation['stereotype'] = None
+    strategy = 'name' if inverse_mode == 'all' else 'id'
+    options = dict(iri_strategy=strategy, inverse_properties=inverse_mode, stereotype_policy='allow-missing')
+    assert not fixture_issues(document)
+    ordinary = run(path=write_input(tmp_path, document, 'ordinary.json'), **options)
+    relation['stereotype'] = stereotype
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document)
+    result = run(path=path, **options)
+    assert result.outcome == ordinary.outcome == 'completed'
+    named = {'General', 'Middle', 'Leaf', 'Sibling'} if inverse_mode == 'all' else set()
+    primary, inverse, edges = _hierarchy_expected(
+        result, strategy, named, [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    graph = result.ontology
+    assert _edges(graph) == edges
+    assert set(graph.objects(primary['Leaf'], RDFS.label)) == {Literal('leaf')}
+    if inverse_mode == 'all':
+        _candidate(graph, primary['Leaf'], {'leaf'}, 'C')
+        _direction(graph, primary['Leaf'], BASE.C, BASE.A)
+        assert set(graph.subjects(RDFS.comment, Literal(description))) == {inverse['Leaf']}
+    else:
+        _direction(graph, primary['Leaf'], BASE.cC, BASE.cA)
+        assert not list(graph.subjects(RDFS.comment, Literal(description)))
+    _assert_event_situation_mapping_equal(ordinary.ontology, graph)
+    assert invoke.read_relation_stereotype_annotations(result, path) == ()
 
 
 @pytest.mark.parametrize('strategy,mode,input_policy', [

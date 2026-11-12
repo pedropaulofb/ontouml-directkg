@@ -6243,11 +6243,132 @@ all earlier canonical references and assertions in their original entries.
 | `tests/transformation/test_relations.py::test_dependency_residual_warnings_survive_material_chain_generation[best-effort-omit-conflicting-constraints-mode]` | DK-DIAG-01, DK-DIAG-05, DK-GEN-11, DK-INV-01, DK-INV-04, DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11 | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check grounding, ordered chains, accepted characteristics and aligned pairs, mode-specific cardinalities, and annotations. Require reported warning coverage for `rLeft` and `rRight`, the characterization and external dependence, under the selected policy. Consolidated coverage is allowed. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_dependency_residual_warnings_survive_material_chain_generation[best-effort-preserve-conflicting-constraints-relator]` | DK-DIAG-01, DK-DIAG-05, DK-GEN-11, DK-INV-01, DK-INV-04, DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11 | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check grounding, ordered chains, accepted characteristics and aligned pairs, mode-specific cardinalities, and annotations. Require reported warning coverage for `rLeft` and `rRight`, the two distinct mediations, under the selected policy. Consolidated coverage is allowed. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_dependency_residual_warnings_survive_material_chain_generation[best-effort-preserve-conflicting-constraints-mode]` | DK-DIAG-01, DK-DIAG-05, DK-GEN-11, DK-INV-01, DK-INV-04, DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11 | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check grounding, ordered chains, accepted characteristics and aligned pairs, mode-specific cardinalities, and annotations. Require reported warning coverage for `rLeft` and `rRight`, the characterization and external dependence, under the selected policy. Consolidated coverage is allowed. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[tolerant-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[tolerant-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[best-effort-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[best-effort-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Disable stereotype naming under strict and check `event_situation`, direction, inverse and completed outcome. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Disable stereotype naming under strict and check `situation_event`, direction, inverse and completed outcome. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-bringsAbout]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `bringsAbout`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the residual WARNING identifying `rFocus` after semantic naming. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-triggers]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `triggers`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the residual WARNING identifying `rFocus` after semantic naming. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[tolerant-bringsAbout]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `bringsAbout`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the residual WARNING identifying `rFocus` after semantic naming. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[tolerant-triggers]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `triggers`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the residual WARNING identifying `rFocus` after semantic naming. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[best-effort-bringsAbout]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `bringsAbout`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the residual WARNING identifying `rFocus` after semantic naming. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[best-effort-triggers]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `triggers`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the residual WARNING identifying `rFocus` after semantic naming. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-bringsAbout]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `event_situation`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the fallback naming and residual WARNING meanings for `rFocus` in one or more records. | Passed on the refreshed production base. |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-triggers]` | DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11. RD-17 graph registration `2521e3bde7e26ac06b3abd0b879d165babe07793`. | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check `situation_event`, source identity, direction, inverse, labels and descriptions, finite cardinalities, class disjointness and target-end aggregation. Compare the RDF with the matched ordinary mapping to detect additions from the stereotype. Require the fallback naming and residual WARNING meanings for `rFocus` in one or more records. | Passed on the refreshed production base. |
+
+## RD-17 — bringsAbout and triggers graph treatment
+
+**Disposition** TEST CHANGE. **Status** Pending independent Test Reviewer review.
+The owner accepted Alternative A with all three boundaries. The owner-forwarded
+Architect Reviewer **OK, no findings** applies to
+`2521e3bde7e26ac06b3abd0b879d165babe07793`, the direct successor of
+`545d995b68fd4f97ca7c0c2183ea02fd53328328`. The active behavioral specification
+blob is `8d212d427c0ee7a02ca84f19d9e363b27c9c6d94` and the structure blob is
+`250a059d46377360aeecdb5176310bd36bde7825`. The owner authorizes independent
+downstream work, and this submission requires its own Test Reviewer disposition.
+
+DK-REL-01 preserves ordinary identity, direction, naming, annotations, explicit
+cardinalities, inverses and generalizations. It excludes additional logical
+axioms and declaration annotations based solely on `bringsAbout` or `triggers`.
+DK-GEN-11 applies that exclusion to the metadata permission. This registration
+supersedes the deferral of graph and declaration-annotation treatment. Its
+temporal and causal limits are documented in DK-REL-01. The warning paragraph
+retains the accepted nonfatal, consolidatable WARNING under every policy.
+RD-04's general OWL profile question remains open.
+
+The prior warning submission closed at `8c089cecaadd88d612223356bd842df7caaeff6b`.
+Its eight `test_remaining_event_relations_report_nonfatal_residual_warning`
+cases checked name, direction, inverse, outcome and diagnostic meaning/source.
+The four `test_stereotype_table_candidates_preserve_established_direction_when_resolvable`
+parameters `bringsAbout_forward`, `bringsAbout_reverse`, `triggers_forward`
+and `triggers_reverse` cover the other direction-specific naming cases.
+The graph registration requires the additional positive and exclusion checks.
+The eight strengthened nodes are recorded above alongside their warning
+registration. The four new hierarchy nodes appear below.
+
+**Input and expected output.** Complete VP-plugin 0.5.3-style runtime variants
+of `shared/binary_relation` and `relations/hierarchy` pass fixture checks.
+The binary cases preserve the semantic names under every policy and the
+endpoint fallback with stereotype naming disabled under `strict`. They check
+source identity, directed primary and inverse properties, source-only labels,
+authored descriptions and the target-end aggregation comment. Both directions
+of explicit finite cardinality restrictions and the independent event–situation
+class disjointness are asserted. The hierarchy cases use name strategy with
+`all` inverses and ID strategy with `none`. They check the authored leaf label,
+its ordinary direction, primary and available inverse edges, and the applicable
+source-end description.
+
+Each comparison uses a genuine ordinary conversion from the matched fixture
+with a null relation stereotype and the accepted allow-missing policy. In the
+binary cases each lexical candidate is checked before aligning the two property
+IRIs from their source-end identities. RDFLib compares the copied graphs modulo
+blank-node identity, unordered class disjointness and optional typed creation
+or modification dates. Independently authored text is preserved even when it
+mentions the stereotype. The adapter binds actual file conversion, graph access,
+annotation reading and the existing warning checks. Unfamiliar annotation
+renderings remain explicitly unbound.
+
+**Source evidence.** Selected Catalog files at
+`99d23ff1e1c2bf58a7bd99ef0156eba79a611c99` contained both stereotypes in
+ordered, typed association-end records. The Reference Ontology of Trust
+(`models/amaral2019rot/ontology.json`) includes Loss Event bringing about Loss
+Situation and Hazardous Situation triggering Threat Event. The Common Ontology
+of Value and Risk (`models/sales2018cover/ontology.json`) provides simple Event
+and Situation examples. The PPO-O file (`models/ppo-o2021/ontology.json`)
+includes a trigger endpoint labeled with the `Complex Event` stereotype, which
+the variants do not use. The canonical variants use short source IDs, supported
+`event` and `situation` declarations, controlled cardinalities, descriptions,
+aggregation and explicit hierarchy. This is selected-record evidence.
+Individual exporter provenance and full-file compatibility remain unverified.
+
+The pinned 0.5.3 exporter at `9fc02b8162db9910f21b8713549cafce2627dad0`
+recognizes both values in `RelationStereotype.java`. `IAssociationTransformer.java`
+preserves source and target order. The relation, classifier, decoratable and
+property serializers confirm the field shapes, including classifier references,
+nullable cardinalities and association-end flags.
+
+**Actual execution.** Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0 and PyYAML 6.0.3.
+The starting revision `8c089cecaadd88d612223356bd842df7caaeff6b` lacked the
+required production warnings. Its focused run had four graph cases pass and
+eight reach the missing warning. The intervening production revision
+`8d4e4acd2ad3bee98c1a425026faa05199381a67` adds those warnings, and
+`49122ec45a38378cf1fac0d6eae82456f4dedd5e` adds the site documentation.
+Verified that the test and specification files match across the advance.
+The changes were reconciled and retested on that publication base.
+
+At the refreshed base, the focused selection passed **12** cases and the
+combined selection passed **365**. The same combined selector on the
+publication base without the test edits passed **361** cases. Full collection
+retained all **3,474** baseline IDs and collected **3,478** with the change.
+The **90** compatibility cases passed within the combined run. Fixture and RDF
+checks passed **88** cases and report/CLI parity checks passed **48** cases.
+The additional hierarchy/naming selection returned **7 passes** and **9**
+existing `ImplementationUnavailable` failures at both revisions, one for
+`COMPARATIVE_NAMING` and eight for `inverse_omission_reports`.
+
+Controls over actual RDF accepted **14** binary and **4** hierarchy views
+and rejected **20** binary and **14** hierarchy mutations. The accepted
+variants included reversed and reciprocal class disjointness, blank-node
+renaming, optional primary qualification and typed dates. Rejected variants
+included extra logical triples, declaration annotations, misplaced authored
+text, missing required assertions and absent aggregation comments in both
+graphs. F4 diagnostic controls accepted **20**, rejected **25** and left **10**
+uninterpretable views unbound. Those controls reused real graphs, outcomes,
+native events and locators. Full-suite execution and full provenance
+conformance remain unperformed.
+
+Repository-root validation commands with temporary report options omitted
+
+```bash
+export PYTHONPATH="$PWD/src"
+python -m pytest --rootdir=. --collect-only -q tests
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'remaining_event_relations or event_situation_relations' --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'partial_semantic_relations or participational_limitation_warning or dependency_residual or remaining_event_relations or event_situation_relations or stereotype_table_candidates or historical_dependence_ or additional_relation_characteristics or feature_disjointness or feature_pairing or chain_body_participation or new_relation_axioms or imported_non_simple or aggregation_flags_preserve or unique_whole_marker or insufficient_structural_roles' --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k '(explicit_relation_generalizations or hierarchy_inverse_mode or hierarchy_labels or primary_naming_precedence or source_name_role_labels) and not event_situation_relations' --tb=short -rN
+python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper' --tb=short -rN
+python -m pytest --rootdir=. -q tests/cli/test_cli.py tests/transformation/test_input_diagnostics.py -k 'shared_json_contract or (equivalent_cli_and_python_controls and (stereotype_relation_naming or relation_labels))' --tb=short -rN
+git diff --check
+```
+
+| Actual pytest node | Rules | Canonical input / expectation | Actual assertion branch | Observed status |
+| --- | --- | --- | --- | --- |
+| `tests/transformation/test_relations.py::test_event_situation_relations_preserve_explicit_hierarchy[all-bringsAbout]` | DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14 | Key: `relations/hierarchy`. Input: `tests/fixtures/transformation/relations/hierarchy/input.json`. Inline complete variant, fixed directed edges and matched ordinary control. | Check the name-based leaf, authored label, direction, primary and inverse edges, and inverse source description. Compare the actual RDF with the matched ordinary graph. | Passed. |
+| `tests/transformation/test_relations.py::test_event_situation_relations_preserve_explicit_hierarchy[all-triggers]` | DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14 | Key: `relations/hierarchy`. Input: `tests/fixtures/transformation/relations/hierarchy/input.json`. Inline complete variant, fixed directed edges and matched ordinary control. | Check the name-based leaf, authored label, direction, primary and inverse edges, and inverse source description. Compare the actual RDF with the matched ordinary graph. | Passed. |
+| `tests/transformation/test_relations.py::test_event_situation_relations_preserve_explicit_hierarchy[none-bringsAbout]` | DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14 | Key: `relations/hierarchy`. Input: `tests/fixtures/transformation/relations/hierarchy/input.json`. Inline complete variant, fixed directed edges and matched ordinary control. | Check the ID-based leaf, authored label, direction and primary edges, with named inverses and the source-end description absent. Compare the actual RDF with the matched ordinary graph. | Passed. |
+| `tests/transformation/test_relations.py::test_event_situation_relations_preserve_explicit_hierarchy[none-triggers]` | DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14 | Key: `relations/hierarchy`. Input: `tests/fixtures/transformation/relations/hierarchy/input.json`. Inline complete variant, fixed directed edges and matched ordinary control. | Check the ID-based leaf, authored label, direction and primary edges, with named inverses and the source-end description absent. Compare the actual RDF with the matched ordinary graph. | Passed. |

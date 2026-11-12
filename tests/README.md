@@ -1620,3 +1620,43 @@ severity. Exact nodes, selected Catalog/exporter evidence and commands are in
 `tests/coverage.md`. Full-suite execution, full provenance conformance and
 positive end-to-end execution of the five newly required warnings remain
 unperformed.
+
+## RD-17 — bringsAbout and triggers graph treatment
+
+TEST CHANGE for the owner's accepted Alternative A and independent Architect
+Reviewer **OK, no findings**, at `2521e3bde7e26ac06b3abd0b879d165babe07793`.
+The registration settles the pair's graph treatment under DK-REL-01 and
+DK-GEN-11. Ordinary mappings and independently required output are retained.
+Additional logical axioms and declaration annotations based solely on either
+stereotype are excluded. The established nonfatal WARNING contract applies.
+The dependency and warning-consistency test assignment closed at
+`8c089cecaadd88d612223356bd842df7caaeff6b`. This graph submission is pending
+its independent Test Reviewer disposition.
+
+Eight existing cases in `tests/transformation/test_relations.py` now check
+the ordinary RDF mapping for both stereotypes. These use `shared/binary_relation`
+with explicit cardinalities, source and end descriptions, and a target-end
+aggregation comment. The successful naming cases still cover all three policies,
+and the naming-disabled cases still run under `strict` and allow consolidated
+warnings. Four new `relations/hierarchy` cases check exact primary and available
+inverse generalizations with both stereotypes. They cover an authored leaf name
+and its applicable description with named inverses, and ID-based mapping without
+named inverses. The input and expectation changes are inline.
+
+The RDF comparison uses a real ordinary conversion of the matched input.
+The assertions check the allowed lexical candidates before aligning generated
+property IRIs. The comparison permits blank-node relabeling, unordered class
+disjointness and independent typed creation or modification times. Source-authored
+descriptions mentioning either stereotype and the existing aggregation-comment
+reader provide positive annotation evidence. The existing invocation adapter
+reads the actual graphs, warning meanings and reported source locators.
+
+The publication base `49122ec45a38378cf1fac0d6eae82456f4dedd5e` incorporates
+the warning implementation and the pair's site documentation. At this base,
+all **12** affected cases passed. The combined selection passed **365** cases,
+including the **361** pre-existing cases. Collection retained all **3,474**
+previous IDs and added four. **88** fixture/RDF-helper and **48** diagnostic
+report and CLI parity cases passed. The same nine older cases in the additional
+hierarchy/naming selection reached unbound operations at both revisions.
+`tests/coverage.md` records the exact nodes, commands, selected Catalog and
+VP-plugin evidence, and the graph and warning controls.
