@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-11, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, and owner-directed first-implementation prioritization and warning consistency. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-12, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-implementation prioritization and warning consistency, and RD-04's profile dependency on DKGM vocabulary modes. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -66,7 +66,7 @@ Generic source-ID naming fallback, owner/source qualification, supplied-base val
 
 **Decisions still needed:**
 
-1. State a precise general OWL conformance/profile claim consistent with the accepted mappings and import closure.
+1. State a precise general OWL conformance/profile claim consistent with the accepted mappings, vocabulary modes, and applicable import closure.
 2. Select exact diagnostic identifiers and the complete condition-to-code catalogue. Preserve the accepted shared JSON report contract and all existing diagnostic-content and outcome requirements.
 3. Establish externally observable behavior for unexpected runtime failures and ontology-output delivery failures outside the already resolved scope, including treatment of available results, diagnostics, transformation outcomes, and exit-code precedence.
 
@@ -85,7 +85,7 @@ DK-DIAG-04 fixes the shared JSON report's minimum structure, required member nam
 | General profile claim | A qualified, bounded claim versus a stronger guarantee that would require justification against all accepted mappings. A stronger proposal does not authorize removing accepted axioms. |
 | Uncovered failures | Shared or distinct public failure treatment, preserving the already established separation of transformation outcomes and delivery status. No additional status or exit-code mapping is selected. |
 
-**Dependencies and next step:** Analyze the profile claim against the accepted mappings and their effects through property hierarchies, inverses, and the import closure. Include DK-REL-01's per-axiom compatibility gate and DK-REL-07's material-property-chain modes. Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
+**Dependencies and next step:** Analyze the profile claim against the accepted mappings and their effects through property hierarchies, inverses, and the applicable import closure across the DK-GEN-04 vocabulary modes. Distinguish axioms in the generated output and its import closure from axioms supplied separately in a consumer's reasoning scope. Include DK-REL-01's per-axiom compatibility gate and DK-REL-07's material-property-chain modes. Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
 
 ## Source-scope evidence checks
 
@@ -129,7 +129,7 @@ The owner reports that repeated generalization-set membership does not occur in 
 
 Apply the remaining dependencies proportionately:
 
-- Assess the RD-04 profile claim against the accepted mappings and import closure. Its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
+- Assess the RD-04 profile claim across the accepted mappings, vocabulary modes, and applicable import closure. Its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
 - Establish source evidence before proposing an additional mapping from RD-27 or ODI-INSTANCES. Their blocked evidence checks do not by themselves establish a missing implementation feature.
 - Investigate ODI-IRI only after identifying its reachable technical condition. Preserve its unresolved status without treating hypothetical collision recovery as an automatic implementation prerequisite.
 
@@ -177,6 +177,7 @@ These are research pointers retained from the inspected prior state and session;
   - Guizzardi et al. (2013), [*Towards Ontological Foundations for the Conceptual Modeling of Events*](https://www.researchgate.net/publication/290226494_Towards_Ontological_Foundations_for_the_Conceptual_Modeling_of_Events), axioms S1–S6, formalizes event timing, the complete triggering and maximal resulting situations, and direct causation. The gUFO 1.0.0 `broughtAbout` and `contributedToTrigger` definitions describe partial results and contributing situations as comparison evidence.
   - The Catalog check covered selected relation records and their resolved endpoints. Catalog-wide frequency, the exporter provenance of each file, and end-to-end compatibility were outside its scope.
 - OWL 2 structural specification, Second Edition, especially property simplicity and global restrictions (§§11.1–11.2): https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/
+- DKGM delivery investigation (2026-11-12). The inspected [DKGM 0.1.1 Turtle](https://github.com/pedropaulofb/ontouml-directkg/blob/49122ec45a38378cf1fac0d6eae82456f4dedd5e/vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl) and the repository's `vocabulary/latest/dkgm-vocabulary.ttl` shared blob `b8f66ab08a1d33b77efcfa8b0f5b0bd0b274e87c` at `49122ec45a38378cf1fac0d6eae82456f4dedd5e`. The artifact contains four object-property declarations and three generic chains. The OWL 2 structural specification's §§3.4 and 5.8.1 describe import closure and typing. GraphDB 11.2 documents [schema loading](https://graphdb.ontotext.com/documentation/11.2/configuring-a-repository.html) and [ruleset-based inference](https://graphdb.ontotext.com/documentation/11.2/reasoning.html). Stardog documents [configured reasoning schemas](https://docs.stardog.com/inference-engine/) and separate schema loading. This was a repository and documentation inspection. Live versioned W3ID resolution and end-to-end reasoner or triplestore behavior remain unverified.
 - Standard provenance/metadata references, if a remaining question requires them: https://www.w3.org/TR/prov-o/ ; https://www.dublincore.org/specifications/dublin-core/dcmi-terms/ ; https://spdx.org/rdf/terms/
 
 At continuation, the Architect retrieves this record and the current consolidated specification directly from GitHub. Registration and independent review status are reported separately from unresolved design state. A substantive integration conflict needs an explicit owner decision in the Architect workflow; it must not be silently resolved during record maintenance or independent review.

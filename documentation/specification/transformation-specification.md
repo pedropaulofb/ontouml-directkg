@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-11
+**Consolidated:** 2026-11-12
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -90,11 +90,11 @@ For binary relations with an endpoint whose `propertyType` resolves to another s
 
 ### 3.3 Output scope
 
-The target is an RDF/OWL knowledge graph. Turtle is used in ontology examples; provenance sidecars MUST use Turtle under DK-GEN-10. The generated ontology IRI is derived exclusively from the effective entity base under DK-IRI-01 (RD-05). Apart from DK-IRI-01's IRI-selection, supplied-base validation, and optional caller-supplied ontology version IRI rules, the required `dkgm` import under DK-GEN-04 (RD-17 / RD-25), the project-name label under DK-GEN-08 (RD-05 / RD-27), the project-description comment under DK-LBL-02 (RD-27, option B), and the metadata and provenance rules in DK-GEN-09–11, this specification does not define other ontology-header details, other ontology-identity matters, or general OWL profile guarantees. The mandatory `dkgm` import uses the stable URI identifying or redirecting to the vocabulary's latest version under DK-GEN-04 (RD-05); it is not pinned to a vocabulary release. The accepted concrete URI is `https://w3id.org/directkg/vocab/dkgm`. Emitted material-property chains are subject to the compatibility-notice and documentation requirements in DK-DIAG-07 (RD-17); this does not establish a general OWL profile guarantee.
+The target is an RDF/OWL knowledge graph. Turtle is used in ontology examples; provenance sidecars MUST use Turtle under DK-GEN-10. The generated ontology IRI is derived exclusively from the effective entity base under DK-IRI-01 (RD-05). Apart from DK-IRI-01's IRI-selection, supplied-base validation, and optional caller-supplied ontology version IRI rules, the selected `dkgm` vocabulary handling under DK-GEN-04 (RD-17 / RD-25), the project-name label under DK-GEN-08 (RD-05 / RD-27), the project-description comment under DK-LBL-02 (RD-27, option B), and the metadata and provenance rules in DK-GEN-09–11, this specification does not define other ontology-header details, other ontology-identity matters, or general OWL profile guarantees. In the default `import` mode, the import uses the stable URI `https://w3id.org/directkg/vocab/dkgm`, which identifies or redirects to the vocabulary's latest version under DK-GEN-04 (RD-05). Emitted material-property chains are subject to the compatibility-notice and documentation requirements in DK-DIAG-07 (RD-17); this does not establish a general OWL profile guarantee.
 
 The UML property subsetting and redefinition mapping in DK-PROP-03 (RD-14) does not establish a general OWL profile guarantee. The general output and OWL-profile contract remains the responsibility of RD-04.
 
-DirectKG avoids a DirectKG or OntoUML metamodel vocabulary in the domain graph except where an explicit rule requires a vocabulary term. DK-GEN-04 requires an import of the reusable DirectKG mereology vocabulary; its generic mereological properties are distinct from OntoUML metamodel resources and from source-specific domain properties. Higher-order classification uses standard RDF/OWL constructs rather than companion metamodel resources.
+DirectKG avoids a DirectKG or OntoUML metamodel vocabulary in the domain graph except where an explicit rule requires a vocabulary term. DK-GEN-04 governs how the reusable DirectKG mereology vocabulary is supplied. Its generic mereological properties are distinct from OntoUML metamodel resources and from source-specific domain properties. Higher-order classification uses standard RDF/OWL constructs rather than companion metamodel resources.
 
 Package organization, diagrams, and diagramming information are intentionally omitted under DK-GEN-06 (RD-31 / RD-32). Custom `propertyAssignments` are recognized and omitted under DK-GEN-07 (RD-30).
 
@@ -226,7 +226,7 @@ For a direct relation property `A → B`, the source end has `propertyType A` an
 
 DirectKG MUST generate RDF/OWL resources for supported domain classes and properties, together with the enumeration value individuals required by DK-CLS-10–11 (RD-09). It MUST NOT generate resources merely to mirror source JSON containers, diagram views, or metamodel objects. Material–relator and material–mode derivation connectors are used as transformation-time information without a separate output representation, as specified in DK-REL-08 (RD-16 / RD-17). Comparative–quality derivation connectors are intentionally unrepresented with the diagnostic specified in DK-REL-18 (RD-17). Other resolved binary connectors with relation-valued endpoints and no accepted mapping are omitted with the nonfatal limitation warning specified in DK-REL-17 (RD-16). Independently transformable endpoint classes and relations retain their applicable mappings.
 
-Every generated ontology also imports the reusable `dkgm` vocabulary under DK-GEN-04 (RD-17 / RD-25), including when no covered mereological relation is present. The generic vocabulary terms are not source-model resources. Covered source relations remain distinct domain properties under DK-REL-19.
+DirectKG MUST apply the selected vocabulary mode under DK-GEN-04 (RD-17 / RD-25) to every generated ontology. The generic vocabulary terms are not source-model resources. Covered source relations remain distinct domain properties under DK-REL-19.
 
 ### DK-GEN-02 — Explicit source structures
 
@@ -234,7 +234,7 @@ Unless a rule explicitly requires closure materialization, DirectKG transforms e
 
 Explicit UML property subsetting and redefinition references follow DK-PROP-03 (RD-14). Their identical resulting axioms are deduplicated, but DirectKG MUST NOT additionally emit logically entailed inverse counterparts or materialize the transitive closure of their property hierarchy. The inverse-specialization requirement for relation generalizations in DK-INV-12 does not extend to RD-14 references.
 
-The three generic mereological chains in DK-GEN-04 are defined in the imported vocabulary. Their inferred instance-level consequences do not require materialization as source-specific property assertions or additional source-specific chains under DK-REL-19 (RD-17 / RD-25).
+The three generic mereological chains in DK-GEN-04 are defined in the reusable vocabulary. DK-GEN-04 governs how these axioms are supplied for consumer reasoning. Their inferred instance-level consequences do not require materialization as source-specific property assertions or additional source-specific chains under DK-REL-19 (RD-17 / RD-25).
 
 ### DK-GEN-03 — Property domains and ranges
 
@@ -285,11 +285,23 @@ The vocabulary MUST define these three accepted generic property-chain axioms:
 | `dkgm:subQuantityOf o dkgm:subQuantityOf` | `dkgm:subQuantityOf` |
 | `dkgm:memberOf o dkgm:subCollectionOf` | `dkgm:memberOf` |
 
-The vocabulary MUST NOT define generic `componentOf` transitivity or a generic `componentOf` property-chain axiom solely from the OntoUML stereotype. In particular, it MUST NOT define a `dkgm:componentOf o dkgm:componentOf` chain concluding in `dkgm:componentOf`. The four generic properties MUST NOT be declared asymmetric by default, and no additional generic asymmetric superproperty is introduced by this mapping. The three chain-bearing properties, `dkgm:memberOf`, `dkgm:subCollectionOf`, and `dkgm:subQuantityOf`, are non-simple because they are superproperties of the accepted chains. This does not, by itself, make each source-specific subproperty non-simple; other independently applicable axioms can affect its simplicity. The general output and OWL-profile contract remains governed by RD-04 and other applicable rules.
+The vocabulary MUST NOT define generic `componentOf` transitivity or a generic `componentOf` property-chain axiom solely from the OntoUML stereotype. In particular, it MUST NOT define a `dkgm:componentOf o dkgm:componentOf` chain concluding in `dkgm:componentOf`. The four generic properties MUST NOT be declared asymmetric by default, and no additional generic asymmetric superproperty is introduced by this mapping. The three chain-bearing properties, `dkgm:memberOf`, `dkgm:subCollectionOf`, and `dkgm:subQuantityOf`, are non-simple in an axiom closure containing the accepted chains because they are their conclusions. This does not, by itself, make each source-specific subproperty non-simple; other independently applicable axioms can affect its simplicity. The general output and OWL-profile contract remains governed by RD-04 and other applicable rules.
 
-Every ontology generated by DirectKG MUST import the *complete* reusable `dkgm` vocabulary, even when the source model contains no covered mereological relation. Its import closure consequently includes all four generic property declarations and all three accepted chains. The vocabulary is the authoritative location for these generic axioms: DirectKG MUST NOT copy them into each generated ontology or construct a model-specific subset. DK-IRI-01 (RD-05) establishes the generated ontology IRI by derivation from the effective entity base. The `dkgm` vocabulary MUST have a stable URI that identifies or redirects to its latest version. Every generated ontology MUST use that stable URI `U` as the object of its mandatory `owl:imports` statement, without the appended `#` or a property local name. The generated import MUST NOT be pinned to a particular vocabulary release or replaced with a version-specific URI obtained by following the stable URI's redirect. The concrete import target is the selected `U` above.
+#### Vocabulary delivery modes
+
+The published `dkgm` vocabulary remains authoritative for the generic properties and chains. DirectKG MUST use the vocabulary mode selected under §15. In every mode, DK-REL-19 governs source-specific bridges and primary-property asymmetry, and all independently applicable mappings retain their governing rules. The generated ontology IRI follows DK-IRI-01.
+
+**`import` (default).** Every generated ontology MUST import the complete reusable `dkgm` vocabulary, including when no covered mereological relation is mapped. The vocabulary MUST have a stable URI identifying or redirecting to its latest version. The generated ontology MUST use the selected stable URI `U` as the object of its `owl:imports` statement, without a fragment or property local name. The import MUST NOT be pinned to a vocabulary release or use a version-specific URI obtained by following a redirect. The import closure supplies all four generic property declarations and all three accepted chains. DirectKG MUST NOT copy those vocabulary declarations or chains locally in this mode or construct a model-specific subset of the imported vocabulary.
 
 **Non-normative import rationale (RD-05):** The stable URI provides access to the latest vocabulary without requiring a different import statement for each release. When an existing generated ontology's import is subsequently resolved against a newer vocabulary version, its imported axioms may change even though the generated ontology file has not changed. The import therefore does not record which vocabulary version was current when conversion occurred.
+
+**`embed`.** DirectKG MUST supply the complete fixed `dkgm` core locally in every generated ontology, even when no covered mereological relation is mapped. The core consists of exactly the four generic `owl:ObjectProperty` declarations and the three accepted generic property-chain axioms listed above, including their RDF list representation. DirectKG MUST supply it without network retrieval. It MUST omit the `dkgm` import and exclude the vocabulary's own ontology header, ontology annotations, and term annotations. The reference artifact for the embedded core is [DKGM 0.1.1](https://github.com/pedropaulofb/ontouml-directkg/blob/49122ec45a38378cf1fac0d6eae82456f4dedd5e/vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl), version IRI `https://w3id.org/directkg/vocab/dkgm/0.1.1`.
+
+**`none`.** DirectKG MUST omit the `dkgm` import and generic chains. It MUST add a local `owl:ObjectProperty` declaration for each generic property referenced as the target of a DK-REL-19 bridge actually emitted in the generated ontology. The vocabulary contribution in this mode is limited to those declarations. With no emitted bridge, this mode adds no generic declarations.
+
+In `none`, if the generated ontology contains an emitted DK-REL-19 bridge to `dkgm:memberOf`, `dkgm:subCollectionOf`, or `dkgm:subQuantityOf`, DirectKG MUST report a WARNING that is nonfatal under every input policy, including `strict`. The warning MUST explain that the generic chains are absent from the output and that consumers needing those entailments must make the chain axioms or equivalent rules available to their reasoner. This warning applies only to `none` and only when at least one such bridge is emitted. DK-DIAG-04 governs diagnostic content, consolidation, and delivery.
+
+**Non-normative example.** A graph with only a `componentOf` bridge in `none` retains the primary property's asymmetry and has a local declaration of `dkgm:componentOf`. That generic property participates in none of the accepted chains, so the chain warning is not triggered. The local declarations supply object-property typing for the referenced terms. OWL 2 DL also has other requirements on the complete axiom closure. See the [OWL 2 structural specification, §5.8.1 and §§11.1–11.2](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
 
 The core `dkgm` vocabulary MUST remain independent of gUFO. It MUST NOT import gUFO or declare an `owl:equivalentProperty`, `rdfs:subPropertyOf`, or other alignment axiom between its four properties and gUFO properties as part of this mapping.
 
@@ -358,7 +370,7 @@ When the project name is absent, null, or empty, DirectKG MUST emit no ontology 
 
 The project name MUST NOT affect ontology identity, generated entity IRIs, namespaces, or logical mappings. This mapping MUST NOT create a separate project resource or introduce a project-ID annotation under RD-28 / DK-IRI-09.
 
-This project-name rule introduces no mappings or controls for other ontology-header metadata. Top-level project descriptions are separately mapped under DK-LBL-02 (RD-27, option B); external descriptive metadata and transformation provenance are separately governed by DK-GEN-09–11. Package descriptions and custom `propertyAssignments` remain governed by DK-GEN-06 and DK-GEN-07. The existing ontology declaration, ontology-IRI derivation, and mandatory `dkgm` import remain unchanged. The concrete persistent `dkgm` URI is selected under DK-GEN-04; optional caller-supplied generated-ontology version IRIs follow DK-IRI-01 (RD-05, Option B).
+This project-name rule introduces no mappings or controls for other ontology-header metadata. Top-level project descriptions are separately mapped under DK-LBL-02 (RD-27, option B); external descriptive metadata and transformation provenance are separately governed by DK-GEN-09–11. Package descriptions and custom `propertyAssignments` remain governed by DK-GEN-06 and DK-GEN-07. The project-name mapping preserves the existing ontology declaration. DK-IRI-01 (RD-05, Option B) governs the generated ontology IRI and its optional caller-supplied version IRI. DK-GEN-04 governs the selected `dkgm` vocabulary mode and the stable vocabulary URI.
 
 **Rationale (non-normative):** Preserves the source project's human-readable name through a bounded annotation mapping.
 
@@ -1334,7 +1346,7 @@ Relation descriptions and target-end descriptions MUST be preserved independentl
 
 Explicitly supplied, recognized `begin` or `end` property stereotypes on either association end follow DK-PROP-06 (RD-18): comments identify the source or target end on the successfully generated primary relation property, independently of named-inverse generation.
 
-For covered ordinary mereological relations, DK-REL-19 (RD-17 / RD-25) additionally maps that primary property beneath an imported generic `dkgm` property and declares the primary property asymmetric. Association-end `isReadOnly` and aggregation comments follow DK-PROP-04 (RD-24 / RD-25). Association-end `isOrdered: true` comments follow DK-PROP-05 (RD-23), including per-occurrence INFO reporting under DK-DIAG-18. Explicit boolean relation `isAbstract` values MUST be preserved as `rdfs:comment` on the generated primary property under DK-CLS-01 (RD-19), with the INFO reporting required by DK-DIAG-15; they MUST NOT, by themselves, introduce additional logical constraints or change the existing relation and generalization-set mappings. These rules do not change the source-backed property identity, direction, domain, range, inverses, or cardinality mappings.
+For covered ordinary mereological relations, DK-REL-19 (RD-17 / RD-25) additionally maps that primary property beneath the corresponding generic `dkgm` property and declares the primary property asymmetric. Association-end `isReadOnly` and aggregation comments follow DK-PROP-04 (RD-24 / RD-25). Association-end `isOrdered: true` comments follow DK-PROP-05 (RD-23), including per-occurrence INFO reporting under DK-DIAG-18. Explicit boolean relation `isAbstract` values MUST be preserved as `rdfs:comment` on the generated primary property under DK-CLS-01 (RD-19), with the INFO reporting required by DK-DIAG-15; they MUST NOT, by themselves, introduce additional logical constraints or change the existing relation and generalization-set mappings. These rules do not change the source-backed property identity, direction, domain, range, inverses, or cardinality mappings.
 
 A binary relation whose endpoint `propertyType` resolves to a source `Relation` does not undergo ordinary primary-property generation; its mapping or intentional omission is specified in DK-REL-08, DK-REL-18, and DK-REL-17. This does not change ordinary relations with eligible class endpoints, including the material and comparative relations connected by recognized derivations.
 
@@ -1520,7 +1532,7 @@ This preserves both primary directions without introducing a named inverse.
 
 #### Per-axiom OWL 2 DL compatibility for the five additions (RD-17)
 
-Each new axiom specified above MUST be assessed separately against the applicable OWL 2 DL restrictions, considering the generated property hierarchy, inverse relationships, and import closure, including the mandatory vocabulary import under DK-GEN-04.
+Each new axiom specified above MUST be assessed separately against the applicable OWL 2 DL restrictions, considering the generated property hierarchy, inverse relationships, and the axioms in the generated graph and applicable import closure. Under DK-GEN-04, `import` includes the vocabulary through the import closure and `embed` includes the locally emitted core. In `none`, the assessment uses the generated graph and its applicable import closure without assuming axioms supplied separately by the consumer.
 
 | Proposed new axiom | Required simplicity condition |
 |---|---|
@@ -1532,11 +1544,11 @@ A property used only in a property-chain body MUST NOT be treated as non-simple 
 
 These conditions MUST apply in every material-property-chain mode: `none`, `omit-conflicting-constraints`, and `preserve-conflicting-constraints`. Material-chain generation alone MUST NOT suppress the additions. In particular, DK-REL-07's preservation mode MUST NOT override this compatibility gate.
 
-The test concerns whether the proposed addition introduces an additional violation; it does not require the existing ontology to satisfy an overall OWL 2 DL guarantee. Existing mappings and their established omission/preservation policies MUST remain unchanged, including relation-generalization-set disjointness under DK-REL-15, source-specific mereology under DK-REL-19, and the imported vocabulary under DK-GEN-04. DirectKG MUST NOT remove other accepted axioms to accommodate these additions.
+The test concerns whether the proposed addition introduces an additional violation; it does not require the existing ontology to satisfy an overall OWL 2 DL guarantee. Existing mappings and their established omission/preservation policies MUST remain unchanged, including relation-generalization-set disjointness under DK-REL-15, source-specific mereology under DK-REL-19, and the vocabulary output selected under DK-GEN-04. DirectKG MUST NOT remove other accepted axioms to accommodate these additions.
 
 This rule is limited to the four property-characteristic mappings and the paired-disjointness mapping above. It establishes neither an overall OWL 2 DL guarantee nor new semantic validation, consistency checking, or source-model repair.
 
-**Accepted dependencies and cross-references:** DK-REL-09 and DK-PROP-03 provide the existing primary/named-inverse/anonymous-inverse selection approach extended here. DK-GEN-04 establishes the mandatory imported vocabulary relevant to the compatibility assessment. OWL 2 property simplicity and global restrictions are defined in [*OWL 2 Web Ontology Language: Structural Specification and Functional-Style Syntax, Second Edition*, W3C Recommendation, 11 December 2012, §§11.1–11.2](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
+**Accepted dependencies and cross-references:** DK-REL-09 and DK-PROP-03 provide the existing primary/named-inverse/anonymous-inverse selection approach extended here. DK-GEN-04 establishes the vocabulary modes relevant to the compatibility assessment. OWL 2 property simplicity and global restrictions are defined in [*OWL 2 Web Ontology Language: Structural Specification and Functional-Style Syntax, Second Edition*, W3C Recommendation, 11 December 2012, §§11.1–11.2](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
 
 ### DK-REL-02 — Forward name precedence
 
@@ -1689,7 +1701,7 @@ DirectKG assumes the explicitly represented source-target direction and MUST NOT
 
 An `isDerived` flag alone does not establish a material-property chain; DK-GEN-05 (RD-20) governs its annotation preservation independently of the explicit derivation mappings in this rule, DK-REL-08, and DK-REL-18.
 
-Material-property-chain generation is controlled by the three-mode `--material-property-chains` parameter in §15, with default `none`. The chain-generating modes are `omit-conflicting-constraints` and `preserve-conflicting-constraints`. Both govern the accepted material–relator and material–mode patterns below. The parameter does not govern the imported `dkgm` vocabulary, its generic chains, or source-specific mereological mappings.
+Material-property-chain generation is controlled by the three-mode `--material-property-chains` parameter in §15, with default `none`. The chain-generating modes are `omit-conflicting-constraints` and `preserve-conflicting-constraints`. Both govern the accepted material–relator and material–mode patterns below. DK-GEN-04 governs the `dkgm` vocabulary and its generic chains independently of this parameter. Source-specific mereological mappings follow DK-REL-19.
 
 The four additional property-characteristic mappings and characterization–external-dependence disjointness under DK-REL-01 (RD-17) have their own per-axiom compatibility gate in every mode. `preserve-conflicting-constraints` MUST NOT override that gate. The policies below retain their established treatment of existing cardinality and relation-generalization-set disjointness mappings; DirectKG MUST NOT remove other accepted axioms to accommodate the additions.
 
@@ -2009,7 +2021,7 @@ DirectKG MUST emit a nonfatal unsupported-semantics diagnostic under every input
 
 The comment preservation of `isExtensional` under DK-CLS-01 (RD-21) introduces no additional logical axioms solely from that flag and leaves this mereological mapping unchanged.
 
-For each eligible ordinary binary class-to-class relation carrying the recognized OntoUML stereotype `memberOf`, `subCollectionOf`, `subQuantityOf`, or `componentOf`, DirectKG MUST retain its distinct source-specific primary `owl:ObjectProperty` and generate a direct `rdfs:subPropertyOf` axiom from that primary property to the corresponding generic property in the imported `dkgm` vocabulary (DK-GEN-04):
+For each eligible ordinary binary class-to-class relation carrying the recognized OntoUML stereotype `memberOf`, `subCollectionOf`, `subQuantityOf`, or `componentOf`, DirectKG MUST retain its distinct source-specific primary `owl:ObjectProperty` and generate a direct `rdfs:subPropertyOf` axiom from that primary property to the corresponding generic property under DK-GEN-04 in every vocabulary mode:
 
 | Source stereotype | Superproperty of source relation's primary property |
 |---|---|
@@ -2018,7 +2030,7 @@ For each eligible ordinary binary class-to-class relation carrying the recognize
 | `subQuantityOf` | `dkgm:subQuantityOf` |
 | `componentOf` | `dkgm:componentOf` |
 
-The generic property IRIs in this table use the `U#` namespace established by DK-GEN-04 (RD-05); the ontology/import URI remains `U`. This identifier pattern does not change the source-specific mappings.
+The generic property IRIs in this table use the `U#` namespace established by DK-GEN-04 (RD-05). The vocabulary ontology URI is `U`, which is also the import target in `import` mode. This identifier pattern does not change the source-specific mappings.
 
 DirectKG MUST use the relation's already established primary direction. The recognized stereotype alone determines this bridge; `aggregationKind` MUST NOT determine whether it applies, its direction, or whether the primary property is replaced by an inverse expression. DirectKG MUST NOT reverse, normalize, repair, or otherwise reinterpret the source relation, substitute a generated named inverse or anonymous inverse expression for the primary property, or generate a named inverse solely for this bridge. Its existing naming, IRI, inverse, domain, range, multiplicity, cardinality, relation-generalization, and other independently applicable mappings remain in force. The supported source representation and its primary direction are authoritative even when they do not express the author's intended mereological orientation.
 
@@ -2026,9 +2038,9 @@ For every such covered relation, DirectKG MUST also declare its primary generate
 
 Multiplicity-derived restrictions MUST continue to use the appropriate source-specific properties under DK-REL-09–13. Being a subproperty of a non-simple generic chain-bearing property alone does not make a source-specific property non-simple or prevent its accepted asymmetry or cardinality restrictions. Other independently applicable axioms may affect simplicity; this decision supplies no general OWL 2 DL conformance guarantee.
 
-The accepted generic chains operate on the imported `dkgm` properties. DirectKG MUST NOT construct arbitrary source-specific mereological property-chain axioms solely because source relations have compatible covered stereotypes. The generic-level mapping and asymmetry are part of the default transformation and are independent of `--material-property-chains`, which controls only the accepted material-relation chains in DK-REL-07.
+The accepted generic chains operate on the generic `dkgm` properties when those axioms are available in the consumer's reasoning scope. DirectKG MUST NOT construct arbitrary source-specific mereological property-chain axioms solely because source relations have compatible covered stereotypes. The bridges and primary-property asymmetry apply in every DK-GEN-04 vocabulary mode. `--material-property-chains` controls only the accepted material-relation chains in DK-REL-07.
 
-**Non-normative example:** If `r1` and `r2` are distinct subproperties of `dkgm:subQuantityOf`, assertions `a r1 b` and `b r2 c` permit the imported generic chain to infer `a dkgm:subQuantityOf c`; they do not, from those facts alone, infer `a r1 c` or `a r2 c`. A model whose primary direction is opposite its intended mereological direction may consequently yield an unintended generic assertion; this mapping does not validate or fix that model.
+**Non-normative example.** If `r1` and `r2` are distinct subproperties of `dkgm:subQuantityOf`, assertions `a r1 b` and `b r2 c` allow a reasoner with the generic chain to entail `a dkgm:subQuantityOf c`. Those facts alone do not entail `a r1 c` or `a r2 c`. A model whose primary direction is opposite its intended mereological direction may consequently yield an unintended generic assertion; this mapping does not validate or fix that model.
 
 ### DK-REL-20 — Complete singleton relation generalization sets (RD-13)
 
@@ -2330,7 +2342,7 @@ DirectKG MUST automatically derive the generated ontology's IRI from the effecti
 
 DirectKG MUST NOT provide a separate configuration control for choosing an ontology IRI independently of the entity base. This derivation MUST NOT modify the effective entity base or the entity IRIs generated from it. The placeholder default, delimiter handling, and warning requirements above remain unchanged.
 
-This rule establishes the generated ontology's IRI only; it does not select the imported `dkgm` vocabulary's IRI under DK-GEN-04.
+This rule establishes the generated ontology's IRI. DK-GEN-04 establishes the `dkgm` vocabulary's IRI.
 
 **Rationale and examples (non-normative):** Automatic derivation keeps configuration simple and avoids a second independently configured identifier.
 
@@ -2381,7 +2393,7 @@ Before conversion starts, DirectKG MUST validate the supplied value as an absolu
 
 Version identifiers are assigned by the caller. DirectKG MUST NOT derive a version IRI from filenames, execution timestamps, checksums, or the DirectKG software version. This decision adds no field to the external metadata whitelist under DK-GEN-09.
 
-Supplying or changing only the version IRI does not change ontology IRI derivation, generated entity IRIs, or the established DKGM import under DK-GEN-04.
+Supplying or changing only the version IRI does not change ontology IRI derivation, generated entity IRIs, or the vocabulary handling selected under DK-GEN-04.
 
 The ontology version IRI setting does not change the provenance rules in DK-GEN-10. When provenance is enabled, the effective configuration record MUST reflect the ontology version IRI setting. In sidecar mode, the output checksum MUST be calculated over the final serialized ontology bytes, including the version IRI statement when present. This decision introduces no special provenance exclusion or requirement for provenance values to remain invariant.
 
@@ -2660,6 +2672,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Multiple matching mediations on either participant side prevent unique chain correspondence | Warning identifying material relation and ambiguity; omit affected chain under DK-REL-07 | No under any input policy solely for this ambiguity |
 | At least one material-property chain emitted under either chain-generating mode | Mode-specific compatibility notice under DK-DIAG-07, even when no cardinality or property-disjointness axiom conflicts; omission mode reports the applied policy and categories actually omitted, where applicable, with affected-source identification under existing rules; preservation mode explains preservation and possible OWL 2 DL incompatibility | No |
 | Material-property-chain mode `none` | No material chains; no DK-DIAG-07 solely because chain generation is disabled | No solely for this mode |
+| `--dkgm-vocabulary none` with an emitted DK-REL-19 bridge to `dkgm:memberOf`, `dkgm:subCollectionOf`, or `dkgm:subQuantityOf` | WARNING under DK-GEN-04 explaining that the generic chains are absent and that consumers requiring their entailments need the chain axioms or equivalent rules in their reasoning scope. DK-DIAG-04 governs consolidation and delivery. | No solely for this condition under any input policy, including `strict` |
 | Deliberately unmapped applicable relation stereotype | Warning; use weaker fallback where transformation is otherwise defined. The `historicalDependence` boundary under DK-REL-01 retains this warning whenever its established condition applies and introduces no warning-suppression exception. The `participation`, `creation`, and `termination` boundaries under DK-REL-01 likewise retain the applicable nonfatal limitation warning, independently of naming success. | No |
 | Residual semantics of a successfully mapped eligible ordinary `participational` or `manifestation` relation | WARNING under DK-REL-01; ordinary mappings and the applicable guarded `participational` asymmetry remain applicable. Report the partial translation independently of successful naming or asymmetry generation; existing diagnostic consolidation and delivery rules apply. | No solely for this limitation under any input policy, including `strict` |
 | Residual semantics of a successfully mapped eligible ordinary `mediation`, `characterization`, or `externalDependence` relation | WARNING under DK-REL-01; preserve existing ordinary mappings, applicable accepted axioms, grounding roles, derivation treatment, and selected eligible material chains. Naming, accepted-axiom/chain generation, or gate-based axiom omission does not suppress reporting; existing diagnostic consolidation and delivery rules apply. | No solely for this limitation under any input policy, including `strict` |
@@ -3138,7 +3151,7 @@ The generated ontology IRI MUST be derived from the effective entity base under 
 
 Validation and configuration rejection for supplied base and ontology version IRIs MUST follow DK-IRI-01 before conversion starts in both interfaces. Python MUST signal a rejected configuration programmatically; no particular exception class is prescribed. The CLI follows the invalid-invocation contract below.
 
-DirectKG MUST expose the optional CLI control `--ontology-version-iri IRI` and an equivalent optional Python API control under DK-IRI-01 (RD-05, Option B). A supplied valid value adds `owl:versionIRI` to the derived ontology resource; absence adds no such statement and no diagnostic solely for absence. The ontology IRI derivation, entity IRIs, DKGM import, and DK-GEN-10 provenance rules remain unchanged. When provenance is enabled, the effective configuration MUST reflect this setting; a sidecar output checksum covers the final ontology bytes, including the version IRI statement when present.
+DirectKG MUST expose the optional CLI control `--ontology-version-iri IRI` and an equivalent optional Python API control under DK-IRI-01 (RD-05, Option B). A supplied valid value adds `owl:versionIRI` to the derived ontology resource; absence adds no such statement and no diagnostic solely for absence. The ontology IRI derivation, entity IRIs, selected DKGM vocabulary mode, and DK-GEN-10 provenance rules continue to apply. When provenance is enabled, the effective configuration MUST reflect this setting; a sidecar output checksum covers the final ontology bytes, including the version IRI statement when present.
 
 DirectKG MUST support the argument `--input-policy` with the values `strict`, `tolerant`, and `best-effort`. The default MUST be `tolerant`. The policies are specified in DK-DIAG-05 (RD-02).
 
@@ -3160,7 +3173,9 @@ The default MUST be `none`. This parameter replaces the former boolean flag. It 
 
 The five additions under DK-REL-01 (RD-17) MUST follow their per-axiom compatibility gate in every material-property-chain mode, including `preserve-conflicting-constraints`. Existing mode-specific policies for established cardinality and property-disjointness mappings remain unchanged.
 
-The `dkgm` vocabulary import and its generic chains, the source-specific bridge axioms and primary-property asymmetry in DK-REL-19, and the source-metadata comments in DK-PROP-04 are default behavior. No mereology-specific control is established for these rules. `--material-property-chains` applies only to material-relation chains under DK-REL-07; it does not control the `dkgm` vocabulary or the mapping to it.
+DirectKG MUST expose `--dkgm-vocabulary {import,embed,none}` with default `import`, and a semantically equivalent Python control with the same values and default. DK-GEN-04 governs the three modes. The default MUST preserve the established domain axioms, stable import, and diagnostic behavior. When provenance is enabled, the effective configuration under DK-GEN-10 MUST record the selected mode, including the default. This additional setting can change the configuration YAML in a default run.
+
+This control governs vocabulary delivery. DK-REL-19's source-specific bridge and primary-property asymmetry rules and DK-PROP-04's source-metadata comments apply in every vocabulary mode. `--material-property-chains` applies only to material-relation chains under DK-REL-07.
 
 RD-11 introduces no additional configuration argument to omit reverse-side cardinality restrictions when no named inverse property is generated; DK-REL-09 specifies the required property selection. RD-11 also introduces no configuration argument for choosing qualified restrictions; DK-REL-10 specifies the unqualified forms for supported ordinary binary class-to-class relations.
 
@@ -3182,7 +3197,8 @@ The following transformation, diagnostic-delivery, and CLI presentation controls
 | `--provenance none\|embedded\|sidecar` | Default `embedded`; independent of descriptive metadata; sidecar placement, output-file boundary, and Python graph access under DK-GEN-10 |
 | `--base-iri <IRI>` | Established; determines the effective entity base and derived ontology IRI under DK-IRI-01; supplied, effective, and derived IRIs undergo its syntactic validation before conversion; invalid supplied-base configurations are rejected under every input policy, with CLI exit code `2` and programmatic Python signaling; no independent ontology-IRI control |
 | `--ontology-version-iri IRI` | Optional caller-supplied ontology version IRI under DK-IRI-01 (RD-05, Option B); equivalent optional Python control required; a supplied valid value emits `owl:versionIRI` on the derived ontology resource; absent input emits no such statement or diagnostic solely for absence; invalid values follow pre-conversion configuration rejection under every input policy; no automatic version assignment or change to ontology IRI derivation |
-| `--material-property-chains none\|omit-conflicting-constraints\|preserve-conflicting-constraints` | Established by RD-17 / ODI-CONTROLS; default `none`; replaces the boolean flag; both chain-generating modes follow DK-REL-07 eligibility, construction, and ambiguity rules, with mode-specific constraint omission or preservation and DK-DIAG-07 notices; the additional axioms under DK-REL-01 retain their per-axiom compatibility gate in every mode; independent of the imported `dkgm` vocabulary and DK-REL-19 |
+| `--material-property-chains none\|omit-conflicting-constraints\|preserve-conflicting-constraints` | Established by RD-17 / ODI-CONTROLS; default `none`; replaces the boolean flag; both chain-generating modes follow DK-REL-07 eligibility, construction, and ambiguity rules, with mode-specific constraint omission or preservation and DK-DIAG-07 notices; the additional axioms under DK-REL-01 retain their per-axiom compatibility gate in every mode; independent of DKGM vocabulary delivery and DK-REL-19 |
+| `--dkgm-vocabulary import\|embed\|none` | Default `import`. DK-GEN-04 governs the stable import, local embedding of the fixed core, or omission of import and chains with typing of referenced generic properties and the applicable nonfatal warning. DK-REL-19 applies in all modes. Equivalent Python control required. |
 | `--input-policy strict\|tolerant\|best-effort` | Established by RD-02; default `tolerant`; behavior in DK-DIAG-05, subject to RD-03 stereotype-policy precedence |
 | `--stereotype-policy require-known\|allow-missing\|allow-custom` | Established by RD-03; default `allow-custom`; behavior and precedence in DK-DIAG-06 |
 | `--diagnostics-file PATH` | Established by RD-04 / ODI-CONTROLS; accepts the complete user-specified output file path and writes a mirror of every produced diagnostic under DK-DIAG-04; no diagnostics file when absent; export MUST be attempted even after a policy-driven abort and after recording an ontology-file delivery failure; creation or write failure produces exit code `4` and an explicit console error under DK-DIAG-04 without changing ontology-output eligibility; console diagnostics remain available subject to the selected console threshold |
@@ -3196,7 +3212,7 @@ The following transformation, diagnostic-delivery, and CLI presentation controls
 
 ### Semantic parity of transformation controls (ODI-CONTROLS)
 
-The project MUST provide both a CLI and a Python library. Every established control affecting ontology transformation MUST be available through both interfaces. This includes the entity base, optional ontology version IRI, IRI strategy, input policy, stereotype policy, inverse-generation mode, stereotype-based relation naming, primary-relation label mode, material-property-chain mode, the user language override, the source-ID annotation opt-out, external metadata-file input, and provenance mode.
+The project MUST provide both a CLI and a Python library. Every established control affecting ontology transformation MUST be available through both interfaces. This includes the entity base, optional ontology version IRI, IRI strategy, input policy, stereotype policy, inverse-generation mode, stereotype-based relation naming, primary-relation label mode, material-property-chain mode, DKGM vocabulary mode, the user language override, the source-ID annotation opt-out, external metadata-file input, and provenance mode.
 
 Corresponding controls MUST provide equivalent selectable behaviors and identical defaults and transformation effects. Equivalent effective configurations applied to the same supported input MUST invoke the same accepted transformation rules, regardless of interface. Existing control values, defaults, and transformation rules remain applicable.
 
