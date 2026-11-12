@@ -5955,10 +5955,12 @@ original canonical entries and earlier decision references as well.
 
 ## RD-17 — Dependency relations and warning consistency
 
-**Disposition** TEST CHANGE. **Status** F1–F3 correction pending independent Test
+**Disposition** TEST CHANGE. **Status** F4 correction pending independent Test
 Reviewer review. The initial submission at
 `545d995b68fd4f97ca7c0c2183ea02fd53328328` received **NOT OK** for warning
 attribution, naming-bypass coverage, and class-disjointness comparison.
+Review of `39b20d9cc8f4855a334475ea6d4a0ad6d7ed7d0c` confirmed F1–F3 and returned
+**NOT OK** for requiring separate fallback and residual warning events.
 **Authority:** owner-forwarded unified handoff and Architect Reviewer **OK, no
 findings**, for exact registration `490f209e0d70533bac56674e2844a7463fe77a09`.
 Owner acceptance: “I accept Alternative A with all five proposed boundaries.”
@@ -6008,7 +6010,9 @@ a helper with the same default options. Existing gate helper and applicable
 constraint/disjointness policies remain unchanged. The F1–F3 correction retains
 every reviewed ID and adds two `strict` naming-disabled event/situation cases.
 Both cases exercise the accepted endpoint fallback, its naming warning, and the
-residual warning. The correction applies existing rules to test assertions.
+residual warning. F4 updates those two cases and the three insufficient-role
+`externalDependence` cases. Each checks both warning meanings for `rFocus`
+with separate or consolidated reporting. All collected IDs are retained.
 
 **Fixtures and expected output:** canonical shared/binary_relation,
 shared/material_pattern, relations/hierarchy and relations/chain_constraints
@@ -6068,20 +6072,28 @@ both `rLeft` and `rRight`, including the two distinct mediations. A consolidated
 warning can identify both. Uninterpretable locators raise
 `ImplementationUnavailable`. The RDF annotation audit retains its existing
 binding for actual source text and independently required annotation forms.
+For F4, the adapter reads source-target naming and partial relation semantics
+as independent facts in the inspected native relation-warning messages and
+effects. A single bound record can carry both facts and retains its raw event
+and source locators. The naming assertion requires a WARNING identifying
+`rFocus`, and the residual assertion also verifies attribution through the
+source reader. Unfamiliar rendering is explicitly unbound. The assertions use
+the reported meanings under DK-REL-06 and DK-REL-01 and allow consolidation
+under DK-DIAG-04.
 
 **Actual execution.** Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0 and PyYAML 6.0.3.
-The reviewed revision collected **3,472** cases. The correction collects
-**3,474**, retaining all reviewed IDs. The same affected selection changed
-from **256 passed, 103 failed** to **256 passed, 105 failed**. At the correction,
-**78** fail at residual WARNING presence and **27** at target-relation
-attribution. The two added cases reach the residual WARNING assertion after
-the endpoint fallback, inverse, direction, outcome, and naming-warning checks.
-The current producer omits the five required residual warnings.
+Both F4 revisions collect the same **3,474** IDs. The affected selection gives
+**256 passed, 105 failed** at both revisions. **78** fail at residual WARNING
+presence and **27** at target-relation attribution. Each of the five focused
+fallback cases reaches the residual WARNING assertion after the mapping and
+naming-warning checks. The current producer omits the five required residual
+warnings.
 
 All **90** existing compatibility cases passed within the affected run.
-Another **68** mapping/disjointness, **88** fixture/RDF-helper, and **4** CLI
-parity cases passed. The same **12** derivation cases encountered the existing
-unbound connector-output reader at both revisions.
+Another **78** mapping/naming, **88** fixture/RDF-helper, and **48** report
+and CLI parity cases passed. The extended mapping selection includes the same
+one unbound `COMPARATIVE_NAMING` case at both revisions. The same **12**
+derivation cases encountered the existing unbound connector-output reader.
 
 Scratch controls over actual `participational` warnings reproduced F1.
 Either single warning failed the corrected two-relation coverage check.
@@ -6090,20 +6102,26 @@ reported locators passed. Two uninterpretable locator controls remained
 explicitly unbound. For F3, copies of real graphs showed that all three
 reversed disjointness statements falsely failed at the reviewed revision.
 The correction accepted all three reversed and all three reciprocal variants
-and rejected three missing and three added pairs. These controls exercise the
-test harness. Full-suite execution, full provenance conformance, and positive
-end-to-end execution of the five new warnings remain unperformed.
+and rejected three missing and three added pairs. F4 scratch controls used
+real conversion graphs and varied only native diagnostic views. The reviewed
+assertions rejected all ten single-record combinations. The correction accepted
+20 controls across the five exact fallback cases, including separate events,
+either primary code for a consolidated warning, and a supported wording variant.
+It rejected 25 controls with a missing meaning, wrong source, or lower severity.
+Ten unfamiliar-rendering or missing-locator controls remained unbound.
+Full-suite execution, full provenance conformance, and positive end-to-end
+execution of the five newly required warnings remain unperformed.
 
 Repository-root validation commands with temporary report options omitted
 
 ```bash
 export PYTHONPATH="$PWD/src"
 python -m pytest --rootdir=. --collect-only -q tests
-python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'remaining_event_relations and strict-naming-disabled' --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k '(remaining_event_relations and strict-naming-disabled) or (insufficient_structural_roles and externalDependence)' --tb=short -rN
 python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'partial_semantic_relations or participational_limitation_warning or dependency_residual or remaining_event_relations or stereotype_table_candidates or historical_dependence_ or additional_relation_characteristics or feature_disjointness or feature_pairing or chain_body_participation or new_relation_axioms or imported_non_simple or aggregation_flags_preserve or unique_whole_marker or insufficient_structural_roles' --tb=short -rN
-python -m pytest --rootdir=. -q tests/transformation/test_relations.py tests/transformation/test_classes.py -k 'historical_semantic_step or structural_naming_preserves_precedence_controls_and_label_modes or domain_classes_and_exact_stereotype_disjointness or false_set_disjointness_does_not_cancel_stereotype_disjointness' --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_relations.py tests/transformation/test_classes.py -k 'historical_semantic_step or structural_naming_preserves_precedence_controls_and_label_modes or domain_classes_and_exact_stereotype_disjointness or false_set_disjointness_does_not_cancel_stereotype_disjointness or primary_naming_precedence or unnamed_endpoints_and_relation_continue' --tb=short -rN
 python -m pytest --rootdir=. -q tests -k 'fixture_contract or rdf_helper' --tb=short -rN
-python -m pytest --rootdir=. -q tests/cli/test_cli.py -k 'equivalent_cli_and_python_controls and (stereotype_relation_naming or relation_labels)' --tb=short -rN
+python -m pytest --rootdir=. -q tests/transformation/test_input_diagnostics.py tests/cli/test_cli.py -k 'shared_json_contract or (equivalent_cli_and_python_controls and (stereotype_relation_naming or relation_labels))' --tb=short -rN
 python -m pytest --rootdir=. -q tests/transformation/test_relations.py -k 'recognized_material_derivation_uses_both_orders_without_separate_output' --tb=short -rN
 git diff --check
 ```
@@ -6118,7 +6136,9 @@ updates the open-issues record, and archives both predecessors. Verified that th
 applicable warning, naming, and class-disjointness clauses still support these
 assertions and that production, test, fixture, and structure blobs match the
 reviewed base across the advance. The affected run was repeated on the refreshed
-base. Current Test Reviewer disposition is pending for the correction.
+base. The F4 correction uses reviewed revision
+`39b20d9cc8f4855a334475ea6d4a0ad6d7ed7d0c` as its publication base and follows
+the same reviewed assignment.
 
 Every row below uses **RD-17 registration
 490f209e0d70533bac56674e2844a7463fe77a09**. The 13 existing rows also preserve
@@ -6136,9 +6156,9 @@ all earlier canonical references and assertions in their original entries.
 | `tests/transformation/test_relations.py::test_stereotype_table_candidates_preserve_established_direction_when_resolvable[mediation_reverse]` | DK-DIAG-01, DK-DIAG-06, DK-GEN-03, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Retain exact established successful semantic naming and primary direction; additionally require independent residual WARNING for the registered stereotype. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_stereotype_table_candidates_preserve_established_direction_when_resolvable[triggers_forward]` | DK-DIAG-01, DK-DIAG-06, DK-GEN-03, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Retain exact established successful semantic naming and primary direction; additionally require independent residual WARNING for the registered stereotype. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_stereotype_table_candidates_preserve_established_direction_when_resolvable[triggers_reverse]` | DK-DIAG-01, DK-DIAG-06, DK-GEN-03, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Retain exact established successful semantic naming and primary direction; additionally require independent residual WARNING for the registered stereotype. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy[strict-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-LBL-01, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Retain existing insufficient-role lexical fallback, direction, generated label and nonfatal naming diagnostic; additionally require external-dependence residual WARNING. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy[tolerant-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-LBL-01, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Retain existing insufficient-role lexical fallback, direction, generated label and nonfatal naming diagnostic; additionally require external-dependence residual WARNING. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy[best-effort-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-LBL-01, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Retain existing insufficient-role lexical fallback, direction, generated label and nonfatal naming diagnostic; additionally require external-dependence residual WARNING. | Missing required residual WARNING; earlier assertions pass |
+| `tests/transformation/test_relations.py::test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy[strict-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-LBL-01, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the endpoint fallback, direction, generated label and completed outcome for insufficient role evidence. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |
+| `tests/transformation/test_relations.py::test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy[tolerant-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-LBL-01, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the endpoint fallback, direction, generated label and completed outcome for insufficient role evidence. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |
+| `tests/transformation/test_relations.py::test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy[best-effort-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-LBL-01, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the endpoint fallback, direction, generated label and completed outcome for insufficient role evidence. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_partial_semantic_relations_preserve_ordinary_mapping_and_limitation_warning[defaults-mediation]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-18, DK-GEN-11, DK-INV-01, DK-INV-04, DK-IRI-06, DK-IRI-09, DK-LBL-01, DK-LBL-02, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-REL-01, DK-REL-02, DK-REL-09, DK-REL-10, DK-REL-11 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Preserve ordinary RDF, cardinalities, inverses, descriptions, identifiers, labels, language and independent end annotations. Compare class disjointness as unordered pairs. Allow only the accepted primary characteristic and require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_partial_semantic_relations_preserve_ordinary_mapping_and_limitation_warning[defaults-characterization]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-18, DK-GEN-11, DK-INV-01, DK-INV-04, DK-IRI-06, DK-IRI-09, DK-LBL-01, DK-LBL-02, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-REL-01, DK-REL-02, DK-REL-09, DK-REL-10, DK-REL-11 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Preserve ordinary RDF, cardinalities, inverses, descriptions, identifiers, labels, language and independent end annotations. Compare class disjointness as unordered pairs. Allow only the accepted primary characteristic and require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_partial_semantic_relations_preserve_ordinary_mapping_and_limitation_warning[defaults-externalDependence]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-18, DK-GEN-11, DK-INV-01, DK-INV-04, DK-IRI-06, DK-IRI-09, DK-LBL-01, DK-LBL-02, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-REL-01, DK-REL-02, DK-REL-09, DK-REL-10, DK-REL-11 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Preserve ordinary RDF, cardinalities, inverses, descriptions, identifiers, labels, language and independent end annotations. Compare class disjointness as unordered pairs. Allow only the accepted primary characteristic and require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
@@ -6229,5 +6249,5 @@ all earlier canonical references and assertions in their original entries.
 | `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[tolerant-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[best-effort-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
 | `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[best-effort-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Check the semantic candidate, direction, inverse, completed outcome and absence of naming warnings under the selected policy. Require a residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Disable stereotype naming under strict and check `event_situation`, direction, inverse, completed outcome and the fallback naming WARNING. Require the independent residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
-| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Disable stereotype naming under strict and check `situation_event`, direction, inverse, completed outcome and the fallback naming WARNING. Require the independent residual WARNING identifying `rFocus`. | Missing required residual WARNING; earlier assertions pass |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-bringsAbout]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Disable stereotype naming under strict and check `event_situation`, direction, inverse and completed outcome. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |
+| `tests/transformation/test_relations.py::test_remaining_event_relations_report_nonfatal_residual_warning[strict-naming-disabled-triggers]` | DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-INV-01, DK-INV-04, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06 | Key: `shared/binary_relation`. Input: `tests/fixtures/shared/binary_relation/input.json`; complete inline variants and fixed RDF/diagnostic expectations; no stored expectation file. | Disable stereotype naming under strict and check `situation_event`, direction, inverse and completed outcome. Require source-target naming and residual-semantics WARNING meanings for `rFocus`. One record may report both meanings. | Missing required residual WARNING; earlier assertions pass |

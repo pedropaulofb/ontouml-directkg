@@ -435,7 +435,7 @@ def test_structural_naming_preserves_precedence_controls_and_label_modes(
 @pytest.mark.parametrize('stereotype', ['componentOf', 'participational', 'subCollectionOf', 'subQuantityOf', 'externalDependence', 'historicalDependence'])
 @pytest.mark.parametrize('input_policy', POLICIES)
 def test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy(
-        run, source_json, tmp_path, stereotype, input_policy):
+        run, invoke, source_json, tmp_path, stereotype, input_policy):
     """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-LBL-01, DK-PROP-02, DK-DIAG-01, DK-DIAG-05.
 
     A2 registration 4fdef7bbaf8b73bf1ed0ff47fc793494493083dc.
@@ -444,20 +444,28 @@ def test_insufficient_structural_roles_remain_nonfatal_under_every_input_policy(
     RD-17 fb05478031e290b123e766ad5188e4cef9935357 also requires the
     participational residual warning despite unavailable whole-role evidence.
     Registration 490f209e0d70533bac56674e2844a7463fe77a09 adds the external
-    dependence residual warning, independently of this lexical fallback.
+    dependence residual warning. Verify both meanings for the focal relation,
+    including when one diagnostic reports both.
     """
     document = _a2_document(source_json, stereotype)
     assert not fixture_issues(document)
-    result = run(path=write_input(tmp_path, document), input_policy=input_policy,
+    path = write_input(tmp_path, document)
+    result = run(path=path, input_policy=input_policy,
                  iri_strategy='name', inverse_properties='none', relation_labels='generated')
     assert result.outcome == 'completed'
     prop = _primary(result, strategy='name')
     _candidate(result.ontology, prop, {'hTTPServer_xMLNode'}, 'HTTPServer')
     _direction(result.ontology, prop, BASE.HTTPServer, BASE.XMLNode)
     assert set(result.ontology.objects(prop, RDFS.label)) == {Literal('hTTPServer_xMLNode')}
-    assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
-    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
-    if stereotype in {'historicalDependence', 'participational', 'externalDependence'}: _relation_limitation_warning(result)
+    if stereotype == 'externalDependence':
+        _source_target_naming_warning(result, 'rFocus')
+        _relation_limitation_warning(result)
+        assert 'rFocus' in invoke.read_relation_limitation_source_ids(result, path)
+    else:
+        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+        assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+        if stereotype in {'historicalDependence', 'participational'}:
+            _relation_limitation_warning(result)
 
 
 PRECEDENCE = [
@@ -2033,11 +2041,13 @@ def _ordinary_relation_mapping_equal(first, second, *, expected_additions=()):
     assert_graph_equal(*projections)
 
 
+def _source_target_naming_warning(result, relation_id):
+    assert any(d.severity == 'WARNING' and 'source_target_naming' in d.facts
+               and relation_id in d.identified_sources for d in result.diagnostics), result.diagnostics
+
+
 def _relation_limitation_warning(result):
-    # This semantic kind describes an observed limitation warning; it is not
-    # a prescribed native diagnostic code or literal message template. The
-    # native event remains raw; its renderer is interpreted by the adapter.
-    assert any(d.severity == 'WARNING' and d.kind == 'unmapped_relation_stereotype'
+    assert any(d.severity == 'WARNING' and 'residual_relation_semantics' in d.facts
                for d in result.diagnostics), result.diagnostics
     assert not any(d.severity == 'ERROR' for d in result.diagnostics)
 
@@ -2398,7 +2408,8 @@ def test_remaining_event_relations_report_nonfatal_residual_warning(
     RD-17 registration 490f209e0d70533bac56674e2844a7463fe77a09 applies the
     owner's warning-consistency direction only. Complete shared/binary_relation;
     retain direction and the nonfatal residual warning with semantic naming
-    enabled under all policies and disabled under strict.
+    enabled under all policies and disabled under strict. When naming is
+    disabled, both warning meanings can share one diagnostic.
     No assertion selects further logical or declaration-annotation treatment.
     """
     document = source_json('shared/binary_relation')
@@ -2417,7 +2428,7 @@ def test_remaining_event_relations_report_nonfatal_residual_warning(
     inverse = _primary(result, 'sFocus', 'name')
     assert (inverse, OWL.inverseOf, primary) in result.ontology
     if naming_disabled:
-        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+        _source_target_naming_warning(result, 'rFocus')
     else:
         assert not any(d.kind in NAMING_KINDS for d in result.diagnostics)
     _relation_limitation_warning(result)

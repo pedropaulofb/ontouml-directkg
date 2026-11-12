@@ -884,6 +884,17 @@ def _observed_diagnostics(events):
             raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
         wording = (event.message + " " + event.effect).casefold()
         facts = set()
+        if event.code in {"RELATION_NAMING", "UNMAPPED_RELATION_STEREOTYPE"}:
+            # Interpret each meaning in the bound native rendering. One
+            # message/effect can report both, regardless of its primary code.
+            if re.search(r"\bsource-target (?:naming|fallback) (?:is |was )?used\b", wording):
+                facts.add("source_target_naming")
+            if re.search(r"\bsemantics are (?:only )?partially (?:translated|represented)\b", wording):
+                facts.add("residual_relation_semantics")
+            if not facts and "target-end role supplies its lexical name" not in wording:
+                raise ImplementationUnavailable(
+                    f"Relation warning meaning needs interpretation: {event.message!r}"
+                )
         if event.code == "MISSING_CLASS_NAME":
             # The inspected producer uses repr() for both the opaque ID and
             # supplied stereotype. Read the reported literal, never the source
@@ -1121,7 +1132,7 @@ class _DirectKGInvocation(_UnboundInvocation):
                 declarations.setdefault(identifier, []).append(element)
         reported = set()
         for event in self.read_diagnostics(observation):
-            if event.kind != 'unmapped_relation_stereotype' or event.severity != 'WARNING':
+            if 'residual_relation_semantics' not in event.facts or event.severity != 'WARNING':
                 continue
             identified = event.identified_sources or event.source_ids
             relation_ids = set()
