@@ -153,6 +153,10 @@ def _semantic_name(relation: Relation) -> str | None:
     if stereotype == "historicalDependence":
         # No supported explicit discriminator assigns dependent/antecedent roles.
         return None
+    if stereotype in {"bringsAbout", "triggers"} and (a, b) not in (
+        ("event", "situation"), ("situation", "event")
+    ):
+        return None
     selectors = {
         "bringsAbout": ("event", "bringsAbout", "broughtAboutBy"),
         "creation": ("event", "creates", "wasCreatedIn"),
