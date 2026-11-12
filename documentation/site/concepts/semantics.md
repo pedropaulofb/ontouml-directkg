@@ -21,7 +21,7 @@ The names `completed`, `completed-with-errors`, and `aborted` describe transform
 
 ## Domain graph and inferential axioms
 
-DirectKG represents supported domain concepts and properties. It does not create resources merely to mirror JSON containers, diagrams, or the OntoUML metamodel. The reusable DKGM mereology vocabulary is an explicitly required import, distinct from such a metamodel reproduction.
+DirectKG represents supported domain concepts and properties. It does not create resources merely to mirror JSON containers, diagrams, or the OntoUML metamodel. DKGM supplies reusable mereology properties under the selected vocabulary mode, distinct from a metamodel reproduction.
 
 ### Domains and ranges infer types
 
@@ -78,7 +78,7 @@ Preservation depends on the construct, rather than on conversion completing with
 | Comment-only preservation | Abstractness, derived status, extensionality, ordering, and specified read-only/aggregation information have bounded annotation mappings. Comments do not enforce the additional source semantics or reconstruct ordered values. Diagnostic conditions differ by feature. | [Class declarations](../mapping/classes.md#class-declarations-preserved-as-comments); [Derived-status comments](../reference/text.md#derived-status-comments); [Read-only and aggregation](../mapping/property-features.md#read-only-and-aggregation-comments); [Ordering](../mapping/property-features.md#ordering-without-ordered-values) |
 | Derivation limitations | Recognized connectors can inform transformation without receiving a separate output resource. Exported derivation multiplicities do not reliably record author intent. | [Recognized derivations](../mapping/derivations-and-chains.md#recognized-derivations); [Derivation multiplicities](../mapping/derivations-and-chains.md#derivation-multiplicities) |
 | Inverse directions | Named inverse generation differs from anonymous inverse expressions required for selected restrictions, property references, paired disjointness, and chains. | [Direction and anonymous inverses](../mapping/inverses.md#direction-and-anonymous-inverses) |
-| Mereology | The complete vocabulary is imported independently of material-chain settings; source-specific direction remains authoritative and the stable import URI is `https://w3id.org/directkg/vocab/dkgm`. | [Mereology and DKGM](../mapping/mereology.md) |
+| Mereology | The default imports the complete vocabulary at `https://w3id.org/directkg/vocab/dkgm`. Other specified modes embed the fixed core or leave the generic chains to the consumer. Source-specific bridges preserve direction in every mode. | [Vocabulary delivery modes](../mapping/mereology.md#vocabulary-delivery-modes) |
 | Instantiation declarations | A declaration supplies no concrete instance links; discarded association values cannot reappear in output, provenance, or diagnostic payloads. | [Instantiation associations](../mapping/instantiation.md) |
 
 ## Reasoner and profile expectations
@@ -87,12 +87,12 @@ No general OWL profile or consistency guarantee is established. Even a `complete
 
 An emitted material-property chain can make properties non-simple, including through applicable property hierarchies and inverse relationships. OWL 2 DL requires simple properties in cardinality restrictions and property-disjointness axioms. The selected chain mode governs the established treatment of affected cardinality and relation-set disjointness constraints. Neither generating mode guarantees general OWL 2 DL conformance.
 
-The five [additional relation axioms](../mapping/relations.md#compatibility-of-each-addition) are checked individually in every chain mode, using the property hierarchy, inverse relationships, and import closure. Omit an incompatible addition while retaining compatible ones and established mappings; this gate addresses additional violations without requiring overall conformance or introducing semantic validation.
+The five [additional relation axioms](../mapping/relations.md#compatibility-of-each-addition) are checked individually in every material-chain mode. The gate considers property hierarchies, inverse relationships and the generated graph with its applicable import closure for the selected vocabulary mode. In DKGM `none`, separately supplied consumer axioms are outside the assessment. Omit an incompatible addition while retaining compatible ones and established mappings. This gate addresses additional violations without requiring overall conformance or introducing semantic validation.
 
 Combining chains with other axioms can cause a reasoner to reject an ontology or disregard unsupported axioms. A property chain is not inherently an OWL 2 DL violation. See [OWL compatibility](../mapping/derivations-and-chains.md#owl-compatibility) for propagated constraint treatment and the required notices, and [Ambiguity](../mapping/derivations-and-chains.md#ambiguity) for patterns that produce no chain. The available [control catalog](../reference/controls.md#established-controls) identifies the accepted modes.
 
 ---
 
-Governing rules: §§3–5; DK-GEN-02–04; DK-ATT-02; DK-HO-01, 03; DK-PROP-03–05; DK-REL-01, 07–08, 16; DK-DIAG-01–02, 05, 07; baseline consolidated: **2026-11-11**; repository commit: `2521e3bde7e26ac06b3abd0b879d165babe07793`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2521e3bde7e26ac06b3abd0b879d165babe07793/documentation/specification/transformation-specification.md).
+Governing rules: §§3–5; DK-GEN-02–04; DK-ATT-02; DK-HO-01, 03; DK-PROP-03–05; DK-REL-01, 07–08, 16; DK-DIAG-01–02, 05, 07; §15; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).

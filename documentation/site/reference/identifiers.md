@@ -19,7 +19,7 @@ Before conversion, validate the supplied, effective, and derived ontology IRIs a
 
 For example, relative `my-model` is rejected. `https://example.org/model#part` is itself an absolute IRI, but the delimiter rule would produce invalid `https://example.org/model#part#`; reject the configuration rather than repairing it. Rejection applies under every input policy before conversion: CLI code `2`, programmatic Python signaling, and no ontology, transformation outcome, or conversion-diagnostics report. The Python exception class is unspecified.
 
-There is no independent ontology-IRI control. This derivation does not change entity identity; the imported DKGM vocabulary has its separately accepted persistent identity under DK-GEN-04. See [Ontology header](output.md#ontology-header).
+There is no independent ontology-IRI control. This derivation leaves entity IRIs intact. DKGM has its own persistent identity across the [vocabulary delivery modes](../mapping/mereology.md#vocabulary-delivery-modes). See [Ontology header](output.md#ontology-header).
 
 The [optional caller-supplied version IRI](output.md#optional-ontology-version-iri) supplies an `owl:versionIRI` object on that same ontology resource. It changes neither ontology IRI derivation nor generated entity IRIs.
 
@@ -141,8 +141,8 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 
 ---
 
-Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; baseline consolidated: **2026-11-02**; repository commit: `0328ae1300e99eafbce7d5f32d2476c4aa5db71f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
+Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
-Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization supplied after this baseline).
+Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization included in the cited consolidation).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).

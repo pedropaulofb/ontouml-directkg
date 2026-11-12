@@ -40,7 +40,7 @@ source:
 language: pt
 ```
 
-Assume a supported source project named `Clinical Study`, explicit language override `en`, entity base `https://example.org/study#`, and provenance mode `none`. The following selected metadata assertions illustrate the distinction. The external `language` value is ignored. This parseable excerpt omits the ontology declaration/import and domain axioms; it is not a complete conversion result or executed output.
+Assume a supported source project named `Clinical Study`, explicit language override `en`, entity base `https://example.org/study#`, default DKGM `import` and provenance mode `none`. The following selected metadata assertions illustrate the distinction. The external `language` value is ignored. This parseable excerpt omits the ontology declaration, default import and domain axioms. It is a specification illustration.
 
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -64,7 +64,7 @@ The [control catalog](../reference/controls.md#established-controls) owns select
 | `embedded` | Included in ontology graph | Retained in ontology |
 | `sidecar` | Written separately as Turtle | Retained in ontology |
 
-Ontology declaration, required imports, and domain axioms are semantic output, not transformation provenance. Disabling provenance does not disable them or descriptive source/external metadata. Under `none`, do not perform provenance-only operations whose failure could prevent an otherwise valid conversion.
+The ontology declaration, domain axioms, [selected DKGM output](../mapping/mereology.md#vocabulary-delivery-modes) and descriptive source or external metadata remain part of the ontology in every provenance mode. Under provenance `none`, do not perform provenance-only operations whose failure could prevent an otherwise valid conversion.
 
 ### Required provenance representation
 
@@ -87,6 +87,8 @@ When enabled, provenance records the following without selecting resource-IRI te
 The configuration entity contains a **deterministically serialized YAML string** under `prov:value`, identified by `dcterms:format`. Record effective transformation settings, including defaults, subject to the embedded-output-file exclusion below. Configuration keys inside this literal are data, not RDF predicates.
 
 When provenance is enabled, the effective configuration record must reflect the [ontology version IRI setting](../reference/output.md#optional-ontology-version-iri). The version-IRI control leaves DK-GEN-10's provenance rules unchanged and introduces no special provenance exclusion or requirement for provenance values to remain invariant.
+
+When provenance is enabled, the effective configuration YAML records the selected DKGM vocabulary mode, including default `import`. Recording the mode can change the YAML for a default run. See [Vocabulary delivery modes](../mapping/mereology.md#vocabulary-delivery-modes) for the default graph behavior and implementation status.
 
 Descriptive citations through `dcterms:source` differ from execution inputs actually processed through `prov:used`. Do not treat every cited source as an execution input.
 
@@ -159,7 +161,7 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 
 ---
 
-Governing rules: DK-GEN-08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-11**; repository commit: `2521e3bde7e26ac06b3abd0b879d165babe07793`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2521e3bde7e26ac06b3abd0b879d165babe07793/documentation/specification/transformation-specification.md).
+Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5; included in the cited consolidation).
 

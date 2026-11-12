@@ -83,7 +83,7 @@ The [current DKGM Turtle artifact](https://github.com/pedropaulofb/ontouml-direc
 
 The term IRIs are **not additional path rewrite rules**: their `#` fragments identify RDF properties. The versioned ontology IRI is not a versioned term namespace. The HTML and Turtle redirect targets are **documents describing or representing** the ontology, not alternative IRIs to substitute for the ontology or its terms in RDF.
 
-**Accepted converter import:** The [mereology mapping](../mapping/mereology.md#import-and-vocabulary-identity) fixes `U = https://w3id.org/directkg/vocab/dkgm`. Every generated ontology imports that stable IRI; its generic properties use `U#`. Representation URLs and version IRIs do not replace the import target.
+The default `import` mode uses the stable vocabulary IRI `U = https://w3id.org/directkg/vocab/dkgm`. The generic property namespace is `U#` in every [vocabulary mode](../mapping/mereology.md#vocabulary-delivery-modes). Use the stable ontology IRI for imports and the version or representation URLs for their respective resources.
 
 ## HTTP resolution and content negotiation
 
@@ -167,7 +167,7 @@ Reference vocabulary terms using their persistent namespace, **not** a redirecte
 # dkgm:memberOf expands to https://w3id.org/directkg/vocab/dkgm#memberOf
 ```
 
-The ontology IRI `https://w3id.org/directkg/vocab/dkgm`, version IRI `https://w3id.org/directkg/vocab/dkgm/0.1.0`, and representation route `https://w3id.org/directkg/vocab/dkgm/ttl` are distinct. The accepted concrete converter-import example is on the [mereology page](../mapping/mereology.md#canonical-vocabulary-and-import).
+The ontology IRI `https://w3id.org/directkg/vocab/dkgm`, version IRI `https://w3id.org/directkg/vocab/dkgm/0.1.0`, and representation route `https://w3id.org/directkg/vocab/dkgm/ttl` are distinct. The [default import example](../mapping/mereology.md#canonical-vocabulary-and-import) uses the ontology IRI.
 
 ## Authority and maintenance
 
@@ -176,3 +176,5 @@ The registered rules are maintained in [`perma-id/w3id.org/ids/directkg/.htacces
 The external `.htaccess` is the **technical authority** for mappings, conditions, status codes, and destination URLs; this page is their user-facing explanation. Destination URLs can change without changing the registered PIDs. Recheck the upstream file when updating the table, and distinguish registered behavior from verified live HTTP availability.
 
 The [vocabulary publication process](https://github.com/pedropaulofb/ontouml-directkg/blob/main/vocabulary/README.md) governs creation of versioned Turtle and HTML artifacts. Pattern-based redirects do not publish those artifacts by themselves.
+
+Governing rules for converter behavior: DK-GEN-04 and §15; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).

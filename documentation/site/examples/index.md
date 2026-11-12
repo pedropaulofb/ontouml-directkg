@@ -27,13 +27,14 @@ The adapted JSON and illustrative Turtle pair are distributed under [CC BY-SA 4.
 
 ### Effective configuration and interpretation
 
-These settings describe the illustration. [First conversion](../getting-started.md#first-conversion) supplies a verified invocation with the same configuration:
+These settings describe the illustration. [First conversion](../getting-started.md#first-conversion) records a verified development invocation of the same example.
 
 | Setting | Selected behavior |
 | --- | --- |
 | Entity base | `https://example.org/directkg-example#` |
 | IRI strategy | `id` |
 | Language override | `pt-BR` |
+| DKGM vocabulary | `import` (default) |
 | Provenance | `none` |
 | External metadata | Not supplied |
 | Other controls | Their [established defaults](../reference/controls.md#established-controls) |
@@ -42,9 +43,9 @@ The language override tags supported source-authored labels while preserving the
 
 Both untyped attributes remain `owl:DatatypeProperty` with their respective owner as `rdfs:domain`. Explicit null typing supplies no range; do not infer `xsd:decimal`, `xsd:string`, or another datatype from the banking context or attribute name. Explicit null cardinality supplies no restriction or default. These nulls alone require no diagnostic. Domains remain [inferential axioms](../concepts/semantics.md#domain-graph-and-inferential-axioms), not closed-world validation rules.
 
-The Turtle excerpt includes only those class/property declarations, labels, and domains. It omits the ontology header, including its required DKGM import and Project label, and the applicable classifier-order/flag comments. For example, retained `isAbstract: false` declarations still have the accepted comment/INFO treatment; the excerpt does not show those comments or claim an empty diagnostic report. Provenance is disabled for this illustration.
+The Turtle excerpt includes only those class/property declarations, labels, and domains. It omits the ontology header, including the default DKGM import and Project label, and the applicable classifier-order/flag comments. For example, retained `isAbstract: false` declarations still have the accepted comment/INFO treatment; the excerpt does not show those comments or claim an empty diagnostic report. Provenance is disabled for this illustration.
 
-The accepted concrete [DKGM import URI](../mapping/mereology.md#import-and-vocabulary-identity) is shown in the mereology header example. This `.ttl` file retains its focused scope as a parseable mapping excerpt, **not a complete conversion result or deployable ontology**. Prefix spelling, statement order, and whitespace are illustrative; see [Graph and text stability](../reference/output.md#graph-and-text-stability).
+The [default DKGM import example](../mapping/mereology.md#canonical-vocabulary-and-import) shows the stable import IRI. This `.ttl` file retains its focused scope as a parseable mapping excerpt, **not a complete conversion result or deployable ontology**. Prefix spelling, statement order, and whitespace are illustrative; see [Graph and text stability](../reference/output.md#graph-and-text-stability).
 
 ## Downloadable pairs
 
@@ -56,4 +57,4 @@ These are the canonical downloadable copies. Use [Getting started](../getting-st
 
 ---
 
-Governing rules: §3.2–3.3; DK-CLS-01; DK-ATT-01–03; DK-DAT-03; DK-IRI-02, 05, 09; DK-LBL-02; DK-GEN-05–08, 10; DK-DIAG-15; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.2–3.3; DK-CLS-01; DK-ATT-01–03; DK-DAT-03; DK-IRI-02, 05, 09; DK-LBL-02; DK-GEN-04–08, 10; DK-DIAG-15; §15; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).

@@ -161,6 +161,8 @@ Complete relation sets with at least two distinct specifics require a nonfatal o
 
 For chains, ambiguities omit the affected chain with their specified nonfatal diagnostic; multiple matching relator mediations require a warning. Same-class relator/mode grounding is nonfatal even under `strict`, while `none` alone adds no same-class warning. At least one **emitted** material chain requires the mode-specific nonfatal compatibility notice, even without a conflicting constraint. Omission-mode reporting identifies applied policy and actual omitted categories/source elements; preservation-mode reporting explains retained constraints and possible OWL 2 DL incompatibility. [Derivations and material chains](../mapping/derivations-and-chains.md#owl-compatibility) owns these conditions (DK-DIAG-07–08).
 
+With [DKGM vocabulary mode `none`](../mapping/mereology.md#vocabulary-delivery-modes), an emitted bridge to `dkgm:memberOf`, `dkgm:subCollectionOf` or `dkgm:subQuantityOf` requires a **nonfatal WARNING under every input policy, including `strict`**. The warning explains that the generic chains are absent and that consumers needing those entailments must supply the chain axioms or equivalent rules to their reasoner. This condition applies only in `none` and depends on emitted bridges. A graph with only `componentOf` bridges or no emitted bridge does not trigger it. [Diagnostic collection and export](#diagnostic-collection-and-export) governs consolidation, content, filtering and delivery.
+
 Intentional non-representation or either valid endpoint order of a supported material derivation alone adds no warning/error. A comparative–quality connector instead has its specific nonfatal unsupported-semantics diagnostic. Other resolved relation-valued patterns without accepted mappings warn nonfatally and omit the connector while retaining independent endpoints. Null/malformed/unresolved endpoints are structural errors, not that intentional-omission fallback.
 
 ### Informational preservation notices
@@ -232,7 +234,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-11**; repository commit: `2521e3bde7e26ac06b3abd0b879d165babe07793`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2521e3bde7e26ac06b3abd0b879d165babe07793/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

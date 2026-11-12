@@ -42,25 +42,23 @@ This **specification illustration**, not converter output or publication, assume
 
 The caller assigns version identifiers. Do not derive one from a filename, execution timestamp, checksum, or DirectKG software version. This control adds no field to the [external metadata whitelist](../guides/metadata-and-provenance.md#external-field-whitelist).
 
-Supplying or changing only the version IRI does not change ontology IRI derivation, generated entity IRIs, or the established DKGM import. The version statement is an ontology-header contribution independent of provenance mode.
+Supplying or changing only the version IRI retains the ontology IRI derivation, generated entity IRIs and selected DKGM vocabulary mode. The version statement is an ontology-header contribution independent of provenance mode.
 
 DK-GEN-10 remains unchanged: when provenance is enabled, the [effective configuration record](../guides/metadata-and-provenance.md#required-provenance-representation) must reflect the ontology version IRI setting. In sidecar mode, the [output checksum](../guides/metadata-and-provenance.md#artifacts-and-digests) covers the final serialized ontology bytes, including the version IRI statement when present. This introduces no special provenance exclusion or requirement for provenance values to remain invariant.
 
 Emitting a version IRI neither publishes the ontology nor verifies across executions that repeated use identifies identical ontology content. No cross-run version registry is introduced. See [Controls](controls.md#interface-parity) for the specified control's implementation status.
 
-### Required import and descriptive text
+### Vocabulary delivery and descriptive text { #required-import-and-descriptive-text }
 
-Every generated ontology imports the **complete** reusable DKGM mereology vocabulary, including when no covered mereological relation occurs. Its four generic properties and three accepted generic chains remain in the imported vocabulary; they are not copied into each generated ontology or reduced to a model-specific subset.
+The default `import` mode adds `owl:imports <https://w3id.org/directkg/vocab/dkgm>` for the complete vocabulary, even when no covered mereological relation is mapped. `embed` supplies the fixed core locally. `none` supplies only declarations for generic properties targeted by emitted bridges. Both `embed` and `none` omit the DKGM import. See [Vocabulary delivery modes](../mapping/mereology.md#vocabulary-delivery-modes) for the full contract and its implementation status.
 
 !!! warning "Imported axioms can change without changes to the output file"
 
-    The import target is the stable URI representing the vocabulary's latest version, without the property's `#` namespace suffix. It is not pinned to a vocabulary release or replaced by an address obtained by following a redirect. Resolving the same import later can therefore bring in changed imported axioms without changing the generated ontology file.
-
-**The accepted concrete import target is `https://w3id.org/directkg/vocab/dkgm`.** [Mereology and DKGM](../mapping/mereology.md#import-and-vocabulary-identity) explains the `U`/`U#` relationship, concrete header example, generic chains, and source-specific bridges.
+    In `import` mode, the target is the stable URI representing the vocabulary's latest version, without the property's `#` namespace suffix. Resolving the same import later can bring in changed imported axioms without changing the generated ontology file. The [import example](../mapping/mereology.md#canonical-vocabulary-and-import) uses the stable IRI.
 
 A nonempty source `Project.name` supplies an ontology `rdfs:label`; a nonempty supported `Project.description` supplies an ontology `rdfs:comment`, following source-language rules. Their absence does not generate fallback text or a diagnostic solely for that condition. They do not select ontology identity. An explicitly supplied external title supplements the project name using its separate metadata predicate rather than replacing the source label.
 
-Descriptive metadata remains in the ontology independently of provenance mode. The ontology declaration, required imports, and domain axioms are semantic output; selecting provenance `none` does not disable them.
+Descriptive metadata remains in the ontology independently of provenance mode. The ontology declaration, selected vocabulary output and domain axioms remain part of the ontology when provenance is `none`.
 
 ## Graph and text stability
 
@@ -84,8 +82,8 @@ See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-deliv
 
 ---
 
-Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-10-21**; repository commit: `a36322fa87c006cece63aaadd2aa5ccd513f6087`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a36322fa87c006cece63aaadd2aa5ccd513f6087/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, supplied after this baseline).
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 
-Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization included in the cited consolidation).

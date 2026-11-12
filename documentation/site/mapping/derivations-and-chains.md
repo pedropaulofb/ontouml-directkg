@@ -38,7 +38,7 @@ This exporter limitation is specific evidence recorded by the governing specific
 
 ## Material-chain modes
 
-The [canonical controls](../reference/controls.md#established-controls) define `--material-property-chains`, with default `none`. The mode controls only accepted material–relator and material–mode chains, not the [imported generic mereology chains](mereology.md#generic-chains-and-direction).
+The [canonical controls](../reference/controls.md#established-controls) define `--material-property-chains`, with default `none`. This setting controls the accepted material–relator and material–mode chains. The separate [DKGM vocabulary mode](mereology.md#vocabulary-delivery-modes) governs delivery of the generic mereology chains.
 
 | Mode | Material chains | Treatment of existing cardinality/relation-set disjointness mappings |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ The [canonical controls](../reference/controls.md#established-controls) define `
 | `omit-conflicting-constraints` | Every eligible, unambiguous chain | Omit only specified constraints on expressions made non-simple by chains actually emitted, including propagated effects |
 | `preserve-conflicting-constraints` | Every eligible, unambiguous chain | Preserve otherwise applicable cardinalities and property-disjointness axioms, including affected ones |
 
-The five [additional relation axioms](relations.md#compatibility-of-each-addition) have a separate per-axiom compatibility gate in every mode. Preservation mode does not override that gate, and emitting material chains alone does not suppress the additions. Existing cardinality, relation-set disjointness, mereology, and import policies retain their established behavior.
+The five [additional relation axioms](relations.md#compatibility-of-each-addition) have a separate per-axiom compatibility gate in every material-chain mode. Preservation mode does not override that gate, and emitting material chains alone does not suppress the additions. The gate accounts for the selected vocabulary output. Existing cardinality and relation-set disjointness policies and source-specific mereology retain their established behavior.
 
 Preservation mode does not promise full OntoUML semantics or complete source-model preservation. Omission mode does not guarantee OWL 2 DL conformance. Pattern eligibility, source-element transformation, direction, and ambiguity rules remain the same for both generating modes.
 
@@ -121,6 +121,6 @@ No emitted material chain means no notice triggered solely by this rule. The not
 
 ---
 
-Governing rules: DK-REL-07–08, 15, 18; DK-DIAG-07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-10-21**; repository commit: `0307dd346c91346fa38bda2f8d57c9930b00751f`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0307dd346c91346fa38bda2f8d57c9930b00751f/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-REL-01, 07–08, 15, 18; DK-DIAG-07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).

@@ -124,7 +124,7 @@ This is a partial graph, not captured converter output. It omits the ontology he
 
 Eligible ordinary `participational` and `manifestation` relations retain their existing property identity, direction, naming, labels, descriptions, domains, ranges, explicit cardinalities, inverses, generalizations, and independently required annotations. **Their semantics are only partially translated:** ordinary mappings and applicable `participational` asymmetry do not, by themselves, establish full participant-dependent decomposition or manifestation semantics (DK-REL-01 / RD-17).
 
-`participational` retains its [asymmetry declaration](#additional-relation-axioms), subject to the existing [compatibility gate](#compatibility-of-each-addition). That gate considers the property hierarchy, inverse relationships, and import closure in every material-chain mode. `manifestation` alone supplies no additional property characteristic. Neither stereotype supplies further stereotype-only logical axioms or annotations recording its declaration. Independently required source descriptions, labels, source-ID annotations, association-end annotations, and other axioms remain applicable; the [automatic metadata permission](../guides/metadata-and-provenance.md#optional-automatic-enrichment) does not override this exclusion.
+`participational` retains its [asymmetry declaration](#additional-relation-axioms), subject to the existing [compatibility gate](#compatibility-of-each-addition). In every material-chain mode, the gate accounts for the property hierarchy and inverse relationships in the generated graph and applicable import closure. `manifestation` alone supplies no additional property characteristic. Neither stereotype supplies further stereotype-only logical axioms or annotations recording its declaration. Independently required source descriptions, labels, source-ID annotations, association-end annotations, and other axioms remain applicable; the [automatic metadata permission](../guides/metadata-and-provenance.md#optional-automatic-enrichment) does not override this exclusion.
 
 Existing naming precedence, language handling, and controls remain applicable. In particular, `participational` semantic naming still requires [exactly one whole-marked end](#structural-evidence-for-semantic-naming); endpoint positions or descriptive text cannot supply missing role evidence. Successful naming does not establish complete semantic preservation.
 
@@ -231,13 +231,15 @@ The following **specification illustration**, not observed converter output, ass
 
 ### Compatibility of each addition
 
-Assess **each proposed new axiom separately** against its applicable OWL 2 DL restrictions, considering the generated property hierarchy, inverse relationships, and import closure, including the [mandatory DKGM import](mereology.md#import-and-vocabulary-identity). Asymmetry and irreflexivity require a simple participating property expression; paired disjointness requires **both** expressions to be simple. A property used only in a chain body is not non-simple solely because of that use.
+Assess **each proposed new axiom separately** against its applicable OWL 2 DL restrictions. Consider the property hierarchy, inverse relationships, and axioms in the generated graph and its applicable import closure. The selected [DKGM vocabulary mode](mereology.md#vocabulary-delivery-modes) determines the contribution to this assessment. In `import`, the gate considers the imported vocabulary. In `embed`, it considers the locally emitted core. In `none`, it uses the generated graph and applicable import closure without assuming axioms supplied separately by the consumer.
+
+Asymmetry and irreflexivity require a simple participating property expression. Paired disjointness requires **both** expressions to be simple. A property used only in a chain body is not non-simple solely because of that use.
 
 Omit a new axiom that fails its simplicity condition; retain other compatible additions. For example, a non-simple characterization expression excludes its new asymmetry declaration and a disjointness pair using it, but does not exclude an otherwise compatible external-dependence irreflexivity declaration.
 
 This gate applies in **all three material-chain modes**, including `none` and `preserve-conflicting-constraints`. Emitting a chain alone does not suppress these additions, and preservation mode does not override their gate. Assess whether a proposed addition introduces an additional violation; do not require the existing ontology to satisfy an overall OWL 2 DL guarantee.
 
-The additions leave established cardinality, [relation-set disjointness](#generalization-and-disjointness), [source-specific mereology](mereology.md#source-specific-properties), and imported vocabulary mappings and their omission/preservation policies unchanged. Do not remove other accepted axioms to accommodate the five additions. This introduces no semantic validation, consistency checking, source-model repair, or overall OWL 2 DL guarantee. The OWL definitions are in [W3C OWL 2 Structural Specification, §§11.1–11.2](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
+Established cardinality, [relation-set disjointness](#generalization-and-disjointness), [source-specific mereology](mereology.md#source-specific-properties), and selected vocabulary output follow their own omission and preservation rules. Do not remove other accepted axioms to accommodate the five additions. This introduces no semantic validation, consistency checking, source-model repair, or overall OWL 2 DL guarantee. The OWL definitions are in [W3C OWL 2 Structural Specification, §§11.1–11.2](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
 
 ## Relation cardinalities
 
@@ -321,7 +323,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–17, 19–20; DK-GEN-03, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-11**; repository commit: `2521e3bde7e26ac06b3abd0b879d165babe07793`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/2521e3bde7e26ac06b3abd0b879d165babe07793/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–17, 19–20; DK-GEN-03–04, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
