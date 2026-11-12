@@ -324,3 +324,8 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
                              "Ordinary relation mappings are retained; no additional axioms or "
                              "stereotype-declaration annotations are supplied solely by this stereotype."),
                             (source.location,), str(primary))
+        elif stereotype in {"mediation", "characterization", "externalDependence", "bringsAbout", "triggers"}:
+            diagnostics.add("WARNING", "UNMAPPED_RELATION_STEREOTYPE",
+                            f"The {stereotype} relation semantics are only partially translated.",
+                            "Ordinary relation mappings and applicable axioms are retained.",
+                            (source.location,), str(primary))
