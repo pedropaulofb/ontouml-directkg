@@ -2421,14 +2421,15 @@ def _assert_event_situation_mapping_equal(ordinary, stereotyped, *, property_iri
 def test_remaining_event_relations_report_nonfatal_residual_warning(
         run, invoke, source_json, tmp_path, stereotype, source_kind, source_name,
         target_kind, target_name, semantic_name, fallback_name, input_policy, naming_disabled):
-    """Rules: DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11.
+    """Rules: DK-CLS-04, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-GEN-03, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-05, DK-INV-07, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-PROP-04, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06, DK-REL-09, DK-REL-10, DK-REL-11.
 
     RD-17 registration 490f209e0d70533bac56674e2844a7463fe77a09 applies the
     owner's warning-consistency direction. Registration
     2521e3bde7e26ac06b3abd0b879d165babe07793 settles ordinary graph treatment.
     Complete shared/binary_relation variants preserve independent annotations
-    and axioms. Compare the matched ordinary control after accounting for the
-    allowed lexical IRIs. Naming-disabled warnings may share one diagnostic.
+    and axioms. Require the unique workers inverse in both conversions and
+    align their primary IRIs after checking their lexical candidates.
+    Naming-disabled warnings may share one diagnostic.
     """
     document = source_json('shared/binary_relation')
     source_element(document, 'cA').update(stereotype=source_kind, name=source_name)
@@ -2453,7 +2454,7 @@ def test_remaining_event_relations_report_nonfatal_residual_warning(
     inverse = _primary(result, 'sFocus', 'name')
     source, target = BASE[source_name], BASE[target_name]
     _candidate(graph, primary, {fallback_name if naming_disabled else semantic_name}, source_name)
-    _candidate(graph, inverse, {'workers'}, target_name)
+    assert inverse == BASE.workers
     _direction(graph, primary, source, target)
     _chain_inverse(graph, inverse, primary)
     _counts(graph, source, primary, {('min', 2), ('max', 5)})
@@ -2466,11 +2467,10 @@ def test_remaining_event_relations_report_nonfatal_residual_warning(
     assert (inverse, RDFS.comment, Literal('Source-end description.')) in graph
 
     ordinary_primary = _primary(ordinary, strategy='name')
-    ordinary_inverse = _primary(ordinary, 'sFocus', 'name')
     _candidate(ordinary.ontology, ordinary_primary, {fallback_name}, source_name)
-    _candidate(ordinary.ontology, ordinary_inverse, {'workers'}, target_name)
+    assert _primary(ordinary, 'sFocus', 'name') == BASE.workers
     _assert_event_situation_mapping_equal(
-        ordinary.ontology, graph, property_iris={ordinary_primary: primary, ordinary_inverse: inverse})
+        ordinary.ontology, graph, property_iris={ordinary_primary: primary})
     comments = invoke.read_relation_aggregation_comments(result, path)
     assert {(comment.subject, comment.context, comment.value) for comment in comments} == {
         (primary, 'target_end', 'SHARED'),
@@ -2488,12 +2488,14 @@ def test_remaining_event_relations_report_nonfatal_residual_warning(
 @pytest.mark.parametrize('inverse_mode', ['all', 'none'])
 def test_event_situation_relations_preserve_explicit_hierarchy(
         run, invoke, source_json, tmp_path, stereotype, inverse_mode):
-    """Rules: DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14.
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-11, DK-INV-01, DK-INV-03, DK-INV-04, DK-INV-07, DK-INV-12, DK-IRI-06, DK-LBL-01, DK-LBL-02, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-14.
 
     RD-17 registration 2521e3bde7e26ac06b3abd0b879d165babe07793.
     Canonical relations/hierarchy variant with event and situation endpoints.
     Preserve the explicit primary and available inverse specialization edges,
-    the authored leaf name, and the applicable source-end description.
+    the authored leaf name, and the applicable source-end description. Check
+    primary and inverse IRI pairs before alignment and require the residual
+    warning for the authored relation.
     """
     document = source_json('relations/hierarchy')
     source_kind, target_kind = ('event', 'situation') if stereotype == 'bringsAbout' else ('situation', 'event')
@@ -2513,20 +2515,34 @@ def test_event_situation_relations_preserve_explicit_hierarchy(
     result = run(path=path, **options)
     assert result.outcome == ordinary.outcome == 'completed'
     named = {'General', 'Middle', 'Leaf', 'Sibling'} if inverse_mode == 'all' else set()
-    primary, inverse, edges = _hierarchy_expected(
-        result, strategy, named, [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    specializations = [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')]
+    primary, inverse, edges = _hierarchy_expected(result, strategy, named, specializations)
     graph = result.ontology
     assert _edges(graph) == edges
     assert set(graph.objects(primary['Leaf'], RDFS.label)) == {Literal('leaf')}
+    property_iris = {}
     if inverse_mode == 'all':
-        _candidate(graph, primary['Leaf'], {'leaf'}, 'C')
         _direction(graph, primary['Leaf'], BASE.C, BASE.A)
         assert set(graph.subjects(RDFS.comment, Literal(description))) == {inverse['Leaf']}
+        ordinary_primary, ordinary_inverse, _ = _hierarchy_expected(ordinary, strategy, named, specializations)
+        # The four workers role candidates collide. Each inverse uses the
+        # resolved primary local name, including any source qualifier.
+        for key, source_name in (('General', 'A'), ('Middle', 'B'), ('Leaf', 'C'), ('Sibling', 'D')):
+            allowed_pairs = {
+                (BASE[key.lower()], BASE[f'inverseOf{key}']),
+                (BASE[f'{key.lower()}_{source_name}'], BASE[f'inverseOf{key}_{source_name}']),
+            }
+            assert (primary[key], inverse[key]) in allowed_pairs
+            assert (ordinary_primary[key], ordinary_inverse[key]) in allowed_pairs
+            property_iris[ordinary_primary[key]] = primary[key]
+            property_iris[ordinary_inverse[key]] = inverse[key]
     else:
         _direction(graph, primary['Leaf'], BASE.cC, BASE.cA)
         assert not list(graph.subjects(RDFS.comment, Literal(description)))
-    _assert_event_situation_mapping_equal(ordinary.ontology, graph)
+    _assert_event_situation_mapping_equal(ordinary.ontology, graph, property_iris=property_iris)
     assert invoke.read_relation_stereotype_annotations(result, path) == ()
+    _relation_limitation_warning(result)
+    assert 'rLeaf' in invoke.read_relation_limitation_source_ids(result, path)
 
 
 @pytest.mark.parametrize('strategy,mode,input_policy', [

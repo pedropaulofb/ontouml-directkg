@@ -1630,8 +1630,9 @@ DK-GEN-11. Ordinary mappings and independently required output are retained.
 Additional logical axioms and declaration annotations based solely on either
 stereotype are excluded. The established nonfatal WARNING contract applies.
 The dependency and warning-consistency test assignment closed at
-`8c089cecaadd88d612223356bd842df7caaeff6b`. This graph submission is pending
-its independent Test Reviewer disposition.
+`8c089cecaadd88d612223356bd842df7caaeff6b`. The initial graph submission at
+`df6d370956740f952e6014de2cd434c482bb12a7` received **NOT OK** for F1–F3.
+The correction is pending its independent Test Reviewer disposition.
 
 Eight existing cases in `tests/transformation/test_relations.py` now check
 the ordinary RDF mapping for both stereotypes. These use `shared/binary_relation`
@@ -1641,11 +1642,15 @@ and the naming-disabled cases still run under `strict` and allow consolidated
 warnings. Four new `relations/hierarchy` cases check exact primary and available
 inverse generalizations with both stereotypes. They cover an authored leaf name
 and its applicable description with named inverses, and ID-based mapping without
-named inverses. The input and expectation changes are inline.
+named inverses. Both hierarchy modes require a nonfatal residual warning for the
+authored `rLeaf`, allowing consolidation. The input and expectation changes
+are inline.
 
 The RDF comparison uses a real ordinary conversion of the matched input.
-The assertions check the allowed lexical candidates before aligning generated
-property IRIs. The comparison permits blank-node relabeling, unordered class
+The binary assertions require the unique `workers` inverse in both conversions.
+The hierarchy name-mode assertions check each primary and its dependent inverse
+in both graphs before alignment by source-end identity. The comparison permits
+blank-node relabeling, unordered class
 disjointness and independent typed creation or modification times. Source-authored
 descriptions mentioning either stereotype and the existing aggregation-comment
 reader provide positive annotation evidence. The existing invocation adapter
@@ -1660,3 +1665,10 @@ report and CLI parity cases passed. The same nine older cases in the additional
 hierarchy/naming selection reached unbound operations at both revisions.
 `tests/coverage.md` records the exact nodes, commands, selected Catalog and
 VP-plugin evidence, and the graph and warning controls.
+
+The F1–F3 correction builds on `550663e35e9b81d635f7f7b8af22da408a7ef3e7`.
+The intervening change is a site documentation reference. The correction
+collects the same **3,478** nodes as the reviewed revision. All **12** focused
+cases and **365** combined cases pass. Controls reproduce the original false
+passes and false rejections and verify the corrected assertions. The existing
+RDF and diagnostic controls retain their dispositions.
