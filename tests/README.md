@@ -1702,3 +1702,11 @@ best-effort recovery with a surviving bridge. The converter still lacks the
 mode controls and effective-mode provenance. The invalid-value test reaches
 the real parser but cannot exercise value rejection until it recognizes the
 option. The inventory records the exact nodes and observed limits.
+
+The follow-up addresses the two remaining F1 and F2 findings on
+`2098b06559ed0178af2301ecdc86041ea639be92`. Its publication base
+`b1ddc8f00ba027d144115bace1d6bcfd12a394a5` adds OWL 2 DL documentation guidance. The RDF checker validates the owners of core
+chain lists and detects copied DKGM members in foreign chains. The warning
+reader accepts active and passive reasoning guidance from native text.
+The [inventory](coverage.md#remaining-f1-and-f2-corrections) links the assertions
+to their fixtures and records the controls and current execution limits.

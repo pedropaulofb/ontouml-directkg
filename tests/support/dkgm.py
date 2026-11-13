@@ -71,8 +71,21 @@ def assert_dkgm_vocabulary(graph, ontology, mode, *, bridges=()):
         assert set(graph.objects(term, RDF.type)) == {OWL.ObjectProperty}
     assert all(node in core_list_nodes for node, member in graph.subject_objects(RDF.first)
                if _is_dkgm_resource(member))
-    assert all(predicate in {OWL.propertyChainAxiom, RDF.rest}
-               for node in core_list_nodes for _, predicate in graph.subject_predicates(node))
+    # A Turtle round trip may write a shared list tail as a separate list.
+    # Check chain members as well as incoming edges to the core list nodes.
+    for subject in set(graph.subjects(OWL.propertyChainAxiom)) - DKGM_CHAINS.keys():
+        chains = property_chains(graph, subject)
+        members = {expression[1] if isinstance(expression, tuple) else expression
+                   for chain in chains for expression in chain}
+        assert not any(_is_dkgm_resource(member) for member in members), (
+            'Unexpected DKGM chain conclusion', subject
+        )
+    for node in core_list_nodes:
+        for subject, predicate in graph.subject_predicates(node):
+            assert ((predicate == OWL.propertyChainAxiom and subject in DKGM_CHAINS)
+                    or (predicate == RDF.rest and subject in core_list_nodes)), (
+                'Unexpected reference to a DKGM chain list', (subject, predicate, node)
+            )
 
     if mode in {'embed', 'none'}:
         vocabulary = load_graph(DKGM_CORE)

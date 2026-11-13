@@ -912,32 +912,68 @@ def relation_end_comment_meanings(graph, subject):
 
 
 def dkgm_chain_facts(message, effect):
-    """Read chain omission and DKGM-specific guidance from one observed event."""
-    wording = (message + " " + effect).casefold().replace("`", "")
+    """Read the omission and affirmative supply guidance in a native event."""
+    wording = " ".join((message + " " + effect).casefold().replace("`", "").replace("’", "'").split())
+    guidance_clauses = [clause.strip() for clause in re.split(r"[.!?;]+", wording)]
     chain = (r"(?:dkgm|generic)(?:[ -]+(?:dkgm|generic|mereological|mereology|property|inference))*"
              r"[ -]+chains?(?:[ -]+axioms?)?")
     omitted = r"absent|omitted|missing|not (?:included|provided|emitted|generated|available)"
     facts = set()
     missing = rf"\b(?:omits|without|no|does not (?:include|emit|provide)) (?:the )?{chain}\b"
-    if (re.search(rf"\b{chain} (?:are |were |remain )?(?:{omitted})\b", wording)
-            or re.search(rf"{missing}(?![ -]+(?:omission|absence|loss|warning)\b)", wording)
-            or re.search(rf"\b{chain} will not be (?:included|emitted|generated)\b", wording)):
+    omission = (rf"\b{chain} (?:are |were |remain )?(?:{omitted})\b"
+                rf"|{missing}(?![ -]+(?:omission|absence|loss|warning)\b)"
+                rf"|\b{chain} will not be (?:included|emitted|generated)\b")
+    if re.search(omission, wording):
         facts.add("dkgm_chains_absent")
-    supply = r"(?:supply|provide|load|include|add|enable|make|assert|use)"
-    audience = r"\b(?:consumers?|you|users?|reasoners?)\b[^.;!?]*?"
-    responsibility = (rf"{audience}(?:\b(?:must|needs? to|have to|are required to|should) {supply}\b"
-                      r"|\bneeds?\b(?!\s+(?:not|to)\b))")
-    instructions = rf"(?:^|[.!?,:]\s+){supply}\b"
-    named_input = rf"(?:{chain}|dkgm axioms?|dkgm (?:ontology|vocabulary))\b"
-    chain_input = r"(?:these |those )?(?:omitted |missing )?(?:property[ -])?chains?(?:[ -]+axioms?)?\b"
-    target = named_input
-    if 'dkgm_chains_absent' in facts:
-        target = rf"(?:{named_input}|{chain_input})"
-    equivalent = r"(?:equivalent|corresponding) (?:(?:inference|reasoning) )?rules\b"
-    required_input = rf"(?:{target}[ ,]+or\s+{equivalent}|{equivalent}[ ,]+or\s+(?:the )?{target})"
-    unrelated_purpose = r"(?!\s+(?:for|to (?:derive|infer|enforce)) (?:the )?(?:material|cardinalit)\w*)"
-    if re.search(rf"(?:{responsibility}|{instructions})\s+(?:the )?{required_input}{unrelated_purpose}", wording):
-        facts.add("dkgm_chains_consumer_supply")
+
+    # An unqualified reference to the chains is meaningful after an omission
+    # statement in the same event. Keep the directive and its objects together.
+    target = rf"{chain}|dkgm axioms?|dkgm (?:ontology|vocabulary)"
+    if "dkgm_chains_absent" in facts:
+        target += r"|(?:omitted |missing )?(?:property[ -])?chains?(?:[ -]+axioms?)?"
+    axioms = rf"(?:the |these |those )?(?:{target})\b"
+    rules = r"(?:an? )?(?:equivalent|corresponding) (?:(?:inference|reasoning) )?rule(?:s| set|set)?\b"
+    supply = r"(?:supply|provide|load|include|add|enable|assert|use|apply|import)"
+    alternate = rf"(?:,?\s+or\s+|[, ]*\(or\s+)(?:{supply} )?"
+    alternatives = rf"(?:either )?(?:{axioms}{alternate}{rules}|{rules}{alternate}{axioms})(?:\s*\))?"
+
+    # Match affirmative verbs without skipping intervening negation. Recognize
+    # both a consumer's obligation and a requirement stated in passive voice.
+    audience = (r"\b(?:consumers?|you|users?|reasoners?|anyone)"
+                r"(?: (?:who|requiring|needing|seeking|wanting) [^,;]+?)?\b")
+    obligation = r"(?:must|needs? to|have to|has to|(?:are|is) required to|should)"
+    action = rf"(?:{supply} {alternatives}|make {alternatives} available)"
+    active = rf"(?:{audience} {obligation} |(?:^|[,:]\s+)){action}"
+    need = rf"{audience} needs? {alternatives}"
+    passive = (rf"\b{alternatives} {obligation} be "
+               r"(?:(?:made )?available|supplied|provided|loaded|included|added|asserted|used|applied|imported)\b")
+    entailment = (rf"\b(?:recovering|preserving|deriving|inferring|obtaining) "
+                  rf"(?:the |these |those )?(?:same |generic |dkgm )?(?:entailments|inferences) "
+                  rf"(?:needs|requires) {alternatives}")
+    conditional = (rf"\b(?:to |if you (?:need|want) to )"
+                   rf"(?:recover|preserve|derive|infer|obtain) "
+                   rf"(?:the |these |those )?(?:same |generic |dkgm )?(?:entailments|inferences), "
+                   rf"(?:you )?(?:{obligation} )?{action}")
+    guidance = rf"{active}|{need}|{passive}|{entailment}|{conditional}"
+    negation = (r"\b(?:do|does|did) not (?:need|have to|require)\b"
+                r"|\b(?:need|needs|must|should) not\b|\bnot (?:necessary|required)\b"
+                r"|\b(?:don't|doesn't|didn't) (?:need|have to|require)\b|\bneedn't\b"
+                r"|\bno (?:need|requirement) to\b")
+    unrelated = (r"\b(?:for|to (?:derive|infer|enforce)) (?:the )?(?:material|cardinalit)\w*"
+                 r"|\b(?:for (?:display|viewing|visuali[sz]ation|presentation|inspection|editing)|"
+                 r"to (?:display|view|visuali[sz]e|document|inspect|edit))\b"
+                 r"|\b(?:only|solely|just) (?:into|in|to) (?:an? |the )?(?:editor|viewer)\b")
+    reasoning = r"\b(?:reason(?:er|ers|ing)|infer(?:ence|ences|ring|red)?|entail(?:ments?)?|deduc(?:e|tion))\b"
+    for clause in guidance_clauses:
+        if not re.search(guidance, clause) or re.search(rf"{negation}|{unrelated}", clause):
+            continue
+        # Guidance about explicit reasoning rules can identify the purpose
+        # implicitly. For editor/viewer instructions require actual reasoning
+        # context beyond the name of the rules.
+        context = re.sub(rules, "", clause) if re.search(r"\b(?:editor|viewer)\b", clause) else clause
+        if re.search(reasoning, context):
+            facts.add("dkgm_chains_consumer_supply")
+            break
     return facts
 
 
