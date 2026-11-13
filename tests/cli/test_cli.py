@@ -11,7 +11,7 @@ from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
-from tests.support.invocation import Fault, diagnostic_signatures
+from tests.support.invocation import DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_signatures, read_dkgm_mode_setting
 from tests.support.rdf import assert_graph_equal, property_chains, rooted_graph
 
 BASE=Namespace('https://example.test/model#')
@@ -376,6 +376,93 @@ def test_cli_default_controls_match_python_defaults_and_record_effective_configu
     assert process.observation.embedded_output_configuration==()
     assert diagnostic_signatures(process.console)==diagnostic_signatures(process.observation.diagnostics)
     _report(invoke,report,process.observation)
+
+
+def _dkgm_mode_from_provenance(graph):
+    assert isinstance(graph, Graph)
+    configurations = set()
+    for activity in graph.objects(ONTOLOGY, PROV.wasGeneratedBy):
+        assert (activity, RDF.type, PROV.Activity) in graph
+        configurations.update(entity for entity in graph.objects(activity, PROV.used)
+                              if list(graph.objects(entity, PROV.value)))
+    assert len(configurations) == 1
+    configuration = next(iter(configurations))
+    assert (configuration, RDF.type, PROV.Entity) in graph
+    assert any('yaml' in str(value).casefold()
+               for value in graph.objects(configuration, DCTERMS.format))
+    literals = set(graph.objects(configuration, PROV.value))
+    assert len(literals) == 1
+    value = next(iter(literals))
+    assert isinstance(value, Literal)
+    settings = yaml.safe_load(str(value))
+    assert isinstance(settings, dict)
+    return read_dkgm_mode_setting(settings)
+
+
+@pytest.mark.parametrize('provenance', ['embedded', 'sidecar'])
+@pytest.mark.parametrize('mode', [None, 'import', 'embed', 'none'],
+                         ids=['default', 'import', 'embed', 'none'])
+def test_dkgm_vocabulary_cli_python_parity_and_effective_configuration(invoke, tmp_path, mode, provenance):
+    """Rules: DK-GEN-04, DK-GEN-10, DK-REL-19, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 defaults and parity.
+
+    Configurable DKGM vocabulary delivery, Alternative A, 31ee95dbc43cd411987862a81b80f6f8383e2761.
+    """
+    document = load_json('shared/binary_relation')
+    source_element(document, 'rFocus')['stereotype'] = 'memberOf'
+    source_element(document, 'sFocus')['cardinality'] = '1'
+    source_element(document, 'tFocus')['cardinality'] = '2'
+    assert not fixture_issues(document)
+    source = write_input(tmp_path, document)
+    options = {'base_iri': str(BASE), 'iri_strategy': 'id', 'input_policy': 'strict', 'provenance': provenance}
+    if mode is not None:
+        options['dkgm_vocabulary'] = mode
+    destination = tmp_path / 'output.ttl'
+    report_path = tmp_path / 'report.json'
+    process = invoke.cli(source, options={**options, 'console_level': 'error'}, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report_path)
+    assert process.returncode == 0, process.stderr.decode('utf-8', errors='replace')
+    assert process.conversion_started is True
+    python = invoke.convert(source, options=options, workdir=tmp_path)
+    assert python.outcome == process.observation.outcome == 'completed'
+    actual = Graph().parse(destination, format='turtle')
+    dkgm_iri = URIRef('https://w3id.org/directkg/vocab/dkgm')
+    dkgm = Namespace(f'{dkgm_iri}#')
+    expected_mode = 'import' if mode is None else mode
+    assert ((ONTOLOGY, OWL.imports, dkgm_iri) in actual) == (expected_mode == 'import')
+    assert ((dkgm.memberOf, RDF.type, OWL.ObjectProperty) in actual) == (expected_mode != 'import')
+    assert property_chains(actual, dkgm.memberOf) == (
+        {(dkgm.memberOf, dkgm.subCollectionOf)} if expected_mode == 'embed' else set())
+    assert (BASE.tFocus, RDFS.subPropertyOf, dkgm.memberOf) in actual
+    assert (BASE.tFocus, RDF.type, OWL.AsymmetricProperty) in actual
+    roots = {ONTOLOGY, BASE.cA, BASE.cB, BASE.tFocus, BASE.sFocus,
+             dkgm.memberOf, dkgm.subCollectionOf, dkgm.subQuantityOf, dkgm.componentOf}
+    predicates = LOGICAL | {OWL.imports}
+    assert_graph_equal(rooted_graph(actual, roots, predicates, unordered_predicates={OWL.disjointWith}),
+                       rooted_graph(python.ontology, roots, predicates, unordered_predicates={OWL.disjointWith}))
+
+    if provenance == 'sidecar':
+        cli_provenance = Graph().parse(destination.with_name('output.provenance.ttl'), format='turtle')
+        python_provenance = python.provenance
+    else:
+        cli_provenance, python_provenance = actual, python.ontology
+    assert {'cli': _dkgm_mode_from_provenance(cli_provenance),
+            'python': _dkgm_mode_from_provenance(python_provenance)} == {
+                'cli': expected_mode, 'python': expected_mode}
+
+    converted, native = invoke.cli_report_content(process)
+    assert Counter(converted.events) <= Counter(native.events)
+    payload = json.loads(report_path.read_bytes())
+    records = Counter((severity, code, message, effect, tuple(sorted(sources, key=repr)), iri)
+                      for severity, code, message, effect, sources, iri in native.events)
+    assert _cli_json_report_contract(payload) == ('completed', records)
+    assert not process.console
+    for observation in (python, process.observation):
+        notices = [event for event in observation.diagnostics if DKGM_CHAIN_WARNING_FACTS & event.facts]
+        if expected_mode == 'none':
+            assert any(event.severity == 'WARNING' and DKGM_CHAIN_WARNING_FACTS <= event.facts
+                       for event in notices)
+        else:
+            assert not notices
 
 
 @pytest.mark.parametrize('scenario',['info','warning','singleton','instantiation','partial','duplicate_abort','unprocess','provenance_abort'])

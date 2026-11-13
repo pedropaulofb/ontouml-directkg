@@ -872,18 +872,56 @@ _DIAGNOSTIC_KINDS = {
 }
 
 
+DKGM_CHAIN_WARNING_FACTS = frozenset({"dkgm_chains_absent", "dkgm_chains_consumer_supply"})
+
+
+def read_dkgm_mode_setting(settings):
+    """Read the effective setting from observed YAML, independent of CLI spelling."""
+    keys = {"dkgm_vocabulary", "dkgm_vocabulary_mode"}
+    values = [value for key, value in settings.items()
+              if isinstance(key, str) and key.casefold().replace("-", "_") in keys]
+    if len(values) > 1 and any(value != values[0] for value in values[1:]):
+        raise ImplementationUnavailable("Conflicting native DKGM vocabulary settings in provenance")
+    return values[0] if values else None
+
+
+def _dkgm_chain_facts(wording):
+    """Read the two meanings of a DKGM notice from native explanatory text."""
+    chain = (r"(?:dkgm|generic)(?:[ -]+(?:mereological|mereology|property|inference))*"
+             r"[ -]+chains?(?:[ -]+axioms?)?")
+    omitted = r"absent|omitted|missing|not (?:included|provided|emitted|generated|available)"
+    facts = set()
+    if (re.search(rf"\b{chain} (?:are |were |remain )?(?:{omitted})\b", wording)
+            or re.search(rf"\b(?:omits|without|no|does not (?:include|emit|provide)) (?:the )?{chain}\b",
+                         wording)):
+        facts.add("dkgm_chains_absent")
+    supply = r"(?:supply|provide|load|include|add|enable|make|assert|use)"
+    responsibility = (r"\b(?:consumers?|you|users?|reasoners?)\b[^.;!?]*?"
+                      rf"\b(?:must|needs? to|have to|are required to|should) {supply}\b")
+    instructions = rf"(?:^|[.!?,]\s+){supply}\b"
+    required_input = (r"[^.;!?]*\b(?:chains?|axioms?)\b[^.;!?]*\bor "
+                      r"(?:equivalent|corresponding) (?:inference |reasoning )?rules\b")
+    if re.search(rf"\b{chain}\b", wording) and re.search(
+            rf"(?:{responsibility}|{instructions}){required_input}", wording):
+        facts.add("dkgm_chains_consumer_supply")
+    return facts
+
+
 def _observed_diagnostics(events):
     """Read inspected production fields; retain every event and its raw object.
 
-    Unmapped diagnostic codes fail explicitly. Facts below come only from the
+    Uninterpreted events fail explicitly. Facts below come only from the
     actual message/effect and source locators, never from an input or request.
     """
     observed = []
     for event in events:
-        if event.code not in _DIAGNOSTIC_KINDS:
-            raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
         wording = (event.message + " " + event.effect).casefold()
-        facts = set()
+        facts = _dkgm_chain_facts(wording)
+        kind = _DIAGNOSTIC_KINDS.get(event.code)
+        if kind is None:
+            if not facts:
+                raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
+            kind = "dkgm_chain_omission"
         if event.code in {"RELATION_NAMING", "UNMAPPED_RELATION_STEREOTYPE"}:
             # Interpret each meaning in the bound native rendering. One
             # message/effect can report both, regardless of its primary code.
@@ -961,7 +999,7 @@ def _observed_diagnostics(events):
                 facts.add("same_class_occurrences_unassigned")
         ids = tuple(source.identifier for source in event.sources if source.identifier is not None)
         observed.append(Diagnostic(
-            event.severity, _DIAGNOSTIC_KINDS[event.code], event.message + " " + event.effect,
+            event.severity, kind, event.message + " " + event.effect,
             source_ids=ids,
             source_types=tuple(source.element_type for source in event.sources if source.element_type is not None),
             generated_iris=() if event.generated_iri is None else (event.generated_iri,),
@@ -983,6 +1021,11 @@ class _DirectKGInvocation(_UnboundInvocation):
         request = dict(options)
         if "stereotype_relation_naming" in request:
             request["no_stereotype_relation_naming"] = not request.pop("stereotype_relation_naming")
+        if "dkgm_vocabulary" in request:
+            try:
+                inspect.signature(convert).bind(source, **request)
+            except TypeError as exc:
+                raise ImplementationUnavailable("Bind the public Python DKGM vocabulary mode control") from exc
         # Observe real input/report-writer calls for explicit persistence checks;
         # no input option is used to infer that a report was or was not written.
         with _observe_metadata_output() as metadata, _observe_python_input() as trace:
@@ -1052,13 +1095,13 @@ class _DirectKGInvocation(_UnboundInvocation):
         known_parameters = {"source", "base_iri", "iri_strategy", "input_policy", "stereotype_policy",
                             "language", "omit_identifiers", "inverse_properties", "no_stereotype_relation_naming",
                             "relation_labels", "material_property_chains", "provenance", "metadata_file",
-                            "ontology_version_iri"}
+                            "ontology_version_iri", "dkgm_vocabulary"}
         parser = build_parser()
         known_flags = {"-h", "--help", "-o", "--output", "--version", "--base-iri", "--iri-strategy",
                        "--input-policy", "--stereotype-policy", "--inverse-properties",
                        "--no-stereotype-relation-naming", "--relation-labels", "--material-property-chains",
                        "--language", "--omit-identifiers", "--metadata-file", "--provenance",
-                       "--diagnostics-file", "--console-level", "--ontology-version-iri"}
+                       "--diagnostics-file", "--console-level", "--ontology-version-iri", "--dkgm-vocabulary"}
         actions = tuple(parser._actions)
         unknown = (set(exports) - known_exports) | (set(signature.parameters) - known_parameters)
         unknown.update(flag for action in actions for flag in action.option_strings if flag not in known_flags)

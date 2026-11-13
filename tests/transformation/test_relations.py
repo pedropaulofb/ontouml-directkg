@@ -2,18 +2,29 @@
 
 import copy
 import json
+import socket
 from collections import Counter
 from pathlib import Path
+from urllib.parse import urlsplit
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
-from tests.support.invocation import diagnostic_signatures
+from tests.support.invocation import DKGM_CHAIN_WARNING_FACTS, diagnostic_signatures
 from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
 BASE = Namespace('https://example.test/model#')
+DKGM_ONTOLOGY = URIRef('https://w3id.org/directkg/vocab/dkgm')
+DKGM = Namespace(f'{DKGM_ONTOLOGY}#')
+DKGM_STEREOTYPES = ('memberOf', 'subCollectionOf', 'subQuantityOf', 'componentOf')
+DKGM_CHAINS = {
+    DKGM.memberOf: (DKGM.memberOf, DKGM.subCollectionOf),
+    DKGM.subCollectionOf: (DKGM.subCollectionOf, DKGM.subCollectionOf),
+    DKGM.subQuantityOf: (DKGM.subQuantityOf, DKGM.subQuantityOf),
+}
+DKGM_CORE = Path(__file__).resolve().parents[2] / 'vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl'
 POLICIES = ['strict', 'tolerant', 'best-effort']
 NAMING_KINDS = {'relation_naming', 'stereotype_naming', 'comparative_naming',
                 'unavailable_grounding_relator', 'relator_naming', 'missing_name',
@@ -1695,6 +1706,164 @@ def test_compatible_source_mereologies_do_not_create_arbitrary_source_chains_or_
     _compatibility(result,mode,False)
 
 
+def _is_dkgm_resource(node):
+    return isinstance(node, URIRef) and (node == DKGM_ONTOLOGY
+        or str(node).startswith((str(DKGM), f'{DKGM_ONTOLOGY}/')))
+
+
+def _assert_dkgm_vocabulary(graph, mode, targets=()):
+    ontology = URIRef('https://example.test/model')
+    assert (ontology, RDF.type, OWL.Ontology) in graph
+    imports = {(s, o) for s, o in graph.subject_objects(OWL.imports)
+               if _is_dkgm_resource(o) or (isinstance(o, URIRef) and
+                  urlsplit(str(o)).path.rsplit('/', 1)[-1].startswith('dkgm-vocabulary'))}
+    assert imports == ({(ontology, DKGM_ONTOLOGY)} if mode == 'import' else set())
+    if mode == 'import':
+        for name in DKGM_STEREOTYPES:
+            assert (DKGM[name], RDF.type, OWL.ObjectProperty) not in graph
+            assert (DKGM[name], RDF.type, OWL.AsymmetricProperty) not in graph
+            assert not list(graph.objects(DKGM[name], OWL.propertyChainAxiom))
+        return
+    if mode == 'embed':
+        vocabulary = load_graph(DKGM_CORE)
+        terms = {DKGM[name] for name in DKGM_STEREOTYPES}
+        assert set(vocabulary.subjects(RDF.type, OWL.ObjectProperty)) == terms
+        assert set(vocabulary.subjects(OWL.propertyChainAxiom)) == DKGM_CHAINS.keys()
+        for term, chain in DKGM_CHAINS.items():
+            assert property_chains(vocabulary, term) == {chain}
+        # Even relocating the published header annotations to the domain
+        # ontology would copy vocabulary metadata into this fixture's output.
+        copied_annotations = {(p, o) for p, o in vocabulary.predicate_objects(DKGM_ONTOLOGY)
+                              if p != RDF.type}
+        assert not copied_annotations & set(graph.predicate_objects(ontology))
+        assert not any(triple in graph for triple in vocabulary
+                       if isinstance(triple[0], URIRef) and triple[0] not in terms)
+    else:
+        terms = set(targets)
+    assert {s for s in graph.subjects() if _is_dkgm_resource(s)} == terms
+    for term in terms:
+        expected = DKGM_CHAINS.get(term) if mode == 'embed' else None
+        assert property_chains(graph, term) == ({expected} if expected else set())
+        assert {p for p, _ in graph.predicate_objects(term)} <= {RDF.type, OWL.propertyChainAxiom}
+        assert set(graph.objects(term, RDF.type)) == {OWL.ObjectProperty}
+
+
+def _assert_dkgm_chain_warning(events, required):
+    notices = [event for event in events if DKGM_CHAIN_WARNING_FACTS & event.facts]
+    if required:
+        assert any(event.severity == 'WARNING' and DKGM_CHAIN_WARNING_FACTS <= event.facts
+                   for event in notices), 'Expected a DKGM chain-omission warning and consumer guidance'
+    else:
+        assert not notices
+
+
+@pytest.mark.parametrize('mode,stereotypes,input_policy', [
+    pytest.param(mode, stereotypes, 'strict',
+                 id=f'{mode or "default"}-{case}')
+    for mode in (None, 'import', 'embed', 'none')
+    for case, stereotypes in (('no-bridge', ()), ('all-bridges', DKGM_STEREOTYPES))
+] + [
+    pytest.param('none', ('memberOf', 'componentOf'), 'strict', id='none-mixed-bridges'),
+] + [
+    pytest.param('none', (stereotype,), policy, id=f'none-{stereotype}-{policy}')
+    for stereotype in DKGM_STEREOTYPES for policy in POLICIES
+])
+def test_dkgm_vocabulary_delivery_follows_emitted_bridges(
+        run, source_json, tmp_path, monkeypatch, mode, stereotypes, input_policy):
+    """Rules: DK-GEN-01, DK-GEN-04, DK-REL-19, DK-REL-07, DK-REL-09, DK-REL-11, DK-LBL-01, DK-LBL-02, DK-INV-03, DK-INV-04, DK-PROP-04, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15.
+
+    Configurable DKGM vocabulary delivery, Alternative A, 31ee95dbc43cd411987862a81b80f6f8383e2761.
+    """
+    document = source_json('shared/binary_relation')
+    template = source_element(document, 'rFocus')
+    template['description'] = 'Authored relation description.'
+    template['properties'][0].update(cardinality='1', description='Authored source-end description.', isReadOnly=True)
+    template['properties'][1].update(cardinality='2', description='Authored target-end description.')
+    expected_bridges = set()
+    ends = []
+    for index, stereotype in enumerate(stereotypes or ('material',)):
+        suffix = 'Focus' if index == 0 else stereotype[0].upper() + stereotype[1:]
+        relation = template if index == 0 else copy.deepcopy(template)
+        relation.update(id=f'r{suffix}', stereotype=stereotype)
+        relation['properties'][0]['id'] = f's{suffix}'
+        relation['properties'][1]['id'] = f't{suffix}'
+        relation['properties'][1]['aggregationKind'] = (
+            'SHARED' if stereotype == 'memberOf' else 'COMPOSITE' if stereotype == 'componentOf' else 'NONE')
+        if index:
+            document['model']['contents'].append(relation)
+        primary, inverse = BASE[f't{suffix}'], BASE[f's{suffix}']
+        ends.append((primary, inverse, relation['properties'][1]['aggregationKind']))
+        if stereotypes:
+            expected_bridges.add((primary, DKGM[stereotype]))
+    assert not fixture_issues(document)
+    path = write_input(tmp_path, document)
+    options = {} if mode is None else {'dkgm_vocabulary': mode}
+    network_attempts = []
+
+    def refuse_network(*args, **kwargs):
+        network_attempts.append(args)
+        raise OSError('Network access is unavailable during embedded core conversion')
+
+    with monkeypatch.context() as offline:
+        if mode == 'embed':
+            offline.setattr(socket, 'getaddrinfo', refuse_network)
+            offline.setattr(socket.socket, 'connect', refuse_network)
+            offline.setattr(socket.socket, 'connect_ex', refuse_network)
+        result = run(path=path, iri_strategy='id', input_policy=input_policy, **options)
+    assert not network_attempts
+    assert result.outcome == 'completed'
+    assert not any(event.severity == 'ERROR' for event in result.diagnostics)
+    graph = result.ontology
+    for primary, inverse, aggregation in ends:
+        _direction(graph, primary, BASE.cA, BASE.cB)
+        _chain_inverse(graph, inverse, primary)
+        _counts(graph, BASE.cA, primary, {('exact', 2)})
+        _counts(graph, BASE.cB, inverse, {('exact', 1)})
+        assert set(graph.objects(primary, RDFS.label)) == {Literal('worksFor')}
+        assert (primary, RDFS.comment, Literal('Authored relation description.')) in graph
+        assert (primary, RDFS.comment, Literal('Authored target-end description.')) in graph
+        assert (inverse, RDFS.comment, Literal('Authored source-end description.')) in graph
+        comments = {str(comment).casefold() for comment in graph.objects(primary, RDFS.comment)}
+        assert any('source' in comment and ('read-only' in comment or 'read only' in comment)
+                   for comment in comments)
+        if aggregation != 'NONE':
+            assert any('target' in comment and aggregation.casefold() in comment for comment in comments)
+        assert ((primary, RDF.type, OWL.AsymmetricProperty) in graph) == bool(stereotypes)
+        assert (inverse, RDF.type, OWL.AsymmetricProperty) not in graph
+    assert {(s, o) for s, o in graph.subject_objects(RDFS.subPropertyOf)
+            if _is_dkgm_resource(o)} == expected_bridges
+    assert {s for s in graph.subjects(OWL.propertyChainAxiom)} == (
+        DKGM_CHAINS.keys() if mode == 'embed' else set())
+    targets = {target for _, target in expected_bridges}
+    _assert_dkgm_vocabulary(graph, mode or 'import', targets)
+    _assert_dkgm_chain_warning(result.diagnostics, mode == 'none' and bool(DKGM_CHAINS.keys() & targets))
+    if mode == 'import':
+        default = run(path=path, iri_strategy='id', input_policy=input_policy)
+        assert default.outcome == result.outcome
+        assert diagnostic_signatures(default.diagnostics) == diagnostic_signatures(result.diagnostics)
+
+
+def test_dkgm_none_uses_emitted_bridges_after_relation_failure(run, source_json, tmp_path):
+    """Rules: DK-GEN-04, DK-REL-01, DK-REL-19, DK-DIAG-01, DK-DIAG-03, DK-DIAG-04, DK-DIAG-05; §15.
+
+    Configurable DKGM vocabulary delivery, Alternative A, 31ee95dbc43cd411987862a81b80f6f8383e2761.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'rFocus')['stereotype'] = 'memberOf'
+    source_element(document, 'tFocus')['propertyType']['id'] = 'missingEndpoint'
+    assert fixture_issues(document) == {'unresolved_reference:missingEndpoint'}
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy='best-effort', dkgm_vocabulary='none')
+    assert result.outcome == 'completed-with-errors'
+    assert any(event.kind == 'failed_relation' and event.severity == 'ERROR' for event in result.diagnostics)
+    graph = result.ontology
+    assert {BASE.cA, BASE.cB} <= set(graph.subjects(RDF.type, OWL.Class))
+    assert all(not any(graph.triples((prop, None, None))) for prop in (BASE.tFocus, BASE.sFocus))
+    assert not any(_is_dkgm_resource(o) for o in graph.objects(None, RDFS.subPropertyOf))
+    _assert_dkgm_vocabulary(graph, 'none')
+    _assert_dkgm_chain_warning(result.diagnostics, False)
+
+
 @pytest.mark.parametrize('grounding',GROUNDINGS)
 @pytest.mark.parametrize('inverse_mode',['all','none'])
 def test_material_chain_modes_keep_name_strategy_source_identity_and_use_anonymous_backward_steps(run,source_json,tmp_path,grounding,inverse_mode):
@@ -1879,7 +2048,7 @@ def test_new_relation_axioms_apply_simplicity_per_axiom_without_repairing_existi
     """Rules: DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-11, DK-REL-14, DK-REL-15, DK-INV-01, DK-INV-04, DK-INV-12, DK-PROP-03, DK-DIAG-02; §3.4; RD-17 additions 3–5."""
     _assert_relation_axiom_gate(run, source_json, tmp_path, mode, case)
 
-def _assert_relation_axiom_gate(run, source_json, tmp_path, mode, case, input_policy=None):
+def _assert_relation_axiom_gate(run, source_json, tmp_path, mode, case, input_policy=None, **controls):
     """Shared fixed gate assertions; retain the original caller's default options."""
     document=source_json('relations/chain_constraints');_grounding(document,'mode')
     source_element(document,'rPeer')['stereotype']='mediation'
@@ -1899,7 +2068,8 @@ def _assert_relation_axiom_gate(run, source_json, tmp_path, mode, case, input_po
     assert not fixture_issues(document)
     path = write_input(tmp_path, document)
     policy_options = {} if input_policy is None else {'input_policy': input_policy}
-    result=run(path=path,iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode,**policy_options)
+    result=run(path=path,iri_strategy='id',inverse_properties=inverse_mode,material_property_chains=mode,
+               **policy_options, **controls)
     assert result.outcome=='completed';graph=result.ontology
     first=BASE.tLeft if inverse_case else ('inverse',BASE.tLeft)
     assert property_chains(graph,BASE.tMaterial)==({(first,BASE.tRight)} if mode!='none' else set())
@@ -1944,19 +2114,39 @@ def _assert_relation_axiom_gate(run, source_json, tmp_path, mode, case, input_po
 
 @pytest.mark.parametrize('mode',CHAIN_MODES)
 def test_imported_non_simple_superproperties_do_not_suppress_simple_source_additions_or_mereology(run,source_json,tmp_path,mode):
-    """Rules: DK-REL-01, DK-REL-07, DK-REL-14, DK-REL-19, DK-GEN-04, DK-INV-04; RD-17 additions 4–5."""
+    """Rules: DK-REL-01, DK-REL-07, DK-REL-14, DK-REL-19, DK-GEN-04, DK-INV-04, DK-DIAG-01, DK-DIAG-04; §15.
+
+    RD-17 additions 4–5 and configurable DKGM vocabulary delivery, Alternative A,
+    31ee95dbc43cd411987862a81b80f6f8383e2761.
+    """
+    _assert_simple_source_additions_below_mereology(run, source_json, tmp_path, mode)
+
+
+@pytest.mark.parametrize('vocabulary', ['embed', 'none'])
+@pytest.mark.parametrize('mode', CHAIN_MODES)
+def test_dkgm_vocabulary_keeps_simple_source_additions_and_material_chains(run, source_json, tmp_path, mode, vocabulary):
+    """Rules: DK-GEN-04, DK-REL-01, DK-REL-07, DK-REL-14, DK-REL-19, DK-INV-04, DK-DIAG-01, DK-DIAG-04, DK-DIAG-07; §15.
+
+    Configurable DKGM vocabulary delivery, Alternative A, 31ee95dbc43cd411987862a81b80f6f8383e2761.
+    """
+    _assert_simple_source_additions_below_mereology(run, source_json, tmp_path, mode, vocabulary)
+
+
+def _assert_simple_source_additions_below_mereology(run, source_json, tmp_path, mode, vocabulary=None):
     document=source_json('shared/material_pattern');_grounding(document,'mode')
     source_element(document,'rUnrelated')['stereotype']='subCollectionOf'
     document['model']['contents'].append({'id':'gMereology','name':None,'description':None,'type':'Generalization','propertyAssignments':None,
                                           'specific':{'id':'rLeft','type':'Relation'},'general':{'id':'rUnrelated','type':'Relation'}})
     assert not fixture_issues(document)
-    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='none',material_property_chains=mode)
+    options = {} if vocabulary is None else {'dkgm_vocabulary': vocabulary}
+    result=run(path=write_input(tmp_path,document),iri_strategy='id',inverse_properties='none',
+               material_property_chains=mode, **options)
     assert result.outcome=='completed';graph=result.ontology
-    imported=URIRef('https://w3id.org/directkg/vocab/dkgm');generic=URIRef(str(imported)+'#subCollectionOf')
-    assert (None,OWL.imports,imported) in graph
-    vocabulary=load_graph(Path(__file__).resolve().parents[2]/'vocabulary/latest/dkgm-vocabulary.ttl')
-    assert property_chains(vocabulary,generic)=={(generic,generic)}
-    assert not property_chains(graph,generic)
+    generic = DKGM.subCollectionOf
+    _assert_dkgm_vocabulary(graph, vocabulary or 'import', {generic})
+    if vocabulary is None:
+        published = load_graph(Path(__file__).resolve().parents[2] / 'vocabulary/latest/dkgm-vocabulary.ttl')
+        assert property_chains(published, generic) == {(generic, generic)}
     assert (BASE.tLeft,RDFS.subPropertyOf,BASE.tUnrelated) in graph
     assert (BASE.tUnrelated,RDFS.subPropertyOf,generic) in graph
     _direction(graph,BASE.tLeft,BASE.cGround,BASE.cA);_direction(graph,BASE.tRight,BASE.cGround,BASE.cB)
@@ -1967,6 +2157,21 @@ def test_imported_non_simple_superproperties_do_not_suppress_simple_source_addit
     assert (BASE.tLeft,RDF.type,OWL.AsymmetricProperty) in graph
     assert (BASE.tRight,RDF.type,OWL.IrreflexiveProperty) in graph
     assert _expression_pairs(graph)=={frozenset((BASE.tLeft,BASE.tRight))}
+    if vocabulary is not None:
+        _compatibility(result, mode, mode != 'none')
+    _assert_dkgm_chain_warning(result.diagnostics, vocabulary == 'none')
+
+
+@pytest.mark.parametrize('vocabulary', ['embed', 'none'])
+@pytest.mark.parametrize('mode', CHAIN_MODES)
+def test_dkgm_vocabulary_preserves_gate_for_non_simple_source_properties(run, source_json, tmp_path, mode, vocabulary):
+    """Rules: DK-GEN-04, DK-REL-01, DK-REL-07, DK-REL-09, DK-REL-11, DK-REL-14, DK-REL-15, DK-INV-01, DK-INV-04, DK-INV-12, DK-PROP-03, DK-DIAG-02; §15.
+
+    Configurable DKGM vocabulary delivery, Alternative A, 31ee95dbc43cd411987862a81b80f6f8383e2761.
+    """
+    result, _ = _assert_relation_axiom_gate(run, source_json, tmp_path, mode, 'external_dependence',
+                                           dkgm_vocabulary=vocabulary)
+    _assert_dkgm_vocabulary(result.ontology, vocabulary)
 
 
 @pytest.mark.parametrize('mode',CHAIN_MODES[1:])

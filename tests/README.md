@@ -1672,3 +1672,21 @@ collects the same **3,478** nodes as the reviewed revision. All **12** focused
 cases and **365** combined cases pass. Controls reproduce the original false
 passes and false rejections and verify the corrected assertions. The existing
 RDF and diagnostic controls retain their dispositions.
+
+## Configurable DKGM vocabulary delivery
+
+[Alternative A](https://github.com/pedropaulofb/ontouml-directkg/commit/31ee95dbc43cd411987862a81b80f6f8383e2761)
+has independent Architect Reviewer OK. The [inventory](coverage.md#configurable-dkgm-vocabulary-delivery--alternative-a)
+records the collected nodes, their fixture pairings and the validation commands.
+
+The tests run the real file-based converter and CLI process. The invocation
+adapter routes `--dkgm-vocabulary` to the CLI and uses the test request key
+`dkgm_vocabulary` for Python keyword binding. The Python API's spelling is open.
+The provenance reader interprets the effective mode from the configuration
+entity's YAML using the existing key convention. The warning reader interprets
+the native message and effect, retaining the raw event for review.
+
+At base `f6f48f9dc1d1815fc7277370c86e2a96f4ced29a`, the CLI rejects the explicit
+flag and the Python converter has no mode control. Real default executions
+verify the import and source mapping. The enabled provenance outputs omit the
+effective mode. Positive execution of explicit modes awaits the public binding.
