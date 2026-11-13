@@ -1683,10 +1683,22 @@ The tests run the real file-based converter and CLI process. The invocation
 adapter routes `--dkgm-vocabulary` to the CLI and uses the test request key
 `dkgm_vocabulary` for Python keyword binding. The Python API's spelling is open.
 The provenance reader interprets the effective mode from the configuration
-entity's YAML using the existing key convention. The warning reader interprets
-the native message and effect, retaining the raw event for review.
+entity's YAML using the existing key convention. The CLI and Python assertions
+identify the separate source entity by the consumed file's checksum. The
+warning reader interprets the native message and effect. The CLI observer
+captures the event at conversion return and after delivery, then checks the
+requested report against that native evidence.
 
 At base `f6f48f9dc1d1815fc7277370c86e2a96f4ced29a`, the CLI rejects the explicit
 flag and the Python converter has no mode control. Real default executions
 verify the import and source mapping. The enabled provenance outputs omit the
-effective mode. Positive execution of explicit modes awaits the public binding.
+effective mode.
+
+The F1–F5 resubmission is based on `5578cc009c70bcf94e23b4154c06d849363e1488`.
+`tests/support/dkgm.py` shares the scoped vocabulary assertions between
+transformation and CLI tests. The correction exercises affirmative source-end
+comments, the inverse label, retained asymmetry, an invalid CLI value and
+best-effort recovery with a surviving bridge. The converter still lacks the
+mode controls and effective-mode provenance. The invalid-value test reaches
+the real parser but cannot exercise value rejection until it recognizes the
+option. The inventory records the exact nodes and observed limits.

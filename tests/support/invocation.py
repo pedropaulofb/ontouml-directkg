@@ -885,24 +885,58 @@ def read_dkgm_mode_setting(settings):
     return values[0] if values else None
 
 
-def _dkgm_chain_facts(wording):
-    """Read the two meanings of a DKGM notice from native explanatory text."""
-    chain = (r"(?:dkgm|generic)(?:[ -]+(?:mereological|mereology|property|inference))*"
+def relation_end_comment_meanings(graph, subject):
+    """Interpret affirmative association-end facts from actual RDF comments.
+
+    Known native wording and equivalent affirmative phrases are bound. The
+    returned evidence retains the literal, its role, and the reported value.
+    """
+    from rdflib.namespace import RDFS
+
+    pattern = (r"(?:ontouml source metadata:\s*)?(?:the )?(source|target) (?:association )?end\b"
+               r"\s*:?\s*(?:(?:is )?(read[- ]only)|(?:has |uses |is marked with )?(shared|composite) aggregation)")
+    for literal in graph.objects(subject, RDFS.comment):
+        if not isinstance(literal, Literal):
+            continue
+        clauses = re.split(r"[.;!\n]|\s+and\s+(?=(?:the )?(?:source|target)\b)", str(literal).casefold())
+        for clause in clauses:
+            match = re.fullmatch(pattern, clause.strip())
+            if match is None:
+                continue
+            end, read_only, aggregation = match.groups()
+            context = end + "_end"
+            if read_only is not None:
+                yield CommentMeaning(subject, literal, "isReadOnly", True, context=context)
+            else:
+                yield CommentMeaning(subject, literal, "aggregationKind", aggregation.upper(), context=context)
+
+
+def dkgm_chain_facts(message, effect):
+    """Read chain omission and DKGM-specific guidance from one observed event."""
+    wording = (message + " " + effect).casefold().replace("`", "")
+    chain = (r"(?:dkgm|generic)(?:[ -]+(?:dkgm|generic|mereological|mereology|property|inference))*"
              r"[ -]+chains?(?:[ -]+axioms?)?")
     omitted = r"absent|omitted|missing|not (?:included|provided|emitted|generated|available)"
     facts = set()
+    missing = rf"\b(?:omits|without|no|does not (?:include|emit|provide)) (?:the )?{chain}\b"
     if (re.search(rf"\b{chain} (?:are |were |remain )?(?:{omitted})\b", wording)
-            or re.search(rf"\b(?:omits|without|no|does not (?:include|emit|provide)) (?:the )?{chain}\b",
-                         wording)):
+            or re.search(rf"{missing}(?![ -]+(?:omission|absence|loss|warning)\b)", wording)
+            or re.search(rf"\b{chain} will not be (?:included|emitted|generated)\b", wording)):
         facts.add("dkgm_chains_absent")
     supply = r"(?:supply|provide|load|include|add|enable|make|assert|use)"
-    responsibility = (r"\b(?:consumers?|you|users?|reasoners?)\b[^.;!?]*?"
-                      rf"\b(?:must|needs? to|have to|are required to|should) {supply}\b")
-    instructions = rf"(?:^|[.!?,]\s+){supply}\b"
-    required_input = (r"[^.;!?]*\b(?:chains?|axioms?)\b[^.;!?]*\bor "
-                      r"(?:equivalent|corresponding) (?:inference |reasoning )?rules\b")
-    if re.search(rf"\b{chain}\b", wording) and re.search(
-            rf"(?:{responsibility}|{instructions}){required_input}", wording):
+    audience = r"\b(?:consumers?|you|users?|reasoners?)\b[^.;!?]*?"
+    responsibility = (rf"{audience}(?:\b(?:must|needs? to|have to|are required to|should) {supply}\b"
+                      r"|\bneeds?\b(?!\s+(?:not|to)\b))")
+    instructions = rf"(?:^|[.!?,:]\s+){supply}\b"
+    named_input = rf"(?:{chain}|dkgm axioms?|dkgm (?:ontology|vocabulary))\b"
+    chain_input = r"(?:these |those )?(?:omitted |missing )?(?:property[ -])?chains?(?:[ -]+axioms?)?\b"
+    target = named_input
+    if 'dkgm_chains_absent' in facts:
+        target = rf"(?:{named_input}|{chain_input})"
+    equivalent = r"(?:equivalent|corresponding) (?:(?:inference|reasoning) )?rules\b"
+    required_input = rf"(?:{target}[ ,]+or\s+{equivalent}|{equivalent}[ ,]+or\s+(?:the )?{target})"
+    unrelated_purpose = r"(?!\s+(?:for|to (?:derive|infer|enforce)) (?:the )?(?:material|cardinalit)\w*)"
+    if re.search(rf"(?:{responsibility}|{instructions})\s+(?:the )?{required_input}{unrelated_purpose}", wording):
         facts.add("dkgm_chains_consumer_supply")
     return facts
 
@@ -916,7 +950,7 @@ def _observed_diagnostics(events):
     observed = []
     for event in events:
         wording = (event.message + " " + event.effect).casefold()
-        facts = _dkgm_chain_facts(wording)
+        facts = dkgm_chain_facts(event.message, event.effect)
         kind = _DIAGNOSTIC_KINDS.get(event.code)
         if kind is None:
             if not facts:
@@ -1050,7 +1084,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         return observed
 
     def inspect_controls(self):
-        """T5 binds only the version control; full-surface inspection stays open."""
+        """Bind the inspected version and available vocabulary controls."""
         import inspect
         from ontouml_directkg import convert
         from ontouml_directkg.cli import build_parser
@@ -1058,16 +1092,21 @@ class _DirectKGInvocation(_UnboundInvocation):
         signature = inspect.signature(convert)
         parameter = signature.parameters.get("ontology_version_iri")
         parser = build_parser()
-        actions = [action for action in parser._actions if "--ontology-version-iri" in action.option_strings]
-        if parameter is None or len(actions) != 1:
+        actions = {flag: action for action in parser._actions for flag in action.option_strings}
+        if parameter is None or "--ontology-version-iri" not in actions:
             raise ImplementationUnavailable("Interpret the current ontology-version-IRI public controls")
-        action = actions[0]
-        cli = Control("--ontology-version-iri", None if action.choices is None else tuple(action.choices),
-                      action.default, action, arity=1 if action.nargs is None else action.nargs)
+        cli = {}
+        for flag in ("--ontology-version-iri", "--dkgm-vocabulary"):
+            if flag in actions:
+                action = actions[flag]
+                choices = None if action.choices is None else tuple(action.choices)
+                cli[flag] = Control(flag, choices, action.default, action,
+                                    arity=1 if action.nargs is None else action.nargs)
         python = Control(parameter.name, None, parameter.default, parameter)
         return _VersionControlSurface(
-            _ScopedControls({cli.parameter: cli}), _ScopedControls({"ontology_version_iri": python}),
-            {}, raw={"python_signature": signature, "cli_action": action, "cli_help": parser.format_help()})
+            _ScopedControls(cli), _ScopedControls({"ontology_version_iri": python}),
+            {}, raw={"python_signature": signature, "cli_action": actions["--ontology-version-iri"],
+                     "cli_help": parser.format_help()})
 
     def attempt_source_input(self, source, *, options, workdir):
         try:
