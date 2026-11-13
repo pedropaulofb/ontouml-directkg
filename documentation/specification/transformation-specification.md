@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-12
+**Consolidated:** 2026-11-13
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -90,9 +90,7 @@ For binary relations with an endpoint whose `propertyType` resolves to another s
 
 ### 3.3 Output scope
 
-The target is an RDF/OWL knowledge graph. Turtle is used in ontology examples; provenance sidecars MUST use Turtle under DK-GEN-10. The generated ontology IRI is derived exclusively from the effective entity base under DK-IRI-01 (RD-05). Apart from DK-IRI-01's IRI-selection, supplied-base validation, and optional caller-supplied ontology version IRI rules, the selected `dkgm` vocabulary handling under DK-GEN-04 (RD-17 / RD-25), the project-name label under DK-GEN-08 (RD-05 / RD-27), the project-description comment under DK-LBL-02 (RD-27, option B), and the metadata and provenance rules in DK-GEN-09–11, this specification does not define other ontology-header details, other ontology-identity matters, or general OWL profile guarantees. In the default `import` mode, the import uses the stable URI `https://w3id.org/directkg/vocab/dkgm`, which identifies or redirects to the vocabulary's latest version under DK-GEN-04 (RD-05). Emitted material-property chains are subject to the compatibility-notice and documentation requirements in DK-DIAG-07 (RD-17); this does not establish a general OWL profile guarantee.
-
-The UML property subsetting and redefinition mapping in DK-PROP-03 (RD-14) does not establish a general OWL profile guarantee. The general output and OWL-profile contract remains the responsibility of RD-04.
+The target is an RDF/OWL knowledge graph. Turtle is used in ontology examples; provenance sidecars MUST use Turtle under DK-GEN-10. The generated ontology IRI is derived exclusively from the effective entity base under DK-IRI-01 (RD-05). Apart from DK-IRI-01's IRI-selection, supplied-base validation, and optional caller-supplied ontology version IRI rules, the selected `dkgm` vocabulary handling under DK-GEN-04 (RD-17 / RD-25), the project-name label under DK-GEN-08 (RD-05 / RD-27), the project-description comment under DK-LBL-02 (RD-27, option B), and the metadata and provenance rules in DK-GEN-09–11, this specification does not define other ontology-header details or ontology-identity matters. In the default `import` mode, the import uses the stable URI `https://w3id.org/directkg/vocab/dkgm`, which identifies or redirects to the vocabulary's latest version under DK-GEN-04 (RD-05). Emitted material-property chains are subject to the compatibility-notice and documentation requirements in DK-DIAG-07 (RD-17).
 
 DirectKG avoids a DirectKG or OntoUML metamodel vocabulary in the domain graph except where an explicit rule requires a vocabulary term. DK-GEN-04 governs how the reusable DirectKG mereology vocabulary is supplied. Its generic mereological properties are distinct from OntoUML metamodel resources and from source-specific domain properties. Higher-order classification uses standard RDF/OWL constructs rather than companion metamodel resources.
 
@@ -133,6 +131,16 @@ Existing determinism requirements remain unchanged, including IRI generation, co
 This policy applies to CLI and Python ontology serialization and provenance-sidecar serialization. It requires no canonicalization algorithm and introduces no sorting or canonicalization control. Implementations MAY nevertheless produce stable text.
 
 **Rationale (non-normative):** Different textual presentations can preserve the same RDF graph. This policy preserves correctness and deterministic resource identity without requiring an additional formatting mechanism. Execution-specific provenance can legitimately differ between conversions.
+
+#### General OWL profile claim (RD-04)
+
+For each conversion eligible to deliver an ontology, DirectKG MUST produce the RDF/OWL graph defined by the applicable transformation rules. CLI and Python ontology serialization MUST follow the RDF 1.1 Turtle contract above. DirectKG makes no general guarantee of OWL 2 DL, EL, QL, or RL conformance. Output outside OWL 2 DL does not establish conformance to another profile or select a reasoning regime.
+
+Conformance assessment for a particular ontology concerns its axiom closure, including its own axioms and those of resolved imports. Under DK-GEN-04, in `import` mode this includes the `dkgm` vocabulary actually resolved through the import. In `embed` mode it includes the local vocabulary core. In `none` mode, axioms supplied separately by the consumer enter the assessment only when assessing the combined ontology used by that consumer.
+
+DK-REL-01's per-axiom compatibility gate, DK-REL-07's mode-specific treatment, and DK-DIAG-07's notices retain their governing conditions. The general claim introduces no runtime profile-validation requirement or new conversion outcome. DK-DIAG-05 governs the meaning of transformation outcomes.
+
+**Technical anchors.** [OWL 2 Structural Specification §§3.4 and 11](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/), [OWL 2 Conformance §2.1](https://www.w3.org/TR/2012/REC-owl2-conformance-20121211/#Document_Conformance), and [OWL 2 Profiles](https://www.w3.org/TR/2012/REC-owl2-profiles-20121211/).
 
 ### 3.4 Semantic validation boundary
 
@@ -285,7 +293,7 @@ The vocabulary MUST define these three accepted generic property-chain axioms:
 | `dkgm:subQuantityOf o dkgm:subQuantityOf` | `dkgm:subQuantityOf` |
 | `dkgm:memberOf o dkgm:subCollectionOf` | `dkgm:memberOf` |
 
-The vocabulary MUST NOT define generic `componentOf` transitivity or a generic `componentOf` property-chain axiom solely from the OntoUML stereotype. In particular, it MUST NOT define a `dkgm:componentOf o dkgm:componentOf` chain concluding in `dkgm:componentOf`. The four generic properties MUST NOT be declared asymmetric by default, and no additional generic asymmetric superproperty is introduced by this mapping. The three chain-bearing properties, `dkgm:memberOf`, `dkgm:subCollectionOf`, and `dkgm:subQuantityOf`, are non-simple in an axiom closure containing the accepted chains because they are their conclusions. This does not, by itself, make each source-specific subproperty non-simple; other independently applicable axioms can affect its simplicity. The general output and OWL-profile contract remains governed by RD-04 and other applicable rules.
+The vocabulary MUST NOT define generic `componentOf` transitivity or a generic `componentOf` property-chain axiom solely from the OntoUML stereotype. In particular, it MUST NOT define a `dkgm:componentOf o dkgm:componentOf` chain concluding in `dkgm:componentOf`. The four generic properties MUST NOT be declared asymmetric by default, and no additional generic asymmetric superproperty is introduced by this mapping. The three chain-bearing properties, `dkgm:memberOf`, `dkgm:subCollectionOf`, and `dkgm:subQuantityOf`, are non-simple in an axiom closure containing the accepted chains because they are their conclusions. This does not, by itself, make each source-specific subproperty non-simple; other independently applicable axioms can affect its simplicity. The general OWL profile claim is specified in §3.3 (RD-04).
 
 #### Vocabulary delivery modes
 
@@ -1123,7 +1131,7 @@ DirectKG MUST NOT check owner, endpoint, type, property-kind, or other UML seman
 
 The `redefines` mapping is a partial translation: it preserves property inclusion without representing UML's full contextual replacement semantics. From the redefinition relationship alone, DirectKG MUST NOT derive `owl:equivalentProperty`, contextual value equality, property merging or replacement, additional domain or range axioms, or copied or additional cardinality restrictions. Independently applicable property declarations, domains, ranges, cardinalities, and relation-generalization rules remain unchanged.
 
-DirectKG MUST document redefinition as a partial translation. It MUST NOT emit a runtime warning solely because a structurally processable `redefines` relationship is transformed under this rule. Other applicable diagnostics remain required. RD-14 does not define the general output and OWL-profile contract, which remains the responsibility of RD-04.
+DirectKG MUST document redefinition as a partial translation. It MUST NOT emit a runtime warning solely because a structurally processable `redefines` relationship is transformed under this rule. Other applicable diagnostics remain required. The general OWL profile claim is specified in §3.3 (RD-04).
 
 **Rationale and example (non-normative):** Subsetting expresses inclusion of property extensions. Redefinition has stronger contextual semantics; this mapping preserves its property-inclusion consequence. For primary properties `a1` and `a0`, the four association-end combinations generate, respectively, `a1 ⊑ a0`, `inverse(a1) ⊑ inverse(a0)`, `a1 ⊑ inverse(a0)`, and `inverse(a1) ⊑ a0`. Generated named inverses are used when present; otherwise `inverse(a)` is an anonymous inverse expression. No special inverse name is created by this mapping.
 
@@ -2005,7 +2013,7 @@ Independently transformable endpoint classes and endpoint relations MUST retain 
 
 A null, malformed, or unresolved endpoint remains a structural failure under DK-DIAG-03 and DK-DIAG-05 and MUST NOT use this intentional-omission fallback. Recognized material–relator and material–mode derivations retain the transformation-time use, non-representation, and diagnostics of DK-REL-08 and DK-DIAG-08. Recognized comparative–quality derivations use the specific diagnostic of DK-REL-18 instead of this generic limitation warning. A later explicitly accepted specialized transformation-time mapping for another relation-valued endpoint pattern MAY consume that connector and replace the limitation warning for that pattern; this rule implies no such additional mapping.
 
-RD-17 establishes the accepted material–mode and comparative–quality behavior in DK-REL-07–08 and DK-REL-18. Other additional truthmaker patterns retain this generic boundary unless an explicit mapping is accepted. The general output and OWL-profile contract remains the responsibility of RD-04.
+RD-17 establishes the accepted material–mode and comparative–quality behavior in DK-REL-07–08 and DK-REL-18. Other additional truthmaker patterns retain this generic boundary unless an explicit mapping is accepted. The general OWL profile claim is specified in §3.3 (RD-04).
 
 **Rationale and example (non-normative):** VP-plugin exports include both material-relation → relator-class and relator-class → material-relation endpoint orders. Resolving endpoint identities and types recognizes the same supported material–relator derivation in either order. Mode-grounded material and quality-grounded comparative patterns likewise do not depend on serialized endpoint order. An otherwise unmapped relation-valued connector is omitted because an ordinary object property would assign misleading class-domain and class-range semantics. The omission does not reject potential future transformations of other truthmaker patterns.
 

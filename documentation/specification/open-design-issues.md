@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-12, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-implementation prioritization and warning consistency, and RD-04's profile dependency on DKGM vocabulary modes. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-13, covering RD-02 membership resolution, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-implementation prioritization and warning consistency, and RD-04's general OWL profile claim and the separate OWL 2 DL construction question. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -60,19 +60,18 @@ Generic source-ID naming fallback, owner/source qualification, supplied-base val
 
 ## Public output and diagnostics
 
-### RD-04 — Remaining profile, diagnostic-report, and failure contract
+### RD-04 — Remaining diagnostic identifiers and failure contract
 
 **Status:** Partially resolved.
 
 **Decisions still needed:**
 
-1. State a precise general OWL conformance/profile claim consistent with the accepted mappings, vocabulary modes, and applicable import closure.
-2. Select exact diagnostic identifiers and the complete condition-to-code catalogue. Preserve the accepted shared JSON report contract and all existing diagnostic-content and outcome requirements.
-3. Establish externally observable behavior for unexpected runtime failures and ontology-output delivery failures outside the already resolved scope, including treatment of available results, diagnostics, transformation outcomes, and exit-code precedence.
+1. Select exact diagnostic identifiers and the complete condition-to-code catalogue. Preserve the accepted shared JSON report contract and all existing diagnostic-content and outcome requirements.
+2. Establish externally observable behavior for unexpected runtime failures and ontology-output delivery failures outside the already resolved scope, including treatment of available results, diagnostics, transformation outcomes, and exit-code precedence.
 
-**Why it matters:** Consumers need an accurate interoperability claim and a stable report/failure contract. The five RD-17 additions' compatibility gate is not a global profile guarantee. A result outside OWL 2 DL must not automatically be characterized as conforming to some other particular profile or regime.
+**Why it matters.** Consumers need stable diagnostic identifiers and predictable reporting for incomplete conversion or delivery.
 
-**Resolved boundaries and constraints:** §3.3 settles RDF 1.1 Turtle, conventional prefix policy, and serialized-presentation freedom; DK-CONF-01 preserves the established identity determinism without adding textual repeatability. Console filtering is settled and does not change collected diagnostics. These are not open format, ordering, or verbosity choices.
+**Resolved boundaries and constraints:** §3.3 settles RDF 1.1 Turtle, conventional prefix policy, and serialized-presentation freedom; DK-CONF-01 preserves the established identity determinism without adding textual repeatability. Console filtering is settled and does not change collected diagnostics. These are not open format, ordering, or verbosity choices. The general OWL profile claim is governed by §3.3. ODI-OWL-DL tracks the separate construction question.
 
 DK-DIAG-04–05 and §15 settle structured Python access, separate JSON export, diagnostic mirroring, the three named transformation outcomes, aborted-output suppression, and existing delivery precedence. DK-GEN-10 settles required-provenance generation failure and provenance-sidecar delivery failure. DK-DIAG-04 and §15 settle ontology-file creation/write failure after successful serialization and construction of required provenance. Invalid base/version-IRI configuration is also already covered before conversion. Preserve these distinctions; do not assign their policies again or treat every failure as an input-policy failure.
 
@@ -82,10 +81,23 @@ DK-DIAG-04 fixes the shared JSON report's minimum structure, required member nam
 
 | Remaining question | Alternatives and trade-offs |
 |---|---|
-| General profile claim | A qualified, bounded claim versus a stronger guarantee that would require justification against all accepted mappings. A stronger proposal does not authorize removing accepted axioms. |
 | Uncovered failures | Shared or distinct public failure treatment, preserving the already established separation of transformation outcomes and delivery status. No additional status or exit-code mapping is selected. |
 
-**Dependencies and next step:** Analyze the profile claim against the accepted mappings and their effects through property hierarchies, inverses, and the applicable import closure across the DK-GEN-04 vocabulary modes. Distinguish axioms in the generated output and its import closure from axioms supplied separately in a consumer's reasoning scope. Include DK-REL-01's per-axiom compatibility gate and DK-REL-07's material-property-chain modes. Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure/report question rather than inventing speculative failure classes. OWL references are listed below.
+**Dependencies and next step.** Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure or reporting question.
+
+### ODI-OWL-DL — OWL 2 DL conformance by construction
+
+**Status:** Open. The owner asks for a supported configuration that guarantees OWL 2 DL conformance for every ontology it successfully produces, if feasible. The guarantee must follow from the transformation rules and configuration without a post-generation profile check. The general public claim is governed by §3.3. Any change to an accepted mapping requires a separate decision.
+
+**Evidence and constraints:**
+
+- Turning off material chains leaves DK-PROP-03 in effect. The specification requires resolved property inclusions even when the resulting OWL property kinds differ. The repository regression case expects `pChild rdfs:subPropertyOf pBase` with an object property and a datatype property, respectively. OWL 2's RDF mapping has no structural subproperty axiom for that combination. VP-plugin 0.5.3 extracts and serializes the reference lists. This evidence concerns the supported representation and mapping. The three selected Catalog files contained no nonempty subsetting or redefinition lists. [Regression case](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/tests/transformation/test_properties.py#L166) · [Exporter extraction](https://github.com/OntoUML/ontouml-vp-plugin/blob/9fc02b8162db9910f21b8713549cafce2627dad0/src/main/java/it/unibz/inf/ontouml/vp/model/vp2ontouml/IPropertyTransformer.java#L54) · [Serializer](https://github.com/OntoUML/ontouml-vp-plugin/blob/9fc02b8162db9910f21b8713549cafce2627dad0/src/main/java/it/unibz/inf/ontouml/vp/model/ontouml/serialization/PropertySerializer.java#L26) · [OWL 2 RDF mapping §3.2.5](https://www.w3.org/TR/2012/REC-owl2-mapping-to-rdf-20121211/#Parsing_of_Axioms) · [UFO](https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/guizzardi2022ufo/ontology.json) · [Genealogy](https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/genealogy2013/ontology.json) · [Medical appointment](https://github.com/OntoUML/ontouml-models/blob/99d23ff1e1c2bf58a7bd99ef0156eba79a611c99/models/valaski2020medical-appointment/ontology.json)
+- DK-IRI-01's syntactic base validation permits an entity base in a reserved OWL namespace. A generated IRI can also coincide with a DKGM term if the caller selects its namespace. The inspected implementation checks version-IRI syntax and needs to be assessed separately against DK-IRI-01's requirement for a permitted OWL version IRI. OWL 2 DL also requires correct entity typing and declarations for non-built-in annotation properties. Inspect DK-IRI-09 identifiers, DK-GEN-09 metadata, and DK-GEN-10 embedded provenance within the proposed configuration. [IRI construction](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/src/ontouml_directkg/identity.py#L83) · [Version IRI check](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/src/ontouml_directkg/conversion.py#L99) · [OWL 2 Structural Specification §§3.1 and 5.8.1](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/)
+- With material chains disabled, `dkgm-vocabulary none` leaves local typings and the DK-REL-19 bridges but no DKGM chains. In `embed`, the fixed DKGM core adds its three chains. With isolated vocabulary IRIs and the accepted one-way bridges, non-simplicity of the three generic conclusions does not propagate down to source subproperties. The two self-compositions fit the transitivity case. The membership chain is left-recursive and needs `subCollectionOf` below `memberOf` in the regularity ordering. The one-way bridges provide no reverse path between these generic properties. The versioned artifact establishes the fixed core. The inspected converter still emits the import unconditionally. [DKGM 0.1.1](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl) · [Converter](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/src/ontouml_directkg/conversion.py#L155) · [OWL 2 Structural Specification §11](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/#Global_Restrictions_on_Axioms_in_OWL_2_DL)
+
+- The current graph can contain non-built-in annotation predicates such as `dcterms:identifier` without local OWL annotation-property declarations. Optional external metadata and default embedded provenance add further vocabulary terms. For a guarantee, construction must give each used class, datatype, and property its required declaration and permitted use, with a defined encoding for auxiliary statements. [Source-ID annotations](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/src/ontouml_directkg/classifiers.py#L125) · [External metadata](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/src/ontouml_directkg/metadata.py#L75) · [Provenance](https://github.com/pedropaulofb/ontouml-directkg/blob/f6f48f9dc1d1815fc7277370c86e2a96f4ced29a/src/ontouml_directkg/provenance.py#L57)
+
+**Alternatives and next step.** Consider an opt-in configuration using disabled material chains and typed DKGM references or the isolated local core. Prefer a dedicated domain namespace or allocation that excludes reserved vocabulary and prevents collisions with DKGM and other emitted vocabulary terms. Compare rejecting an incompatible property inclusion during transformation with omitting only that inclusion under an explicitly approved recovery rule. A first version could use the existing identifier-annotation opt-out, no external metadata, and separate or disabled provenance to limit the proof to the domain ontology. Establish the construction conditions for property and entity typing, hierarchy regularity, RDF encoding, datatypes, and every permitted recovery path before selecting a guarantee. Both the configuration and handling of incompatible inclusions remain proposals.
 
 ## Source-scope evidence checks
 
@@ -129,7 +141,7 @@ The owner reports that repeated generalization-set membership does not occur in 
 
 Apply the remaining dependencies proportionately:
 
-- Assess the RD-04 profile claim across the accepted mappings, vocabulary modes, and applicable import closure. Its report/failure contract can proceed with the necessary RD-02 recovery boundaries.
+- Assess the ODI-OWL-DL construction question across the selected mappings and vocabulary modes. RD-04's report and failure contract can proceed with the necessary RD-02 recovery boundaries.
 - Establish source evidence before proposing an additional mapping from RD-27 or ODI-INSTANCES. Their blocked evidence checks do not by themselves establish a missing implementation feature.
 - Investigate ODI-IRI only after identifying its reachable technical condition. Preserve its unresolved status without treating hypothetical collision recovery as an automatic implementation prerequisite.
 
