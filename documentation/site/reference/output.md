@@ -10,6 +10,8 @@ This reference explains **accepted intended output**. It does not claim that a w
 | Separate transformation provenance | Turtle | Sidecar mode, with a concrete output-file path; separate provenance is also available programmatically as a graph under the specified Python contract. |
 | Persistent diagnostics | JSON | Explicitly requested CLI diagnostics file, or a separate explicitly invoked Python export operation. Python conversion does not write it automatically. |
 
+A conversion eligible for ontology delivery produces the RDF/OWL graph defined by its applicable mappings. The CLI and Python use RDF 1.1 Turtle when serializing that graph.
+
 The contract establishes no format-selection control. Separate provenance beside `hospital.ttl` uses `hospital.provenance.ttl`; no automatic sidecar filename is invented for stdout or an in-memory graph. A new sidecar must not be delivered for an ontology file whose delivery failed.
 
 ## Ontology header
@@ -70,6 +72,20 @@ Do not compare RDF examples or conversion results solely as text. Graph comparis
 
 Execution provenance can differ between conversions, including the distinct execution activity and completion timestamp. Its effective-configuration YAML has a separate deterministic-serialization requirement. Source JSON checksums use SHA-256 over the exact bytes read from the [required source file](input.md#source-file-input), not a serialization of parsed data. A sidecar's ontology-file digest still covers the final serialized ontology bytes. Self-referential digests of embedded provenance remain prohibited. See [Artifacts and digests](../guides/metadata-and-provenance.md#artifacts-and-digests) for checksum scope and accepted exclusions.
 
+## OWL profile conformance
+
+DirectKG gives no general guarantee of OWL 2 DL, EL, QL or RL conformance. Output outside OWL 2 DL establishes neither conformance to another profile nor a fallback reasoning regime.
+
+Assess conformance for the particular ontology and its **axiom closure**, which includes its own axioms and the axioms of resolved imports. The selected DKGM mode determines which vocabulary axioms enter that assessment. [Vocabulary delivery modes](../mapping/mereology.md#vocabulary-delivery-modes)
+
+| DKGM mode | Axioms to include in the assessment |
+| --- | --- |
+| `import` | Include the DKGM vocabulary actually resolved through the import. |
+| `embed` | Include the fixed local DKGM core as part of the generated graph. |
+| `none` | Include separately supplied axioms only when assessing the consumer's combined ontology. |
+
+The per-axiom compatibility gate, material-chain constraint treatment and compatibility notices apply under their existing conditions. The profile contract adds no runtime validation or conversion outcome. The outcome follows the transformation and recovery rules. [Per-axiom compatibility](../mapping/relations.md#compatibility-of-each-addition) · [Material-chain compatibility and notices](../mapping/derivations-and-chains.md#owl-compatibility) · [Transformation outcomes](diagnostics.md#outcomes-and-output-eligibility)
+
 ## Delivery boundaries
 
 Transformation outcome and artifact delivery are separate. `completed` and `completed-with-errors` are eligible for ontology delivery, including permitted partial output; `aborted` prohibits delivery of the accumulated ontology. Produced diagnostics remain accessible after accepted aborts, and requested CLI diagnostics export is still attempted. Invalid invocation and rejection of a supplied base or ontology version IRI happen before conversion and do not create a transformation outcome; either IRI rejection produces no conversion-diagnostics report.
@@ -82,7 +98,7 @@ See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-deliv
 
 ---
 
-Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05; §15; DK-CONF-01–03; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01; DK-LBL-02; DK-DIAG-04–05, 07; DK-REL-01, 07; §15; DK-CONF-01–03; baseline consolidated: **2026-11-13**; repository commit: `5578cc009c70bcf94e23b4154c06d849363e1488`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5578cc009c70bcf94e23b4154c06d849363e1488/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 

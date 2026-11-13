@@ -27,7 +27,7 @@ The [normative specification](documentation/specification/transformation-specifi
 - **Mereology:** source-specific properties linked to generic `memberOf`, `subCollectionOf`, `subQuantityOf`, and `componentOf` properties in a reusable DirectKG vocabulary.
 - **Identity and reporting:** generated IRIs, multilingual labels, configurable input-handling policies, diagnostics, outcomes, and provenance.
 
-The design intentionally **does not perform general OntoUML semantic validation** or guarantee a particular OWL profile. It does not require gUFO or OntoUML-metamodel imports. Diagram layout, package organization, and custom `propertyAssignments` are outside the domain-graph output scope.
+The design intentionally **does not perform general OntoUML semantic validation** or guarantee a particular OWL profile. It does not require gUFO or OntoUML-metamodel imports. Diagram layout, package organization, and custom `propertyAssignments` are outside the domain-graph output scope. [OWL profile conformance](documentation/site/reference/output.md#owl-profile-conformance)
 
 ## Explore the repository
 
@@ -56,7 +56,7 @@ The [test instructions](tests/README.md#actual-invocation-binding) describe part
 
 ## Documentation and development
 
-The current source of truth is the [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md), not the archived specifications or unresolved-issues record. Baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source path: `documentation/specification/transformation-specification.md`. Accepted test expectations and verified production execution are separate evidence.
+The current source of truth is the [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/5578cc009c70bcf94e23b4154c06d849363e1488/documentation/specification/transformation-specification.md), not the archived specifications or unresolved-issues record. Baseline consolidated: **2026-11-13**; repository commit: `5578cc009c70bcf94e23b4154c06d849363e1488`; source path: `documentation/specification/transformation-specification.md`. Accepted test expectations and verified production execution are separate evidence.
 
 The [documentation website](https://w3id.org/directkg/docs) uses **Zensical**, with **mkdocstrings** generating the [Python API reference](documentation/site/reference/api/index.md) from public source objects and docstrings. Start with [Getting started](documentation/site/getting-started.md), [Semantics and limitations](documentation/site/concepts/semantics.md), [Input contract](documentation/site/reference/input.md), [Output contract](documentation/site/reference/output.md), and [Controls](documentation/site/reference/controls.md). [Examples](documentation/site/examples/index.md) provides a checked Catalog adaptation and illustrative Turtle excerpt. [Contributing](documentation/site/development/contributing.md) covers documentation maintenance, build/preview, and available development checks.
 
