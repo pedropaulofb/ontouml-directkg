@@ -142,6 +142,28 @@ DK-REL-01's per-axiom compatibility gate, DK-REL-07's mode-specific treatment, a
 
 **Technical anchors.** [OWL 2 Structural Specification §§3.4 and 11](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/), [OWL 2 Conformance §2.1](https://www.w3.org/TR/2012/REC-owl2-conformance-20121211/#Document_Conformance), and [OWL 2 Profiles](https://www.w3.org/TR/2012/REC-owl2-profiles-20121211/).
 
+#### OWL 2 DL compatibility guidance
+
+User-facing documentation MUST explain that DirectKG can produce OWL 2 DL-conformant ontologies from suitable source models and configurations. The recommended settings reduce known incompatibilities without guaranteeing conformance for every supported input. Conformance depends on the ontology and its axiom closure as described above. A successful transformation outcome carries no assertion of profile conformance.
+
+A dedicated OWL 2 DL mode, additional profile-specific configuration constraints, and runtime profile validation are outside the first-release scope.
+
+Documentation MUST cover the following recommendations and their limitations, including the equivalent Python controls under §15.
+
+| Control or choice | Compatibility guidance |
+|---|---|
+| `--material-property-chains none` | Start with this default. It disables material–relator and material–mode chains while retaining independently applicable cardinality and property-disjointness axioms under DK-REL-07. The `omit-conflicting-constraints` mode addresses the specified material-chain simplicity conflicts. The `preserve-conflicting-constraints` mode can retain a chain together with a conflicting restriction or disjointness axiom. Either chain-generating mode can still produce output outside OWL 2 DL. |
+| `--dkgm-vocabulary none` | Use this when the generic mereological chains are unnecessary in the generated ontology. DK-GEN-04 omits the import and the generic chains while retaining source-specific bridges and primary-property asymmetry. It supplies local declarations for the generic targets of emitted bridges. Consumers needing the generic entailments must make the chain axioms or equivalent rules available to their reasoner. DK-GEN-04 governs the conditional warning. |
+| `--dkgm-vocabulary embed` or `import` | Use `embed` to retain the fixed generic chains locally. Their conclusions are non-simple. An emitted bridge alone does not make its source-specific subproperty non-simple. With the default `import` mode, assess the vocabulary actually resolved through the stable import. The material-chain control and DKGM delivery are independent. |
+| `--base-iri` | Use a dedicated domain namespace, for example `https://example.org/model#`, to keep generated IRIs separate from OWL-reserved IRIs and terms in DKGM and other vocabularies used by the ontology. DK-IRI-01 governs the base and the optional ontology version IRI. |
+| `--omit-identifiers`, `--provenance none` or `sidecar`, and leaving `--metadata-file` unset | Use these choices when the corresponding auxiliary statements are unnecessary in the ontology graph. `--omit-identifiers` suppresses the DK-IRI-09 source-ID annotations. `sidecar` keeps transformation provenance in a separate file when a concrete ontology output path is supplied. Omitting `--metadata-file` avoids external descriptive metadata under DK-GEN-09. |
+
+Documentation MUST explain the following sources of incompatibility, including when material chains are disabled.
+
+- **Mixed property kinds.** DK-PROP-03 emits an inclusion for a structurally resolved UML subsetting or redefinition when both mapped property expressions are available. For example, a subsetting reference from an attribute targeting a reified custom datatype to an `int` attribute can yield an object property as a subproperty of a data property with range `xsd:int`. OWL 2 DL has no corresponding subproperty axiom for this combination. [OWL 2 Mapping to RDF Graphs §3.2.5](https://www.w3.org/TR/2012/REC-owl2-mapping-to-rdf-20121211/#Parsing_of_Axioms).
+- **IRIs, declarations, and auxiliary RDF.** An RDF-legal IRI can still use reserved OWL vocabulary in a prohibited position. A collision with DKGM or another vocabulary can give one IRI conflicting property types. Non-built-in annotation properties such as `dcterms:identifier` require a declaration in the axiom closure. External descriptive metadata and embedded provenance may introduce further terms and statements whose declarations and OWL encoding affect conformance. [OWL 2 Structural Specification §§2.4, 3.1, and 5.8.1](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
+- **Property simplicity and hierarchy regularity.** Axioms in the assessed closure can make a property used in a cardinality restriction, asymmetry, irreflexivity, or disjointness axiom non-simple through chain conclusions, hierarchy links, or inverses. The full hierarchy with its chains must also satisfy OWL 2 DL regularity. Imported axioms and axioms supplied by a consumer can affect these conditions in their respective assessment scopes. DK-REL-01's per-axiom gate applies to the five specified additions. [OWL 2 Structural Specification §11](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/#Global_Restrictions_on_Axioms_in_OWL_2_DL).
+
 ### 3.4 Semantic validation boundary
 
 DirectKG transforms the source model as stated. It is not an OntoUML semantic validator. Relation-to-relation generalization follows DK-REL-14 (RD-12), and relation generalization-set disjointness follows DK-REL-15 (RD-13), without semantic endpoint, domain, or range compatibility checks; structural resolution remains required.
