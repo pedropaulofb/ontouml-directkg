@@ -913,17 +913,32 @@ def relation_end_comment_meanings(graph, subject):
 
 def dkgm_chain_facts(message, effect):
     """Read the omission and affirmative supply guidance in a native event."""
-    wording = " ".join((message + " " + effect).casefold().replace("`", "").replace("’", "'").split())
-    guidance_clauses = [clause.strip() for clause in re.split(r"[.!?;]+", wording)]
+    # Either field can contain a complete clause without terminal punctuation.
+    clauses = [
+        " ".join(clause.split())
+        for field in (message, effect)
+        for clause in re.split(r"[.!?;]+", field.casefold().replace("`", "").replace("’", "'"))
+    ]
     chain = (r"(?:dkgm|generic)(?:[ -]+(?:dkgm|generic|mereological|mereology|property|inference))*"
              r"[ -]+chains?(?:[ -]+axioms?)?")
-    omitted = r"absent|omitted|missing|not (?:included|provided|emitted|generated|available)"
+    absent = r"absent|omitted|missing"
+    output = r"(?:(?:the|this) )?(?:generated |delivered )?(?:ontology|output(?: graph)?|graph)"
+    present = rf"present|included|provided|emitted|generated|available|(?:in|part of) {output}"
+    omitted = rf"{absent}|not (?:{present})"
+    state = r"(?:(?:is|are|was|were|remains?|will be|(?:has|have) been) )?(?:(?:actually|currently|still) )?"
+    # A negative subject flips the meaning of an absence predicate.
+    negative_subject = r"no|none of(?: the)?|neither|not (?:one|a single)"
+    denial = (rf"\b(?:{negative_subject}) {chain}(?: (?:in|from) {output})? {state}(?:{omitted})\b"
+              rf"|\b{chain} {state}not (?:{absent})\b"
+              rf"|\b(?:omits?|excludes?) no {chain}\b")
+    omission = (rf"\b{chain} {state}(?:{omitted})\b"
+                rf"|\b(?:omits|without|(?:contains|includes) no|does not (?:include|emit|provide|contain)) (?:the )?{chain}\b"
+                rf"(?![ -]+(?:omission|absence|loss|warning)\b)"
+                rf"|\bno {chain}(?:$|[,:]| {state}(?:{present})\b)")
     facts = set()
-    missing = rf"\b(?:omits|without|no|does not (?:include|emit|provide)) (?:the )?{chain}\b"
-    omission = (rf"\b{chain} (?:are |were |remain )?(?:{omitted})\b"
-                rf"|{missing}(?![ -]+(?:omission|absence|loss|warning)\b)"
-                rf"|\b{chain} will not be (?:included|emitted|generated)\b")
-    if re.search(omission, wording):
+    if any(re.search(omission, clause) for clause in clauses) and not any(
+        re.search(denial, clause) for clause in clauses
+    ):
         facts.add("dkgm_chains_absent")
 
     # An unqualified reference to the chains is meaningful after an omission
@@ -964,7 +979,7 @@ def dkgm_chain_facts(message, effect):
                  r"to (?:display|view|visuali[sz]e|document|inspect|edit))\b"
                  r"|\b(?:only|solely|just) (?:into|in|to) (?:an? |the )?(?:editor|viewer)\b")
     reasoning = r"\b(?:reason(?:er|ers|ing)|infer(?:ence|ences|ring|red)?|entail(?:ments?)?|deduc(?:e|tion))\b"
-    for clause in guidance_clauses:
+    for clause in clauses:
         if not re.search(guidance, clause) or re.search(rf"{negation}|{unrelated}", clause):
             continue
         # Guidance about explicit reasoning rules can identify the purpose

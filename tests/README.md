@@ -1710,3 +1710,11 @@ chain lists and detects copied DKGM members in foreign chains. The warning
 reader accepts active and passive reasoning guidance from native text.
 The [inventory](coverage.md#remaining-f1-and-f2-corrections) links the assertions
 to their fixtures and records the controls and current execution limits.
+
+The [F2 and F6 correction](coverage.md#f2-and-f6-correction) addresses the
+Test Reviewer findings on `a477bf6ba21a147505595316d3a795131731f2b2`. The
+warning reader interprets the original message and effect as separate fields
+and distinguishes an omission from a denial. Both interfaces' chain
+conclusions and ordered members are checked against the same fixed core.
+The remaining domain RDF comparison uses graph isomorphism. Both mixed
+list-tail sharing controls pass.

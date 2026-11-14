@@ -12,7 +12,7 @@ from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
-from tests.support.dkgm import DKGM, DKGM_STEREOTYPES, assert_dkgm_vocabulary
+from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_signatures,
                                       dkgm_chain_facts, read_dkgm_mode_setting)
 from tests.support.rdf import assert_graph_equal, property_chains, rooted_graph
@@ -467,7 +467,9 @@ def test_dkgm_vocabulary_cli_python_parity_and_effective_configuration(invoke, t
     for graph in (actual, python.ontology):
         assert_dkgm_vocabulary(graph, ONTOLOGY, expected_mode, bridges={(BASE.tFocus, DKGM.memberOf)})
     assert (BASE.tFocus, RDF.type, OWL.AsymmetricProperty) in actual
-    roots = {ONTOLOGY, BASE.cA, BASE.cB, BASE.tFocus, BASE.sFocus} | {DKGM[name] for name in DKGM_STEREOTYPES}
+    # Both DKGM contributions match the same expected conclusions and ordered
+    # members above. Compare the remaining graph without traversing core lists.
+    roots = {ONTOLOGY, BASE.cA, BASE.cB, BASE.tFocus, BASE.sFocus}
     predicates = LOGICAL | {OWL.imports}
     assert_graph_equal(rooted_graph(actual, roots, predicates, unordered_predicates={OWL.disjointWith}),
                        rooted_graph(python.ontology, roots, predicates, unordered_predicates={OWL.disjointWith}))
