@@ -924,21 +924,41 @@ def dkgm_chain_facts(message, effect):
     absent = r"absent|omitted|missing"
     output = r"(?:(?:the|this) )?(?:generated |delivered )?(?:ontology|output(?: graph)?|graph)"
     present = rf"present|included|provided|emitted|generated|available|(?:in|part of) {output}"
-    omitted = rf"{absent}|not (?:{present})"
-    state = r"(?:(?:is|are|was|were|remains?|will be|(?:has|have) been) )?(?:(?:actually|currently|still) )?"
-    # A negative subject flips the meaning of an absence predicate.
+    state = (r"(?:(?:is|are|was|were|remains?|will be|(?:has|have) been) )?"
+             r"(?:(?:actually|already|currently|still|all) )?")
+    negated_state = rf"(?:{state}not |(?:will not|won't) be |(?:has|have) not been )"
     negative_subject = r"no|none of(?: the)?|neither|not (?:one|a single)"
-    denial = (rf"\b(?:{negative_subject}) {chain}(?: (?:in|from) {output})? {state}(?:{omitted})\b"
-              rf"|\b{chain} {state}not (?:{absent})\b"
-              rf"|\b(?:omits?|excludes?) no {chain}\b")
-    omission = (rf"\b{chain} {state}(?:{omitted})\b"
-                rf"|\b(?:omits|without|(?:contains|includes) no|does not (?:include|emit|provide|contain)) (?:the )?{chain}\b"
-                rf"(?![ -]+(?:omission|absence|loss|warning)\b)"
-                rf"|\bno {chain}(?:$|[,:]| {state}(?:{present})\b)")
+    # Read subject and predicate polarity together. A claim about the
+    # separately supplied vocabulary can coexist with omission in the output.
+    outside_output = r"(?:the |a |an )?(?:(?:separate|external|published|reference|dkgm) )*(?:vocabulary|imports?)"
+    chain_state = (
+        rf"\b(?:(?P<negative_subject>{negative_subject}) )?{chain}(?: (?:in|from) {output})? "
+        rf"(?:(?P<absent>{state}(?:{absent})|{negated_state}(?:{present}))"
+        rf"|{state}(?:{present})|{negated_state}(?:{absent}))\b"
+        rf"(?! (?:separately|(?:in|from|via|through) {outside_output})\b)"
+    )
+    active_omission = (
+        rf"\b(?:omits|without|(?:contains|includes) no|does not (?:include|emit|provide|contain)) "
+        rf"(?:the |any )?{chain}\b(?![ -]+(?:omission|absence|loss|warning)\b)"
+        rf"|\bno {chain}(?:$|[,:])"
+    )
+    include = r"include|contain|emit|provide|retain"
+    inclusion = (
+        rf"\b{output} (?:(?:still|already|also) )?(?:(?:will|does) (?:{include})|(?:{include})s) "
+        rf"(?:all (?:three )?(?:of )?)?(?:the |every )?{chain}\b"
+        rf"|\b(?:(?:does not|doesn't|will not|won't) (?:omit|exclude) (?:the |any )?"
+        rf"|(?:omits?|excludes?) no ){chain}\b"
+    )
+    omission_claims = set()
+    for clause in clauses:
+        for claim in re.finditer(chain_state, clause):
+            omission_claims.add(bool(claim["absent"]) != bool(claim["negative_subject"]))
+        if re.search(active_omission, clause):
+            omission_claims.add(True)
+        if re.search(inclusion, clause):
+            omission_claims.add(False)
     facts = set()
-    if any(re.search(omission, clause) for clause in clauses) and not any(
-        re.search(denial, clause) for clause in clauses
-    ):
+    if omission_claims == {True}:
         facts.add("dkgm_chains_absent")
 
     # An unqualified reference to the chains is meaningful after an omission
@@ -960,8 +980,8 @@ def dkgm_chain_facts(message, effect):
     action = rf"(?:{supply} {alternatives}|make {alternatives} available)"
     active = rf"(?:{audience} {obligation} |(?:^|[,:]\s+)){action}"
     need = rf"{audience} needs? {alternatives}"
-    passive = (rf"\b{alternatives} {obligation} be "
-               r"(?:(?:made )?available|supplied|provided|loaded|included|added|asserted|used|applied|imported)\b")
+    passive_guidance = (rf"\b{alternatives} {obligation} be "
+                        r"(?:(?:made )?available|supplied|provided|loaded|included|added|asserted|used|applied|imported)\b")
     entailment = (rf"\b(?:recovering|preserving|deriving|inferring|obtaining) "
                   rf"(?:the |these |those )?(?:same |generic |dkgm )?(?:entailments|inferences) "
                   rf"(?:needs|requires) {alternatives}")
@@ -969,7 +989,7 @@ def dkgm_chain_facts(message, effect):
                    rf"(?:recover|preserve|derive|infer|obtain) "
                    rf"(?:the |these |those )?(?:same |generic |dkgm )?(?:entailments|inferences), "
                    rf"(?:you )?(?:{obligation} )?{action}")
-    guidance = rf"{active}|{need}|{passive}|{entailment}|{conditional}"
+    guidance = rf"{active}|{need}|{passive_guidance}|{entailment}|{conditional}"
     negation = (r"\b(?:do|does|did) not (?:need|have to|require)\b"
                 r"|\b(?:need|needs|must|should) not\b|\bnot (?:necessary|required)\b"
                 r"|\b(?:don't|doesn't|didn't) (?:need|have to|require)\b|\bneedn't\b"

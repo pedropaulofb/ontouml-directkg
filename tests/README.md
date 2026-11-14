@@ -1718,3 +1718,9 @@ and distinguishes an omission from a denial. Both interfaces' chain
 conclusions and ordered members are checked against the same fixed core.
 The remaining domain RDF comparison uses graph isomorphism. Both mixed
 list-tail sharing controls pass.
+
+The [remaining F2 correction](coverage.md#remaining-f2-correction) restores
+future-passive omission statements and rejects events that also claim the
+generated output includes the chains. It reads both native fields without
+requiring terminal punctuation and retains the conversion-return and JSON
+delivery checks.
