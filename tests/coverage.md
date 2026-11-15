@@ -3135,8 +3135,8 @@ All 333 behavioral rows are implemented but fail at the missing actual invocatio
 | `tests/transformation/test_ontology.py::test_none_avoids_provenance_only_operations_and_optional_enrichment_failure_is_nonfatal[optional_enrichment]` | DK-GEN-10, DK-GEN-11 | `tests/fixtures/shared/base_iri/input.json` | None mode neither performs provenance-only work nor emits transformation provenance. Optional reliable enrichment failure cannot alone abort; no unspecified diagnostic severity is imposed. Parameters: {"fault_kind":"optional_enrichment"}. |
 | `tests/transformation/test_ontology.py::test_optional_enrichment_failure_keeps_required_provenance[embedded]` | DK-GEN-10, DK-GEN-11 | `tests/fixtures/shared/base_iri/input.json` | Real optional-enrichment failure is observed without aborting; required embedded/separate provenance and source-byte checksum remain available. Parameters: {"mode":"embedded"}. |
 | `tests/transformation/test_ontology.py::test_optional_enrichment_failure_keeps_required_provenance[sidecar]` | DK-GEN-10, DK-GEN-11 | `tests/fixtures/shared/base_iri/input.json` | Real optional-enrichment failure is observed without aborting; required embedded/separate provenance and source-byte checksum remain available. Parameters: {"mode":"sidecar"}. |
-| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[embedded]` | DK-GEN-10, DK-REL-07, DK-INV-04; §3.3 serialization | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`. Same-execution RDF snapshots and inline ordered chain expectation. | Parse the native Python ontology Turtle and compare it with the entire pre-serialization graph. Preserve the ordered chain, anonymous inverse, and live ontology with embedded provenance. RD-04 general OWL profile claim, Alternative A, `5578cc009c70bcf94e23b4154c06d849363e1488`. |
-| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[sidecar]` | DK-GEN-10, DK-REL-07, DK-INV-04; §3.3 serialization | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`. Same-execution RDF snapshots and inline ordered chain expectation. | Parse the native Python ontology and separate provenance Turtle and compare both with their pre-serialization graphs. Preserve the ordered chain, anonymous inverse, and live ontology. RD-04 general OWL profile claim, Alternative A, `5578cc009c70bcf94e23b4154c06d849363e1488`. |
+| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[embedded]` | DK-GEN-10, DK-REL-07, DK-INV-04; §3.3 serialization | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`. Same-execution RDF snapshots and inline ordered chain expectation. | Snapshot the live ontology before serialization and reread it after the call. Compare returned Turtle by RDF isomorphism with typed-literal lexical forms preserved. Check the ordered chain with its anonymous inverse and embedded provenance. RD-04 general OWL profile claim, Alternative A, `5578cc009c70bcf94e23b4154c06d849363e1488`. |
+| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[sidecar]` | DK-GEN-10, DK-REL-07, DK-INV-04; §3.3 serialization | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`. Same-execution RDF snapshots and inline ordered chain expectation. | Snapshot the live ontology and separate provenance before either serialization call. Reread and compare both live graphs after each call. Compare each Turtle result by RDF isomorphism with typed-literal lexical forms preserved and check the ordered chain with its anonymous inverse. RD-04 general OWL profile claim, Alternative A, `5578cc009c70bcf94e23b4154c06d849363e1488`. |
 | `tests/transformation/test_ontology.py::test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes[hospital.ttl]` | DK-DIAG-04, DK-GEN-10 | `tests/fixtures/shared/base_iri/input.json` | Explicit real Python delivery creates sibling output-stem.provenance.ttl; output artifact is linked to ontology and generation with actual filename/Turtle-format evidence and SHA-256 over final serialized ontology bytes. Parameters: {"filename":"hospital.ttl"}. |
 | `tests/transformation/test_ontology.py::test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes[hospital.part.ttl]` | DK-DIAG-04, DK-GEN-10 | `tests/fixtures/shared/base_iri/input.json` | Explicit real Python delivery creates sibling output-stem.provenance.ttl; output artifact is linked to ontology and generation with actual filename/Turtle-format evidence and SHA-256 over final serialized ontology bytes. Parameters: {"filename":"hospital.part.ttl"}. |
 | `tests/transformation/test_ontology.py::test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes[no_extension]` | DK-DIAG-04, DK-GEN-10 | `tests/fixtures/shared/base_iri/input.json` | Explicit real Python delivery creates sibling output-stem.provenance.ttl; output artifact is linked to ontology and generation with actual filename/Turtle-format evidence and SHA-256 over final serialized ontology bytes. Parameters: {"filename":"no_extension"}. |
@@ -6787,3 +6787,32 @@ python -m pytest --rootdir=. -p no:cacheprovider -v tests/cli/test_cli.py tests/
 python -m pytest --rootdir=. -p no:cacheprovider -q tests -k 'fixture_contract or rdf_helper'
 git diff --check
 ```
+
+### F1 and F2 correction
+
+The independent Test Reviewer returned **NOT OK** for
+[`b17aad123205037ae9cfeba821e010f1bf9ad613`](https://github.com/pedropaulofb/ontouml-directkg/commit/b17aad123205037ae9cfeba821e010f1bf9ad613),
+the publication base. The same §3.3 and DK-GEN-10 clauses govern this correction.
+
+- **F1.** The `[sidecar]` node snapshots both native graphs before either call
+  and checks their live values after each call. It detects removal of the
+  `prov:wasGeneratedBy` triple by the ontology serializer. It also rejects
+  empty or absent native graphs after successful sidecar serialization.
+- **F2.** The parser temporarily disables RDFLib's typed-literal normalization
+  for each returned Turtle value. Both ontology cases reject a cardinality
+  lexical change from `"1"` to `"01"`. The sidecar case also rejects a
+  lexical change to its timestamp. RDF graph isomorphism still permits
+  blank-node relabeling.
+
+The controls reproduced all eight false passes on the reviewed revision and
+rejected them on the correction. Three blank-node relabeling controls passed.
+Four dropped-triple or reordered-chain controls failed, and the adapter
+retained the native absent-sidecar error. The two revised inventory rows
+retain their node IDs, rule references and `shared/material_pattern` input.
+
+The commands above collected **3,526 identical IDs** and returned **105 passes
+and 30 existing binding failures** on both snapshots, including two passing
+round trips. All 44 JSON contract and 88 fixture/RDF-helper cases passed.
+Five canonical JSON fixtures, the pinned Turtle, Python parsing and
+`git diff --check` passed. Execution limits from the preceding run still apply.
+Pending independent Test Reviewer review.

@@ -441,6 +441,10 @@ class Invocation(Protocol):
         """Read the actual delivered graph again; do not reconstruct one."""
         ...
 
+    def read_provenance(self, observation: Observation) -> Graph | None:
+        """Read the current separate provenance graph from the public result."""
+        ...
+
     def read_property_stereotype_comments(self, observation: Observation) -> tuple[CommentMeaning, ...]:
         """Read actual begin/end declaration meanings and their raw RDF literals.
 
@@ -548,6 +552,9 @@ class _UnboundInvocation:
         self._unavailable()
 
     def read_ontology(self, observation):
+        self._unavailable()
+
+    def read_provenance(self, observation):
         self._unavailable()
 
     def read_property_stereotype_comments(self, observation):
@@ -1258,6 +1265,9 @@ class _DirectKGInvocation(_UnboundInvocation):
 
     def read_ontology(self, observation):
         return observation.native.ontology
+
+    def read_provenance(self, observation):
+        return observation.native.provenance
 
     def serialize(self, observation, *, target, faults=()):
         """Read the native result's public Turtle serialization."""

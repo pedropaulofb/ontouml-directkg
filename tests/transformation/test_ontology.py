@@ -7,6 +7,7 @@ import json
 import copy
 
 import pytest
+import rdflib
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
@@ -750,7 +751,7 @@ def test_optional_enrichment_failure_keeps_required_provenance(invoke,source_pat
 
 @pytest.mark.parametrize('mode', ['embedded', 'sidecar'])
 def test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists(
-        invoke, source_path, tmp_path, mode):
+        invoke, source_path, tmp_path, mode, monkeypatch):
     """Rules: DK-GEN-10, DK-REL-07, DK-INV-04. Also §3.3 serialization.
 
     RD-04 general OWL profile claim, Alternative A, 5578cc009c70bcf94e23b4154c06d849363e1488.
@@ -759,22 +760,30 @@ def test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ord
                'material_property_chains': 'preserve-conflicting-constraints'}
     result = invoke.convert(source_path('shared/material_pattern'), options=options, workdir=tmp_path)
     assert result.outcome == 'completed'
-    before = Graph()
-    before += result.ontology
-    serialized = invoke.serialize(result, target='ontology')
-    assert serialized.failure is None and serialized.data is not None
-    parsed = Graph().parse(data=serialized.data, format='turtle')
-    assert_graph_equal(parsed, before)
-    assert property_chains(parsed, BASE.tMaterial) == {(('inverse', BASE.tLeft), BASE.tRight)}
-    graph = invoke.read_ontology(result)
-    assert graph is not None
-    assert_graph_equal(graph, before)
+    readers = {'ontology': invoke.read_ontology}
     if mode == 'sidecar':
-        provenance = Graph()
-        provenance += result.provenance
-        artifact = invoke.serialize(result, target='provenance')
-        assert artifact.failure is None and artifact.data is not None
-        assert_graph_equal(Graph().parse(data=artifact.data, format='turtle'), provenance)
+        readers['provenance'] = invoke.read_provenance
+    before = {}
+    for name, read_graph in readers.items():
+        graph = read_graph(result)
+        assert graph is not None, f'{name} graph is unavailable before serialization'
+        before[name] = Graph() + graph
+
+    for target in readers:
+        serialized = invoke.serialize(result, target=target)
+        assert serialized.failure is None and serialized.data is not None
+        for name, read_graph in readers.items():
+            graph = read_graph(result)
+            assert graph is not None, f'{name} graph is unavailable after {target} serialization'
+            assert_graph_equal(graph, before[name])
+
+        # Parse the returned Turtle with exact typed-literal lexical forms.
+        with monkeypatch.context() as parse_options:
+            parse_options.setattr(rdflib, 'NORMALIZE_LITERALS', False)
+            parsed = Graph().parse(data=serialized.data, format='turtle')
+        assert_graph_equal(parsed, before[target])
+        if target == 'ontology':
+            assert property_chains(parsed, BASE.tMaterial) == {(('inverse', BASE.tLeft), BASE.tRight)}
 
 
 @pytest.mark.parametrize('filename',['hospital.ttl','hospital.part.ttl','no_extension'])

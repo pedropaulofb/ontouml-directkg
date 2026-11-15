@@ -1733,7 +1733,9 @@ vocabulary alongside omission from the generated ontology.
 ## RD-04 general OWL profile claim
 
 The Python serialization adapter binds `to_turtle()` and
-`to_provenance_turtle()` on the observed public conversion result. The two
-round-trip cases parse the returned Turtle and compare it with pre-serialization
-RDF graphs. They check the generated ontology through its live reader.
+`to_provenance_turtle()` on the observed public conversion result.
+The round-trip cases snapshot the live ontology and any separate provenance
+before serialization, then reread both applicable graphs after each call.
+Turtle parsing preserves typed-literal lexical forms, and graph comparison
+allows blank-node relabeling.
 See the [RD-04 inventory and validation](coverage.md#rd-04-general-owl-profile-claim--alternative-a).
