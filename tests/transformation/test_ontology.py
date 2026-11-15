@@ -749,6 +749,12 @@ def test_optional_enrichment_failure_keeps_required_provenance(invoke,source_pat
     _provenance(result,mode,source_path('shared/base_iri').read_bytes())
 
 
+def _parse_turtle_exact(monkeypatch, source=None, *, data=None):
+    with monkeypatch.context() as parse_options:
+        parse_options.setattr(rdflib, 'NORMALIZE_LITERALS', False)
+        return Graph().parse(source=source, data=data, format='turtle')
+
+
 @pytest.mark.parametrize('mode', ['embedded', 'sidecar'])
 def test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists(
         invoke, source_path, tmp_path, mode, monkeypatch):
@@ -777,17 +783,14 @@ def test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ord
             assert graph is not None, f'{name} graph is unavailable after {target} serialization'
             assert_graph_equal(graph, before[name])
 
-        # Parse the returned Turtle with exact typed-literal lexical forms.
-        with monkeypatch.context() as parse_options:
-            parse_options.setattr(rdflib, 'NORMALIZE_LITERALS', False)
-            parsed = Graph().parse(data=serialized.data, format='turtle')
+        parsed = _parse_turtle_exact(monkeypatch, data=serialized.data)
         assert_graph_equal(parsed, before[target])
         if target == 'ontology':
             assert property_chains(parsed, BASE.tMaterial) == {(('inverse', BASE.tLeft), BASE.tRight)}
 
 
 @pytest.mark.parametrize('filename',['hospital.ttl','hospital.part.ttl','no_extension'])
-def test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes(invoke,source_path,tmp_path,filename):
+def test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes(invoke,source_path,tmp_path,filename,monkeypatch):
     """Rules: DK-GEN-10, DK-DIAG-04. Also §3.3 serialization."""
     result=invoke.convert(source_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':'sidecar'},workdir=tmp_path)
     destination=tmp_path/filename
@@ -798,8 +801,8 @@ def test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes
     assert sidecar.is_file()
     graph = delivered.observation.provenance
     assert graph is not None
-    assert_graph_equal(Graph().parse(sidecar, format='turtle'), graph)
-    assert_graph_equal(Graph().parse(destination,format='turtle'),delivered.observation.ontology)
+    assert_graph_equal(_parse_turtle_exact(monkeypatch, sidecar), graph)
+    assert_graph_equal(_parse_turtle_exact(monkeypatch, destination), delivered.observation.ontology)
     output=_role(delivered.observation,'output')
     assert (output,DCTERMS.isFormatOf,ONTOLOGY) in graph
     assert (output,RDF.type,PROV.Entity) in graph
@@ -813,7 +816,8 @@ def test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes
 
 @pytest.mark.parametrize('kind,operation',[('ontology','create'),('ontology','write'),('sidecar','serialize'),('sidecar','create'),('sidecar','write')],ids=['ontology_create','ontology_write','sidecar_serialize','sidecar_create','sidecar_write'])
 @pytest.mark.parametrize('old_file',[False,True],ids=['new_destination','old_destination'])
-def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_substitution(invoke,source_path,tmp_path,kind,operation,old_file):
+def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_substitution(
+        invoke, source_path, tmp_path, kind, operation, old_file, monkeypatch):
     """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05."""
     result=invoke.convert(source_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':'sidecar'},workdir=tmp_path)
     destination=tmp_path/'model.ttl';sidecar=tmp_path/'model.provenance.ttl'
@@ -824,15 +828,30 @@ def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_subst
     assert delivered.failure is not None and actual.outcome=='completed'
     assert actual.pre_delivery_ontology is not None
     assert_graph_equal(actual.ontology,actual.pre_delivery_ontology)
+    assert actual.provenance_mode == 'sidecar'
     assert actual.configuration_controls['provenance']=='sidecar'
     assert actual.valid_artifacts is not None and failed_path not in actual.valid_artifacts
     failures=[failure for failure in actual.delivery_failures if failure.kind==kind]
     assert failures and all(failure.destination==failed_path and failure.reason and failure.raw is not None for failure in failures)
     if old_file and failed_path.exists() and failed_path.read_bytes()==b'OLD_ARTIFACT':assert all(failure.old_file_not_updated for failure in failures)
-    assert any(op.kind==kind and op.failed and op.raw is not None for op in actual.operations or ())
-    if kind=='ontology':assert not sidecar.exists()
-    else:assert destination.is_file() and len(Graph().parse(destination,format='turtle'))>0
-    assert any(d.kind==kind+'_delivery' and d.severity=='ERROR' for d in actual.diagnostics)
+    injected = [op for op in actual.operations or ()
+                if (op.kind, op.operation, op.path) == (kind, operation, failed_path)
+                and op.failed and op.raw is not None]
+    assert injected
+    if kind == 'ontology':
+        assert not sidecar.exists()
+    else:
+        assert destination.is_file() and destination in actual.valid_artifacts
+        assert_graph_equal(_parse_turtle_exact(monkeypatch, destination), actual.pre_delivery_ontology)
+
+    errors = [event for event in actual.diagnostics if event.kind == kind + '_delivery' and event.severity == 'ERROR']
+    assert errors
+    if kind == 'ontology':
+        assert any(
+            (str(failed_path) in event.message or any(source.path == str(failed_path) for source in event.raw.sources))
+            and any(str(op.raw) in event.message for op in injected)
+            for event in errors
+        ), 'The ontology delivery ERROR must identify the destination and known failure reason'
 
 
 def test_rdf_helper_rooted_projection_keeps_list_connections_without_freezing_metadata():
@@ -846,7 +865,7 @@ def test_rdf_helper_rooted_projection_keeps_list_connections_without_freezing_me
     assert not list(result.triples((None,RDFS.comment,None)))
 
 
-def test_embedded_explicit_delivery_excludes_serialization_artifact_and_self_digest(invoke,source_path,tmp_path):
+def test_embedded_explicit_delivery_excludes_serialization_artifact_and_self_digest(invoke,source_path,tmp_path,monkeypatch):
     """Rules: DK-GEN-10."""
     result=invoke.convert(source_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':'embedded'},workdir=tmp_path)
     delivered=invoke.deliver(result,output_path=tmp_path/'embedded.ttl')
@@ -856,7 +875,7 @@ def test_embedded_explicit_delivery_excludes_serialization_artifact_and_self_dig
     assert not actual.provenance_roles.get('output',())
     assert not list(actual.ontology.objects(ONTOLOGY,SPDX.checksum))
     assert not (tmp_path/'embedded.provenance.ttl').exists()
-    assert_graph_equal(Graph().parse(tmp_path/'embedded.ttl',format='turtle'),actual.ontology)
+    assert_graph_equal(_parse_turtle_exact(monkeypatch, tmp_path / 'embedded.ttl'), actual.ontology)
 
 
 @pytest.mark.parametrize('variant',['nulls','empties','empty_mapping','partial_invalid'])
@@ -1132,7 +1151,7 @@ def test_ontology_version_iri_reuse_allows_changed_source_content(invoke, source
         assert set(result.ontology.objects(BASE.cPerson, RDFS.label)) == {Literal(label)}
 
 
-def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, source_path, tmp_path):
+def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, source_path, tmp_path, monkeypatch):
     """Rules: DK-IRI-01, DK-GEN-04, DK-GEN-10, DK-DIAG-04; RD-05 Option B replacement Rule 5; §15.
 
     Parse the delivered ontology as RDF; hash its actual bytes, including the
@@ -1146,14 +1165,14 @@ def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, sourc
         destination = tmp_path / f'versioned_{index}.ttl'
         delivered = invoke.deliver(result, output_path=destination)
         assert delivered.failure is None and not delivered.observation.delivery_failures
-        ontology = Graph().parse(destination, format='turtle')
+        ontology = _parse_turtle_exact(monkeypatch, destination)
         assert (ONTOLOGY, OWL.versionIRI, URIRef(version)) in ontology
         assert (ONTOLOGY, OWL.imports, DKGM_ONTOLOGY) in ontology
         observed = delivered.observation
         sidecar = observed.provenance
         assert sidecar is not None
         delivered_sidecar = destination.with_name(destination.stem + '.provenance.ttl')
-        assert_graph_equal(Graph().parse(delivered_sidecar, format='turtle'), sidecar)
+        assert_graph_equal(_parse_turtle_exact(monkeypatch, delivered_sidecar), sidecar)
         output = _role(observed, 'output')
         assert (output, DCTERMS.isFormatOf, ONTOLOGY) in sidecar
         _checksum(sidecar, output, destination.read_bytes())

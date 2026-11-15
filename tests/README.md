@@ -1750,3 +1750,10 @@ validator. Python artifact tests use `ConversionResult.deliver()`, with
 faults intercepted at the actual creation, writing, or sidecar serialization
 boundary. The CLI report-absence test omits `--diagnostics-file` and checks
 the captured streams, report-writer trace, and resulting files.
+
+The [F1–F4 correction](coverage.md#independent-test-reviewer-f1f4-correction)
+checks native rejection of unsupported enum strings, the destination and
+reason reported by ontology-delivery errors, the live provenance mode, and
+the retained ontology file after sidecar failure. Delivered Turtle checks
+preserve literal lexical forms. The no-report CLI case matches the displayed
+warning to the conversion's own missing-class-name diagnostic.

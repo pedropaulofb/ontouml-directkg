@@ -553,7 +553,12 @@ def test_cli_creates_no_diagnostics_report_when_option_is_absent(invoke,tmp_path
     assert '--diagnostics-file' not in process.command
     assert process.returncode == 0 and process.observation.outcome == 'completed'
     assert process.observation.diagnostics_exports == ()
-    assert any(d.severity == 'WARNING' for d in process.console)
+    missing_name = [event for event in process.observation.diagnostics
+                    if event.kind == 'missing_name' and event.severity == 'WARNING']
+    assert missing_name
+    for event in missing_name:
+        assert any(display.severity == event.severity and event.raw.message in display.message
+                   for display in process.console)
     assert destination.is_file()
     assert set(tmp_path.rglob('*')) - before == {destination}
 

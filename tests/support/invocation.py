@@ -157,6 +157,8 @@ class Observation:
     # Actual separately exposed provenance graph, when supplied by the public
     # Python result. Embedded statements remain in ontology. No reconstruction.
     provenance: Graph | None = None
+    # Effective mode read from the live delivery result independently of YAML.
+    provenance_mode: str | None = None
     # Actual output representing intentionally unrepresented relation-valued
     # connectors, including anonymous representations and grounding annotations.
     # Exclude independent endpoint mappings and reliable descriptive metadata
@@ -624,7 +626,7 @@ class _PythonDeliveryObservation(_InputObservedMetadataPython):
         "delivery_failures", "operations", "valid_artifacts", "pre_delivery_ontology",
         "provenance_roles", "configuration_controls", "configuration_literal",
         "output_artifact_output", "output_artifact_evidence", "output_filename",
-        "output_format", "embedded_output_configuration",
+        "output_format", "embedded_output_configuration", "provenance_mode",
     }
 
 
@@ -1252,8 +1254,9 @@ class _DirectKGInvocation(_UnboundInvocation):
                 if parameter.annotation is bool:
                     python_choices = (False, True)
                 elif parameter.name in enumerated:
+                    # A wrong-type rejection would leave string validation unchecked.
                     try:
-                        convert(absent_source, **{parameter.name: object()})
+                        convert(absent_source, **{parameter.name: "unsupported"})
                     except ConfigurationError as exc:
                         match = re.fullmatch(rf"Invalid {parameter.name}: expected one of (.+)", str(exc))
                         if not match:
@@ -1261,7 +1264,7 @@ class _DirectKGInvocation(_UnboundInvocation):
                         python_choices = tuple(match[1].split(", "))
                         rejections[name] = exc
                     else:
-                        raise ImplementationUnavailable(f"Python enum validation did not reject the probe for {name}")
+                        raise AssertionError(f"Python accepted an unsupported string for {name}")
                     for choice in python_choices:
                         convert(absent_source, **{parameter.name: choice})
                 python[name] = Control(parameter.name, python_choices,
@@ -1383,7 +1386,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         def observe_operation(kind, operation, path):
             for fault in faults:
                 if (kind, operation) == (fault.kind, fault.operation):
-                    error = OSError(f"Test fault at {kind} {operation}: {path}")
+                    error = OSError(f"Injected {kind} {operation} failure")
                     operations.append(Operation(kind, operation, path, True, error))
                     raise error
 
@@ -1422,6 +1425,7 @@ class _DirectKGInvocation(_UnboundInvocation):
                                          item.old_file_not_updated) for item in delivered.failures)
         fields = {**vars(observation), **_delivery_provenance(delivered.conversion)}
         fields.update(ontology=delivered.conversion.ontology, provenance=delivered.conversion.provenance,
+                      provenance_mode=delivered.conversion.provenance_mode,
                       outcome=delivered.conversion.outcome, native=delivered.conversion,
                       diagnostics=_observed_diagnostics(delivered.conversion.diagnostics),
                       delivery_failures=failures, operations=tuple(operations), pre_delivery_ontology=before_io,
