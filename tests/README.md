@@ -1724,3 +1724,8 @@ future-passive omission statements and rejects events that also claim the
 generated output includes the chains. It reads both native fields without
 requiring terminal punctuation and retains the conversion-return and JSON
 delivery checks.
+
+The [availability and inclusion correction](coverage.md#f2-correction-for-vocabulary-availability-and-output-inclusion)
+reads availability as inclusion only when the diagnostic refers to the
+generated output. A warning can report availability from the published
+vocabulary alongside omission from the generated ontology.

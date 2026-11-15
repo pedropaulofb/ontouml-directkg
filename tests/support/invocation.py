@@ -921,38 +921,54 @@ def dkgm_chain_facts(message, effect):
     ]
     chain = (r"(?:dkgm|generic)(?:[ -]+(?:dkgm|generic|mereological|mereology|property|inference))*"
              r"[ -]+chains?(?:[ -]+axioms?)?")
-    absent = r"absent|omitted|missing"
-    output = r"(?:(?:the|this) )?(?:generated |delivered )?(?:ontology|output(?: graph)?|graph)"
-    present = rf"present|included|provided|emitted|generated|available|(?:in|part of) {output}"
+    count = r"(?:one|two|three|\d+)"
+    chain_reference = (rf"(?:(?:all(?: {count})?|each|{count})(?: of)? )?"
+                       rf"(?:the |these |those |every |some )?(?:{count} )?{chain}")
+    whole_core = (rf"(?:(?:all(?: (?:three|3))?(?: of)?|each of) )?"
+                  rf"(?:the |these |those |every )?(?:(?:three|3) )?{chain}")
+    output = (r"(?:(?:the |this )?(?:(?:generated|delivered) (?:ontology|graph)"
+              r"|(?:generated |delivered )?output(?: (?:graph|ontology))?)|(?:the|this) (?:ontology|graph))")
+    recipient = r"(?:to (?:the )?(?:consumers?|readers?|users?|reasoners?) )?"
+    location = rf"(?:in|within|from|as part of) {output}"
+    # Availability describes output membership only when it names the output.
+    absent = rf"absent|omitted|missing|unavailable {recipient}{location}"
+    present = (rf"present|included|provided|emitted|generated|(?:in|within|part of) {output}"
+               rf"|available {recipient}{location}")
     state = (r"(?:(?:is|are|was|were|remains?|will be|(?:has|have) been) )?"
              r"(?:(?:actually|already|currently|still|all) )?")
     negated_state = rf"(?:{state}not |(?:will not|won't) be |(?:has|have) not been )"
-    negative_subject = r"no|none of(?: the)?|neither|not (?:one|a single)"
+    negative_subject = r"no|none of|neither(?: of)?|not (?:one|a single)"
     # Read subject and predicate polarity together. A claim about the
     # separately supplied vocabulary can coexist with omission in the output.
-    outside_output = r"(?:the |a |an )?(?:(?:separate|external|published|reference|dkgm) )*(?:vocabulary|imports?)"
+    external_modifier = r"(?:separate|external|published|reference|dkgm)"
+    outside_output = (rf"(?:the |a |an )?(?:(?:{external_modifier} )*(?:vocabulary|imports?)"
+                      rf"|(?:{external_modifier} )+(?:ontology|graph))")
     chain_state = (
-        rf"\b(?:(?P<negative_subject>{negative_subject}) )?{chain}(?: (?:in|from) {output})? "
+        rf"\b(?:(?P<negative_subject>{negative_subject}) )?"
+        rf"(?P<chains>{chain_reference})(?: (?:in|from) {output})? "
         rf"(?:(?P<absent>{state}(?:{absent})|{negated_state}(?:{present}))"
         rf"|{state}(?:{present})|{negated_state}(?:{absent}))\b"
-        rf"(?! (?:separately|(?:in|from|via|through) {outside_output})\b)"
+        rf"(?! {recipient}(?:separately|(?:in|within|from|by|via|through) {outside_output})\b)"
     )
     active_omission = (
         rf"\b(?:omits|without|(?:contains|includes) no|does not (?:include|emit|provide|contain)) "
-        rf"(?:the |any )?{chain}\b(?![ -]+(?:omission|absence|loss|warning)\b)"
-        rf"|\bno {chain}(?:$|[,:])"
+        rf"(?:any )?{whole_core}\b(?![ -]+(?:omission|absence|loss|warning)\b)"
+        rf"|\bno {whole_core}(?:$|[,:])"
     )
     include = r"include|contain|emit|provide|retain"
     inclusion = (
-        rf"\b{output} (?:(?:still|already|also) )?(?:(?:will|does) (?:{include})|(?:{include})s) "
-        rf"(?:all (?:three )?(?:of )?)?(?:the |every )?{chain}\b"
-        rf"|\b(?:(?:does not|doesn't|will not|won't) (?:omit|exclude) (?:the |any )?"
-        rf"|(?:omits?|excludes?) no ){chain}\b"
+        rf"\b{output}(?: itself)? (?:(?:still|already|also|explicitly) )?"
+        rf"(?:(?:will|does) (?:{include}|have)|(?:{include})s|has) "
+        rf"(?:exactly |only )?{chain_reference}\b"
+        rf"|\b{output} (?:(?:does not|doesn't|will not|won't) (?:omit|exclude) (?:any )?"
+        rf"|(?:omits?|excludes?) no ){chain_reference}\b"
     )
     omission_claims = set()
     for clause in clauses:
         for claim in re.finditer(chain_state, clause):
-            omission_claims.add(bool(claim["absent"]) != bool(claim["negative_subject"]))
+            omitted = bool(claim["absent"]) != bool(claim["negative_subject"])
+            if not omitted or re.fullmatch(whole_core, claim["chains"]):
+                omission_claims.add(omitted)
         if re.search(active_omission, clause):
             omission_claims.add(True)
         if re.search(inclusion, clause):
