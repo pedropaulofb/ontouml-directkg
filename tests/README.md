@@ -1739,3 +1739,14 @@ before serialization, then reread both applicable graphs after each call.
 Turtle parsing preserves typed-literal lexical forms, and graph comparison
 allows blank-node relabeling.
 See the [RD-04 inventory and validation](coverage.md#rd-04-general-owl-profile-claim--alternative-a).
+
+## Independent Test Suite Audit T1–T4
+
+The [audit remediation inventory](coverage.md#independent-test-suite-audit-remediation--t1t4)
+records the fresh focused and regression runs. The RD-18 comment reader
+binds the native English forms and preserves the original RDF terms.
+Control inspection reads native CLI actions and the Python signature and
+validator. Python artifact tests use `ConversionResult.deliver()`, with
+faults intercepted at the actual creation, writing, or sidecar serialization
+boundary. The CLI report-absence test omits `--diagnostics-file` and checks
+the captured streams, report-writer trace, and resulting files.

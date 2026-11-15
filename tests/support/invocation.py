@@ -19,6 +19,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from typing import Any, Mapping, Protocol
+from unittest.mock import patch
 
 from rdflib import Graph, Literal, URIRef
 from rdflib.term import Node
@@ -610,26 +611,21 @@ class _MetadataCLIObservation(_BasicObservation):
     _available_fields = _BasicObservation._available_fields | {"external_metadata_output"}
 
 
-class _VersionControlSurface(_BoundFieldsOnly, ControlSurface):
-    _available_fields = frozenset({"cli", "python", "raw"})
+class _InspectedControlSurface(_BoundFieldsOnly, ControlSurface):
+    _available_fields = frozenset({"cli", "python", "prohibited_features", "software_version", "raw"})
 
 
-class _ScopedControls(Mapping):
-    """Bound lookups cannot imply a complete inventory or absent controls."""
+class _NoReportCLIObservation(_BasicObservation):
+    _available_fields = _BasicObservation._available_fields | {"diagnostics_exports"}
 
-    def __init__(self, controls):
-        self._controls = controls
 
-    def __getitem__(self, key):
-        if key not in self._controls:
-            raise ImplementationUnavailable(f"Control inspection {key!r} is not bound")
-        return self._controls[key]
-
-    def __iter__(self):
-        raise ImplementationUnavailable("Complete control inventory is not bound")
-
-    def __len__(self):
-        raise ImplementationUnavailable("Complete control inventory is not bound")
+class _PythonDeliveryObservation(_InputObservedMetadataPython):
+    _available_fields = _InputObservedMetadataPython._available_fields | {
+        "delivery_failures", "operations", "valid_artifacts", "pre_delivery_ontology",
+        "provenance_roles", "configuration_controls", "configuration_literal",
+        "output_artifact_output", "output_artifact_evidence", "output_filename",
+        "output_format", "embedded_output_configuration",
+    }
 
 
 class _ReportProcess(_BoundFieldsOnly, CLIObservation):
@@ -730,13 +726,14 @@ import json
 import os
 import sys
 from ontouml_directkg.conversion import read_project, convert
+from ontouml_directkg.diagnostics import export_report
 
 reader_code = read_project.__code__
 conversion_code = convert.__code__
 parser_error_code = argparse.ArgumentParser.error.__code__
 trace = {"input_reader": {"module": read_project.__module__, "name": read_project.__qualname__},
          "conversion_started": False, "parser_errors": [],
-         "conversion_calls": 0, "conversion_returns": 0}
+         "conversion_calls": 0, "conversion_returns": 0, "diagnostics_exports": []}
 metadata = _MetadataCapture()
 native_result = None
 
@@ -763,6 +760,8 @@ def observe(frame, event, argument):
             trace["conversion_started"] = True
         elif frame.f_code is parser_error_code:
             trace["parser_errors"].append(frame.f_locals["message"])
+        elif frame.f_code is export_report.__code__:
+            trace["diagnostics_exports"].append(str(frame.f_locals["destination"]))
 
 def finish():
     trace["profile_active_at_exit"] = sys.getprofile() is observe
@@ -852,6 +851,7 @@ def _run_observed_cli(command, workdir):
 
 
 _DIAGNOSTIC_KINDS = {
+    "ONTOLOGY_DELIVERY": "ontology_delivery", "SIDECAR_DELIVERY": "sidecar_delivery",
     "MISSING_SOURCE_ID": "missing_id", "INVALID_SOURCE_ID": "invalid_id",
     "FAILED_RELATION": "failed_relation", "DUPLICATE_SOURCE_ID": "duplicate_id",
     "UNTRANSFORMABLE_ENUMERATION_VALUE": "invalid_enumeration_value",
@@ -1136,6 +1136,44 @@ def _observed_diagnostics(events):
     return tuple(observed)
 
 
+def _delivery_provenance(result):
+    """Read deliverable metadata from the native ontology or separate graph."""
+    import yaml
+    from rdflib.namespace import DCTERMS, OWL, PROV, RDF
+
+    graph = result.provenance if result.provenance is not None else result.ontology
+    if graph is None:
+        return {}
+    roots = set(result.ontology.subjects(RDF.type, OWL.Ontology))
+    activities = {activity for root in roots for activity in graph.objects(root, PROV.wasGeneratedBy)}
+    configurations = {entity for activity in activities for entity in graph.objects(activity, PROV.used)
+                      if list(graph.objects(entity, PROV.value))}
+    outputs = {entity for root in roots for entity in graph.subjects(DCTERMS.isFormatOf, root)}
+    values = {literal for entity in configurations for literal in graph.objects(entity, PROV.value)}
+    if len(values) > 1:
+        raise ImplementationUnavailable("Interpret multiple native output configuration literals")
+    literal = next(iter(values), None)
+    settings = {} if literal is None else yaml.safe_load(str(literal))
+    if not isinstance(settings, dict):
+        raise ImplementationUnavailable("Read the actual native configuration YAML mapping")
+    triples = tuple(triple for entity in outputs for triple in graph.triples((entity, None, None)))
+    schema_name = URIRef("https://schema.org/name")
+    filenames = {str(value) for _, predicate, value in triples if predicate == schema_name}
+    formats = {str(value) for _, predicate, value in triples if predicate == DCTERMS.format}
+    if len(filenames) > 1 or len(formats) > 1:
+        raise ImplementationUnavailable("Interpret multiple native output artifact names or formats")
+    media_type = next(iter(formats), None)
+    return dict(provenance_roles={"configuration": tuple(configurations), "output": tuple(outputs)},
+                configuration_controls=settings, configuration_literal=literal,
+                output_artifact_output=triples, output_artifact_evidence=triples,
+                output_filename=next(iter(filenames), None),
+                output_format="turtle" if media_type == "text/turtle" else media_type,
+                embedded_output_configuration=tuple(
+                    (key, value) for key, value in settings.items()
+                    if key == "output" or key.startswith(("output_", "destination", "ontology_file"))
+                ) if result.provenance_mode == "embedded" else ())
+
+
 class _DirectKGInvocation(_UnboundInvocation):
     """Minimal RD-02 wiring; no conversion, recovery or output rules live here."""
 
@@ -1178,29 +1216,69 @@ class _DirectKGInvocation(_UnboundInvocation):
         return observed
 
     def inspect_controls(self):
-        """Bind the inspected version and available vocabulary controls."""
-        import inspect
-        from ontouml_directkg import convert
+        """Inspect actions and parameters, and ask the native enum validators."""
+        from ontouml_directkg import ConfigurationError, __version__, convert
         from ontouml_directkg.cli import build_parser
 
         signature = inspect.signature(convert)
-        parameter = signature.parameters.get("ontology_version_iri")
         parser = build_parser()
         actions = {flag: action for action in parser._actions for flag in action.option_strings}
-        if parameter is None or "--ontology-version-iri" not in actions:
-            raise ImplementationUnavailable("Interpret the current ontology-version-IRI public controls")
+        negated = "no_stereotype_relation_naming"
+
+        def semantic_value(name, value):
+            return not value if name == negated and isinstance(value, bool) else value
+
         cli = {}
-        for flag in ("--ontology-version-iri", "--dkgm-vocabulary"):
-            if flag in actions:
-                action = actions[flag]
-                choices = None if action.choices is None else tuple(action.choices)
-                cli[flag] = Control(flag, choices, action.default, action,
-                                    arity=1 if action.nargs is None else action.nargs)
-        python = Control(parameter.name, None, parameter.default, parameter)
-        return _VersionControlSurface(
-            _ScopedControls(cli), _ScopedControls({"ontology_version_iri": python}),
-            {}, raw={"python_signature": signature, "cli_action": actions["--ontology-version-iri"],
-                     "cli_help": parser.format_help()})
+        python = {}
+        rejections = {}
+        for flag, action in actions.items():
+            choices = None if action.choices is None else tuple(action.choices)
+            if action.nargs == 0 and type(action.const) is type(action.default) is bool:
+                choices = (action.default, action.const)
+            cli[flag] = Control(flag, choices, semantic_value(action.dest, action.default), action,
+                                arity=1 if action.nargs is None else action.nargs)
+
+        # These are the enumerated parameters of the inspected Python API.
+        # Obtain accepted values from its own validator, independently of CLI choices.
+        enumerated = {"iri_strategy", "input_policy", "stereotype_policy", "inverse_properties",
+                      "relation_labels", "material_property_chains", "dkgm_vocabulary", "provenance"}
+        with TemporaryDirectory() as directory:
+            absent_source = Path(directory) / "absent.json"
+            for parameter in signature.parameters.values():
+                if parameter.name == "source":
+                    continue
+                name = "stereotype_relation_naming" if parameter.name == negated else parameter.name
+                python_choices = None
+                if parameter.annotation is bool:
+                    python_choices = (False, True)
+                elif parameter.name in enumerated:
+                    try:
+                        convert(absent_source, **{parameter.name: object()})
+                    except ConfigurationError as exc:
+                        match = re.fullmatch(rf"Invalid {parameter.name}: expected one of (.+)", str(exc))
+                        if not match:
+                            raise ImplementationUnavailable(f"Interpret Python choices for {name}") from exc
+                        python_choices = tuple(match[1].split(", "))
+                        rejections[name] = exc
+                    else:
+                        raise ImplementationUnavailable(f"Python enum validation did not reject the probe for {name}")
+                    for choice in python_choices:
+                        convert(absent_source, **{parameter.name: choice})
+                python[name] = Control(parameter.name, python_choices,
+                                       semantic_value(parameter.name, parameter.default), parameter)
+        prohibited = {
+            "ontology_iri": {"ontology_iri"},
+            "local_value_restrictions": {"local_value_restrictions", "all_values_from"},
+            "omit_reverse_cardinalities": {"omit_reverse_cardinalities", "no_reverse_cardinalities"},
+            "qualified_relation_cardinalities": {"qualified_relation_cardinalities"},
+        }
+        observed_names = {"cli": {f.lstrip("-").replace("-", "_") for f in actions}
+                          | {action.dest for action in actions.values()}, "python": set(signature.parameters)}
+        features = {f"{interface}:{feature}": bool(names & aliases)
+                    for interface, names in observed_names.items() for feature, aliases in prohibited.items()}
+        return _InspectedControlSurface(cli, python, features, software_version=__version__,
+                                        raw={"python_signature": signature, "cli_help": parser.format_help(),
+                                             "python_enum_rejections": rejections})
 
     def attempt_source_input(self, source, *, options, workdir):
         try:
@@ -1283,16 +1361,76 @@ class _DirectKGInvocation(_UnboundInvocation):
             return SerializationObservation(data=None, failure=exc)
         return SerializationObservation(data=turtle.encode("utf-8"))
 
-    def read_property_stereotype_comments(self, observation):
-        """Verified absence reader for the current, incomplete producer.
+    def deliver(self, observation, *, output_path, faults=()):
+        """Call real delivery while observing its write and serialization boundaries."""
+        from ontouml_directkg import delivery
 
-        Current production emits no boundary-stereotype comments. Audit actual
-        RDF against its inspected non-boundary generated forms; never assume
-        an empty result from source/request data. A new or unknown comment
-        requires interpretation before it can earn positive/negative evidence.
-        No proposed begin/end prose template is imposed here or by the tests.
-        The existing all-comment meaning reader remains explicitly unbound.
-        """
+        native = observation.native
+        destination = Path(output_path)
+        sidecar = destination.with_name(destination.stem + ".provenance.ttl")
+        targets = {"ontology": destination, "sidecar": sidecar}
+        applicable = {("ontology", "create"), ("ontology", "write"),
+                      ("sidecar", "create"), ("sidecar", "write"), ("sidecar", "serialize")}
+        if any((fault.kind, fault.operation) not in applicable or
+               (fault.path is not None and fault.path != targets[fault.kind]) for fault in faults):
+            self._unavailable()
+        before_io = None
+        operations = []
+        real_write = delivery._write_artifact
+        real_open = delivery.tempfile.NamedTemporaryFile
+        real_serialize = native.to_provenance_turtle
+
+        def observe_operation(kind, operation, path):
+            for fault in faults:
+                if (kind, operation) == (fault.kind, fault.operation):
+                    error = OSError(f"Test fault at {kind} {operation}: {path}")
+                    operations.append(Operation(kind, operation, path, True, error))
+                    raise error
+
+        @contextmanager
+        def open_observed(kind, path, *args, **kwargs):
+            observe_operation(kind, "create", path)
+            with real_open(*args, **kwargs) as stream:
+                real_stream_write = stream.write
+
+                def write_observed(*args, **kwargs):
+                    observe_operation(kind, "write", path)
+                    return real_stream_write(*args, **kwargs)
+
+                with patch.object(stream, "write", write_observed):
+                    yield stream
+
+        def write_artifact(path, content):
+            nonlocal before_io
+            if before_io is None:
+                before_io = Graph() + native.ontology
+            kind = "ontology" if path == destination else "sidecar" if path == sidecar else None
+            if kind is None:
+                raise ImplementationUnavailable(f"Interpret the native artifact write to {path}")
+            with patch.object(delivery.tempfile, "NamedTemporaryFile",
+                              lambda *args, **kwargs: open_observed(kind, path, *args, **kwargs)):
+                return real_write(path, content)
+
+        def serialize_sidecar():
+            observe_operation("sidecar", "serialize", sidecar)
+            return real_serialize()
+
+        with patch.object(delivery, "_write_artifact", write_artifact), \
+             patch.object(native, "to_provenance_turtle", serialize_sidecar):
+            delivered = native.deliver(destination)
+        failures = tuple(DeliveryFailure(item.kind, item.destination, item.reason, item,
+                                         item.old_file_not_updated) for item in delivered.failures)
+        fields = {**vars(observation), **_delivery_provenance(delivered.conversion)}
+        fields.update(ontology=delivered.conversion.ontology, provenance=delivered.conversion.provenance,
+                      outcome=delivered.conversion.outcome, native=delivered.conversion,
+                      diagnostics=_observed_diagnostics(delivered.conversion.diagnostics),
+                      delivery_failures=failures, operations=tuple(operations), pre_delivery_ontology=before_io,
+                      valid_artifacts=tuple(path for path in (delivered.ontology_path, delivered.provenance_path)
+                                            if path is not None))
+        return DeliveryObservation(_PythonDeliveryObservation(**fields), failures[0] if failures else None)
+
+    def read_property_stereotype_comments(self, observation):
+        """Recognize the native English property-stereotype comment renderings."""
         from rdflib.namespace import RDFS
         non_boundary = (
             r"OntoUML (?:class|attribute|relation|source association end|target association end) "
@@ -1300,13 +1438,26 @@ class _DirectKGInvocation(_UnboundInvocation):
             r"OntoUML source metadata: (?:this attribute|the (?:source|target) association end) "
             r"(?:is read-only|is ordered|has (?:shared|composite) aggregation)\.",
         )
+        boundary = re.compile(
+            r"Declared OntoUML property stereotype(?: on the (source|target) association end)?: (begin|end)\."
+        )
+        meanings = []
         for subject, literal in self.read_ontology(observation).subject_objects(RDFS.comment):
-            if not isinstance(literal, Literal) or not any(re.fullmatch(pattern, str(literal)) for pattern in non_boundary):
-                raise ImplementationUnavailable(
-                    "RD-18 comment meaning is not bound for this observed RDF statement; "
-                    f"inspect and adapt its actual wording: {(subject, RDFS.comment, literal)!r}"
-                )
-        return ()
+            if isinstance(literal, Literal):
+                match = boundary.fullmatch(str(literal))
+                if match:
+                    end, stereotype = match.groups()
+                    context = f"{end}_end" if end else "attribute"
+                    meanings.append(CommentMeaning(subject, literal, "stereotype", stereotype,
+                                                   context=context, english=True))
+                    continue
+                if any(re.fullmatch(pattern, str(literal)) for pattern in non_boundary):
+                    continue
+            raise ImplementationUnavailable(
+                "RD-18 comment meaning is not bound for this observed RDF statement; "
+                f"inspect and adapt its actual wording: {(subject, RDFS.comment, literal)!r}"
+            )
+        return tuple(meanings)
 
     def read_relation_limitation_source_ids(self, observation, source):
         """Interpret reported ID locators against the actual supplied document.
@@ -1530,14 +1681,15 @@ class _DirectKGInvocation(_UnboundInvocation):
         return produced, reported
 
     def cli(self, source, *, options, workdir, output_path=None, diagnostics_path=None, extra_args=(), faults=()):
-        if (faults or extra_args or output_path is None or diagnostics_path is None
-                or Path(output_path).exists() or Path(diagnostics_path).exists()):
+        if (faults or extra_args or output_path is None or Path(output_path).exists()
+                or (diagnostics_path is not None and Path(diagnostics_path).exists())):
             self._unavailable()
         command = [sys.executable, "-m", "ontouml_directkg"]
         if source is not None:
             command.append(str(source))
-        command.extend(["--output", str(output_path),
-                        "--diagnostics-file", str(diagnostics_path)])
+        command.extend(["--output", str(output_path)])
+        if diagnostics_path is not None:
+            command.extend(["--diagnostics-file", str(diagnostics_path)])
         for name, value in options.items():
             if name == "stereotype_relation_naming":
                 if not value:
@@ -1554,6 +1706,22 @@ class _DirectKGInvocation(_UnboundInvocation):
             # result. Do not require or manufacture a conversion-diagnostics file.
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   None, _observed_console(completed.stdout, completed.stderr),
+                                  conversion_started=started, execution_trace=trace)
+        if diagnostics_path is None:
+            from ontouml_directkg import Diagnostic as NativeDiagnostic, SourceLocation
+
+            if trace.get("conversion_calls") != 1 or trace.get("conversion_returns") != 1 or "native_report" not in trace:
+                raise ImplementationUnavailable("Complete CLI result evidence is unavailable without a report")
+            native = trace["native_report"]
+            events = tuple(NativeDiagnostic(severity, code, message, effect,
+                                            tuple(SourceLocation(*item) for item in sources), iri)
+                           for severity, code, message, effect, sources, iri in native["events"])
+            graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
+            observed = _NoReportCLIObservation(
+                graph, native["outcome"], _observed_diagnostics(events), native=native,
+                diagnostics_exports=tuple(Path(item) for item in trace["diagnostics_exports"]))
+            return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
+                                  observed, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
         # Missing reports are a visible failure, never reconstructed by running
         # Python again, guessing an outcome or creating a hidden report.

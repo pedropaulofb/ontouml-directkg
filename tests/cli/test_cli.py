@@ -82,7 +82,8 @@ def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy,
 
 DEFAULTS={'iri_strategy':'name','input_policy':'tolerant','stereotype_policy':'allow-custom','inverse_properties':'all',
           'material_property_chains':'none','relation_labels':'source-only','omit_identifiers':False,
-          'stereotype_relation_naming':True,'provenance':'embedded','ontology_version_iri':None}
+          'stereotype_relation_naming':True,'provenance':'embedded','ontology_version_iri':None,
+          'base_iri':None,'language':None,'metadata_file':None,'dkgm_vocabulary':'import'}
 CONTROLS=[('--base-iri','base_iri',None),('--iri-strategy','iri_strategy',['name','id']),
           ('--ontology-version-iri','ontology_version_iri',None),
           ('--input-policy','input_policy',POLICIES),('--stereotype-policy','stereotype_policy',['require-known','allow-missing','allow-custom']),
@@ -90,6 +91,7 @@ CONTROLS=[('--base-iri','base_iri',None),('--iri-strategy','iri_strategy',['name
           ('--no-stereotype-relation-naming','stereotype_relation_naming',[True,False]),
           ('--relation-labels','relation_labels',['source-only','generated']),
           ('--material-property-chains','material_property_chains',['none','omit-conflicting-constraints','preserve-conflicting-constraints']),
+          ('--dkgm-vocabulary','dkgm_vocabulary',['import','embed','none']),
           ('--language','language',None),('--omit-identifiers','omit_identifiers',[True,False]),
           ('--metadata-file','metadata_file',None),('--provenance','provenance',['none','embedded','sidecar'])]
 LOGICAL={RDF.type,RDF.first,RDF.rest,RDFS.subClassOf,RDFS.subPropertyOf,RDFS.domain,RDFS.range,RDFS.label,DCTERMS.identifier,
@@ -270,22 +272,26 @@ def _failed(result,kind,destination):
 
 @pytest.mark.parametrize('flag,semantic,choices',CONTROLS,ids=[row[1] for row in CONTROLS])
 def test_cli_and_python_expose_all_established_controls_values_and_defaults(invoke,flag,semantic,choices):
-    """Rules: DK-INV-01, DK-REL-04, DK-REL-07, DK-LBL-01, DK-LBL-02, DK-IRI-01, DK-IRI-02, DK-IRI-09, DK-GEN-09, DK-GEN-10, DK-DIAG-05, DK-DIAG-06. Also §§2.2/15 parity."""
+    """Rules: DK-INV-01, DK-REL-04, DK-REL-07, DK-LBL-01, DK-LBL-02, DK-IRI-01, DK-IRI-02, DK-IRI-09, DK-GEN-04, DK-GEN-09, DK-GEN-10, DK-DIAG-05, DK-DIAG-06. Also §§2.2/15 parity."""
     surface=invoke.inspect_controls();cli=surface.cli[flag];python=surface.python[semantic]
     assert cli.raw is not None and python.raw is not None and surface.raw is not None
     assert cli.parameter==flag
-    if choices is not None:assert set(cli.choices)==set(python.choices)==set(choices)
-    if semantic in DEFAULTS:assert cli.default==python.default==DEFAULTS[semantic]
+    if choices is None:
+        assert cli.choices is None and python.choices is None
+    else:
+        assert set(cli.choices) == set(python.choices) == set(choices)
+    assert cli.default == python.default == DEFAULTS[semantic]
     if semantic=='relation_labels':assert python.parameter=='relation_labels'
-    if semantic in {'language','ontology_version_iri'}:assert cli.arity==1
+    assert cli.arity == (0 if semantic in {'omit_identifiers', 'stereotype_relation_naming'} else 1)
 
 
 @pytest.mark.parametrize('flag,choices,default',[('--console-level',['info','warning','error'],'info'),('--diagnostics-file',None,None)],ids=['console_level','diagnostics_file'])
 def test_cli_delivery_and_presentation_controls_are_inspected_without_inventing_python_parameters(invoke,flag,choices,default):
     """Rules: DK-DIAG-04. Also §15 controls."""
     control=invoke.inspect_controls().cli[flag]
-    assert control.parameter==flag and control.raw is not None
+    assert control.parameter == flag and control.raw is not None and control.arity == 1
     if choices is not None:assert set(control.choices)==set(choices) and control.default==default
+    else:assert control.choices is None and control.default==default
 
 
 @pytest.mark.parametrize('feature',['ontology_iri','local_value_restrictions','omit_reverse_cardinalities','qualified_relation_cardinalities'])
@@ -540,10 +546,16 @@ def test_console_threshold_filters_only_display_and_keeps_reports_outcomes_exit_
 
 def test_cli_creates_no_diagnostics_report_when_option_is_absent(invoke,tmp_path):
     """Rules: DK-DIAG-04."""
-    source,options,_=_source(tmp_path,'warning')
-    process=invoke.cli(source,options=options,workdir=tmp_path,output_path=tmp_path/'out.ttl')
-    assert process.returncode==0 and process.observation.diagnostics_exports==()
-    assert any(d.severity=='WARNING' for d in process.console)
+    source, options, _ = _source(tmp_path, 'warning')
+    destination = tmp_path / 'out.ttl'
+    before = set(tmp_path.rglob('*'))
+    process = invoke.cli(source, options=options, workdir=tmp_path, output_path=destination)
+    assert '--diagnostics-file' not in process.command
+    assert process.returncode == 0 and process.observation.outcome == 'completed'
+    assert process.observation.diagnostics_exports == ()
+    assert any(d.severity == 'WARNING' for d in process.console)
+    assert destination.is_file()
+    assert set(tmp_path.rglob('*')) - before == {destination}
 
 
 @pytest.mark.parametrize('scenario',['info','partial','duplicate_abort'])

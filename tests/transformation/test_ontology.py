@@ -796,7 +796,9 @@ def test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes
     assert destination.is_file()
     sidecar=destination.with_name(destination.stem+'.provenance.ttl')
     assert sidecar.is_file()
-    graph=Graph().parse(sidecar,format='turtle')
+    graph = delivered.observation.provenance
+    assert graph is not None
+    assert_graph_equal(Graph().parse(sidecar, format='turtle'), graph)
     assert_graph_equal(Graph().parse(destination,format='turtle'),delivered.observation.ontology)
     output=_role(delivered.observation,'output')
     assert (output,DCTERMS.isFormatOf,ONTOLOGY) in graph
@@ -1147,8 +1149,11 @@ def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, sourc
         ontology = Graph().parse(destination, format='turtle')
         assert (ONTOLOGY, OWL.versionIRI, URIRef(version)) in ontology
         assert (ONTOLOGY, OWL.imports, DKGM_ONTOLOGY) in ontology
-        sidecar = Graph().parse(destination.with_name(destination.stem + '.provenance.ttl'), format='turtle')
         observed = delivered.observation
+        sidecar = observed.provenance
+        assert sidecar is not None
+        delivered_sidecar = destination.with_name(destination.stem + '.provenance.ttl')
+        assert_graph_equal(Graph().parse(delivered_sidecar, format='turtle'), sidecar)
         output = _role(observed, 'output')
         assert (output, DCTERMS.isFormatOf, ONTOLOGY) in sidecar
         _checksum(sidecar, output, destination.read_bytes())
