@@ -7,7 +7,8 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 from .annotations import TextAnnotations, source_text
-from .diagnostics import DiagnosticCollector
+from .diagnostics import DiagnosticCollector, SourceLocation
+from .dkgm import DKGM_PROPERTIES
 from .identity import class_name_candidate, escape_id, missing_name, naming_text, normalize_name
 from .multiplicity import emit_attribute_multiplicity, parse_relation_multiplicity
 from .properties import PropertyExpressions
@@ -248,7 +249,9 @@ def relation_names(relations: tuple[Relation, ...], groundings: dict[str, tuple[
 def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dict[str, URIRef],
                     inverses: dict[str, URIRef], lexical: dict[str, str], label_mode: str,
                     text: TextAnnotations, diagnostics: DiagnosticCollector, policy: str,
-                    expressions: PropertyExpressions) -> None:
+                    expressions: PropertyExpressions) -> list[tuple[URIRef, SourceLocation]]:
+    """Emit ordinary mappings and return the generic targets and sources of emitted bridges."""
+    bridges: list[tuple[URIRef, SourceLocation]] = []
     for relation in relations:
         source, start, end = relation.source, relation.source_end, relation.target_end
         primary = resources[end.data["id"]]
@@ -314,9 +317,11 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
                 expression = expressions.resolve(occurrence)
                 emit_attribute_multiplicity(graph, owner, expression, bounds)
         stereotype = source.data.get("stereotype")
-        if stereotype in {"memberOf", "subCollectionOf", "subQuantityOf", "componentOf"}:
-            graph.add((primary, RDFS.subPropertyOf, URIRef("https://w3id.org/directkg/vocab/dkgm#" + stereotype)))
+        generic = DKGM_PROPERTIES.get(stereotype)
+        if generic is not None:
+            graph.add((primary, RDFS.subPropertyOf, generic))
             graph.add((primary, RDF.type, OWL.AsymmetricProperty))
+            bridges.append((generic, source.location))
         elif stereotype in {"historicalDependence", "participation", "creation", "termination",
                             "participational", "manifestation"}:
             stereotype_label = "Historical-dependence" if stereotype == "historicalDependence" else stereotype.capitalize()
@@ -333,3 +338,4 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
                             f"The {stereotype} relation semantics are only partially translated.",
                             "Ordinary relation mappings and applicable axioms are retained.",
                             (source.location,), str(primary))
+    return bridges

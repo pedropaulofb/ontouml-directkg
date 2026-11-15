@@ -10,6 +10,7 @@ from .annotations import TextAnnotations
 from .classifiers import allocate_resources, baseline_classes, emit_classes, emit_stereotype_disjointness
 from .chains import emit_material_chains
 from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConversion, export_report
+from .dkgm import DKGM, DKGM_MODES, emit_dkgm
 from .enumerations import collect_enumerations, emit_enumerations
 from .generalizations import emit_generalizations, emit_relation_generalizations
 from .identity import ConfigurationError, is_absolute_iri, select_base
@@ -21,8 +22,6 @@ from .properties import PropertyExpressions, collect_attributes, emit_attributes
 from .relation_axioms import emit_relation_axioms
 from .relations import collect_relations, emit_relations, relation_names
 from .source import apply_identifier_policy, check_stereotypes, index_project, read_project
-
-DKGM_ONTOLOGY = URIRef("https://w3id.org/directkg/vocab/dkgm")
 
 
 @dataclass
@@ -84,11 +83,13 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             inverse_properties: str = "all", no_stereotype_relation_naming: bool = False,
             relation_labels: str = "source-only", material_property_chains: str = "none",
             provenance: str = "embedded", metadata_file: str | Path | None = None,
-            ontology_version_iri: str | None = None) -> ConversionResult:
+            ontology_version_iri: str | None = None, dkgm_vocabulary: str = "import") -> ConversionResult:
     """Convert supported classifier/attribute/binary-relation VP-plugin 0.5.3 JSON.
 
     Embedded provenance is the default. Sidecar mode exposes a separate graph;
     only explicit ``result.deliver(path)`` writes ontology/provenance files.
+    Select the vocabulary delivery with ``dkgm_vocabulary``: the stable import
+    (default), the fixed local core (``embed``), or bridge-target typing (``none``).
     Unresolved naming/recovery branches raise NotImplementedError rather than
     returning an apparently completed partial conversion.
 
@@ -107,6 +108,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
                "relation_labels": (relation_labels, {"source-only", "generated"}),
                "material_property_chains": (material_property_chains,
                                             {"none", "omit-conflicting-constraints", "preserve-conflicting-constraints"}),
+               "dkgm_vocabulary": (dkgm_vocabulary, DKGM_MODES),
                "provenance": (provenance, {"none", "embedded", "sidecar"})}
     for name, (value, allowed) in choices.items():
         if not isinstance(value, str) or value not in allowed:
@@ -154,11 +156,10 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         text = TextAnnotations(project, language, diagnostics)
         graph = Graph(bind_namespaces="none")
         for prefix, namespace in (("", base), ("rdf", RDF), ("rdfs", RDFS), ("owl", OWL),
-                                  ("xsd", XSD), ("dcterms", DCTERMS), ("dkgm", str(DKGM_ONTOLOGY) + "#")):
+                                  ("xsd", XSD), ("dcterms", DCTERMS), ("dkgm", DKGM)):
             graph.bind(prefix, namespace)
         ontology = URIRef(ontology_iri)
         graph.add((ontology, RDF.type, OWL.Ontology))
-        graph.add((ontology, OWL.imports, DKGM_ONTOLOGY))
         if ontology_version_iri is not None:
             graph.add((ontology, OWL.versionIRI, URIRef(ontology_version_iri)))
         text.describe(graph, ontology, project)
@@ -170,8 +171,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         ends = {end.data["id"]: (relation.target_end.data["id"], reverse)
                 for relation in relations for end, reverse in ((relation.source_end, True), (relation.target_end, False))}
         expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted)
-        emit_relations(graph, relations, resources, inverses, lexical, relation_labels, text,
-                       diagnostics, input_policy, expressions)
+        bridges = emit_relations(graph, relations, resources, inverses, lexical, relation_labels, text,
+                                 diagnostics, input_policy, expressions)
         emit_relation_generalizations(graph, index,
             {relation.source.data["id"]: resources[relation.target_end.data["id"]] for relation in relations},
             {relation.source.data["id"]: inverses[relation.source_end.data["id"]]
@@ -179,6 +180,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         emit_property_references(graph, index, expressions, diagnostics, input_policy)
         emit_material_chains(graph, relations, groundings, attributes, expressions,
                              material_property_chains, diagnostics)
+        emit_dkgm(graph, ontology, dkgm_vocabulary, bridges, diagnostics)
         emit_relation_axioms(graph, relations, expressions)
         metadata = read_metadata(metadata_file, diagnostics, input_policy)
         emit_metadata(graph, ontology, metadata)
@@ -191,6 +193,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
                 "stereotype_policy": stereotype_policy, "inverse_properties": inverse_properties,
                 "stereotype_relation_naming": not no_stereotype_relation_naming,
                 "relation_labels": relation_labels, "material_property_chains": material_property_chains,
+                "dkgm_vocabulary": dkgm_vocabulary,
                 "language": language, "omit_identifiers": omit_identifiers,
                 "metadata_file": str(metadata_file) if metadata_file is not None else None,
                 "provenance": provenance,

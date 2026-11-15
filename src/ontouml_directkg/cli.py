@@ -6,6 +6,7 @@ import sys
 
 from .conversion import ConversionResult, convert
 from .diagnostics import Diagnostic, DiagnosticsExportError
+from .dkgm import DKGM_MODES
 from .identity import ConfigurationError
 from .provenance import SOFTWARE_VERSION
 
@@ -25,6 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-stereotype-relation-naming", action="store_true")
     parser.add_argument("--relation-labels", choices=("source-only", "generated"), default="source-only")
     parser.add_argument("--material-property-chains", choices=("none", "omit-conflicting-constraints", "preserve-conflicting-constraints"), default="none")
+    parser.add_argument("--dkgm-vocabulary", choices=DKGM_MODES, default="import",
+                        help="Supply the DKGM vocabulary by stable import, local core, or bridge-target declarations")
     parser.add_argument("--language")
     parser.add_argument("--omit-identifiers", action="store_true")
     parser.add_argument("--metadata-file", type=Path)

@@ -3,10 +3,11 @@
 from collections import defaultdict
 from itertools import product
 
-from rdflib import Graph, URIRef
+from rdflib import Graph
 from rdflib.namespace import OWL, RDF
 
 from .chains import _non_simple
+from .dkgm import DKGM_CHAINS, DKGM_ONTOLOGY
 from .properties import PropertyExpressions
 from .relations import Relation
 
@@ -16,27 +17,20 @@ _CHARACTERISTICS = {
     "participational": OWL.AsymmetricProperty,
     "externalDependence": OWL.IrreflexiveProperty,
 }
-_DKGM_ONTOLOGY = URIRef("https://w3id.org/directkg/vocab/dkgm")
-_DKGM_COMPOSITE = {
-    URIRef(str(_DKGM_ONTOLOGY) + "#" + name)
-    for name in ("memberOf", "subCollectionOf", "subQuantityOf")
-}
 
 
 def emit_relation_axioms(graph: Graph, relations: tuple[Relation, ...],
                          expressions: PropertyExpressions) -> None:
     """Add only individually compatible characteristics and aligned pairs.
 
-    DK-GEN-04 fixes the imported vocabulary's three chain-bearing properties.
-    Include those composites in analysis without copying imported axioms into
-    the output or treating their source-specific subproperties as non-simple.
-    Existing axioms and their material-chain policies are never changed here.
+    Local chain conclusions include the embedded DKGM core when present.
+    The stable DKGM import adds its known chain conclusions to the analysis.
     """
     composite = {OWL.topObjectProperty, OWL.bottomObjectProperty}
     composite.update(graph.subjects(OWL.propertyChainAxiom))
     composite.update(graph.subjects(RDF.type, OWL.TransitiveProperty))
-    if (None, OWL.imports, _DKGM_ONTOLOGY) in graph:
-        composite.update(_DKGM_COMPOSITE)
+    if (None, OWL.imports, DKGM_ONTOLOGY) in graph:
+        composite.update(DKGM_CHAINS)
     non_simple = _non_simple(graph, composite)
 
     characterizations, external_dependencies = defaultdict(list), defaultdict(list)
