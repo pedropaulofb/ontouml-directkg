@@ -85,6 +85,8 @@ Preservation depends on the construct, rather than on conversion completing with
 
 OWL profile conformance depends on the particular ontology and its axiom closure. A `completed` transformation can preserve a semantically problematic source or make deliberate partial mappings. DirectKG gives no general profile or consistency guarantee. [OWL profile conformance](../reference/output.md#owl-profile-conformance)
 
+Suitable models and configurations can produce OWL 2 DL-conformant ontologies. Start with material-property chains disabled and assess the resulting axiom closure. [OWL 2 DL compatibility guidance](../reference/output.md#owl-2-dl-compatibility-guidance)
+
 An emitted material-property chain can make properties non-simple, including through applicable property hierarchies and inverse relationships. OWL 2 DL requires simple properties in cardinality restrictions and property-disjointness axioms. The selected chain mode governs the established treatment of affected cardinality and relation-set disjointness constraints. Neither generating mode guarantees general OWL 2 DL conformance.
 
 The five additional relation axioms are checked individually in every material-chain mode. The gate considers property hierarchies, inverse relationships and the generated graph with its applicable import closure for the selected vocabulary mode. In DKGM `none`, the conversion-time gate excludes separately supplied consumer axioms. Those axioms enter an assessment of the consumer's combined ontology. Omit an incompatible addition while retaining compatible ones and established mappings. This gate addresses additional violations without requiring overall conformance or introducing semantic validation. [Compatibility of each addition](../mapping/relations.md#compatibility-of-each-addition)
@@ -93,6 +95,6 @@ Combining chains with other axioms can cause a reasoner to reject an ontology or
 
 ---
 
-Governing rules: §§3–5; DK-GEN-02–04; DK-ATT-02; DK-HO-01, 03; DK-PROP-03–05; DK-REL-01, 07–08, 16; DK-DIAG-01–02, 05, 07; §15; baseline consolidated: **2026-11-13**; repository commit: `5578cc009c70bcf94e23b4154c06d849363e1488`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5578cc009c70bcf94e23b4154c06d849363e1488/documentation/specification/transformation-specification.md).
+Governing rules: §§3–5; DK-GEN-02–04; DK-ATT-02; DK-HO-01, 03; DK-PROP-03–05; DK-REL-01, 07–08, 16; DK-DIAG-01–02, 05, 07; §15; baseline consolidated: **2026-11-13**; repository commit: `b1ddc8f00ba027d144115bace1d6bcfd12a394a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/b1ddc8f00ba027d144115bace1d6bcfd12a394a5/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).

@@ -47,7 +47,7 @@ In `none`, consumers who need the generic entailments must supply the chain axio
 
 The default preserves the established domain axioms, stable import and diagnostic behavior. Enabled provenance records the effective vocabulary mode, including default `import`, so the configuration YAML can differ on a default run. [Effective configuration record](../guides/metadata-and-provenance.md#required-provenance-representation)
 
-**Implementation status.** At `3d38f6018002bc060a907ed909e6398f0332bfe3`, the converter emits the stable import unconditionally. The CLI parser and Python conversion signature lack the vocabulary mode control, and the provenance configuration lacks the mode setting. The table and warning above describe accepted behavior. [CLI parser](https://github.com/pedropaulofb/ontouml-directkg/blob/3d38f6018002bc060a907ed909e6398f0332bfe3/src/ontouml_directkg/cli.py) · [Conversion source](https://github.com/pedropaulofb/ontouml-directkg/blob/3d38f6018002bc060a907ed909e6398f0332bfe3/src/ontouml_directkg/conversion.py)
+**Implementation status.** Development revision `c51bf2b2b96fe10fe63c2d04e866ec65684d62d1` exposes the vocabulary selector as `--dkgm-vocabulary` in the CLI and `dkgm_vocabulary` in Python. Both interfaces produced matching graphs in the default and each explicit mode using the classes-and-attributes example with material chains and provenance disabled. The example emits no DKGM bridges. [Downloadable example](../examples/index.md#downloadable-pairs) · [CLI parser](https://github.com/pedropaulofb/ontouml-directkg/blob/c51bf2b2b96fe10fe63c2d04e866ec65684d62d1/src/ontouml_directkg/cli.py#L29) · [Conversion source](https://github.com/pedropaulofb/ontouml-directkg/blob/c51bf2b2b96fe10fe63c2d04e866ec65684d62d1/src/ontouml_directkg/conversion.py#L80)
 
 ## Source-specific properties
 
@@ -92,6 +92,6 @@ The vocabulary mode and `--material-property-chains` are independent controls. S
 
 ---
 
-Governing rules: §3.3; DK-GEN-04; DK-REL-01, 04, 07, 19; DK-CLS-01; DK-PROP-04; DK-DIAG-01, 04; §15; baseline consolidated: **2026-11-13**, including the **2026-10-24** accepted DKGM identity correction; repository commit: `5578cc009c70bcf94e23b4154c06d849363e1488`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5578cc009c70bcf94e23b4154c06d849363e1488/documentation/specification/transformation-specification.md).
+Governing rules: §3.3; DK-GEN-04; DK-REL-01, 04, 07, 19; DK-CLS-01; DK-PROP-04; DK-DIAG-01, 04; §15; baseline consolidated: **2026-11-13**, including the **2026-10-24** accepted DKGM identity correction; repository commit: `b1ddc8f00ba027d144115bace1d6bcfd12a394a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/b1ddc8f00ba027d144115bace1d6bcfd12a394a5/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
