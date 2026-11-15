@@ -172,12 +172,10 @@ def _semantic_name(relation: Relation) -> str | None:
         left, right = a in {"mode", "quality"}, b in {"mode", "quality"}
         if left != right:
             return "characterizes" if left else "isCharacterizedBy"
-        raise NotImplementedError("The supported input does not distinguish these characterization naming roles")
     if stereotype in selectors:
         role, forward, backward = selectors[stereotype]
         if (a == role) != (b == role):
             return forward if a == role else backward
-        raise NotImplementedError("The supported input does not distinguish these semantic naming roles")
     return None
 
 
