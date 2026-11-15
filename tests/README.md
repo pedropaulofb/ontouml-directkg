@@ -1729,3 +1729,11 @@ The [availability and inclusion correction](coverage.md#f2-correction-for-vocabu
 reads availability as inclusion only when the diagnostic refers to the
 generated output. A warning can report availability from the published
 vocabulary alongside omission from the generated ontology.
+
+## RD-04 general OWL profile claim
+
+The Python serialization adapter binds `to_turtle()` and
+`to_provenance_turtle()` on the observed public conversion result. The two
+round-trip cases parse the returned Turtle and compare it with pre-serialization
+RDF graphs. They check the generated ontology through its live reader.
+See the [RD-04 inventory and validation](coverage.md#rd-04-general-owl-profile-claim--alternative-a).

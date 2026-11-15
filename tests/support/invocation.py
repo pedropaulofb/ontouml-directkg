@@ -1259,6 +1259,20 @@ class _DirectKGInvocation(_UnboundInvocation):
     def read_ontology(self, observation):
         return observation.native.ontology
 
+    def serialize(self, observation, *, target, faults=()):
+        """Read the native result's public Turtle serialization."""
+        if faults:
+            self._unavailable()
+        method = {"ontology": "to_turtle", "provenance": "to_provenance_turtle"}[target]
+        serializer = getattr(observation.native, method, None)
+        if not callable(serializer):
+            raise ImplementationUnavailable(f"Bind the public Python {target} serializer")
+        try:
+            turtle = serializer()
+        except ValueError as exc:
+            return SerializationObservation(data=None, failure=exc)
+        return SerializationObservation(data=turtle.encode("utf-8"))
+
     def read_property_stereotype_comments(self, observation):
         """Verified absence reader for the current, incomplete producer.
 

@@ -1,13 +1,15 @@
 # Requirement-to-test inventory
 
-**Current assignment authority:** Configurable DKGM vocabulary delivery,
-Alternative A, independently Architect-reviewed **OK, no findings** at
-`31ee95dbc43cd411987862a81b80f6f8383e2761`. Behavioral source
-`documentation/specification/transformation-specification.md`, blob
-`2fffde5a289558861f4403eca71cce230956179b` at `5860e7deb462e89662a47620d2bec02e732538f2`. Organization
+**Current assignment authority:** RD-04 general OWL profile claim, Alternative A.
+The owner accepted all three boundaries and forwarded independent Architect
+Reviewer **OK, no findings** at `5578cc009c70bcf94e23b4154c06d849363e1488`.
+Behavioral source `documentation/specification/transformation-specification.md`,
+blob `2fffde5a289558861f4403eca71cce230956179b` at
+`bb1481b345f9e2c5bdd98af3c0e5554522cc17c7`. Organization
 `documentation/specification/test-suite-structure.md`, blob
-`250a059d46377360aeecdb5176310bd36bde7825`. Exact nodes and validation appear
-under the current decision below.
+`250a059d46377360aeecdb5176310bd36bde7825`. The DKGM test gate closed with
+independent Test Reviewer **OK, no findings** at
+`0eb1b13ca2a8e76eb6d03269a0e10cf5bb79a72b`.
 
 The preceding participational/manifestation test gate is closed with owner-relayed
 independent Test Reviewer **OK, no findings**, at
@@ -3133,8 +3135,8 @@ All 333 behavioral rows are implemented but fail at the missing actual invocatio
 | `tests/transformation/test_ontology.py::test_none_avoids_provenance_only_operations_and_optional_enrichment_failure_is_nonfatal[optional_enrichment]` | DK-GEN-10, DK-GEN-11 | `tests/fixtures/shared/base_iri/input.json` | None mode neither performs provenance-only work nor emits transformation provenance. Optional reliable enrichment failure cannot alone abort; no unspecified diagnostic severity is imposed. Parameters: {"fault_kind":"optional_enrichment"}. |
 | `tests/transformation/test_ontology.py::test_optional_enrichment_failure_keeps_required_provenance[embedded]` | DK-GEN-10, DK-GEN-11 | `tests/fixtures/shared/base_iri/input.json` | Real optional-enrichment failure is observed without aborting; required embedded/separate provenance and source-byte checksum remain available. Parameters: {"mode":"embedded"}. |
 | `tests/transformation/test_ontology.py::test_optional_enrichment_failure_keeps_required_provenance[sidecar]` | DK-GEN-10, DK-GEN-11 | `tests/fixtures/shared/base_iri/input.json` | Real optional-enrichment failure is observed without aborting; required embedded/separate provenance and source-byte checksum remain available. Parameters: {"mode":"sidecar"}. |
-| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[embedded]` | DK-GEN-10, DK-INV-04, DK-REL-07; §3.3 | `tests/fixtures/shared/material_pattern/input.json` | Serialize actual Python ontology and separate provenance to Turtle; compare complete graph isomorphism within the execution, preserve directed chain list order/anonymous inverse expression, and do not require stable prefixes/statement order/bytes. Parameters: {"mode":"embedded"}. |
-| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[sidecar]` | DK-GEN-10, DK-INV-04, DK-REL-07; §3.3 | `tests/fixtures/shared/material_pattern/input.json` | Serialize actual Python ontology and separate provenance to Turtle; compare complete graph isomorphism within the execution, preserve directed chain list order/anonymous inverse expression, and do not require stable prefixes/statement order/bytes. Parameters: {"mode":"sidecar"}. |
+| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[embedded]` | DK-GEN-10, DK-REL-07, DK-INV-04; §3.3 serialization | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`. Same-execution RDF snapshots and inline ordered chain expectation. | Parse the native Python ontology Turtle and compare it with the entire pre-serialization graph. Preserve the ordered chain, anonymous inverse, and live ontology with embedded provenance. RD-04 general OWL profile claim, Alternative A, `5578cc009c70bcf94e23b4154c06d849363e1488`. |
+| `tests/transformation/test_ontology.py::test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists[sidecar]` | DK-GEN-10, DK-REL-07, DK-INV-04; §3.3 serialization | Key: `shared/material_pattern`. Input: `tests/fixtures/shared/material_pattern/input.json`. Same-execution RDF snapshots and inline ordered chain expectation. | Parse the native Python ontology and separate provenance Turtle and compare both with their pre-serialization graphs. Preserve the ordered chain, anonymous inverse, and live ontology. RD-04 general OWL profile claim, Alternative A, `5578cc009c70bcf94e23b4154c06d849363e1488`. |
 | `tests/transformation/test_ontology.py::test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes[hospital.ttl]` | DK-DIAG-04, DK-GEN-10 | `tests/fixtures/shared/base_iri/input.json` | Explicit real Python delivery creates sibling output-stem.provenance.ttl; output artifact is linked to ontology and generation with actual filename/Turtle-format evidence and SHA-256 over final serialized ontology bytes. Parameters: {"filename":"hospital.ttl"}. |
 | `tests/transformation/test_ontology.py::test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes[hospital.part.ttl]` | DK-DIAG-04, DK-GEN-10 | `tests/fixtures/shared/base_iri/input.json` | Explicit real Python delivery creates sibling output-stem.provenance.ttl; output artifact is linked to ontology and generation with actual filename/Turtle-format evidence and SHA-256 over final serialized ontology bytes. Parameters: {"filename":"hospital.part.ttl"}. |
 | `tests/transformation/test_ontology.py::test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes[no_extension]` | DK-DIAG-04, DK-GEN-10 | `tests/fixtures/shared/base_iri/input.json` | Explicit real Python delivery creates sibling output-stem.provenance.ttl; output artifact is linked to ontology and generation with actual filename/Turtle-format evidence and SHA-256 over final serialized ontology bytes. Parameters: {"filename":"no_extension"}. |
@@ -6723,3 +6725,65 @@ regression nodes at both revisions. The preceding failure classifications and
 execution limits still apply. Four canonical inputs met their fixture contract,
 the pinned Turtle and all 39 test/support and production Python files parsed,
 and `git diff --check` passed. Pending independent Test Reviewer review.
+
+## RD-04 general OWL profile claim — Alternative A
+
+**Disposition** TEST CHANGE. **Status** Pending independent Test Reviewer review.
+
+The owner accepted all three boundaries, and the independent Architect Reviewer
+returned **OK, no findings** at
+[`5578cc009c70bcf94e23b4154c06d849363e1488`](https://github.com/pedropaulofb/ontouml-directkg/commit/5578cc009c70bcf94e23b4154c06d849363e1488).
+The reviewed §3.3 subsection matches the publication base
+`bb1481b345f9e2c5bdd98af3c0e5554522cc17c7` byte for byte. The intervening
+commit updates public first-release OWL 2 DL guidance. The registered
+contract replaces the former open general profile qualification. Deliverable
+ontologies retain the applicable mappings and serialize as RDF 1.1 Turtle.
+Profile assessment considers the particular ontology and its resolved axiom
+closure. It includes the resolved DKGM import in `import`, the fixed local
+core in `embed`, and consumer-supplied axioms only when assessing the
+consumer's combined ontology in `none`. The existing per-axiom gate, chain
+policies, notices, and transformation outcomes retain their rule conditions.
+
+The two existing Python Turtle rows in the Wave 6 inventory reached an unbound
+serialization operation. The adapter now executes the public result methods.
+The rows retain `shared/material_pattern`, `embedded` and `sidecar`, actual
+graph isomorphism, and the ordered chain with an anonymous inverse. The
+assertions compare Turtle with the pre-serialization graphs and reread the
+live ontology after serialization. The controls use real conversion results.
+Both blank-node relabeling controls pass. Seven mutations to serializer
+output or native graphs fail the assertions. A native unavailable-provenance
+error is retained.
+
+Existing executable branches cover the retained behavior. The
+`test_attribute_inclusion_does_not_merge_replace_or_copy_constraints` nodes
+require the mixed-kind inclusion and a completed outcome on
+`properties/references` under all three policies. The
+`test_new_relation_axioms_apply_simplicity_per_axiom_without_repairing_existing_constraints`
+nodes check the gate and mode-dependent constraints on
+`relations/chain_constraints`. The
+`test_emitted_chain_without_conflicting_constraints_still_reports_compatibility`
+nodes check the notice in both generating modes on `shared/material_pattern`.
+The CLI material-chain parity and DKGM parity nodes parse delivered Turtle and
+compare real graphs, order, controls and outcomes. The shared JSON contract
+nodes check the three outcomes and whether each may deliver Turtle.
+
+### Validation
+
+Python 3.12.14, pytest 9.1.1, RDFLib 7.6.0 and PyYAML 6.0.3. Collection
+returned the same **3,526** node IDs. The 135-node selection returned
+**105 passes, 30 existing binding failures** against **103 passes, 32 binding
+failures** at the base. Only the two revised Python round-trip nodes changed
+execution status. All 48 DKGM nodes, 44 shared JSON contract nodes, and 88
+fixture/RDF-helper nodes passed. The remaining selected failures concern
+connector reads (12), metadata reads (4), older CLI report observations (7),
+and fault injection (7). Full-suite execution, general provenance validation,
+live import resolution, and OWL profile-checker execution were unperformed.
+
+```bash
+export PYTHONPATH="$PWD/src"
+python -m pytest --rootdir=. -p no:cacheprovider --collect-only -q tests
+python -m pytest --rootdir=. -p no:cacheprovider -v tests -k 'python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists or provenance_modes_keep_domain_output_and_expose_actual_execution_records or python_report_delivery_failure_is_explicit_and_preserves_diagnostics_and_output_eligibility or attribute_inclusion_does_not_merge_replace_or_copy_constraints or attribute_and_end_references_ignore_semantic_property_kind_compatibility or emitted_chain_without_conflicting_constraints_still_reports_compatibility or chain_constraint_policy_propagates_only_through_actual_generated_hierarchy or new_relation_axioms_apply_simplicity_per_axiom_without_repairing_existing_constraints or test_dkgm_ or imported_non_simple_superproperties_do_not_suppress_simple_source_additions_or_mereology or existing_mereological_asymmetry_survives_non_simple_material_superproperty or (equivalent_cli_and_python_controls and material_property_chains) or cli_exit_outcome_and_json_mirror_cover_success_recovery_abort_and_loss_notices' --tb=short -rN
+python -m pytest --rootdir=. -p no:cacheprovider -v tests/cli/test_cli.py tests/transformation/test_input_diagnostics.py -k shared_json_contract --tb=short -rN
+python -m pytest --rootdir=. -p no:cacheprovider -q tests -k 'fixture_contract or rdf_helper'
+git diff --check
+```

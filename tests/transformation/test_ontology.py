@@ -748,22 +748,33 @@ def test_optional_enrichment_failure_keeps_required_provenance(invoke,source_pat
     _provenance(result,mode,source_path('shared/base_iri').read_bytes())
 
 
-@pytest.mark.parametrize('mode',['embedded','sidecar'])
-def test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists(invoke,source_path,tmp_path,mode):
-    """Rules: DK-GEN-10, DK-REL-07, DK-INV-04. Also §3.3 serialization."""
-    result=invoke.convert(source_path('shared/material_pattern'),options={'base_iri':str(BASE),'iri_strategy':'id','provenance':mode,'material_property_chains':'preserve-conflicting-constraints'},workdir=tmp_path)
-    assert result.outcome=='completed'
-    before=Graph();before+=result.ontology
-    serialized=invoke.serialize(result,target='ontology')
+@pytest.mark.parametrize('mode', ['embedded', 'sidecar'])
+def test_python_turtle_serialization_preserves_the_entire_observed_graph_and_ordered_lists(
+        invoke, source_path, tmp_path, mode):
+    """Rules: DK-GEN-10, DK-REL-07, DK-INV-04. Also §3.3 serialization.
+
+    RD-04 general OWL profile claim, Alternative A, 5578cc009c70bcf94e23b4154c06d849363e1488.
+    """
+    options = {'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': mode,
+               'material_property_chains': 'preserve-conflicting-constraints'}
+    result = invoke.convert(source_path('shared/material_pattern'), options=options, workdir=tmp_path)
+    assert result.outcome == 'completed'
+    before = Graph()
+    before += result.ontology
+    serialized = invoke.serialize(result, target='ontology')
     assert serialized.failure is None and serialized.data is not None
-    parsed=Graph().parse(data=serialized.data,format='turtle')
-    assert_graph_equal(parsed,result.ontology)
-    assert property_chains(parsed,BASE.tMaterial)=={(('inverse',BASE.tLeft),BASE.tRight)}
-    assert_graph_equal(result.ontology,before)
-    if mode=='sidecar':
-        artifact=invoke.serialize(result,target='provenance')
+    parsed = Graph().parse(data=serialized.data, format='turtle')
+    assert_graph_equal(parsed, before)
+    assert property_chains(parsed, BASE.tMaterial) == {(('inverse', BASE.tLeft), BASE.tRight)}
+    graph = invoke.read_ontology(result)
+    assert graph is not None
+    assert_graph_equal(graph, before)
+    if mode == 'sidecar':
+        provenance = Graph()
+        provenance += result.provenance
+        artifact = invoke.serialize(result, target='provenance')
         assert artifact.failure is None and artifact.data is not None
-        assert_graph_equal(Graph().parse(data=artifact.data,format='turtle'),result.provenance)
+        assert_graph_equal(Graph().parse(data=artifact.data, format='turtle'), provenance)
 
 
 @pytest.mark.parametrize('filename',['hospital.ttl','hospital.part.ttl','no_extension'])
