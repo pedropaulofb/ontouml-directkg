@@ -7240,3 +7240,31 @@ base by node, with **66 passes** and **56 existing unbound cases**. All
 **68 fixture-contract cases**, Python parsing and `git diff --check`
 passed. Full-suite execution was outside this validation. Pending
 independent Test Reviewer review.
+
+### RD-04 ontology serialization failure destination follow-up
+
+Independent Test Reviewer **NOT OK** at
+`9ce8be619d513ea1c7ce17223550fc7b596722fe` left F1 and F2 open and kept
+F3 resolved. DK-DIAG-04 and §15 at
+`9cbad6c4ebb5c135e40bb17a275da2a049252fd1` govern this test-only correction.
+
+- **F1.** `test_ontology_serialization_diagnostic_reader_checks_affirmative_claims`
+  rejects a cyclic-list failure at another destination, including when
+  a success statement or a structured source names the requested path.
+  It accepts joint retention of the previous ontology and its provenance
+  sidecar and still rejects overwrite and backup-only claims.
+- **F2.** `test_diagnostics_report_write_error_reader_requires_stage_and_observed_reason`
+  rejects a report-write failure at another destination when a success
+  statement names the requested report. It accepts both the native
+  `ENOTDIR` wording and an equivalent explanation that a component of
+  the path is not a directory.
+- **F3.** The four omitted-report and non-sidecar cases retain their
+  reviewed nodes and assertions.
+
+The four reported controls reproduced against the prior readers and
+returned the expected results against the corrected readers. Both
+updated reader test bodies passed in Brython using a temporary-path
+stand-in for their pure assertions. The pytest workspace was unavailable.
+Native pytest collection, fixture, delivery and regression runs were
+unperformed on this revision. The prior reviewed production behavior
+still determines the end-to-end validation limit.

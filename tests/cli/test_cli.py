@@ -888,12 +888,20 @@ def test_diagnostics_report_write_error_reader_requires_stage_and_observed_reaso
     """Harness only: the distinct report-write error is bound to observed filesystem evidence."""
     destination = tmp_path / 'report-blocker' / 'report.json'
     observed = {'destination': str(destination), 'errno': errno.ENOTDIR, 'reason': 'Not a directory'}
+    other_path = destination.parent / 'other.json'
     for message, expected in (
         (f'[ERROR] DIAGNOSTICS_DELIVERY: Cannot write diagnostics to {destination}: Not a directory', True),
+        (f'[ERROR] DIAGNOSTICS_DELIVERY: Cannot write diagnostics to {destination}: '
+         f'[Errno 20] Not a directory: {str(destination)!r}', True),
         (f'JSON report writing failed for {destination}. The parent is a regular file.', True),
         (f'Could not write {destination}: not a folder.', True),
         (f'The report could not be written to {destination} because its parent path points to a regular file.', True),
         (f'Error writing diagnostics to {destination}: the parent is a regular file.', True),
+        (f'Error writing diagnostics to {destination}: a component of the path is not a directory.', True),
+        (f'Writing the report to {destination} succeeded. '
+         f'Error writing diagnostics to {other_path}: the parent is a regular file.', False),
+        (f'Writing the report to {destination} succeeded but '
+         f'error writing diagnostics to {other_path}: the parent is a regular file.', False),
         (f'Cannot write diagnostics to {destination}.', False),
         (f'Invalid IRI {destination}.', False),
         (f'Invalid IRI {destination}. Its parent is a regular file.', False),

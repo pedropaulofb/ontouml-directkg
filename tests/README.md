@@ -1799,3 +1799,7 @@ provenance at the same serialization boundary.
 The [RD-04 cause and retention follow-up](coverage.md#rd-04-ontology-serialization-failure-cause-and-retention-follow-up)
 ties each asserted reason to its named failure and checks the older ontology
 at the requested destination.
+
+The [RD-04 destination follow-up](coverage.md#rd-04-ontology-serialization-failure-destination-follow-up)
+checks that the reported failure applies to the requested file and
+accepts equivalent retention and report-cause wording.

@@ -936,8 +936,11 @@ def test_ontology_serialization_diagnostic_reader_checks_affirmative_claims(tmp_
     """Harness only: distinguish the RD-04 delivery claims and their denials."""
     destination = tmp_path / 'ontology.ttl'
 
-    def record(message, effect=''):
-        return 'ERROR', 'ILLUSTRATIVE', message, effect, ((str(destination), None, None),), None
+    other_path = tmp_path / 'other.ttl'
+
+    def record(message, effect='', *, structured=True):
+        sources = ((str(destination), None, None),) if structured else ()
+        return 'ERROR', 'ILLUSTRATIVE', message, effect, sources, None
 
     cases = (
         ('serialize', 'Turtle serialization failed because an RDF collection was cyclic.', True),
@@ -961,6 +964,22 @@ def test_ontology_serialization_diagnostic_reader_checks_affirmative_claims(tmp_
     )
     for operation, message, expected in cases:
         assert ontology_serialization_error(record(message), operation, destination) is expected, message
+    for message, effect, structured, expected in (
+        (f'Serialization succeeded for {destination}. Serialization failed for {other_path}: Cyclic RDF list.',
+         '', True, False),
+        (f'Serialization succeeded for {destination}.', f'Error serializing to {other_path}: Cyclic RDF list.',
+         False, False),
+        (f'Serialization succeeded for {destination} but serialization failed for {other_path}: Cyclic RDF list.',
+         '', True, False),
+        (f'Error serializing to {destination}.backup: Cyclic RDF list.', '', True, False),
+        (f'Error serializing the ontology to {destination}: Cyclic RDF list.', '', False, True),
+        (f'At {destination}, ontology serialization failed: Cyclic RDF list.', '', False, True),
+        (f'Ontology serialization failed: Cyclic RDF list. Sources: ontology at {destination}', '', False, True),
+        (f'Error serializing to {other_path}: Cyclic RDF list. Sources: ontology at {destination}',
+         '', False, False),
+    ):
+        event = record(message, effect, structured=structured)
+        assert ontology_serialization_error(event, 'serialize', destination) is expected, (message, effect)
     for message, expected in (
         ('The older ontology file could not be preserved.', False),
         ('The older ontology file could not be preserved and the generated graph remains unchanged.', False),
@@ -971,6 +990,9 @@ def test_ontology_serialization_diagnostic_reader_checks_affirmative_claims(tmp_
         (f'The previous ontology at {destination} stays exactly as it was.', True),
         ('An older file remains at the destination and was not updated for this execution.', True),
         ('The old file was left untouched.', True),
+        ('The previous ontology file and its provenance sidecar were left untouched.', True),
+        ('The previous ontology file and its provenance sidecar were not left untouched.', False),
+        ('The previous ontology file was overwritten and its provenance sidecar was left untouched.', False),
     ):
         assert reports_older_ontology_retained(record('Serialization failed.', message), destination) is expected, message
 

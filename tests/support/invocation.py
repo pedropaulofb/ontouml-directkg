@@ -1226,13 +1226,19 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
     return confirmed
 
 
-def _delivery_clauses(message, effect="", destination=None):
-    """Split diagnostic prose into statements without treating a path or code as evidence."""
+def _diagnostic_destination_pattern(destination):
+    path = re.escape(str(destination))
+    end = r"""(?=$|[\s'":,;)\]}]|\.(?=$|\s))"""
+    return re.compile(rf"(?<![\w./\\]){path}" + end)
+
+
+def _delivery_clauses(message, effect, destination):
+    """Split diagnostic prose while preserving which statement names the destination."""
     clauses = []
+    destination_pattern = _diagnostic_destination_pattern(destination)
     for text in (message, effect):
         text = re.sub(r"^\s*\[ERROR\]\s+(?:[\w-]+:\s*)?", "", text)
-        if destination is not None:
-            text = text.replace(str(destination), "<destination>")
+        text = destination_pattern.sub("<destination>", text)
         text = text.casefold().replace("’", "'")
         text = re.sub(r"\bcan't\b", "cannot", text)
         text = " ".join(re.sub(r"n't\b", " not", text).split())
@@ -1244,7 +1250,7 @@ def _excluded_diagnostic_claim(clause, match):
     prefix, suffix = clause[:match.start()], clause[match.end():]
     return bool(
         re.search(r"\b(?:no|not|never|without|rule[ds]? out|unrelated to)"
-                  r"(?: (?:be|caused by|due to|because of|attributed to|evidence of))?"
+                  r"(?: (?:be|left|caused by|due to|because of|attributed to|evidence of))?"
                   r"(?: (?:a|an|the|any|actual|real))? $", prefix)
         or re.match(r"(?:,? (?:but|yet))? (?:was |were |is |are |had been )?"
                     r"(?:ruled out|excluded|unrelated|did not cause|not (?:the cause|involved|responsible|present|detected|found))\b",
@@ -1268,7 +1274,20 @@ def _delivery_step_failure(step):
     )
 
 
-def _delivery_failure_identifies_cause(clauses, failure, reason):
+def _delivery_claim_targets_destination(clause, claim, explanation_start, structured_destination):
+    """Check the destination attached to the failure, including a leading qualifier."""
+    boundary = r"\b(?:and|but|while|whereas)\b"
+    prefix = re.split(boundary, clause[:claim.start()])[-1]
+    suffix = re.split(boundary, clause[claim.end():explanation_start], maxsplit=1)[0]
+    statement = prefix + claim.group() + suffix
+    other_path = (r"(?:^|[\s'\"(])(?:/|[a-z]:[\\/]|\.\.?[\\/])\S"
+                  r"|\b(?:to|for|at) ['\"]?(?:[\w.-]+[\\/])*[\w.-]+\.(?:ttl|json)\b")
+    if re.search(other_path, statement):
+        return False
+    return "<destination>" in statement or structured_destination
+
+
+def _delivery_failure_identifies_cause(clauses, failure, reason, *, structured_destination=False):
     """Require the native reason in the explanation of the named failure.
 
     The bound forms are an inline causal detail and an immediately following
@@ -1291,6 +1310,9 @@ def _delivery_failure_identifies_cause(clauses, failure, reason):
                 continue
             tail = clause[claim.end():]
             connection = link.search(tail)
+            explanation_start = claim.end() + connection.start() if connection else len(clause)
+            if not _delivery_claim_targets_destination(clause, claim, explanation_start, structured_destination):
+                continue
             if connection is not None:
                 # A connector belonging to another asserted failure is not this cause.
                 if re.search(r"\b(?:failed|succeeded|unrelated)\b", tail[:connection.start()]):
@@ -1308,17 +1330,17 @@ def _delivery_failure_identifies_cause(clauses, failure, reason):
     return False
 
 
-def _diagnostic_names_destination(text, destination):
-    path = re.escape(str(destination))
-    return bool(re.search(rf"(?<![\w/]){path}(?=$|[\s'\":,;)\]}}]|\.(?=$|\s))", text))
-
-
 def ontology_serialization_error(record, operation, destination):
     """Read affirmative stage and cause at the observed destination without fixing a code."""
     severity, _, message, effect, sources, _ = record
-    if severity != "ERROR" or (not _diagnostic_names_destination(message + " " + effect, destination)
-                              and not any(source[0] == str(destination) for source in sources)):
+    if severity != "ERROR":
         return False
+    structured_destination = any(source[0] == str(destination) for source in sources)
+    if not sources:
+        # The CLI appends the source locators to the rendered event.
+        message, _, context = message.partition(" Sources: ")
+        source_text = context.split(" Generated IRI: ", 1)[0]
+        structured_destination = bool(_diagnostic_destination_pattern(destination).search(source_text))
     clauses = _delivery_clauses(message, effect, destination)
     serialize = r"seriali[sz](?:e[drs]?|ing|ation)"
     encode = r"encod(?:e[drs]?|ing)"
@@ -1331,7 +1353,8 @@ def ontology_serialization_error(record, operation, destination):
     else:
         stage = rf"(?:{serialization}|{encode})"
         reason = r"\bsurrogate(?:s| (?:code points?|characters?))?\b"
-    return _delivery_failure_identifies_cause(clauses, _delivery_step_failure(stage), reason)
+    return _delivery_failure_identifies_cause(clauses, _delivery_step_failure(stage), reason,
+                                             structured_destination=structured_destination)
 
 
 def reports_older_ontology_retained(record, destination):
@@ -1348,9 +1371,10 @@ def reports_older_ontology_retained(record, destination):
         if any(not _excluded_diagnostic_claim(clause, match) for match in re.finditer(active_change, clause)):
             return False
         for reference in re.finditer(target, clause):
-            # Scope the statement to this file, before a different artifact or location.
+            # A coordinated subject can share the ontology's retention predicate.
+            following = re.sub(r"^ and (?:its|the) (?:provenance )?sidecar\b", "", clause[reference.end():])
             following = re.split(r"\b(?:sidecar|(?:generated|in-memory) (?:ontology|graph)|graph)\b",
-                                 clause[reference.end():], maxsplit=1)[0]
+                                 following, maxsplit=1)[0]
             if any(not _excluded_diagnostic_claim(following, match) for match in re.finditer(change, following)):
                 return False
             if not re.search(other_location, following):
@@ -1361,13 +1385,13 @@ def reports_older_ontology_retained(record, destination):
 def diagnostics_report_write_error(event, destination, observed_error):
     """Bind a distinct console report-delivery error to the actual failed filesystem call."""
     if (event.severity != "ERROR" or observed_error["destination"] != str(destination)
-            or observed_error["errno"] != errno.ENOTDIR or not observed_error["reason"]
-            or not _diagnostic_names_destination(event.message, destination)):
+            or observed_error["errno"] != errno.ENOTDIR or not observed_error["reason"]):
         return False
-    clauses = _delivery_clauses(event.message, destination=destination)
+    clauses = _delivery_clauses(event.message, "", destination)
     step = r"(?:diagnostics?(?:[- ](?:report|file))?|(?:json )?report)"
     reason = (r"\b(?:not (?:a )?(?:directory|folder)|non[- ]directory(?: (?:parent|component))?"
-              r"|(?:parent(?: path)?|path component) (?:is|was|points to) (?:a )?(?:regular )?file)\b")
+              r"|(?:parent(?: path)?|path component) (?:is|was|points to) (?:a )?(?:regular )?file"
+              r"|(?:path component|component of (?:the )?path) (?:is|was) not (?:a )?(?:directory|folder))\b")
     write_to_path = r"\b(?:cannot|could not|unable to|failed to) (?:write|create|save|deliver|export)(?: to)? <destination>"
     failure = rf"(?:{_delivery_step_failure(step)}|{write_to_path})"
     return _delivery_failure_identifies_cause(clauses, failure, reason)
