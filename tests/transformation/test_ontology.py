@@ -2,6 +2,7 @@
 
 from urllib.parse import urlsplit
 from pathlib import Path
+from types import SimpleNamespace
 import io
 import json
 import copy
@@ -11,7 +12,7 @@ import rdflib
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.invocation import diagnostic_signatures, reports_ontology_delivery_cause
+from tests.support.invocation import Diagnostic, Operation, diagnostic_signatures, reports_ontology_delivery_cause
 from tests.support.data import write_input, fixture_issues
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, property_chains
 
@@ -852,6 +853,28 @@ def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_subst
             and any(reports_ontology_delivery_cause(event, fault) for fault in injected)
             for event in errors
         ), 'The ontology delivery ERROR must identify the destination and known failure reason'
+
+
+def test_delivery_cause_reader_checks_cross_field_attribution(tmp_path):
+    """Harness only: cause interpretation for the DK-DIAG-04 delivery assertions."""
+    operation = Operation('ontology', 'write', tmp_path / 'model.ttl', failed=True)
+    affirmative = 'An I/O failure was injected.'
+    cases = (
+        (affirmative, 'The I/O failure occurred during file creation, before writing began.', False),
+        ('The ontology write failure was not caused by an injected I/O failure.', '', False),
+        (affirmative + ' This happened during file creation.', '', False),
+        ('It occurred while creating the ontology.', affirmative, False),
+        (affirmative, 'The failed operation was file creation.', False),
+        (affirmative, 'It was not the cause of the failed delivery.', False),
+        (affirmative, 'It occurred during writing, not during file creation.', True),
+        ('The test forced an I/O failure while writing the ontology.',
+         'The temporary file was created before this failure.', True),
+        ('Ontology artifact delivery failed.', 'There was a test-induced I/O error.', True),
+    )
+    for message, effect, expected in cases:
+        raw = SimpleNamespace(message=message, effect=effect)
+        diagnostic = Diagnostic('ERROR', 'ontology_delivery', message, raw=raw)
+        assert reports_ontology_delivery_cause(diagnostic, operation) is expected, (message, effect)
 
 
 def test_rdf_helper_rooted_projection_keeps_list_connections_without_freezing_metadata():

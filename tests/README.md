@@ -1767,3 +1767,8 @@ The [F7 correction](coverage.md#independent-test-reviewer-f7-correction)
 checks the reported cause against the create or write operation in the
 native fault trace. A denial or a conflicting stage in either diagnostic
 field fails the assertion. Equivalent affirmative wording remains valid.
+
+The [F7 follow-up](coverage.md#independent-test-reviewer-f7-follow-up)
+checks both diagnostic fields for references to the cause or operation.
+A harness regression records the cross-field conflict, the embedded
+denial, and valid equivalent wording.
