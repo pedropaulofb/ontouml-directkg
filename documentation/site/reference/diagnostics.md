@@ -49,11 +49,19 @@ Do not deliver the graph accumulated during an aborted conversion, even when use
 
 `completed` does not guarantee losslessness, semantic consistency, or an OWL profile. Required-provenance construction failure aborts before delivery under every policy; later ontology-file, sidecar, or diagnostics-file delivery failures **do not change an established transformation outcome**. Delivery must be reported separately. [CLI exit codes](../guides/cli.md#exit-codes-and-delivery-failures) distinguish codes `0`–`6`; code `1` does not suppress eligible output.
 
+### Unexpected internal failures during transformation
+
+If an unexpected internal error stops transformation after conversion has started and DirectKG can still report it, the outcome is `aborted` under every input policy, including `best-effort`. Retain all earlier diagnostics and add an ERROR identifying the internal failure, with stage and cause when available. Python exposes the outcome and diagnostics and withholds the accumulated ontology graph. The run delivers neither an ontology file nor a provenance sidecar.
+
+The CLI attempts requested JSON export after recording the ERROR. A successfully written report uses the shared schema and includes `aborted`, the preceding diagnostics, and the internal-failure ERROR. The CLI uses exit `3` when no report was requested or export succeeds. If the requested report cannot be written, both failures appear on the console and the CLI exits `4`. Exact diagnostic identifiers remain open. [CLI exit codes and example](../guides/cli.md#exit-codes-and-delivery-failures)
+
+**Implementation status.** At [development revision `d933d65d29811e5d6fff5a13c9ae3136a4a30713`](https://github.com/pedropaulofb/ontouml-directkg/blob/d933d65d29811e5d6fff5a13c9ae3136a4a30713/src/ontouml_directkg/cli.py#L89), an unexpected exception from conversion can escape before the CLI report-export path. The behavior above describes the accepted contract.
+
 ## Diagnostic collection and export
 
-Retain every diagnostic actually produced, preserving severity, meaning, and applicable source information. Python structured access remains available after policy-driven abortion for all events produced before termination. Python persistence is a **separate explicitly invoked JSON export operation**, not automatic writing during conversion. CLI persistence is requested by `--diagnostics-file PATH`; without it, the CLI creates no diagnostics file.
+Retain every diagnostic actually produced, preserving severity, meaning, and applicable source information. Python structured access remains available after a policy-driven abort or a reportable unexpected internal failure during transformation, covering all diagnostics produced before termination. Python persistence is a **separate explicitly invoked JSON export operation**, not automatic writing during conversion. CLI persistence is requested by `--diagnostics-file PATH`; without it, the CLI creates no diagnostics file.
 
-Both exports use the same report schema/content contract, exposing the outcome and mirroring produced INFO, compatibility notices, warnings, and errors—including produced reports of omitted, unsupported, invalid, ignored, or approximated source information. Attempt requested CLI export after an accepted abort and after recording specified ontology/sidecar delivery failures.
+Both exports use the same report schema/content contract, exposing the outcome and mirroring produced INFO, compatibility notices, warnings, and errors—including produced reports of omitted, unsupported, invalid, ignored, or approximated source information. Attempt requested CLI export after a policy-driven abort, after recording a reportable unexpected internal failure during transformation, and after recording specified ontology or sidecar delivery failures.
 
 Console thresholds filter only display: `info` shows INFO/WARNING/ERROR, `warning` shows WARNING/ERROR, and `error` shows ERROR. Hidden diagnostics remain in complete structured access and requested exports. Filtering changes neither transformation behavior, collection, recovery, abortion, outcome, output eligibility, nor exit-code selection.
 
@@ -234,7 +242,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-16**; repository commit: `9c38583f5999e2f8ba26be0b3e451e5d1514e756`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9c38583f5999e2f8ba26be0b3e451e5d1514e756/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

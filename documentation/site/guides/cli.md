@@ -20,7 +20,7 @@ Treat the artifacts independently:
 
 - Ontology serialization uses RDF 1.1 Turtle. A completed conversion is eligible for delivery; an aborted conversion must not deliver its accumulated ontology.
 - Separate provenance uses Turtle beside a concrete ontology output path, with the accepted `<output-stem>.provenance.ttl` convention. Do not invent a sidecar name for stdout or an in-memory graph, or deliver a new sidecar when ontology-file delivery failed. See [Artifacts and digests](metadata-and-provenance.md#artifacts-and-digests).
-- `--diagnostics-file PATH` explicitly requests persistent JSON at the complete caller-selected path. When absent, the CLI creates no diagnostics file. For conversions that run, attempt export of every diagnostic produced before termination, including after an accepted abort or a recorded ontology/sidecar delivery failure.
+- `--diagnostics-file PATH` explicitly requests persistent JSON at the complete caller-selected path. When absent, the CLI creates no diagnostics file. For conversions that run, attempt export of every diagnostic produced before termination, including after an accepted abort or a recorded ontology/sidecar delivery failure. This includes reportable internal failures during transformation.
 
 The [console-level control](../reference/controls.md#established-controls) filters presentation: `info` shows INFO/WARNING/ERROR, `warning` shows WARNING/ERROR, and `error` shows ERROR. It changes neither diagnostic production/collection nor transformation behavior, output eligibility, outcome, or exit-code selection. Hidden events remain available through the requested report. This contract does not select stdout/stderr routing or console formatting.
 
@@ -52,7 +52,9 @@ Code `2` concerns rejection before conversion, rather than a competing transform
 
 Required-provenance **construction** failure under `embedded` or `sidecar` aborts before ontology delivery under every input policy: code `3`, overridden by `4` if requested diagnostics delivery also fails. Once provenance is constructed, failure to serialize/create/write its sidecar is instead a **delivery** failure using `5`; keep the successfully written ontology. See [Failure boundaries](metadata-and-provenance.md#failure-boundaries).
 
-Code `6` applies to the specified ontology-file delivery failures under every input policy. Other ontology-output failures and unexpected runtime failures remain unresolved. Do not extend `4` to unspecified diagnostic-export failure mechanisms or present `0` as successful delivery after a specified delivery failure.
+An unexpected internal error that stops transformation after conversion starts causes an `aborted` outcome when DirectKG can still report the failure. This applies under every input policy, including `best-effort`. Exit `3` if no diagnostics file was requested or the report was written. If the requested report cannot be written, exit `4` and show both failures on the console. See [Unexpected internal failures during transformation](../reference/diagnostics.md#unexpected-internal-failures-during-transformation).
+
+Code `6` applies to the specified ontology-file delivery failures under every input policy, including Turtle serialization or encoding after transformation. Other ontology-output and runtime failures outside the defined cases remain unresolved. Do not extend `4` to unspecified diagnostic-export failure mechanisms or present `0` as successful delivery after a specified delivery failure.
 
 ### Reporting and retained results
 
@@ -75,6 +77,7 @@ The following are **contract illustrations, not observed executions**:
 | Only warnings; requested delivery succeeds | `completed`, code `0` |
 | Accepted recovery completes with errors; requested delivery succeeds | `completed-with-errors`, code `1`; partial ontology remains eligible |
 | Duplicate declaration IDs; requested diagnostics file is written | `aborted`, code `3`; no ontology |
+| A placeholder-base WARNING precedes a reportable internal failure during relation mapping | `aborted`, with no ontology or provenance sidecar. A successfully written JSON report includes `aborted`, the earlier WARNING and the internal-failure ERROR. Exit `3` if export succeeds or was not requested. If requested export fails, both failures are shown on the console and the run exits `4`. |
 | Otherwise completed conversion; diagnostics destination is unwritable | Outcome unchanged, code `4` |
 | Ontology written; requested sidecar cannot be written | Outcome unchanged, code `5`; ontology retained |
 | Ontology destination cannot be written after serialization/provenance construction | Outcome unchanged, code `6`; no new sidecar; code `4` if requested diagnostics writing also fails |
@@ -84,7 +87,7 @@ The [Python guide](python.md) explains equivalent transformation capabilities an
 
 ---
 
-Governing rules: §15; DK-DIAG-01, 04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-DIAG-01, 04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-11-16**; repository commit: `9c38583f5999e2f8ba26be0b3e451e5d1514e756`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9c38583f5999e2f8ba26be0b3e451e5d1514e756/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 

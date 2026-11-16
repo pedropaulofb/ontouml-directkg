@@ -46,13 +46,13 @@ The required ontology-serialization capability uses RDF 1.1 Turtle. Prefix names
 
 For each conversion that runs, expose exactly one transformation outcome: `completed`, `completed-with-errors`, or `aborted`. Their conditions and output eligibility are defined in [Outcomes and output eligibility](../reference/diagnostics.md#outcomes-and-output-eligibility). JSON exports store this value in the required `outcome` member; Python result types and representations remain unspecified.
 
-Structured access must retain **every diagnostic actually produced**, including severity, meaning, and applicable source information. It remains available after a policy-driven abort, including duplicate-ID abortion, for everything produced before termination. Do not derive success solely from a quiet console or treat every ERROR as proof that conversion aborted.
+Structured access must retain **every diagnostic actually produced**, including severity, meaning, and applicable source information. It remains available after a policy-driven abort, including duplicate-ID abortion, and after a reportable unexpected internal failure during transformation. Do not derive success solely from a quiet console or treat every ERROR as proof that conversion aborted.
 
 !!! note "Output eligibility depends on the outcome"
 
     An aborted conversion must not deliver its accumulated ontology through Python. A completed `best-effort` conversion can deliver permitted partial output despite retained ERROR diagnostics.
 
-The specification does not prescribe whether the API communicates these outcomes through return values or exceptions.
+When an [unexpected internal failure stops transformation](../reference/diagnostics.md#unexpected-internal-failures-during-transformation) and DirectKG can report it, Python must expose `aborted`, the preceding diagnostics, and the internal-failure ERROR, with stage and cause when available. The accumulated ontology graph is unavailable through Python, and the aborted run delivers neither an ontology file nor a provenance sidecar. The specification does not prescribe whether the API communicates these outcomes through return values or exceptions.
 
 Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. The shared JSON contract fixes report fields and types; exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
 
@@ -82,7 +82,7 @@ See the [metadata/provenance failure reference](metadata-and-provenance.md#failu
 
 ---
 
-Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-16**; repository commit: `9c38583f5999e2f8ba26be0b3e451e5d1514e756`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9c38583f5999e2f8ba26be0b3e451e5d1514e756/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 
