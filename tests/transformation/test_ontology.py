@@ -11,7 +11,7 @@ import rdflib
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.invocation import diagnostic_signatures
+from tests.support.invocation import diagnostic_signatures, reports_ontology_delivery_cause
 from tests.support.data import write_input, fixture_issues
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, property_chains
 
@@ -849,7 +849,7 @@ def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_subst
     if kind == 'ontology':
         assert any(
             (str(failed_path) in event.message or any(source.path == str(failed_path) for source in event.raw.sources))
-            and 'induced_io_failure' in event.facts
+            and any(reports_ontology_delivery_cause(event, fault) for fault in injected)
             for event in errors
         ), 'The ontology delivery ERROR must identify the destination and known failure reason'
 

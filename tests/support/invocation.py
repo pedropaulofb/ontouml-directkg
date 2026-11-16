@@ -1037,16 +1037,48 @@ def dkgm_chain_facts(message, effect):
     return facts
 
 
-def _reports_induced_io_failure(text):
-    """Recognize an induced I/O failure in the observed delivery diagnostic."""
-    words = " ".join(text.casefold().split())
+def reports_ontology_delivery_cause(diagnostic, failed_operation):
+    """Compare observed cause wording with the operation recorded by the fault trace.
+
+    A generic induced I/O failure is sufficient when the diagnostic does not
+    specify a stage. An explicit stage or denial takes precedence over that
+    generic evidence, including when the message and effect disagree.
+    """
     induced = r"(?:injected|forced|simulated|induced)"
-    io_failure = r"(?:i/o|io|ontology (?:creat(?:e|ion)|writ(?:e|ing))) (?:failure|error|fault|exception)"
-    return bool(re.search(
+    stage = r"(?:creat(?:e|ed|ing|ion)|writ(?:e|ing|ten)|wrote)"
+    target = r"(?:(?:ontology|output|destination) )?(?:(?:file|artifact) )?"
+    io_failure = rf"(?:i/o|io|{target}{stage}) (?:failure|error|fault|exception)"
+    cause = re.compile(
         rf"\b{induced}[- ](?:(?:a|an|the) )?{io_failure}\b"
-        rf"|\b{io_failure} (?:was|had been) (?:deliberately |intentionally )?{induced}\b",
-        words,
-    ))
+        rf"|\b{io_failure} (?:was|had been) (?:(?:not|never|deliberately|intentionally) )*{induced}\b"
+    )
+    negation = r"(?:no|not|never|without)"
+    denial_prefix = re.compile(rf"\b{negation}(?: (?:a|an|the|any|actual|real))?(?: test[- ])? *$")
+    denied_injection = re.compile(
+        rf"\b(?:not|never) (?:inject|force|simulate|induce) (?:(?:a|an|the|any) )?{io_failure}\b"
+    )
+    stage_context = re.compile(
+        rf"\b(?:while|during|when|upon|on) "
+        rf"(?:(?:the|it|was|being|attempting to|trying to) )*{target}({stage})\b"
+    )
+
+    confirmed = False
+    for text in (diagnostic.raw.message, diagnostic.raw.effect):
+        words = text.replace(str(failed_operation.path), "").casefold()
+        words = " ".join(re.sub(r"n['’]t\b", " not", words).split())
+        if denied_injection.search(words):
+            return False
+        for statement in re.split(r"(?<=[.!?;]) ", words):
+            for match in cause.finditer(statement):
+                phrase = match.group()
+                if denial_prefix.search(statement[:match.start()]) or re.search(rf"\b{negation}\b", phrase):
+                    return False
+                stages = re.findall(rf"\b{stage}\b", phrase) + stage_context.findall(statement)
+                named_operations = {"create" if word.startswith("creat") else "write" for word in stages}
+                if named_operations and named_operations != {failed_operation.operation}:
+                    return False
+                confirmed = True
+    return confirmed
 
 
 def _observed_diagnostics(events):
@@ -1064,10 +1096,6 @@ def _observed_diagnostics(events):
             if not facts:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
             kind = "dkgm_chain_omission"
-        if kind == "ontology_delivery" and any(
-            _reports_induced_io_failure(text) for text in (event.message, event.effect)
-        ):
-            facts.add("induced_io_failure")
         if event.code in {"RELATION_NAMING", "UNMAPPED_RELATION_STEREOTYPE"}:
             # Interpret each meaning in the bound native rendering. One
             # message/effect can report both, regardless of its primary code.
