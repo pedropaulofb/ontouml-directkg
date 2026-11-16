@@ -1,6 +1,6 @@
 # Input contract
 
-This reference describes **specified input support**, not a compatibility result from an implemented converter.
+This reference describes **specified input support**. The membership section identifies the repeated-reference cases checked against the converter.
 
 ## Exporter contract
 
@@ -84,7 +84,9 @@ These are **specification illustrations** using shorthand references to declarat
 
 Counting repeated references once does not authorize ignoring invalid references, unresolved references, or failed member transformations. Explicitly empty arrays retain their existing structural-error treatment. Missing/malformed membership containers and unresolved categorizer/powertype recovery remain outside this decision. See [class-set recovery](../mapping/classes.md#singleton-and-recovery-boundaries), [relation-set completeness](../mapping/relations.md#relation-set-completeness), and [diagnostic conditions](diagnostics.md#structural-failures-sets-and-connectors).
 
-**Implementation status:** At the [inspected source revision `2b427908a7e29d546486a616a22495ea0424f294`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/src/ontouml_directkg/generalizations.py), both class- and relation-set processing still raise `NotImplementedError` for repeated references. This section explains accepted intended behavior; no successful repeated-reference conversion is asserted here.
+**Verified execution at [revision `6aba9b8819b35648d920802c598f4a35bfe32d1d`](https://github.com/pedropaulofb/ontouml-directkg/commit/6aba9b8819b35648d920802c598f4a35bfe32d1d).** Focused Python conversions of class and relation sets confirmed that repeating valid references left the resulting mappings and diagnostics equivalent to the corresponding unrepeated inputs across the three input policies. The checks covered fully resolved singleton completeness and its INFO, distinct declarations with equal endpoints, and partial failures that preclude singleton completeness. [Class-set checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_classes.py#L306) · [Relation-set checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L1000)
+
+**Historical source observation.** At [`2b427908a7e29d546486a616a22495ea0424f294`](https://github.com/pedropaulofb/ontouml-directkg/blob/2b427908a7e29d546486a616a22495ea0424f294/src/ontouml_directkg/generalizations.py), both class- and relation-set processing had a `NotImplementedError` guard for repeated references.
 
 ## Intentional omissions
 

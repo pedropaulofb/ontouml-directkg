@@ -1,6 +1,6 @@
 # Metadata and provenance
 
-This guide explains **accepted intended contracts**. Descriptive metadata describes the ontology; transformation provenance describes its production. No converter execution, captured provenance record, or working metadata-file invocation is asserted here.
+This guide explains **accepted intended contracts**. Descriptive metadata describes the ontology; transformation provenance describes its production. The recovery section identifies the metadata-list cases checked against the converter.
 
 ## Descriptive metadata
 
@@ -128,7 +128,9 @@ Best-effort metadata omission preserves source-project metadata, required ontolo
 
 With parseable YAML and a valid top-level mapping, `best-effort` validates each member of `contributor`, `keyword`, `source`, and list-valued `landingPage` independently against the [existing field requirements](#external-field-whitelist). Keep every valid member, including valid siblings of invalid members, preserving supplied text and IRIs as separate statements under their existing mappings.
 
-**Implementation status:** At the [inspected development revision](https://github.com/pedropaulofb/ontouml-directkg/blob/b47dd82e3544a045394ccc4c2b2828ccdacb2337/src/ontouml_directkg/metadata.py), mixed valid/invalid lists still reach a `NotImplementedError` guard under `best-effort`. This section explains the accepted I1 recovery contract; no successful mixed-list conversion is asserted here.
+**Verified execution at [revision `6aba9b8819b35648d920802c598f4a35bfe32d1d`](https://github.com/pedropaulofb/ontouml-directkg/commit/6aba9b8819b35648d920802c598f4a35bfe32d1d).** Focused Python and CLI cases covered mixed lists in all four supported fields. Under `best-effort`, the tested conversions retained valid siblings and independent output, with `completed-with-errors` and an ERROR in the Python result or requested CLI report. The tested `strict` and `tolerant` cases aborted. [Python checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_ontology.py#L992) · [CLI checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/cli/test_cli.py#L680)
+
+**Historical source observation.** At [`b47dd82e3544a045394ccc4c2b2828ccdacb2337`](https://github.com/pedropaulofb/ontouml-directkg/blob/b47dd82e3544a045394ccc4c2b2828ccdacb2337/src/ontouml_directkg/metadata.py), mixed valid/invalid lists reached a `NotImplementedError` guard under `best-effort`.
 
 | Supported list contents | Specified `best-effort` result |
 | --- | --- |

@@ -1,6 +1,6 @@
 # Binary relations
 
-This page explains **accepted intended mappings**, not verified converter behavior. Ordinary relations, generalizations, and relation-valued connectors have different output boundaries. DirectKG retains stated directions rather than repairing a model's semantics.
+This page explains **accepted intended mappings**. Revision-pinned execution notes identify the cases checked against the converter. Ordinary relations, generalizations, and relation-valued connectors have different output boundaries. DirectKG retains stated directions rather than repairing a model's semantics.
 
 ## Primary direction and naming
 
@@ -52,7 +52,9 @@ Original relation/target-role labels and descriptions have their [separate text 
 
 Use the structured JSON and its represented direction as authoritative. In the supported binary representation, `properties[0]` is the source end and `properties[1]` the target end; their `propertyType` references identify the endpoint classifiers. These positions establish the primary direction, without supplying unstated semantic roles. Earlier usable relation names and target-end role names still supply lexical text in their established precedence; do not interpret that text as role evidence.
 
-**Implementation status:** These A2 selectors and fallbacks are accepted intended behavior. At the [inspected development revision](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/src/ontouml_directkg/relations.py), reaching semantic naming for any of these six stereotypes still raises `NotImplementedError`. No successful A2 conversion is asserted here.
+**Verified execution at [revision `6aba9b8819b35648d920802c598f4a35bfe32d1d`](https://github.com/pedropaulofb/ontouml-directkg/commit/6aba9b8819b35648d920802c598f4a35bfe32d1d).** Focused Python cases exercised the direction-specific candidates and the six structural selectors below, including endpoint fallback when evidence was insufficient. Separate `strict` cases with two collective endpoints for `memberOf` and two mode endpoints for `characterization` completed with the source–target name, retained the primary property direction and source identifier, and reported the naming warning. [Naming checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L95)
+
+**Historical source observation.** The [`4fdef7bbaf8b73bf1ed0ff47fc793494493083dc` source](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/src/ontouml_directkg/relations.py) raised `NotImplementedError` when semantic naming reached any of the six stereotypes below.
 
 | Stereotype | Supported evidence for the table's lexical roles |
 | --- | --- |
@@ -118,7 +120,9 @@ For example, suppose an unnamed `creation` relation runs from an endurant class 
 
 This is a partial graph, not captured converter output. It omits the ontology header/import, class declarations, annotations, cardinality restrictions, named inverse, and provenance; their independently applicable mappings still apply. The fragment does not establish a complete temporal lifecycle theory. Domain and range retain their [inferential meaning](../concepts/semantics.md#domain-graph-and-inferential-axioms).
 
-**Implementation status:** At the [inspected source revision `d74c0e7da378d88abbf5c400d2e7b3d6488dc35a`](https://github.com/pedropaulofb/ontouml-directkg/blob/d74c0e7da378d88abbf5c400d2e7b3d6488dc35a/src/ontouml_directkg/relations.py), ordinary relation processing has a limitation-warning branch for `historicalDependence` but none for these three stereotypes. Their required limitation reporting is an implementation gap at that revision. This subsection describes accepted intended behavior; no complete end-to-end verification of these treatments is asserted here.
+**Verified warning cases at [revision `6aba9b8819b35648d920802c598f4a35bfe32d1d`](https://github.com/pedropaulofb/ontouml-directkg/commit/6aba9b8819b35648d920802c598f4a35bfe32d1d).** The Python conversions for all three stereotypes completed with the ordinary properties and their residual-semantics warnings, including tested `strict` cases and cases with stereotype naming disabled. [Partial-semantics checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L2332)
+
+**Historical source observation.** At [`d74c0e7da378d88abbf5c400d2e7b3d6488dc35a`](https://github.com/pedropaulofb/ontouml-directkg/blob/d74c0e7da378d88abbf5c400d2e7b3d6488dc35a/src/ontouml_directkg/relations.py), the ordinary relation handler had a limitation-warning branch for `historicalDependence` and lacked one for these three stereotypes.
 
 ### Participational and manifestation
 
@@ -150,7 +154,9 @@ For a **specification illustration**, assume unnamed relations with no usable ta
 
 These are partial graph fragments, not captured converter output. The ontology header/import, class declarations, explicit cardinalities, inverses, labels, descriptions, identifiers, other applicable annotations, and provenance are omitted from the illustration; their governing rules remain applicable. The fragments supply neither a full participant-based decomposition of the meeting nor a complete dispositional or triggering theory. This decision introduces no temporal subsystem, generic event-parthood vocabulary extension, semantic validation, source repair, or overall OWL-profile guarantee.
 
-**Implementation status:** Static inspection at [revision `fb05478031e290b123e766ad5188e4cef9935357`](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relations.py) finds no residual-semantics warning for either stereotype in ordinary relation processing. The [existing axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relation_axioms.py) contains guarded `participational` asymmetry. This subsection explains accepted intended behavior; required warning coverage remains an implementation dependency at that revision. No end-to-end verification of these treatments is asserted here.
+**Verified warning cases at [revision `6aba9b8819b35648d920802c598f4a35bfe32d1d`](https://github.com/pedropaulofb/ontouml-directkg/commit/6aba9b8819b35648d920802c598f4a35bfe32d1d).** The Python conversions for `participational` and `manifestation` completed with their residual-semantics warnings. The `participational` cases exercised emission and compatibility-based omission of asymmetry under each input policy. [Partial-semantics checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L2332) · [Asymmetry gate checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L2557)
+
+**Historical source observation.** The [`fb05478031e290b123e766ad5188e4cef9935357` relation handler](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relations.py) lacked a residual-semantics warning for both stereotypes. Its [axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/fb05478031e290b123e766ad5188e4cef9935357/src/ontouml_directkg/relation_axioms.py) contained guarded `participational` asymmetry.
 
 ### Mediation, characterization, and external dependence
 
@@ -164,7 +170,9 @@ Successfully mapping an eligible ordinary relation with any of these three stere
 
 Independently applicable errors and abort conditions retain their established behavior. Existing diagnostic consolidation, content restrictions, console filtering, [JSON reporting](../reference/diagnostics.md#shared-json-report-contract), and delivery rules apply. This decision selects no exact diagnostic identifier, wording, or count and establishes no new reasoning subsystem, semantic validation, or overall OWL-profile guarantee.
 
-**Implementation status for the five warnings.** Source inspection at `8d4e4acd2ad3bee98c1a425026faa05199381a67` shows a residual-semantics WARNING branch in the ordinary relation handler for `mediation`, `characterization`, `externalDependence`, `bringsAbout` and `triggers`. The separate axiom handler contains the guarded characteristics and paired disjointness. [Warning branch](https://github.com/pedropaulofb/ontouml-directkg/blob/8d4e4acd2ad3bee98c1a425026faa05199381a67/src/ontouml_directkg/relations.py#L327) · [Axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/8d4e4acd2ad3bee98c1a425026faa05199381a67/src/ontouml_directkg/relation_axioms.py)
+**Implementation status for the five warnings.** Source inspection at `8d4e4acd2ad3bee98c1a425026faa05199381a67` showed the residual-semantics warning branch for `mediation`, `characterization`, `externalDependence`, `bringsAbout` and `triggers` and the separate handler for guarded characteristics and paired disjointness. [Warning branch](https://github.com/pedropaulofb/ontouml-directkg/blob/8d4e4acd2ad3bee98c1a425026faa05199381a67/src/ontouml_directkg/relations.py#L327) · [Axiom handler](https://github.com/pedropaulofb/ontouml-directkg/blob/8d4e4acd2ad3bee98c1a425026faa05199381a67/src/ontouml_directkg/relation_axioms.py)
+
+Focused Python conversions at [revision `6aba9b8819b35648d920802c598f4a35bfe32d1d`](https://github.com/pedropaulofb/ontouml-directkg/commit/6aba9b8819b35648d920802c598f4a35bfe32d1d) completed with residual-semantics warnings for all five. The dependency-relation cases exercised gate-based axiom omission and eligible material-chain generation. The `bringsAbout` and `triggers` cases exercised naming success and disabled stereotype naming across input policies. [Dependency warning checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L2587) · [Event warning checks](https://github.com/pedropaulofb/ontouml-directkg/blob/6aba9b8819b35648d920802c598f4a35bfe32d1d/tests/transformation/test_relations.py#L2654)
 
 ### BringsAbout and triggers
 
