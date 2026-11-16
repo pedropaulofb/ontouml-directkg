@@ -2837,7 +2837,7 @@ After successful ontology serialization and construction of any required provena
 
 The delivery failure MUST NOT change the established transformation outcome (`completed` or `completed-with-errors`), modify the generated graph, or change the requested provenance mode.
 
-The CLI MUST report the failure through console diagnostics. Python MUST expose it programmatically while retaining access to the conversion result, including the generated graph and produced diagnostics. Requested CLI JSON diagnostics export MUST still be attempted after recording the failure. The report MUST preserve the established transformation outcome and include the delivery ERROR.
+The CLI MUST report the failure through console diagnostics. Python MUST expose the failure programmatically and keep the produced diagnostics accessible. When serialization or encoding fails, Python MUST also retain access to the conversion result, including the generated graph. Requested CLI JSON diagnostics export MUST still be attempted after recording the failure. The report MUST preserve the established transformation outcome and include the delivery ERROR.
 
 The CLI MUST use exit code `6` for this ontology-file delivery failure. Diagnostic-file delivery failure (`4`) MUST take precedence over `6`; `6` MUST take precedence over `0`, `1`, and `5` when applicable. Existing invalid-invocation and transformation-abort rules remain unchanged.
 
@@ -3271,7 +3271,7 @@ The outcomes `completed` and `completed-with-errors` are eligible for ontology d
 
 ### Ontology-file delivery failures (RD-04, option A)
 
-Both interfaces MUST follow DK-DIAG-04 for failure to serialize or encode the main ontology for a requested file after transformation, and for failure to create or write the requested file after successful serialization and construction of any required provenance. The CLI uses code `6` subject to the precedence below. Python exposes the failure programmatically and retains access to the result, graph, and produced diagnostics. The CLI MUST attempt requested JSON diagnostics export after recording the failure. DK-GEN-10 prohibits a new provenance sidecar when ontology-file delivery fails.
+Both interfaces MUST follow DK-DIAG-04 for failure to serialize or encode the main ontology for a requested file after transformation, and for failure to create or write the requested file after successful serialization and construction of any required provenance. The CLI uses code `6` subject to the precedence below. Python MUST expose the failure programmatically and keep the produced diagnostics accessible in both cases. For serialization or encoding failures, Python MUST also retain access to the conversion result, including the generated graph. The CLI MUST attempt requested JSON diagnostics export after recording the failure. DK-GEN-10 prohibits a new provenance sidecar when ontology-file delivery fails.
 
 ### CLI exit codes (RD-04)
 
