@@ -861,6 +861,13 @@ def test_delivery_cause_reader_checks_cross_field_attribution(tmp_path):
     affirmative = 'An I/O failure was injected.'
     cases = (
         (affirmative, 'The I/O failure occurred during file creation, before writing began.', False),
+        (affirmative, 'The failure was during file creation.', False),
+        ('There was no file creation error. An I/O failure was injected during writing.', '', True),
+        (affirmative, 'The failure was during writing.', True),
+        (affirmative, 'The failure was not during writing.', False),
+        (affirmative, 'There was no write error.', False),
+        (affirmative, 'The failed operation was not file creation.', True),
+        ('No file creation error was injected. An I/O failure was injected during writing.', '', True),
         ('The ontology write failure was not caused by an injected I/O failure.', '', False),
         (affirmative + ' This happened during file creation.', '', False),
         ('It occurred while creating the ontology.', affirmative, False),

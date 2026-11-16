@@ -1772,3 +1772,8 @@ The [F7 follow-up](coverage.md#independent-test-reviewer-f7-follow-up)
 checks both diagnostic fields for references to the cause or operation.
 A harness regression records the cross-field conflict, the embedded
 denial, and valid equivalent wording.
+
+The [F7 stage attribution correction](coverage.md#independent-test-reviewer-f7-stage-attribution)
+applies the same stage comparison to explicit failure labels and phrases
+that say when the failure occurred. It distinguishes an affirmed stage
+from one the diagnostic rules out.

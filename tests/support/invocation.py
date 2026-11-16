@@ -1041,8 +1041,8 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
     """Compare observed cause wording with the operation recorded by the fault trace.
 
     A generic induced I/O failure is sufficient when the diagnostic does not
-    specify a stage. An explicit stage or denial takes precedence over that
-    generic evidence, including when the message and effect disagree.
+    specify a stage. Affirmed and excluded stages must agree with the trace,
+    including when the message and effect express separate claims.
     """
     induced = r"(?:injected|forced|simulated|induced)"
     stage = r"(?:creat(?:e|ed|ing|ion)|writ(?:e|ing|ten)|wrote)"
@@ -1065,43 +1065,58 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
     denied_injection = re.compile(
         rf"\b(?:not|never) (?:inject|force|simulate|induce) (?:(?:a|an|the|any) )?{io_failure}\b"
     )
+    stage_connector = r"(?:while|during|when|upon|on|at)"
     failure_reference = re.compile(
         rf"\b{io_failure}\b|\b(?:it|this|that|{failure}) "
-        r"(?:(?:did )?(?:not |never )?)?(?:happen(?:ed)?|occur(?:red)?|arise|arose|failed|took place)\b"
+        r"(?:(?:did )?(?:not |never )?(?:happen(?:ed)?|occur(?:red)?|arise|arose|failed|took place)\b"
+        rf"|(?:is|was) (?=(?:(?:not|never) )?{stage_connector}\b))"
     )
     operation_in_failure = re.compile(
-        rf"\b(?:{target}({stage}) {failure}|(?:failed operation|failure stage) was {target}({stage}))\b"
+        rf"\b(?:{target}(?P<nominal>{stage}) {failure}"
+        rf"|(?:failed operation|failure stage) was (?:(?P<excluded>not|never) )?{target}(?P<stated>{stage}))\b"
     )
     stage_context = re.compile(
-        rf"\b(?:while|during|when|upon|on|at) "
+        rf"\b{stage_connector} "
         rf"(?:(?:the|it|was|being|attempting to|trying to) )*{target}({stage})\b"
     )
     stage_denial = re.compile(r"\b(?:not|never)(?: (?:happen|occur|arise|take place))? *$")
+
+    def identifies_observed_operation(stage_word):
+        operation = "create" if stage_word.startswith("creat") else "write"
+        return operation == failed_operation.operation
 
     confirmed = False
     for text in (diagnostic.raw.message, diagnostic.raw.effect):
         words = text.replace(str(failed_operation.path), "").casefold()
         words = " ".join(re.sub(r"n['’]t\b", " not", words).split())
         for statement in re.split(r"(?<=[.!?;]) ", words):
-            if denied_injection.search(statement) or denied_reference.search(statement):
+            if denied_reference.search(statement):
                 return False
+            excluded_causes = list(denied_injection.finditer(statement))
             for match in cause.finditer(statement):
                 if (denial_prefix.search(statement[:match.start()])
                         or re.search(rf"\b{negation}\b", match.group())
                         or denial_suffix.match(statement[match.end():])):
+                    excluded_causes.append(match)
+                else:
+                    confirmed = True
+            for excluded in excluded_causes:
+                stage_claim = operation_in_failure.search(excluded.group())
+                if stage_claim is None or identifies_observed_operation(stage_claim["nominal"]):
                     return False
-                confirmed = True
-            # The effect can identify the failure's stage without repeating its cause.
-            for match in operation_in_failure.finditer(statement):
-                operation = "create" if (match[1] or match[2]).startswith("creat") else "write"
-                if operation != failed_operation.operation:
-                    return False
+
+            # Apply the same polarity rule to named failures and stage phrases.
+            stage_claims = [(match, match["nominal"] or match["stated"], bool(match["excluded"]))
+                            for match in operation_in_failure.finditer(statement)]
             if failure_reference.search(statement):
-                for match in stage_context.finditer(statement):
-                    operation = "create" if match[1].startswith("creat") else "write"
-                    negated = stage_denial.search(statement[:match.start()]) is not None
-                    if (operation == failed_operation.operation) == negated:
-                        return False
+                stage_claims.extend((match, match[1], False) for match in stage_context.finditer(statement))
+            for match, stage_word, excluded in stage_claims:
+                prefix = statement[:match.start()]
+                excluded = (excluded or bool(denial_prefix.search(prefix) or stage_denial.search(prefix)
+                                             or denial_suffix.match(statement[match.end():]))
+                            or any(span.start() <= match.start() < span.end() for span in excluded_causes))
+                if identifies_observed_operation(stage_word) == excluded:
+                    return False
     return confirmed
 
 
