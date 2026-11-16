@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-13
+**Consolidated:** 2026-11-16
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -498,7 +498,7 @@ Concrete output-file information—including its filename, serialization format,
 
 Automatic sidecar writing MUST require a concrete output path. DirectKG MUST NOT invent a sidecar filename for stdout or an in-memory graph.
 
-DirectKG MUST NOT deliver a new provenance sidecar for an ontology file whose delivery failed. Existing sidecar-failure behavior remains unchanged when ontology-file delivery succeeds. Ontology-file creation and write failures are governed by DK-DIAG-04 and §15 (RD-04, option A — ontology-file delivery).
+DirectKG MUST NOT deliver a new provenance sidecar for an ontology file whose delivery failed. Existing sidecar-failure behavior remains unchanged when ontology-file delivery succeeds. Ontology serialization or encoding failures during requested file delivery, and ontology-file creation and write failures, are governed by DK-DIAG-04 and §15 (RD-04, option A — ontology-file delivery).
 
 #### Required representation
 
@@ -564,7 +564,7 @@ The failure MUST be reported through existing console and programmatic diagnosti
 
 A failed write MUST NOT leave a partial sidecar presented as a valid result. If an older sidecar remains at the destination, the failure report MUST explicitly state that it was not updated for the current execution.
 
-Required-provenance generation failures before delivery follow the preceding abort rule. Failures to write the ontology itself remain outside this sidecar-delivery rule. Ontology-file creation and write failures after successful ontology serialization and construction of any required provenance follow DK-DIAG-04.
+Required-provenance generation failures before delivery follow the preceding abort rule. Serialization, encoding, creation, and write failures in the delivery of the main ontology follow DK-DIAG-04 under its stage-specific conditions.
 
 ### DK-GEN-11 — Automatically generated metadata and external vocabularies (RD-05 / RD-27 / ODI-CONTROLS)
 
@@ -2735,6 +2735,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Repeated reference objects identifying one declaration | MUST NOT be treated as duplicate declarations under §3.4 | No duplicate-ID failure solely for the repeated references |
 | Repeated membership references resolving to the same generalization within one set | Count as one membership under DK-GEN-12; no additional diagnostic solely for repetition; existing errors and independently required diagnostics remain applicable | No additional fatality solely for repetition under any input policy |
 | Structurally unprocessable source | Error; continuation follows DK-DIAG-05 | Policy-dependent; failure preventing meaningful document processing always aborts |
+| Turtle serialization or encoding fails for a requested ontology file after transformation | ERROR identifies the serialization stage, destination, and available cause under DK-DIAG-04. Preserve existing ontology and provenance-sidecar files. CLI code `6`, subject to diagnostics-file code `4`. | No transformation abort; established outcome unchanged under every input policy |
 | Requested ontology file cannot be created or written after successful ontology serialization and construction of any required provenance | ERROR identifies destination, available failure reason, and failed delivery under DK-DIAG-04; CLI code `6`, subject to diagnostics-file code `4`; retain diagnostic access and attempt requested CLI JSON export | No transformation abort; established outcome unchanged under every input policy |
 | Collision after injective ID escaping | Exceptional; do not merge | Exact behavior not specified |
 
@@ -2828,13 +2829,15 @@ This structure MUST NOT change diagnostic production, consolidation, severity, m
 }
 ```
 
-#### Ontology-file creation and write failures (RD-04, option A)
+#### Ontology-file delivery failures (RD-04, option A)
 
-After successful ontology serialization and construction of any required provenance, failure to create or write the requested ontology file MUST produce an ERROR identifying the destination, available failure reason, and failed delivery. This applies independently of `--input-policy`.
+If Turtle serialization or encoding of the main ontology for a requested file fails after transformation, DirectKG MUST produce an ERROR identifying the serialization stage, destination, available cause, and failed delivery. DirectKG MUST leave any existing ontology file and provenance sidecar untouched and MUST NOT deliver either artifact for that request. If an older ontology file exists at the destination, the failure report MUST state that it was not updated for the current execution.
+
+After successful ontology serialization and construction of any required provenance, failure to create or write the requested ontology file MUST produce an ERROR identifying the destination, available failure reason, and failed delivery. These ontology-file delivery failures are independent of `--input-policy`.
 
 The delivery failure MUST NOT change the established transformation outcome (`completed` or `completed-with-errors`), modify the generated graph, or change the requested provenance mode.
 
-The CLI MUST report the failure through console diagnostics. Python MUST expose it programmatically, with produced diagnostics remaining accessible. Requested CLI JSON diagnostics export MUST still be attempted after recording the failure.
+The CLI MUST report the failure through console diagnostics. Python MUST expose it programmatically while retaining access to the conversion result, including the generated graph and produced diagnostics. Requested CLI JSON diagnostics export MUST still be attempted after recording the failure. The report MUST preserve the established transformation outcome and include the delivery ERROR.
 
 The CLI MUST use exit code `6` for this ontology-file delivery failure. Diagnostic-file delivery failure (`4`) MUST take precedence over `6`; `6` MUST take precedence over `0`, `1`, and `5` when applicable. Existing invalid-invocation and transformation-abort rules remain unchanged.
 
@@ -2842,7 +2845,9 @@ A failed write MUST NOT leave a partial ontology file presented as a valid resul
 
 The provenance-sidecar delivery prerequisite is specified in DK-GEN-10.
 
-**Rationale (non-normative):** A dedicated code distinguishes failure to deliver the main ontology artifact from provenance-sidecar failure accompanying a successfully written ontology. Delivery failure remains separate from transformation success.
+**Rationale (non-normative):** A shared exit code lets callers identify failure to deliver the main ontology. The diagnostic identifies the stage and available cause. Provenance-sidecar failure accompanying a successfully written ontology has its own exit code.
+
+**Example (non-normative):** If transformation completes and Turtle serialization then fails, an existing ontology file remains untouched. A successfully written diagnostics report records `completed` and the serialization ERROR, and the CLI exits `6`. If the requested diagnostics export also fails, the CLI reports both failures on the console and exits `4`.
 
 #### Console severity threshold (RD-04 / CONSOLE-LEVEL)
 
@@ -2885,7 +2890,7 @@ Failure to construct required provenance under DK-GEN-10 MUST produce an ERROR a
 
 External metadata validation is limited to the selected subset under DK-GEN-09. Invalid selected values follow its accepted input-policy pattern; ignored fields MUST NOT trigger field-validation diagnostics. Whole-file metadata failures follow DK-GEN-09: ERROR and abort under `strict` or `tolerant`; ERROR, omit external metadata, and continue under `best-effort`. Provenance-sidecar delivery failures follow DK-GEN-10, remain separate from transformation outcomes, and use code `5` subject to §15's delivery-failure precedence.
 
-Ontology-file creation and write failures after successful ontology serialization and construction of any required provenance follow DK-DIAG-04 and §15 independently of `--input-policy`. These failures MUST NOT change an established `completed` or `completed-with-errors` transformation outcome.
+Ontology-file delivery failures within DK-DIAG-04's scope, including Turtle serialization or encoding failures after transformation, follow DK-DIAG-04 and §15 independently of `--input-policy`. These failures MUST NOT change an established `completed` or `completed-with-errors` transformation outcome.
 
 The intentional omissions in DK-GEN-06 and DK-GEN-07 MUST NOT themselves trigger unsupported- or unrecognized-input diagnostics. Existing structural-input rules remain unchanged.
 
@@ -3264,9 +3269,9 @@ Under DK-DIAG-05, DirectKG MUST NOT deliver the ontology accumulated during a co
 
 The outcomes `completed` and `completed-with-errors` are eligible for ontology delivery; `aborted` prohibits delivery, as defined in DK-DIAG-05. Diagnostics-delivery failure does not change the transformation outcome or this ontology-output eligibility; DK-DIAG-04 governs its reporting. The CLI exit-code mapping below preserves this eligibility, including for code `1`. Python result or exception types remain unspecified.
 
-### Ontology-file creation and write failures (RD-04, option A)
+### Ontology-file delivery failures (RD-04, option A)
 
-Both interfaces MUST follow DK-DIAG-04's ontology-file delivery-failure policy for failure to create or write a requested ontology file after successful ontology serialization and construction of any required provenance. The CLI uses code `6` subject to the precedence below; Python exposes the failure programmatically with produced diagnostics accessible. Requested CLI JSON diagnostics export MUST still be attempted after recording the failure. DK-GEN-10 prohibits a new provenance sidecar when ontology-file delivery failed.
+Both interfaces MUST follow DK-DIAG-04 for failure to serialize or encode the main ontology for a requested file after transformation, and for failure to create or write the requested file after successful serialization and construction of any required provenance. The CLI uses code `6` subject to the precedence below. Python exposes the failure programmatically and retains access to the result, graph, and produced diagnostics. The CLI MUST attempt requested JSON diagnostics export after recording the failure. DK-GEN-10 prohibits a new provenance sidecar when ontology-file delivery fails.
 
 ### CLI exit codes (RD-04)
 
@@ -3280,7 +3285,7 @@ The CLI MUST use the following exit-code mapping within the scope defined here:
 | `3` | Transformation outcome is `aborted`, with no diagnostics-delivery failure. |
 | `4` | A requested diagnostics file could not be created or written. |
 | `5` | Requested provenance-sidecar serialization, creation, or writing failed, without a requested diagnostics-file or ontology-file delivery failure. |
-| `6` | Requested ontology-file creation or writing failed after successful ontology serialization and construction of any required provenance, without a requested diagnostics-file delivery failure. |
+| `6` | Turtle serialization or encoding for a requested ontology file failed after transformation, or the requested ontology file could not be created or written after successful serialization and construction of any required provenance. A requested diagnostics-file delivery failure takes precedence. |
 
 Diagnostics-delivery failure (`4`) MUST take precedence over transformation codes `0`, `1`, and `3`, provenance-sidecar delivery failure (`5`), and ontology-file delivery failure (`6`). Ontology-file delivery failure (`6`) MUST take precedence over `0`, `1`, and `5` when applicable. Code `5` MUST take precedence over transformation codes `0` and `1`, independently of `--input-policy`. The underlying transformation outcome and its diagnostics MUST remain unchanged and available through the applicable diagnostic-access and export mechanisms, with console presentation subject to DK-DIAG-04's threshold.
 
@@ -3292,7 +3297,7 @@ An invalid invocation (`2`) is a CLI-level failure before conversion starts. It 
 
 Rejection of an invalid or unusable supplied base, or an invalid supplied ontology version IRI, under DK-IRI-01 follows this contract: the CLI MUST report a configuration error and exit with code `2`. No conversion starts, and no ontology, transformation outcome, or conversion-diagnostics report is produced for this configuration rejection. Existing exit-code mapping and diagnostic delivery for conversions that run remain unchanged.
 
-Ontology-file creation and write failures within DK-DIAG-04's scope use code `6`. Other ontology-output delivery failures and unexpected runtime failures remain outside this mapping's resolved scope. Failure to construct required provenance under DK-GEN-10 uses abortion code `3`, overridden by `4` if requested diagnostics-file delivery fails. Provenance-sidecar delivery failures are governed by code `5` and DK-GEN-10; code `4` remains reserved for diagnostics-file delivery failure. Code `0` MUST NOT imply successful delivery when such a failure occurs.
+Ontology-file delivery failures within DK-DIAG-04's scope use code `6`, including the defined serialization and encoding failures. Other ontology-output delivery failures and unexpected runtime failures remain outside this mapping's resolved scope. Failure to construct required provenance under DK-GEN-10 uses abortion code `3`, overridden by `4` if requested diagnostics-file delivery fails. Provenance-sidecar delivery failures are governed by code `5` and DK-GEN-10; code `4` remains reserved for diagnostics-file delivery failure. Code `0` MUST NOT imply successful delivery when such a failure occurs.
 
 **Rationale and example (non-normative):** Distinct codes allow automation to distinguish completed error recovery from abortion. A completed `best-effort` conversion with errors returns `1` when requested output delivery succeeds; failure to write its requested diagnostics file instead returns `4`, without changing the transformation outcome.
 
