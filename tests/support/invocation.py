@@ -1045,10 +1045,16 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
     including when the message and effect express separate claims.
     """
     induced = r"(?:injected|forced|simulated|induced)"
-    stage = r"(?:creat(?:e|ed|ing|ion)|writ(?:e|ing|ten)|wrote)"
+    stage_forms = {
+        "create": r"creat(?:e|ed|ing|ion)",
+        "write": r"(?:writ(?:e|ing|ten)|wrote)",
+        "serialize": r"seriali[sz](?:e[ds]?|ing|ation)",
+    }
+    stage = rf"(?:{'|'.join(stage_forms.values())})"
     target = r"(?:(?:ontology|output|destination) )?(?:(?:file|artifact) )?"
     failure = r"(?:failure|error|fault|exception)"
-    io_failure = rf"(?:i/o|io|{target}{stage}) {failure}"
+    named_failure = rf"{target}{stage} {failure}"
+    io_failure = rf"(?:(?:i/o|io) {failure}|{named_failure})"
     cause = re.compile(
         rf"\b{induced}[- ](?:(?:a|an|the) )?{io_failure}\b"
         rf"|\b{io_failure} (?:was|had been) (?:(?:not|never|deliberately|intentionally) )*{induced}\b"
@@ -1067,7 +1073,7 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
     )
     stage_connector = r"(?:while|during|when|upon|on|at)"
     failure_reference = re.compile(
-        rf"\b{io_failure}\b|\b(?:it|this|that|{failure}) "
+        rf"\b{named_failure}\b|\b(?P<generic>(?:(?:i/o|io) )?{failure})\b|\b(?:it|this|that) "
         r"(?:(?:did )?(?:not |never )?(?:happen(?:ed)?|occur(?:red)?|arise|arose|failed|took place)\b"
         rf"|(?:is|was) (?=(?:(?:not|never) )?{stage_connector}\b))"
     )
@@ -1081,9 +1087,7 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
     )
     stage_denial = re.compile(r"\b(?:not|never)(?: (?:happen|occur|arise|take place))? *$")
 
-    def identifies_observed_operation(stage_word):
-        operation = "create" if stage_word.startswith("creat") else "write"
-        return operation == failed_operation.operation
+    observed_stage = re.compile(stage_forms[failed_operation.operation])
 
     confirmed = False
     for text in (diagnostic.raw.message, diagnostic.raw.effect):
@@ -1092,31 +1096,39 @@ def reports_ontology_delivery_cause(diagnostic, failed_operation):
         for statement in re.split(r"(?<=[.!?;]) ", words):
             if denied_reference.search(statement):
                 return False
-            excluded_causes = list(denied_injection.finditer(statement))
+            references = list(failure_reference.finditer(statement))
+            denials = set(denied_injection.finditer(statement))
+            denials.update(reference for reference in references
+                           if reference["generic"] and denial_prefix.search(statement[:reference.start()]))
             for match in cause.finditer(statement):
                 if (denial_prefix.search(statement[:match.start()])
                         or re.search(rf"\b{negation}\b", match.group())
                         or denial_suffix.match(statement[match.end():])):
-                    excluded_causes.append(match)
+                    denials.add(match)
                 else:
                     confirmed = True
-            for excluded in excluded_causes:
-                stage_claim = operation_in_failure.search(excluded.group())
-                if stage_claim is None or identifies_observed_operation(stage_claim["nominal"]):
-                    return False
 
-            # Apply the same polarity rule to named failures and stage phrases.
-            stage_claims = [(match, match["nominal"] or match["stated"], bool(match["excluded"]))
-                            for match in operation_in_failure.finditer(statement)]
-            if failure_reference.search(statement):
-                stage_claims.extend((match, match[1], False) for match in stage_context.finditer(statement))
-            for match, stage_word, excluded in stage_claims:
+            stage_claims = [
+                (match, match["nominal"] or match["stated"], bool(match["excluded"]), match.start())
+                for match in operation_in_failure.finditer(statement)
+            ]
+            if references:
+                for match in stage_context.finditer(statement):
+                    # A timing phrase inherits a denial of the failure it qualifies.
+                    reference = next((ref for ref in reversed(references) if ref.end() <= match.start()),
+                                     references[0])
+                    stage_claims.append((match, match[1], False, reference.start()))
+            scoped_denials = set()
+            for match, stage_word, excluded, anchor in stage_claims:
+                bound_denials = {denial for denial in denials if denial.start() <= anchor < denial.end()}
+                scoped_denials.update(bound_denials)
                 prefix = statement[:match.start()]
-                excluded = (excluded or bool(denial_prefix.search(prefix) or stage_denial.search(prefix)
-                                             or denial_suffix.match(statement[match.end():]))
-                            or any(span.start() <= match.start() < span.end() for span in excluded_causes))
-                if identifies_observed_operation(stage_word) == excluded:
+                excluded = excluded or bool(bound_denials or denial_prefix.search(prefix)
+                                            or stage_denial.search(prefix) or denial_suffix.match(statement[match.end():]))
+                if bool(observed_stage.fullmatch(stage_word)) == excluded:
                     return False
+            if denials - scoped_denials:
+                return False
     return confirmed
 
 

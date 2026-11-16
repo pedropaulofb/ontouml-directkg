@@ -860,6 +860,15 @@ def test_delivery_cause_reader_checks_cross_field_attribution(tmp_path):
     operation = Operation('ontology', 'write', tmp_path / 'model.ttl', failed=True)
     affirmative = 'An I/O failure was injected.'
     cases = (
+        (affirmative, 'There was no I/O failure during writing.', False),
+        (affirmative, 'During writing, there was no I/O failure.', False),
+        (affirmative, 'There was no I/O failure.', False),
+        ('An I/O failure was injected during ontology serialization.', '', False),
+        (affirmative, 'The failure was during ontology serialization.', False),
+        ('The test injected an ontology serialization error.', '', False),
+        ('An I/O failure was injected during writing.', 'There was no I/O failure during serialization.', True),
+        ('An I/O failure was injected during writing.', 'No I/O failure was injected during serialization.', True),
+        ('Ontology serialization succeeded. An I/O failure was injected during writing.', '', True),
         (affirmative, 'The I/O failure occurred during file creation, before writing began.', False),
         (affirmative, 'The failure was during file creation.', False),
         ('There was no file creation error. An I/O failure was injected during writing.', '', True),

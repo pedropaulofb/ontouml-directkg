@@ -1777,3 +1777,8 @@ The [F7 stage attribution correction](coverage.md#independent-test-reviewer-f7-s
 applies the same stage comparison to explicit failure labels and phrases
 that say when the failure occurred. It distinguishes an affirmed stage
 from one the diagnostic rules out.
+
+The [F7 denial scope and serialization correction](coverage.md#independent-test-reviewer-f7-denial-scope-and-serialization)
+binds a denial to the stage that qualifies the denied failure. The
+stage comparison distinguishes ontology serialization from file creation
+and writing.
