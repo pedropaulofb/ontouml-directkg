@@ -2993,6 +2993,8 @@ All 333 behavioral rows are implemented but fail at the missing actual invocatio
 | `tests/cli/test_cli.py::test_cli_ontology_serialization_failure_preserves_conversion_and_report_precedence[report_failure-old_files-encode-tolerant_completed]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 Alternative A. With `tolerant`, inject native UTF-8 encoding failure, retain `completed`, the graph and sidecar mode, preserve both older files byte for byte and report the retained ontology, and verify writer inputs carry the ERROR before the failed export; console shows both failures and exit 4. |
 | `tests/cli/test_cli.py::test_cli_ontology_serialization_failure_preserves_conversion_and_report_precedence[report_failure-old_files-encode-best_effort_completed]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 Alternative A. With `best-effort`, inject native UTF-8 encoding failure, retain `completed`, the graph and sidecar mode, preserve both older files byte for byte and report the retained ontology, and verify writer inputs carry the ERROR before the failed export; console shows both failures and exit 4. |
 | `tests/cli/test_cli.py::test_cli_ontology_serialization_failure_preserves_conversion_and_report_precedence[report_failure-old_files-encode-best_effort_partial]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/binary_relation/input.json` with target endpoint type removed at runtime | RD-04 Alternative A. With `best-effort`, inject native UTF-8 encoding failure, retain `completed-with-errors`, the graph and sidecar mode, preserve both older files byte for byte and report the retained ontology, and verify writer inputs carry the ERROR before the failed export; console shows both failures and exit 4. |
+| `tests/cli/test_cli.py::test_cli_ontology_serialization_failure_without_report_preserves_requested_mode[serialize-none]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 F3. Inject native Turtle serialization failure under strict policy, preserve `completed`, graph and live `none` provenance mode, and require exit 6 and a delivery ERROR, no report option, no report-writer attempt, and no new file. |
+| `tests/cli/test_cli.py::test_cli_ontology_serialization_failure_without_report_preserves_requested_mode[encode-embedded]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 F3. Inject native UTF-8 encoding failure under strict policy, preserve `completed`, graph and live `embedded` provenance mode, and require exit 6 and a delivery ERROR, no report option, no report-writer attempt, and no new file. |
 | `tests/cli/test_cli.py::test_cli_failed_artifacts_are_not_presented_as_valid_and_retained_old_files_are_reported[new_destination-ontology_create]` | DK-DIAG-04, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | Actual ontology create/write and sidecar serialize/create/write failures are ERRORs, use 6/5, appear in console/report, do not advertise failed artifacts as valid, identify unchanged retained old files, retain delivered ontology and suppress sidecar after ontology failure. Parameters: {"kind":"ontology","old_file":false,"operation":"create"}. |
 | `tests/cli/test_cli.py::test_cli_failed_artifacts_are_not_presented_as_valid_and_retained_old_files_are_reported[new_destination-ontology_write]` | DK-DIAG-04, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | Actual ontology create/write and sidecar serialize/create/write failures are ERRORs, use 6/5, appear in console/report, do not advertise failed artifacts as valid, identify unchanged retained old files, retain delivered ontology and suppress sidecar after ontology failure. Parameters: {"kind":"ontology","old_file":false,"operation":"write"}. |
 | `tests/cli/test_cli.py::test_cli_failed_artifacts_are_not_presented_as_valid_and_retained_old_files_are_reported[new_destination-sidecar_serialize]` | DK-DIAG-04, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | Actual ontology create/write and sidecar serialize/create/write failures are ERRORs, use 6/5, appear in console/report, do not advertise failed artifacts as valid, identify unchanged retained old files, retain delivered ontology and suppress sidecar after ontology failure. Parameters: {"kind":"sidecar","old_file":false,"operation":"serialize"}. |
@@ -3201,6 +3203,8 @@ All 333 behavioral rows are implemented but fail at the missing actual invocatio
 | `tests/transformation/test_ontology.py::test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostics[old_files-encode-tolerant_completed]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 Alternative A. With `tolerant`, inject native UTF-8 encoding failure, retain `completed`, the graph and sidecar mode, preserve both older files byte for byte and report the retained ontology, and require a programmatic failure with accessible diagnostics and conversion graph from the delivery result. |
 | `tests/transformation/test_ontology.py::test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostics[old_files-encode-best_effort_completed]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 Alternative A. With `best-effort`, inject native UTF-8 encoding failure, retain `completed`, the graph and sidecar mode, preserve both older files byte for byte and report the retained ontology, and require a programmatic failure with accessible diagnostics and conversion graph from the delivery result. |
 | `tests/transformation/test_ontology.py::test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostics[old_files-encode-best_effort_partial]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/binary_relation/input.json` with target endpoint type removed at runtime | RD-04 Alternative A. With `best-effort`, inject native UTF-8 encoding failure, retain `completed-with-errors`, the graph and sidecar mode, preserve both older files byte for byte and report the retained ontology, and require a programmatic failure with accessible diagnostics and conversion graph from the delivery result. |
+| `tests/transformation/test_ontology.py::test_python_ontology_serialization_failure_preserves_non_sidecar_mode[serialize-embedded]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 F3. Inject native Turtle serialization failure under strict policy, preserve `completed`, graph and live `embedded` provenance mode, and require programmatic failure, accessible diagnostics and result graph, and no new file. |
+| `tests/transformation/test_ontology.py::test_python_ontology_serialization_failure_preserves_non_sidecar_mode[encode-none]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 | `tests/fixtures/shared/base_iri/input.json` | RD-04 F3. Inject native UTF-8 encoding failure under strict policy, preserve `completed`, graph and live `none` provenance mode, and require programmatic failure, accessible diagnostics and result graph, and no new file. |
 | `tests/transformation/test_ontology.py::test_embedded_explicit_delivery_excludes_serialization_artifact_and_self_digest` | DK-GEN-10; §3.3 | `tests/fixtures/shared/base_iri/input.json` | Explicit Python embedded file output preserves RDF literal lexical forms in Turtle but carries no output-artifact representation, self digest or output-file configuration information; no sidecar is created. Parameters: {}. |
 | `tests/transformation/test_ontology.py::test_external_metadata_companion_inputs_preserve_independent_enrichment_under_best_effort[nulls]` | DK-DIAG-05, DK-GEN-09 | `tests/fixtures/shared/base_iri/input.json`; `tests/fixtures/shared/external_metadata/metadata/nulls/metadata.yaml` | Stored all-null/all-empty inputs contribute no fabricated enrichment; partial-invalid acronym produces ERROR while valid title/keyword/license survive exactly. Source class is retained. Parameters: {"variant":"nulls"}. |
 | `tests/transformation/test_ontology.py::test_external_metadata_companion_inputs_preserve_independent_enrichment_under_best_effort[empties]` | DK-DIAG-05, DK-GEN-09 | `tests/fixtures/shared/base_iri/input.json`; `tests/fixtures/shared/external_metadata/metadata/empties/metadata.yaml` | Stored all-null/all-empty inputs contribute no fabricated enrichment; partial-invalid acronym produces ERROR while valid title/keyword/license survive exactly. Source class is retained. Parameters: {"variant":"empties"}. |
@@ -3306,6 +3310,8 @@ collection/enum-assertion helper checks receive no transformation rule credit.
 - `tests/transformation/test_input_diagnostics.py::test_fixture_contract_external_yaml_shapes_are_explicit[root_list]` — Wave 6; harness only. `tests/fixtures/shared/external_metadata/metadata/root_list/metadata.yaml`
 - `tests/transformation/test_input_diagnostics.py::test_fixture_contract_external_yaml_shapes_are_explicit[partial_invalid]` — Wave 6; harness only. `tests/fixtures/shared/external_metadata/metadata/partial_invalid/metadata.yaml`
 - `tests/transformation/test_input_diagnostics.py::test_fixture_contract_external_metadata_expectation_is_valid_rdf` — Wave 6; harness only. `tests/fixtures/transformation/ontology/external_metadata/expected.ttl`
+- `tests/transformation/test_ontology.py::test_ontology_serialization_diagnostic_reader_checks_affirmative_claims` — RD-04 F1, harness only. Inline diagnostic controls distinguish asserted serialization/encoding failures and causes from denials, and recognize affirmative retention of the older ontology.
+- `tests/cli/test_cli.py::test_diagnostics_report_write_error_reader_requires_stage_and_observed_reason` — RD-04 F2, harness only. Inline console controls require a report-write error, the exact destination, and a reason corresponding to the observed filesystem error.
 - `tests/transformation/test_ontology.py::test_delivery_cause_reader_checks_cross_field_attribution` — F7 follow-up, harness only. Inline diagnostic examples cover denials, cross-field stage attribution and equivalent wording for the DK-DIAG-04 delivery assertion.
 - `tests/transformation/test_ontology.py::test_rdf_helper_rooted_projection_keeps_list_connections_without_freezing_metadata` — Wave 6; harness only. No stored fixture; inline RDF/runtime invocation or actual public-control inspection.
 - `tests/transformation/test_ontology.py::test_rdf_helper_provenance_accepts_additional_activity_and_agent_but_rejects_wrong_checksum` — Wave 6; harness only. No stored fixture; inline RDF/runtime invocation or actual public-control inspection.
@@ -7157,3 +7163,42 @@ and **56 unbound fault cases** in the older CLI fault matrix. The new
 binding applies only to the main ontology serializer and encoder. All **68 fixture-contract cases** passed.
 `git diff --check` and Python parsing passed. Full-suite execution was
 outside this validation. Pending independent Test Reviewer review.
+
+### RD-04 ontology serialization failure review corrections F1–F3
+
+The independent Test Reviewer returned **NOT OK** for
+`19d07f28267871441c5d89dd2dda82d1de85ff43`. The Architect Reviewer’s
+**OK** at `9cbad6c4ebb5c135e40bb17a275da2a049252fd1` continues to govern
+ontology-file serialization failures. The publication base
+`9c38583f5999e2f8ba26be0b3e451e5d1514e756` adds the separate rule for
+unexpected failures during transformation. The delivery clauses at issue
+and the production sources are preserved.
+
+| Finding | Corrected evidence |
+| --- | --- |
+| F1 | The shared reader links failure to the stated operation and rejects a denied cause. The older-file assertion checks affirmative retention referring to that file. Inline controls preserve the reviewer’s equivalent wording. |
+| F2 | The CLI trace records the real report writer's `OSError` at the requested path. The distinct console error must describe report delivery and the observed `ENOTDIR` reason. A path alone, an unrelated diagnostic, or the wrong reason fails the harness controls. |
+| F3 | Two CLI nodes omit the report option at the fault boundary and check the writer trace and filesystem. They exercise requested `none` and `embedded` provenance. Two matching Python scope cases preserve non-sidecar provenance through the native result. |
+
+The 48 prior serialization nodes retained their IDs. The six added IDs
+are inventoried above. Both reader harness tests passed. A separate native
+CLI control observed `ENOTDIR` at the writer and matched its actual console
+diagnostic.
+
+```sh
+export PYTHONPATH="$PWD/src"
+python -m pytest --rootdir=. -p no:cacheprovider -q --collect-only tests
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/cli/test_cli.py tests/transformation/test_ontology.py -k 'diagnostic_reader_checks_affirmative_claims or diagnostics_report_write_error_reader'
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/cli/test_cli.py tests/transformation/test_ontology.py -k ontology_serialization_failure --tb=short
+```
+
+Collection retained the **3,578** reviewed IDs and added six. All **52
+delivery cases** reached their injected faults. The current production
+sources propagate both exceptions on Python (**18 cases**) and exit
+`1` with tracebacks in the CLI (**34 cases**). Assertions that follow
+the missing production behavior await corrected sources. The same
+122-case regression selection above matched the publication base by
+node, with **66 passes** and **56 existing unbound cases**. All **68
+fixture-contract cases**, Python parsing, and `git diff --check` passed.
+Full-suite execution was outside this validation. Pending independent
+Test Reviewer review.

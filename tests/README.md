@@ -1790,3 +1790,8 @@ surrogate to the actual UTF-8 encoder. For the CLI it also observes
 the native report writer and tests an inaccessible report destination.
 The reviewed production sources currently propagate both faults, so
 the new cases expose implementation gaps.
+
+The [RD-04 reviewer corrections](coverage.md#rd-04-ontology-serialization-failure-review-corrections-f1f3)
+check affirmative diagnostic claims, bind the separate report error to
+the real writer failure, and exercise omitted reporting and non-sidecar
+provenance at the same serialization boundary.

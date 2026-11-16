@@ -868,13 +868,32 @@ def test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostic
     RD-04 Alternative A, reviewed correction 9cbad6c4ebb5c135e40bb17a275da2a049252fd1.
     Read diagnostics and the graph through the delivery result under the specific serialization/encoding rule.
     """
+    _assert_python_ontology_serialization_failure(invoke, source_path, source_json, tmp_path, policy,
+                                                  partial, operation, old_files, 'sidecar')
+
+
+@pytest.mark.parametrize('operation,provenance', [('serialize', 'embedded'), ('encode', 'none')],
+                         ids=['serialize-embedded', 'encode-none'])
+def test_python_ontology_serialization_failure_preserves_non_sidecar_mode(
+        invoke, source_path, source_json, tmp_path, operation, provenance):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10. Also §15 Python delivery.
+
+    RD-04 Alternative A, reviewed correction 9cbad6c4ebb5c135e40bb17a275da2a049252fd1.
+    Exercise the no-artifact, accessible result contract with a live non-sidecar mode.
+    """
+    _assert_python_ontology_serialization_failure(invoke, source_path, source_json, tmp_path, 'strict',
+                                                  False, operation, False, provenance)
+
+
+def _assert_python_ontology_serialization_failure(invoke, source_path, source_json, tmp_path, policy,
+                                                  partial, operation, old_files, provenance):
     source = source_path('shared/base_iri')
     if partial:
         document = source_json('shared/binary_relation')
         source_element(document, 'tFocus')['propertyType'] = None
         assert fixture_issues(document) == {'unresolved_endpoint'}
         source = write_input(tmp_path, document)
-    options = {'base_iri': str(BASE), 'input_policy': policy, 'iri_strategy': 'id', 'provenance': 'sidecar'}
+    options = {'base_iri': str(BASE), 'input_policy': policy, 'iri_strategy': 'id', 'provenance': provenance}
     result = invoke.convert(source, options=options, workdir=tmp_path)
     before = invoke.report_content(result)
     expected_outcome = 'completed-with-errors' if partial else 'completed'
@@ -894,7 +913,7 @@ def test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostic
     actual = delivered.observation
     after = invoke.report_content(actual)
     assert actual.outcome == after.outcome == expected_outcome
-    assert actual.provenance_mode == 'sidecar'
+    assert actual.provenance_mode == provenance
     assert actual.pre_delivery_ontology is not None
     assert_graph_equal(invoke.read_ontology(actual), actual.pre_delivery_ontology)
     assert actual.valid_artifacts == ()
@@ -911,6 +930,39 @@ def test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostic
     else:
         assert not destination.exists() and not sidecar.exists()
     assert set(tmp_path.iterdir()) == existing
+
+
+def test_ontology_serialization_diagnostic_reader_checks_affirmative_claims(tmp_path):
+    """Harness only: distinguish the RD-04 delivery claims and their denials."""
+    destination = tmp_path / 'ontology.ttl'
+
+    def record(message, effect=''):
+        return 'ERROR', 'ILLUSTRATIVE', message, effect, ((str(destination), None, None),), None
+
+    cases = (
+        ('serialize', 'Turtle serialization failed because an RDF collection was cyclic.', True),
+        ('serialize', 'Turtle serialization failed because of a circular RDF collection.', True),
+        ('serialize', 'Turtle serialization could not be completed because of a cyclic RDF list.', True),
+        ('serialize', 'Cannot serialize the ontology: a cycle in an RDF list.', True),
+        ('serialize', 'Turtle serialization succeeded and file creation failed. A cyclic list was ruled out.', False),
+        ('serialize', 'Turtle serialization succeeded and file creation failed. A cyclic list was encountered.', False),
+        ('serialize', 'Turtle serialization failed. A cyclic RDF list was ruled out.', False),
+        ('serialize', 'No serialization error occurred. File creation failed after finding a cyclic list.', False),
+        ('encode', 'Turtle serialization or UTF-8 encoding failed: surrogates not allowed.', True),
+        ('encode', 'Unable to encode the ontology because of a surrogate code point.', True),
+        ('encode', 'Encoding failed. A surrogate was not the cause.', False),
+        ('encode', 'Encoding failed because it was not caused by a surrogate.', False),
+    )
+    for operation, message, expected in cases:
+        assert ontology_serialization_error(record(message), operation, destination) is expected, message
+    for message, expected in (
+        ('The older ontology file could not be preserved.', False),
+        ('The older ontology file could not be preserved and the generated graph remains unchanged.', False),
+        ('The previous ontology at the destination stays exactly as it was.', True),
+        ('An older file remains at the destination and was not updated for this execution.', True),
+        ('The old file was left untouched.', True),
+    ):
+        assert reports_older_ontology_retained(record('Serialization failed.', message)) is expected, message
 
 
 def test_delivery_cause_reader_checks_cross_field_attribution(tmp_path):

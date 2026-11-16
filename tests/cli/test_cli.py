@@ -1,10 +1,12 @@
 """Actual CLI processes, delivery and parity; no executable name is invented."""
 
 import copy
+import errno
 import json
 from collections import Counter
 from hashlib import sha256
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -14,7 +16,7 @@ from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_signatures,
-                                      dkgm_chain_facts, ontology_serialization_error,
+                                      diagnostics_report_write_error, dkgm_chain_facts, ontology_serialization_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained)
 from tests.support.rdf import assert_graph_equal, property_chains, rooted_graph
 
@@ -790,12 +792,32 @@ def test_cli_ontology_serialization_failure_preserves_conversion_and_report_prec
     RD-04 Alternative A, reviewed correction 9cbad6c4ebb5c135e40bb17a275da2a049252fd1.
     Observe the native converter, serializer/encoder, and actual report writer in the same process.
     """
+    reporting = 'failure' if report_failure else 'written'
+    _assert_cli_ontology_serialization_failure(invoke, tmp_path, policy, scenario, operation, old_files,
+                                               'sidecar', reporting)
+
+
+@pytest.mark.parametrize('operation,provenance', [('serialize', 'none'), ('encode', 'embedded')],
+                         ids=['serialize-none', 'encode-embedded'])
+def test_cli_ontology_serialization_failure_without_report_preserves_requested_mode(
+        invoke, tmp_path, operation, provenance):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10. Also §15 exit 6.
+
+    RD-04 Alternative A, reviewed correction 9cbad6c4ebb5c135e40bb17a275da2a049252fd1.
+    Omission exercises no writer call or unsolicited file, with live non-sidecar mode preserved.
+    """
+    _assert_cli_ontology_serialization_failure(invoke, tmp_path, 'strict', 'clean', operation, False,
+                                               provenance, 'omitted')
+
+
+def _assert_cli_ontology_serialization_failure(invoke, tmp_path, policy, scenario, operation, old_files,
+                                               provenance, reporting):
     source, options, _ = _source(tmp_path, scenario)
-    options.update(input_policy=policy, provenance='sidecar')
+    options.update(input_policy=policy, provenance=provenance)
     destination = tmp_path / 'ontology.ttl'
     sidecar = tmp_path / 'ontology.provenance.ttl'
-    report_path = tmp_path / 'report.json'
-    if report_failure:
+    report_path = None if reporting == 'omitted' else tmp_path / 'report.json'
+    if reporting == 'failure':
         blocker = tmp_path / 'report-blocker'
         blocker.write_bytes(b'Cannot create a child path beneath a regular file')
         report_path = blocker / report_path.name
@@ -813,14 +835,18 @@ def test_cli_ontology_serialization_failure_preserves_conversion_and_report_prec
     trace = process.execution_trace
     fault = trace['ontology_serialization']
     assert fault['faults'] and all(item['operation'] == operation and item['reason'] for item in fault['faults'])
-    assert fault['graph_preserved'] is True and fault['provenance_mode'] == 'sidecar'
+    assert fault['graph_preserved'] is True and fault['provenance_mode'] == provenance
     expected_outcome = 'completed-with-errors' if scenario == 'partial' else 'completed'
     assert converted.outcome == after.outcome == process.observation.outcome == expected_outcome
     if old_files:
         assert destination.read_bytes() == old_ontology and sidecar.read_bytes() == old_sidecar
     else:
         assert not destination.exists() and not sidecar.exists()
-    assert process.returncode == (4 if report_failure else 6), (process.stdout, process.stderr)
+    if reporting == 'omitted':
+        assert '--diagnostics-file' not in process.command
+        assert trace['diagnostics_exports'] == trace['report_at_export'] == trace['report_io_errors'] == []
+        assert set(tmp_path.iterdir()) == existing
+    assert process.returncode == (4 if reporting == 'failure' else 6), (process.stdout, process.stderr)
 
     def records(events):
         return Counter((severity, code, message, effect, tuple(sorted(map(tuple, sources), key=repr)), iri)
@@ -833,6 +859,12 @@ def test_cli_ontology_serialization_failure_preserves_conversion_and_report_prec
     assert errors, after.events
     if old_files:
         assert any(reports_older_ontology_retained(event) for event in errors)
+    console_errors = [event for event in process.console
+                      if ontology_serialization_error((event.severity, None, event.message, '', (), None),
+                                                      operation, destination)]
+    assert console_errors
+    if reporting == 'omitted':
+        return
     assert str(report_path) in trace['diagnostics_exports']
     assert trace['report_at_export']
     for attempt in trace['report_at_export']:
@@ -840,15 +872,39 @@ def test_cli_ontology_serialization_failure_preserves_conversion_and_report_prec
         actual = records(attempt['events'])
         assert before_events <= actual and any(error in actual for error in errors)
 
-    assert any(ontology_serialization_error((event.severity, None, event.message, '', (), None),
-                                            operation, destination) for event in process.console)
-    if report_failure:
-        assert any(event.severity == 'ERROR' and str(report_path) in event.message
-                   for event in process.console)
+    if reporting == 'failure':
+        observed_failures = [error for error in trace['report_io_errors'] if error['destination'] == str(report_path)]
+        assert observed_failures
+        assert any(diagnostics_report_write_error(event, report_path, error)
+                   for event in process.console if event not in console_errors for error in observed_failures)
         assert not report_path.exists() and set(tmp_path.iterdir()) == existing
     else:
+        assert trace['report_io_errors'] == []
         assert _cli_json_report_contract(json.loads(report_path.read_bytes())) == (expected_outcome, after_events)
         assert set(tmp_path.iterdir()) == existing | {report_path}
+
+
+def test_diagnostics_report_write_error_reader_requires_stage_and_observed_reason(tmp_path):
+    """Harness only: the distinct report-write error is bound to observed filesystem evidence."""
+    destination = tmp_path / 'report-blocker' / 'report.json'
+    observed = {'destination': str(destination), 'errno': errno.ENOTDIR, 'reason': 'Not a directory'}
+    for message, expected in (
+        (f'[ERROR] DIAGNOSTICS_DELIVERY: Cannot write diagnostics to {destination}: Not a directory', True),
+        (f'JSON report writing failed for {destination}. The parent is a regular file.', True),
+        (f'Could not write {destination}: not a folder.', True),
+        (f'The report could not be written to {destination} because its parent path points to a regular file.', True),
+        (f'Cannot write diagnostics to {destination}.', False),
+        (f'Invalid IRI {destination}.', False),
+        (f'Invalid IRI {destination}. Its parent is a regular file.', False),
+        (f'Cannot write the report to {destination}: permission denied.', False),
+        (f'Cannot write diagnostics to {destination}. A non-directory parent was ruled out.', False),
+        (f'Could not write the JSON report to {destination.parent / "other.json"}: not a folder.', False),
+        (f'Could not write the JSON report to {destination}.backup: not a folder.', False),
+    ):
+        event = SimpleNamespace(severity='ERROR', message=message)
+        assert diagnostics_report_write_error(event, destination, observed) is expected, message
+    valid = SimpleNamespace(severity='ERROR', message=f'Cannot write diagnostics to {destination}: not a directory.')
+    assert not diagnostics_report_write_error(valid, destination, {**observed, 'errno': errno.EACCES})
 
 
 @pytest.mark.parametrize('kind,operation',[('ontology','create'),('ontology','write'),('sidecar','serialize'),('sidecar','create'),('sidecar','write')],ids=['ontology_create','ontology_write','sidecar_serialize','sidecar_create','sidecar_write'])
