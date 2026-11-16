@@ -14,7 +14,8 @@ from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_signatures,
-                                      dkgm_chain_facts, read_dkgm_mode_setting)
+                                      dkgm_chain_facts, ontology_serialization_error,
+                                      read_dkgm_mode_setting, reports_older_ontology_retained)
 from tests.support.rdf import assert_graph_equal, property_chains, rooted_graph
 
 BASE=Namespace('https://example.test/model#')
@@ -775,6 +776,79 @@ def test_delivery_failure_precedence_keeps_transformation_outcome_and_eligible_o
         else:assert sidecar.is_file() and len(Graph().parse(sidecar,format='turtle'))>0
     for flag,kind in [(diagnostics_failed,'diagnostics'),(ontology_failed,'ontology'),(sidecar_failed and not ontology_failed,'sidecar')]:
         if flag:assert any(op.kind==kind and op.failed and op.raw is not None for op in result.operations or ())
+
+
+@pytest.mark.parametrize('policy,scenario', [(policy, 'clean') for policy in POLICIES] + [('best-effort', 'partial')],
+                         ids=['strict_completed', 'tolerant_completed', 'best_effort_completed', 'best_effort_partial'])
+@pytest.mark.parametrize('operation', ['serialize', 'encode'])
+@pytest.mark.parametrize('old_files', [False, True], ids=['new_files', 'old_files'])
+@pytest.mark.parametrize('report_failure', [False, True], ids=['report_written', 'report_failure'])
+def test_cli_ontology_serialization_failure_preserves_conversion_and_report_precedence(
+        invoke, tmp_path, policy, scenario, operation, old_files, report_failure):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10. Also §15 exit 6 and 4 precedence.
+
+    RD-04 Alternative A, reviewed correction 9cbad6c4ebb5c135e40bb17a275da2a049252fd1.
+    Observe the native converter, serializer/encoder, and actual report writer in the same process.
+    """
+    source, options, _ = _source(tmp_path, scenario)
+    options.update(input_policy=policy, provenance='sidecar')
+    destination = tmp_path / 'ontology.ttl'
+    sidecar = tmp_path / 'ontology.provenance.ttl'
+    report_path = tmp_path / 'report.json'
+    if report_failure:
+        blocker = tmp_path / 'report-blocker'
+        blocker.write_bytes(b'Cannot create a child path beneath a regular file')
+        report_path = blocker / report_path.name
+    old_ontology = b'<urn:old:ontology> a <http://www.w3.org/2002/07/owl#Ontology> .\n'
+    old_sidecar = b'<urn:old:sidecar> <urn:evidence> <urn:old:ontology> .\n'
+    if old_files:
+        destination.write_bytes(old_ontology)
+        sidecar.write_bytes(old_sidecar)
+    existing = set(tmp_path.iterdir())
+
+    process = invoke.cli(source, options=options, workdir=tmp_path, output_path=destination,
+                         diagnostics_path=report_path, faults=(Fault('ontology', operation, destination),))
+    _assert_process(process)
+    converted, after = invoke.cli_report_content(process)
+    trace = process.execution_trace
+    fault = trace['ontology_serialization']
+    assert fault['faults'] and all(item['operation'] == operation and item['reason'] for item in fault['faults'])
+    assert fault['graph_preserved'] is True and fault['provenance_mode'] == 'sidecar'
+    expected_outcome = 'completed-with-errors' if scenario == 'partial' else 'completed'
+    assert converted.outcome == after.outcome == process.observation.outcome == expected_outcome
+    if old_files:
+        assert destination.read_bytes() == old_ontology and sidecar.read_bytes() == old_sidecar
+    else:
+        assert not destination.exists() and not sidecar.exists()
+    assert process.returncode == (4 if report_failure else 6), (process.stdout, process.stderr)
+
+    def records(events):
+        return Counter((severity, code, message, effect, tuple(sorted(map(tuple, sources), key=repr)), iri)
+                       for severity, code, message, effect, sources, iri in events)
+
+    before_events, after_events = records(converted.events), records(after.events)
+    assert before_events <= after_events
+    errors = [event for event in after_events - before_events
+              if ontology_serialization_error(event, operation, destination)]
+    assert errors, after.events
+    if old_files:
+        assert any(reports_older_ontology_retained(event) for event in errors)
+    assert str(report_path) in trace['diagnostics_exports']
+    assert trace['report_at_export']
+    for attempt in trace['report_at_export']:
+        assert attempt['outcome'] == expected_outcome
+        actual = records(attempt['events'])
+        assert before_events <= actual and any(error in actual for error in errors)
+
+    assert any(ontology_serialization_error((event.severity, None, event.message, '', (), None),
+                                            operation, destination) for event in process.console)
+    if report_failure:
+        assert any(event.severity == 'ERROR' and str(report_path) in event.message
+                   for event in process.console)
+        assert not report_path.exists() and set(tmp_path.iterdir()) == existing
+    else:
+        assert _cli_json_report_contract(json.loads(report_path.read_bytes())) == (expected_outcome, after_events)
+        assert set(tmp_path.iterdir()) == existing | {report_path}
 
 
 @pytest.mark.parametrize('kind,operation',[('ontology','create'),('ontology','write'),('sidecar','serialize'),('sidecar','create'),('sidecar','write')],ids=['ontology_create','ontology_write','sidecar_serialize','sidecar_create','sidecar_write'])

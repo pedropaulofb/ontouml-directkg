@@ -6,14 +6,16 @@ from types import SimpleNamespace
 import io
 import json
 import copy
+from collections import Counter
 
 import pytest
 import rdflib
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.invocation import Diagnostic, Operation, diagnostic_signatures, reports_ontology_delivery_cause
-from tests.support.data import write_input, fixture_issues
+from tests.support.invocation import (Diagnostic, Operation, diagnostic_signatures, ontology_serialization_error,
+                                     reports_older_ontology_retained, reports_ontology_delivery_cause)
+from tests.support.data import write_input, fixture_issues, source_element
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, property_chains
 
 
@@ -853,6 +855,62 @@ def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_subst
             and any(reports_ontology_delivery_cause(event, fault) for fault in injected)
             for event in errors
         ), 'The ontology delivery ERROR must identify the destination and known failure reason'
+
+
+@pytest.mark.parametrize('policy,partial', [(policy, False) for policy in POLICIES] + [('best-effort', True)],
+                         ids=['strict_completed', 'tolerant_completed', 'best_effort_completed', 'best_effort_partial'])
+@pytest.mark.parametrize('operation', ['serialize', 'encode'])
+@pytest.mark.parametrize('old_files', [False, True], ids=['new_files', 'old_files'])
+def test_python_ontology_serialization_failure_keeps_result_graph_and_diagnostics(
+        invoke, source_path, source_json, tmp_path, policy, partial, operation, old_files):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10. Also §15 Python delivery.
+
+    RD-04 Alternative A, reviewed correction 9cbad6c4ebb5c135e40bb17a275da2a049252fd1.
+    Read diagnostics and the graph through the delivery result under the specific serialization/encoding rule.
+    """
+    source = source_path('shared/base_iri')
+    if partial:
+        document = source_json('shared/binary_relation')
+        source_element(document, 'tFocus')['propertyType'] = None
+        assert fixture_issues(document) == {'unresolved_endpoint'}
+        source = write_input(tmp_path, document)
+    options = {'base_iri': str(BASE), 'input_policy': policy, 'iri_strategy': 'id', 'provenance': 'sidecar'}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    before = invoke.report_content(result)
+    expected_outcome = 'completed-with-errors' if partial else 'completed'
+    assert before.outcome == expected_outcome and len(invoke.read_ontology(result)) > 0
+
+    destination = tmp_path / 'ontology.ttl'
+    sidecar = tmp_path / 'ontology.provenance.ttl'
+    old_ontology = b'<urn:old:ontology> a <http://www.w3.org/2002/07/owl#Ontology> .\n'
+    old_sidecar = b'<urn:old:sidecar> <urn:evidence> <urn:old:ontology> .\n'
+    if old_files:
+        destination.write_bytes(old_ontology)
+        sidecar.write_bytes(old_sidecar)
+    existing = set(tmp_path.iterdir())
+
+    delivered = invoke.deliver(result, output_path=destination, faults=(Fault('ontology', operation, destination),))
+    assert delivered.failure is not None
+    actual = delivered.observation
+    after = invoke.report_content(actual)
+    assert actual.outcome == after.outcome == expected_outcome
+    assert actual.provenance_mode == 'sidecar'
+    assert actual.pre_delivery_ontology is not None
+    assert_graph_equal(invoke.read_ontology(actual), actual.pre_delivery_ontology)
+    assert actual.valid_artifacts == ()
+    injected = [op for op in actual.operations if (op.kind, op.operation, op.path) == ('ontology', operation, destination)]
+    assert injected and all(op.failed and op.raw is not None for op in injected)
+    before_events, after_events = Counter(before.events), Counter(after.events)
+    assert before_events <= after_events
+    errors = [event for event in after_events - before_events
+              if ontology_serialization_error(event, operation, destination)]
+    assert errors, after.events
+    if old_files:
+        assert destination.read_bytes() == old_ontology and sidecar.read_bytes() == old_sidecar
+        assert any(reports_older_ontology_retained(event) for event in errors)
+    else:
+        assert not destination.exists() and not sidecar.exists()
+    assert set(tmp_path.iterdir()) == existing
 
 
 def test_delivery_cause_reader_checks_cross_field_attribution(tmp_path):

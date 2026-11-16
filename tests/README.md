@@ -1782,3 +1782,11 @@ The [F7 denial scope and serialization correction](coverage.md#independent-test-
 binds a denial to the stage that qualifies the denied failure. The
 stage comparison distinguishes ontology serialization from file creation
 and writing.
+
+The [RD-04 ontology serialization cases](coverage.md#rd-04-ontology-serialization-failures-alternative-a)
+call the public Python delivery method and the real CLI. The invocation
+adapter injects a fault in the native Turtle serializer or submits a
+surrogate to the actual UTF-8 encoder. For the CLI it also observes
+the native report writer and tests an inaccessible report destination.
+The reviewed production sources currently propagate both faults, so
+the new cases expose implementation gaps.
