@@ -193,7 +193,7 @@ Explicit metadata-file read/parse/root failures are ERRORs: strict/tolerant abor
 
 For a parseable top-level mapping under `best-effort`, invalid members of the four supported metadata lists are omitted while every valid sibling, independent metadata field and source transformation is retained under its existing rules. Keep applicable ERROR diagnostics; absent another abort condition, the outcome is `completed-with-errors` with eligible ontology output and existing diagnostic access/delivery. `strict` and `tolerant` still abort. The [list-recovery guide](../guides/metadata-and-provenance.md#recovery-within-metadata-lists) owns the field scope, all-invalid-list case, unchanged boundaries and implementation limitation. I1 introduces no new diagnostic identifier, schema or diagnostic-count requirement.
 
-Required-provenance construction failure aborts before ontology delivery, independently of input policy; unavailable optional enrichment and accepted exclusions do not trigger that abort alone. Later ontology-file, sidecar, and requested diagnostic-file failures are reported separately from transformation outcomes. [Failure boundaries](../guides/metadata-and-provenance.md#failure-boundaries) and [CLI codes](../guides/cli.md#exit-codes-and-delivery-failures) own the exact stage and precedence distinctions.
+Required-provenance construction failure aborts before ontology delivery, independently of input policy; unavailable optional enrichment and accepted exclusions do not trigger that abort alone. Later ontology-file, sidecar, and requested diagnostic-file failures are reported separately from transformation outcomes. Turtle serialization or encoding failure for a requested ontology file produces an ERROR identifying the serialization stage, destination, available cause, and failed delivery. Requested CLI JSON export is attempted after recording the error and reports the established outcome and delivery ERROR if it succeeds. [Failure boundaries](../guides/metadata-and-provenance.md#failure-boundaries) and [CLI codes](../guides/cli.md#exit-codes-and-delivery-failures) own the exact stage and precedence distinctions.
 
 ## Multiplicity parsing and recovery
 
@@ -234,7 +234,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

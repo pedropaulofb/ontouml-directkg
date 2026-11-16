@@ -152,6 +152,7 @@ This recovery rule adds no control, diagnostic identifier or report schema, and 
 | --- | --- |
 | Required provenance cannot be constructed under `embedded` or `sidecar` | ERROR and `aborted` before ontology delivery under every input policy, including `best-effort`; retain diagnostic access and attempt requested CLI JSON export |
 | Constructed sidecar cannot be serialized, created, or written after ontology delivery | ERROR and failed sidecar delivery; retain successfully written ontology and established transformation outcome; expose failure programmatically and include it in requested diagnostics |
+| Turtle serialization or encoding for a requested ontology file fails after transformation | Follow the ontology-delivery policy. Leave any existing ontology and sidecar files untouched. Deliver neither new file. |
 | Requested ontology file cannot be created/written after successful ontology serialization and required-provenance construction | Follow the separate ontology-delivery policy; no new sidecar for that failed ontology file |
 | Requested diagnostics file cannot be created/written | Follow the separate report-delivery policy without changing transformation outcome or ontology-output eligibility |
 
@@ -163,7 +164,7 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 
 ---
 
-Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5; included in the cited consolidation).
 

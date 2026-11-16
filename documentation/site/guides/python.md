@@ -56,7 +56,9 @@ The specification does not prescribe whether the API communicates these outcomes
 
 Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. The shared JSON contract fixes report fields and types; exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
 
-Requested ontology-file creation/write failure, after successful ontology serialization and construction of any required provenance, must be exposed programmatically with diagnostics still accessible. It does not alter the established outcome or graph. A failed write cannot be presented as a valid delivered ontology; an older destination left in place must be identified as not updated. Other unresolved output failures remain outside that specifically accepted failure policy.
+Python must signal failure programmatically and keep produced diagnostics accessible if Turtle serialization or encoding for a requested ontology file fails after transformation, or if creating or writing the file fails after successful serialization and construction of any required provenance. Both categories preserve the established outcome, generated graph, and requested provenance mode.
+
+When serialization or encoding fails, Python must also retain access to the conversion result, including the generated graph. Any existing ontology and sidecar files stay intact, and an older ontology is reported as not updated. If creating or writing the file fails, identify any retained older ontology as not updated and do not present partial output as a valid file. The [delivery contract and implementation status](cli.md#reporting-and-retained-results) describe the accepted behavior and the inspected development revision.
 
 ## Separate exports
 
@@ -80,7 +82,7 @@ See the [metadata/provenance failure reference](metadata-and-provenance.md#failu
 
 ---
 
-Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 

@@ -109,7 +109,7 @@ These issues can affect OWL 2 DL conformance even with material chains disabled.
 
 Transformation outcome and artifact delivery are separate. `completed` and `completed-with-errors` are eligible for ontology delivery, including permitted partial output; `aborted` prohibits delivery of the accumulated ontology. Produced diagnostics remain accessible after accepted aborts, and requested CLI diagnostics export is still attempted. Invalid invocation and rejection of a supplied base or ontology version IRI happen before conversion and do not create a transformation outcome; either IRI rejection produces no conversion-diagnostics report.
 
-A failed ontology-file write does not change an already established transformation outcome or graph, and prevents a new sidecar for that ontology. A failed sidecar delivery leaves successfully written ontology output available. Failed diagnostics-file delivery likewise does not alter transformation outcome or ontology-output eligibility. Delivery failures must be reported explicitly; a partial file must not be presented as a valid ontology or sidecar, and an older destination left in place must be identified as not updated.
+Failure to serialize or encode Turtle for a requested ontology file after transformation leaves any existing ontology and provenance sidecar untouched. Neither new artifact is delivered. Ontology-file creation and write failures after successful serialization and required-provenance construction also prevent a new sidecar. Both categories preserve the established transformation outcome, generated graph, and requested provenance mode. A failed sidecar delivery leaves successfully written ontology output available. Failed diagnostics-file delivery likewise does not alter transformation outcome or ontology-output eligibility. Delivery failures must be reported explicitly; a partial file must not be presented as a valid ontology or sidecar, and an older destination left in place must be identified as not updated.
 
 Required-provenance construction failure is different: with provenance enabled, it aborts before ontology delivery under every input policy. It must not silently change the requested provenance mode. These artifact-level boundaries do not resolve unexpected runtime failures or ontology-output failures outside the specification's defined scope.
 
@@ -117,7 +117,7 @@ See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-deliv
 
 ---
 
-Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01, 09; DK-LBL-02; DK-PROP-03; DK-DIAG-04–05, 07; DK-REL-01, 07; §15; DK-CONF-01–03; baseline consolidated: **2026-11-13**; repository commit: `b1ddc8f00ba027d144115bace1d6bcfd12a394a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/b1ddc8f00ba027d144115bace1d6bcfd12a394a5/documentation/specification/transformation-specification.md).
+Governing rules: §3.3; DK-GEN-03–04, 08–11; DK-IRI-01, 09; DK-LBL-02; DK-PROP-03; DK-DIAG-04–05, 07; DK-REL-01, 07; §15; DK-CONF-01–03; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 
