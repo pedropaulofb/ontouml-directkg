@@ -858,7 +858,7 @@ def _assert_cli_ontology_serialization_failure(invoke, tmp_path, policy, scenari
               if ontology_serialization_error(event, operation, destination)]
     assert errors, after.events
     if old_files:
-        assert any(reports_older_ontology_retained(event) for event in errors)
+        assert any(reports_older_ontology_retained(event, destination) for event in errors)
     console_errors = [event for event in process.console
                       if ontology_serialization_error((event.severity, None, event.message, '', (), None),
                                                       operation, destination)]
@@ -893,10 +893,13 @@ def test_diagnostics_report_write_error_reader_requires_stage_and_observed_reaso
         (f'JSON report writing failed for {destination}. The parent is a regular file.', True),
         (f'Could not write {destination}: not a folder.', True),
         (f'The report could not be written to {destination} because its parent path points to a regular file.', True),
+        (f'Error writing diagnostics to {destination}: the parent is a regular file.', True),
         (f'Cannot write diagnostics to {destination}.', False),
         (f'Invalid IRI {destination}.', False),
         (f'Invalid IRI {destination}. Its parent is a regular file.', False),
         (f'Cannot write the report to {destination}: permission denied.', False),
+        (f'Cannot write diagnostics to {destination}: permission denied. The parent is a regular file but was unrelated.', False),
+        (f'Cannot write diagnostics to {destination}: permission denied. The parent is a regular file.', False),
         (f'Cannot write diagnostics to {destination}. A non-directory parent was ruled out.', False),
         (f'Could not write the JSON report to {destination.parent / "other.json"}: not a folder.', False),
         (f'Could not write the JSON report to {destination}.backup: not a folder.', False),

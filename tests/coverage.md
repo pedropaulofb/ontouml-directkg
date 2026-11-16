@@ -7202,3 +7202,41 @@ node, with **66 passes** and **56 existing unbound cases**. All **68
 fixture-contract cases**, Python parsing, and `git diff --check` passed.
 Full-suite execution was outside this validation. Pending independent
 Test Reviewer review.
+
+### RD-04 ontology serialization failure cause and retention follow-up
+
+Independent Test Reviewer **NOT OK** at
+`d933d65d29811e5d6fff5a13c9ae3136a4a30713` left F1 and F2 open and resolved
+F3. The accepted serialization delivery contract at
+`9cbad6c4ebb5c135e40bb17a275da2a049252fd1` continues to govern.
+
+- **F1.** The ontology reader accepts an affirmative failure statement
+  such as “Error serializing the ontology to [destination]” and requires
+  the observed cause in that failure's inline explanation, explicit
+  reason statement, or complete explanation fragment. A conflicting
+  inline reason cannot borrow evidence from another statement. Retention
+  is checked at the requested path, including a check against a later
+  assertion that the destination was overwritten. A backup alone does
+  not establish retention at the destination.
+- **F2.** The report error reader accepts “Error writing diagnostics to
+  [destination]” and uses the same causal linkage for the real writer's
+  recorded `ENOTDIR`. A permission-denial explanation cannot borrow the
+  regular-file parent from another statement.
+- **F3.** The four reviewed omitted-report and non-sidecar cases retain
+  their exact node IDs and assertions.
+
+All five reported reader dispositions reproduced at the reviewed
+revision. The two updated reader harness nodes passed, including both
+affirmative equivalents, unrelated-cause counterexamples, and wrong-path
+and overwritten-file controls. A native CLI run captured `ENOTDIR` and the
+corrected reader matched the actual console error.
+
+The same commands above collected **3,584 identical node IDs**. The
+**52 delivery cases** reached their injected faults, with **18** uncaught
+Python exceptions and **34** CLI exits of `1` with a traceback on the
+current production sources. The later end-to-end assertions await
+production correction. The same **122** regression outcomes matched the
+base by node, with **66 passes** and **56 existing unbound cases**. All
+**68 fixture-contract cases**, Python parsing and `git diff --check`
+passed. Full-suite execution was outside this validation. Pending
+independent Test Reviewer review.

@@ -1795,3 +1795,7 @@ The [RD-04 reviewer corrections](coverage.md#rd-04-ontology-serialization-failur
 check affirmative diagnostic claims, bind the separate report error to
 the real writer failure, and exercise omitted reporting and non-sidecar
 provenance at the same serialization boundary.
+
+The [RD-04 cause and retention follow-up](coverage.md#rd-04-ontology-serialization-failure-cause-and-retention-follow-up)
+ties each asserted reason to its named failure and checks the older ontology
+at the requested destination.

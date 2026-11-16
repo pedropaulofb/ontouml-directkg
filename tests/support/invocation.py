@@ -1236,7 +1236,7 @@ def _delivery_clauses(message, effect="", destination=None):
         text = text.casefold().replace("’", "'")
         text = re.sub(r"\bcan't\b", "cannot", text)
         text = " ".join(re.sub(r"n't\b", " not", text).split())
-        clauses.extend(re.split(r"(?<=[.!?;])\s+|\s+(?:but|however|yet)\s+", text))
+        clauses.extend(re.split(r"(?<=[.!?;])\s+", text))
     return clauses
 
 
@@ -1246,31 +1246,66 @@ def _excluded_diagnostic_claim(clause, match):
         re.search(r"\b(?:no|not|never|without|rule[ds]? out|unrelated to)"
                   r"(?: (?:be|caused by|due to|because of|attributed to|evidence of))?"
                   r"(?: (?:a|an|the|any|actual|real))? $", prefix)
-        or re.match(r" (?:was |were |is |are |had been )?"
-                    r"(?:ruled out|excluded|did not cause|not (?:the cause|involved|responsible|present|detected|found))\b",
+        or re.match(r"(?:,? (?:but|yet))? (?:was |were |is |are |had been )?"
+                    r"(?:ruled out|excluded|unrelated|did not cause|not (?:the cause|involved|responsible|present|detected|found))\b",
                     suffix)
     )
 
 
-def _asserted_diagnostic_claim(clauses, expression):
-    claims = [(clause, match) for clause in clauses for match in re.finditer(expression, clause)]
-    return bool(claims) and all(not _excluded_diagnostic_claim(clause, match) for clause, match in claims)
-
-
-def _delivery_step_failed(clauses, step):
-    """Link failure to the claimed step, rather than mixing keywords across claims."""
+def _delivery_step_failure(step):
+    """Recognize an explicit failure at the named operation."""
     issue = r"(?:error|failure|failed)"
     modifiers = r"(?:(?:the|main|ontology|file|turtle|utf-8|json) )*"
     action = r"(?:(?:write|deliver|save|create|export)(?: or (?:write|create))? )?"
+    gerund = r"(?:(?:writing|delivering|saving|creating|exporting) )?"
     failed = (r"(?:(?:has |had |was )?(?:failed|failure|error|unsuccessful)"
               r"|(?:could|can) not be (?:completed|written|created|saved|delivered|exported|finished))")
-    return _asserted_diagnostic_claim(
-        clauses,
+    return (
         rf"\b(?:(?:cannot|could not|unable to|failed to) {action}{modifiers}{step}"
-        rf"|{issue}(?: (?:occurred|arose))? (?:while|during|in|at|when|to) {action}{modifiers}{step}"
+        rf"|{issue}(?:(?: (?:occurred|arose))? (?:while|during|in|at|when|to))? {gerund}{modifiers}{step}"
         rf"|{step}(?: (?:attempt|step|stage|delivery|writing|export))?"
-        rf"(?: (?:of|for|to) (?:the )?(?:main )?ontology)? {failed})\b",
+        rf"(?: (?:of|for|to) (?:the )?(?:main )?ontology)? {failed})\b"
     )
+
+
+def _delivery_failure_identifies_cause(clauses, failure, reason):
+    """Require the native reason in the explanation of the named failure.
+
+    The bound forms are an inline causal detail and an immediately following
+    reason statement. An inline explanation takes precedence over a later
+    mention of an otherwise matching condition.
+    """
+    link = re.compile(r":|\s+(?:because(?: of)?|due to|caused by|owing to)\s+")
+    heading = r"(?P<heading>(?:the )?(?:cause|reason)(?: is| was|:)?\s+)?"
+    wrappers = (r"(?:(?:\[(?:errno|winerror) \d+\]|[\w.]*(?:error|exception):|"
+                r"(?:utf-8 )?encoding (?:error|failure):)\s*)*"
+                r"(?:['\"]utf-8['\"] codec cannot encode [^:]+:\s*)?")
+    cause = re.compile(rf"^{heading}{wrappers}(?:(?:the|a|an|its) )?{reason}")
+    if any(_excluded_diagnostic_claim(clause, mention)
+           for clause in clauses for mention in re.finditer(reason, clause)):
+        return False
+
+    for index, clause in enumerate(clauses):
+        for claim in re.finditer(failure, clause):
+            if _excluded_diagnostic_claim(clause, claim):
+                continue
+            tail = clause[claim.end():]
+            connection = link.search(tail)
+            if connection is not None:
+                # A connector belonging to another asserted failure is not this cause.
+                if re.search(r"\b(?:failed|succeeded|unrelated)\b", tail[:connection.start()]):
+                    continue
+                detail = tail[connection.end():].strip()
+            else:
+                detail = clauses[index + 1] if index + 1 < len(clauses) else ""
+            match = cause.match(detail)
+            if match is None or _excluded_diagnostic_claim(detail, match):
+                continue
+            # Without an inline link, read an explicit reason or a complete
+            # explanation fragment. A related term in a new claim is insufficient.
+            if connection is not None or match["heading"] or not detail[match.end():].strip(" .;!?"):
+                return True
+    return False
 
 
 def _diagnostic_names_destination(text, destination):
@@ -1296,21 +1331,30 @@ def ontology_serialization_error(record, operation, destination):
     else:
         stage = rf"(?:{serialization}|{encode})"
         reason = r"\bsurrogate(?:s| (?:code points?|characters?))?\b"
-    return _delivery_step_failed(clauses, stage) and _asserted_diagnostic_claim(clauses, reason)
+    return _delivery_failure_identifies_cause(clauses, _delivery_step_failure(stage), reason)
 
 
-def reports_older_ontology_retained(record):
-    """Read an affirmative statement that the older file survived this attempt."""
-    artifact = r"\b(?:older|old|existing|previous|prior|pre-existing) (?:ontology(?: file)?|file|output|artifact|destination)\b"
+def reports_older_ontology_retained(record, destination):
+    """Read retention of the pre-existing ontology at the requested path."""
+    older = r"\b(?:older|old|existing|previous|prior|pre-existing) (?:ontology(?: file)?|file|output|artifact|destination)\b"
+    target = rf"(?:{older}|<destination>|\b(?:the|requested) destination(?: file)?\b)"
     state = (r"\b(?:not (?:updated|changed|modified|overwritten|replaced)"
              r"|unchanged|untouched|intact|preserved|retained|exactly as it was)\b")
+    change = r"\b(?:updated|changed|modified|overwritten|replaced|deleted|truncated)\b"
+    active_change = rf"\b(?:overwrote|overwrite|replaced|updated|modified|deleted|truncated) (?:the )?{target}"
+    other_location = r"\b(?:backup|elsewhere|another (?:path|file|location))\b|\b(?:at|in|under|as|to) ['\"]?(?:/|[a-z]:[\\/])"
     claims = []
-    for clause in _delivery_clauses(record[2], record[3]):
-        for reference in re.finditer(artifact, clause):
-            # Another artifact or an in-memory graph starts a different retention claim.
+    for clause in _delivery_clauses(record[2], record[3], destination):
+        if any(not _excluded_diagnostic_claim(clause, match) for match in re.finditer(active_change, clause)):
+            return False
+        for reference in re.finditer(target, clause):
+            # Scope the statement to this file, before a different artifact or location.
             following = re.split(r"\b(?:sidecar|(?:generated|in-memory) (?:ontology|graph)|graph)\b",
                                  clause[reference.end():], maxsplit=1)[0]
-            claims.extend((following, match) for match in re.finditer(state, following))
+            if any(not _excluded_diagnostic_claim(following, match) for match in re.finditer(change, following)):
+                return False
+            if not re.search(other_location, following):
+                claims.extend((following, match) for match in re.finditer(state, following))
     return bool(claims) and all(not _excluded_diagnostic_claim(clause, match) for clause, match in claims)
 
 
@@ -1325,8 +1369,8 @@ def diagnostics_report_write_error(event, destination, observed_error):
     reason = (r"\b(?:not (?:a )?(?:directory|folder)|non[- ]directory(?: (?:parent|component))?"
               r"|(?:parent(?: path)?|path component) (?:is|was|points to) (?:a )?(?:regular )?file)\b")
     write_to_path = r"\b(?:cannot|could not|unable to|failed to) (?:write|create|save|deliver|export)(?: to)? <destination>"
-    failed = _delivery_step_failed(clauses, step) or _asserted_diagnostic_claim(clauses, write_to_path)
-    return failed and _asserted_diagnostic_claim(clauses, reason)
+    failure = rf"(?:{_delivery_step_failure(step)}|{write_to_path})"
+    return _delivery_failure_identifies_cause(clauses, failure, reason)
 
 
 def _observed_diagnostics(events, *, retain_unclassified=False):

@@ -926,7 +926,7 @@ def _assert_python_ontology_serialization_failure(invoke, source_path, source_js
     assert errors, after.events
     if old_files:
         assert destination.read_bytes() == old_ontology and sidecar.read_bytes() == old_sidecar
-        assert any(reports_older_ontology_retained(event) for event in errors)
+        assert any(reports_older_ontology_retained(event, destination) for event in errors)
     else:
         assert not destination.exists() and not sidecar.exists()
     assert set(tmp_path.iterdir()) == existing
@@ -944,11 +944,17 @@ def test_ontology_serialization_diagnostic_reader_checks_affirmative_claims(tmp_
         ('serialize', 'Turtle serialization failed because of a circular RDF collection.', True),
         ('serialize', 'Turtle serialization could not be completed because of a cyclic RDF list.', True),
         ('serialize', 'Cannot serialize the ontology: a cycle in an RDF list.', True),
+        ('serialize', f'Error serializing the ontology to {destination}: Cyclic RDF list.', True),
         ('serialize', 'Turtle serialization succeeded and file creation failed. A cyclic list was ruled out.', False),
         ('serialize', 'Turtle serialization succeeded and file creation failed. A cyclic list was encountered.', False),
         ('serialize', 'Turtle serialization failed. A cyclic RDF list was ruled out.', False),
+        ('serialize', 'Serialization failed because memory was exhausted. The cyclic list found in another model was unrelated.', False),
+        ('serialize', 'Serialization failed: memory exhausted. Cyclic RDF list.', False),
+        ('serialize', 'Serialization failed. A cyclic RDF list was found in another model.', False),
+        ('serialize', 'Serialization failed. The cause was a cyclic RDF list.', True),
         ('serialize', 'No serialization error occurred. File creation failed after finding a cyclic list.', False),
         ('encode', 'Turtle serialization or UTF-8 encoding failed: surrogates not allowed.', True),
+        ('encode', r"Encoding failed: 'utf-8' codec can't encode character '\ud800' in position 2: surrogates not allowed.", True),
         ('encode', 'Unable to encode the ontology because of a surrogate code point.', True),
         ('encode', 'Encoding failed. A surrogate was not the cause.', False),
         ('encode', 'Encoding failed because it was not caused by a surrogate.', False),
@@ -958,11 +964,15 @@ def test_ontology_serialization_diagnostic_reader_checks_affirmative_claims(tmp_
     for message, expected in (
         ('The older ontology file could not be preserved.', False),
         ('The older ontology file could not be preserved and the generated graph remains unchanged.', False),
+        ('The older ontology was preserved in a backup. The destination was overwritten.', False),
+        (f'The older ontology was preserved at {tmp_path / "other.ttl"}.', False),
+        (f'The older ontology was preserved. The writer then overwrote {destination}.', False),
         ('The previous ontology at the destination stays exactly as it was.', True),
+        (f'The previous ontology at {destination} stays exactly as it was.', True),
         ('An older file remains at the destination and was not updated for this execution.', True),
         ('The old file was left untouched.', True),
     ):
-        assert reports_older_ontology_retained(record('Serialization failed.', message)) is expected, message
+        assert reports_older_ontology_retained(record('Serialization failed.', message), destination) is expected, message
 
 
 def test_delivery_cause_reader_checks_cross_field_attribution(tmp_path):
