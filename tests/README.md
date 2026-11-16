@@ -1757,3 +1757,8 @@ reason reported by ontology-delivery errors, the live provenance mode, and
 the retained ontology file after sidecar failure. Delivered Turtle checks
 preserve literal lexical forms. The no-report CLI case matches the displayed
 warning to the conversion's own missing-class-name diagnostic.
+
+The [F5–F6 correction](coverage.md#independent-test-reviewer-f5f6-correction)
+accepts equivalent explanations of the induced ontology-delivery failure
+and line wrapping in the same-run CLI warning. The tests still require the
+destination, the available cause, and the applicable visible warning.

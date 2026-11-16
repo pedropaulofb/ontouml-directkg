@@ -1037,6 +1037,18 @@ def dkgm_chain_facts(message, effect):
     return facts
 
 
+def _reports_induced_io_failure(text):
+    """Recognize an induced I/O failure in the observed delivery diagnostic."""
+    words = " ".join(text.casefold().split())
+    induced = r"(?:injected|forced|simulated|induced)"
+    io_failure = r"(?:i/o|io|ontology (?:creat(?:e|ion)|writ(?:e|ing))) (?:failure|error|fault|exception)"
+    return bool(re.search(
+        rf"\b{induced}[- ](?:(?:a|an|the) )?{io_failure}\b"
+        rf"|\b{io_failure} (?:was|had been) (?:deliberately |intentionally )?{induced}\b",
+        words,
+    ))
+
+
 def _observed_diagnostics(events):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -1052,6 +1064,10 @@ def _observed_diagnostics(events):
             if not facts:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
             kind = "dkgm_chain_omission"
+        if kind == "ontology_delivery" and any(
+            _reports_induced_io_failure(text) for text in (event.message, event.effect)
+        ):
+            facts.add("induced_io_failure")
         if event.code in {"RELATION_NAMING", "UNMAPPED_RELATION_STEREOTYPE"}:
             # Interpret each meaning in the bound native rendering. One
             # message/effect can report both, regardless of its primary code.

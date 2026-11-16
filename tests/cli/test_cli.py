@@ -557,7 +557,8 @@ def test_cli_creates_no_diagnostics_report_when_option_is_absent(invoke,tmp_path
                     if event.kind == 'missing_name' and event.severity == 'WARNING']
     assert missing_name
     for event in missing_name:
-        assert any(display.severity == event.severity and event.raw.message in display.message
+        warning_text = ' '.join(event.raw.message.split())
+        assert any(display.severity == event.severity and warning_text in ' '.join(display.message.split())
                    for display in process.console)
     assert destination.is_file()
     assert set(tmp_path.rglob('*')) - before == {destination}

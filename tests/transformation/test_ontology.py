@@ -849,7 +849,7 @@ def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_subst
     if kind == 'ontology':
         assert any(
             (str(failed_path) in event.message or any(source.path == str(failed_path) for source in event.raw.sources))
-            and any(str(op.raw) in event.message for op in injected)
+            and 'induced_io_failure' in event.facts
             for event in errors
         ), 'The ontology delivery ERROR must identify the destination and known failure reason'
 
