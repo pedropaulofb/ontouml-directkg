@@ -131,6 +131,39 @@ def test_stereotype_table_candidates_preserve_established_direction_when_resolva
         _relation_limitation_warning(result)
 
 
+@pytest.mark.parametrize('stereotype,endpoint_stereotype', [
+    pytest.param('memberOf', 'collective', id='memberOf-two-collectives'),
+    pytest.param('characterization', 'mode', id='characterization-two-modes'),
+])
+def test_ambiguous_semantic_roles_keep_primary_with_lexical_fallback(
+        run, source_json, tmp_path, stereotype, endpoint_stereotype):
+    """Rules: DK-DIAG-05, DK-GEN-03, DK-IRI-03, DK-IRI-09, DK-PROP-02, DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-04, DK-REL-06.
+
+    A1/I1 audit regression for the correction at b038a8e208392753f4999f2d0d1b78f071740fed.
+    Complete shared/binary_relation variants make both endpoints plausible for the
+    same semantic role and reach the semantic naming step under strict policy.
+    """
+    document = source_json('shared/binary_relation')
+    for identifier in ('cA', 'cB'):
+        source_element(document, identifier)['stereotype'] = endpoint_stereotype
+    source_element(document, 'rFocus').update(name=None, stereotype=stereotype)
+    source_element(document, 'tFocus')['name'] = None
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), input_policy='strict', iri_strategy='name',
+                 inverse_properties='none', stereotype_policy='require-known',
+                 no_stereotype_relation_naming=False)
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    prop = _primary(result, 'tFocus', 'name')
+    _candidate(graph, prop, {'hTTPServer_xMLNode'}, 'HTTPServer')
+    _direction(graph, prop, BASE.HTTPServer, BASE.XMLNode)
+    assert set(graph.objects(prop, DCTERMS.identifier)) == {Literal('tFocus')}
+    assert set(graph.subjects(RDFS.domain, BASE.HTTPServer)) == {prop}
+    _source_target_naming_warning(result, 'rFocus')
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+
+
 # A2 uses the canonical complete VP-plugin fixture and explicit runtime variants.
 # These helpers author inputs/check RDF; they do not implement a name selector.
 A2_PART_WHOLE = [
