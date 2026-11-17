@@ -45,16 +45,26 @@ def _console(event: Diagnostic) -> None:
           + (" Generated IRI: " + event.generated_iri if event.generated_iri else ""), file=sys.stderr)
 
 
-def _finish(result: ConversionResult, threshold: str, report: Path | None) -> bool:
+def _finish(result: ConversionResult, threshold: str, report: Path | None, output: Path) -> bool:
     allowed = {"info": {"INFO", "WARNING", "ERROR"}, "warning": {"WARNING", "ERROR"}, "error": {"ERROR"}}
     for event in result.diagnostics:
         if event.severity in allowed[threshold]:
             _console(event)
     if report is not None:
+        sidecar = output.parent / (output.stem + ".provenance.ttl")
         try:
+            # Artifact replacement may have broken an alias since argument parsing.
+            for artifact in (output, sidecar):
+                try:
+                    aliases_artifact = report.samefile(artifact)
+                except (FileNotFoundError, NotADirectoryError):
+                    continue
+                if aliases_artifact:
+                    raise OSError(f"destination refers to the same file as {artifact}")
             result.export_diagnostics(report)
-        except DiagnosticsExportError as exc:
-            print(f"[ERROR] DIAGNOSTICS_DELIVERY: {exc}", file=sys.stderr)
+        except OSError as exc:
+            error = exc if isinstance(exc, DiagnosticsExportError) else DiagnosticsExportError(report, exc)
+            print(f"[ERROR] DIAGNOSTICS_DELIVERY: {error}", file=sys.stderr)
             return False
     return True
 
@@ -95,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         delivered = result.deliver(args.output)
     finally:
-        report_written = _finish(result, args.console_level, args.diagnostics_file)
+        report_written = _finish(result, args.console_level, args.diagnostics_file, args.output)
     print(f"Transformation outcome: {result.outcome}")
     if not report_written:
         return 4
