@@ -1463,9 +1463,12 @@ def transformation_failure_diagnostic(severity, message, effect, cause):
     def describes_failure(location, claim, statement):
         if location.start() >= claim.end():
             between = statement[claim.end():location.start()]
-            return bool(re.fullmatch(r" (?:(?:occurred|arose|happened|was(?: raised)?) )?"
-                                     r"(?:during|while|in|at|when|interrupted|stopped|prevented) (?:the )?",
-                                     between))
+            occurrence = r"(?:occurred|arose|happened|was(?: raised)?)"
+            interruption = (r"(?:stopped|halted|interrupted|aborted|ended) (?:the )?"
+                            r"(?:transformation|conversion|processing)")
+            qualifier = r"(?:during|while|in|at|when) (?:(?:the )?stage:? )?(?:the )?['\"\x60]?"
+            return bool(re.fullmatch(rf" (?:(?:{occurrence}|{interruption}) )?"
+                                     rf"(?:{qualifier}|(?:interrupted|stopped|prevented) (?:the )?)", between))
         # In "relation transformation failed", the operation owns "transformation".
         claim_start = claim.start("kind") if claim.start() < location.end() else claim.start()
         between = statement[location.end():claim_start]

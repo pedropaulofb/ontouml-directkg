@@ -7613,3 +7613,29 @@ and returned exit `1` in **nine** CLI cases. Later assertions await the
 transformation-abort implementation. Python parsing and
 `git diff --check` passed. The full suite was not run. Pending
 independent Test Reviewer review.
+
+### RD-04 transformation abort stage wording
+
+Independent Test Reviewer **NOT OK** at
+`1f71715c7d06875fcc341c18eb2eb59089fb8b81` kept F1 open for two valid
+wordings rejected by the stage matcher. DK-DIAG-05 at the accepted
+registration `9c38583f5999e2f8ba26be0b3e451e5d1514e756` governs. The
+publication base `07d525397b3ed5fa3411631833c3558b63605698` includes the
+separate CLI path-loop correction.
+
+The existing `test_transformation_failure_reader_uses_observed_relation_stage`
+harness accepts a failure that stopped transformation while emitting
+relations and a failure naming the quoted stage `emit_relations`. Both
+exact reviewer examples were rejected by the prior reader. The harness
+continues to reject class or provenance attribution and a cause that
+belongs to a later failure. F2 and F3 remain resolved.
+
+The same selectors above collected **3,627 identical node IDs**. The
+harness and all **68** fixture checks passed. The **196** regression
+outcomes matched the publication base by node and failure category,
+with **118 passes** and **78 existing unbound cases**. All **12**
+transformation-fault cases reached injection. Production propagated
+**three** Python exceptions and returned exit `1` in **nine** CLI
+cases. Later assertions await the transformation-abort implementation.
+Python parsing and `git diff --check` passed. The full suite was not run.
+Pending independent Test Reviewer review.
