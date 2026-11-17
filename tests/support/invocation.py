@@ -1432,51 +1432,76 @@ def transformation_failure_diagnostic(severity, message, effect, cause):
     """Read an affirmative failure at relation emission and its observed cause."""
     if severity != "ERROR":
         return False
-    operation = r"(?:mapping|emission|generation|transformation|creation)"
-    action = r"(?:mapping|emitting|generating|transforming|creating)"
-    relations = r"(?:relations?|relationships?)(?: (?:properties|axioms))?"
+    operation = r"(?:mapping|emission|generation|transformation|creation|construction)"
+    action = r"(?:mapping|emitting|generating|transforming|creating|constructing)"
+    relations = r"(?:relations?|relationships?)(?: (?:propert(?:y|ies)|axioms?))?"
     stage = re.compile(rf"\b(?:emit_relations|{relations} {operation}|{operation} of (?:the )?{relations}"
                        rf"|{action} (?:the )?{relations})\b")
-    different_stage = re.compile(rf"\b(?:emit_classes|class(?:es)? {operation}|"
-                                 rf"(?:{operation} of|{action}) (?:the )?classes)\b")
+    other = r"(?:classes|provenance)"
+    different_stage = re.compile(rf"\b(?:emit_classes|construct_provenance|(?:class(?:es)?|provenance) {operation}|"
+                                 rf"(?:{operation} of|{action}) (?:the )?{other})\b")
     failure = re.compile(r"\b(?:(?:unexpected|internal|transformation) )*"
-                         r"(?:failure|failed|error|exception|crashed)\b")
+                         r"(?P<kind>failure|failed|error|exception|crashed)\b")
     cause_text = re.compile(rf"(?<![\w-]){re.escape(cause.casefold())}(?![\w-])")
     statements = []
     for field in (message, effect):
         field = re.sub(r"^\s*\[ERROR\]\s+(?:[\w-]+:\s*)?", "", field)
         words = " ".join(field.casefold().replace("’", "'").split())
         words = re.sub(r"n't\b", " not", words)
-        statements.extend(re.split(r"(?<=[.!?;])\s+", words))
+        # Sequence markers can start a new claim even without a full stop.
+        statements.extend(re.split(r"(?<=[.!?;])\s+|, and |(?:, | (?:and )?)(?:then|afterwards?|subsequently|later) ",
+                                   words))
 
-    def names_stage(pattern, statement):
-        return any(not _excluded_diagnostic_claim(statement, match)
-                   and not re.search(r"\b(?:after|following) (?:the )?$", statement[:match.start()])
-                   and not re.match(r" (?:succeeded|completed successfully)\b", statement[match.end():])
-                   for match in pattern.finditer(statement))
+    def stage_mentions(pattern, statement):
+        for match in pattern.finditer(statement):
+            if (not _excluded_diagnostic_claim(statement, match)
+                    and not re.search(r"\b(?:after|following) (?:the )?$", statement[:match.start()])
+                    and not re.match(r" (?:(?:was|had) )?(?:succeeded|completed|finished)\b",
+                                     statement[match.end():])):
+                yield match
+
+    def describes_failure(location, claim, statement):
+        if location.start() >= claim.end():
+            between = statement[claim.end():location.start()]
+            return bool(re.fullmatch(r" (?:(?:occurred|arose|happened|was(?: raised)?) )?"
+                                     r"(?:during|while|in|at|when|interrupted|stopped|prevented) (?:the )?",
+                                     between))
+        # In "relation transformation failed", the operation owns "transformation".
+        claim_start = claim.start("kind") if claim.start() < location.end() else claim.start()
+        between = statement[location.end():claim_start]
+        subject_gap = (r"(?:: | )(?:(?:stage|has|had|raised|encountered) "
+                       r"|(?:was )?(?:interrupted|stopped|aborted) by )?(?:an? )?")
+        if re.fullmatch(subject_gap, between):
+            return True
+        # A leading stage qualifier may apply to a failure after its comma.
+        return (bool(re.search(r"\b(?:during|while|in|at|when) (?:the )?$", statement[:location.start()]))
+                and bool(re.fullmatch(r", (?:(?:the converter|directkg) (?:raised|encountered|reported) )?(?:an? )?",
+                                      between)))
 
     for index, statement in enumerate(statements):
-        asserted_failure = any(
-            not re.search(r"\b(?:not true|denied) that\b", statement[:match.start()])
+        claims = [
+            match for match in failure.finditer(statement)
+            if not re.search(r"\b(?:not true|denied) that\b", statement[:match.start()])
             and not _excluded_diagnostic_claim(statement, match)
             and not re.match(r"[^,;:]*\b(?:did not|never) (?:occur|arise|happen)\b", statement[match.end():])
-            for match in failure.finditer(statement)
-        )
-        if not asserted_failure or names_stage(different_stage, statement):
+        ]
+        if not claims or any(describes_failure(location, claim, statement)
+                             for location in stage_mentions(different_stage, statement) for claim in claims):
             continue
         # The next fields may explicitly describe the same failure's stage or reason.
-        stage_reported = names_stage(stage, statement)
+        stage_reported = any(describes_failure(location, claim, statement)
+                             for location in stage_mentions(stage, statement) for claim in claims)
         detail = cause_text.search(statement)
         cause_reported = bool(detail and not _excluded_diagnostic_claim(statement, detail))
         for following in statements[index + 1:]:
             if re.match(r"^(?:the )?(?:stage(?: was| is)?[: ]|during |while |when )", following):
-                if names_stage(different_stage, following):
+                if any(stage_mentions(different_stage, following)):
                     stage_reported = False
                     break
-                stage_reported |= names_stage(stage, following)
+                stage_reported |= any(stage_mentions(stage, following))
             elif re.match(r"^(?:the )?(?:cause|reason)(?: was| is|:)", following):
                 detail = cause_text.search(following)
-                if names_stage(different_stage, following) or (
+                if any(stage_mentions(different_stage, following)) or (
                         detail and _excluded_diagnostic_claim(following, detail)):
                     cause_reported = False
                     break

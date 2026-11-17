@@ -7584,3 +7584,32 @@ checks passed. The **196** regression outcomes matched the current base
 by node and failure category, with **118 passes** and **78 existing
 unbound cases**. Python parsing and `git diff --check` passed. Full-suite
 execution was unperformed. Pending independent Test Reviewer review.
+
+### RD-04 transformation abort failure-stage attribution
+
+Independent Test Reviewer **NOT OK** at
+`e288095f518a009a7c0ef928c4ef55317bb2a17c` resolved F2 and F3 and kept F1
+open. DK-DIAG-05 at the accepted registration
+`9c38583f5999e2f8ba26be0b3e451e5d1514e756` governs this correction. Its
+publication base `6b8113e6d4e5eac6b62109ef7c66071b1e076807` includes the
+separate CLI diagnostics alias correction.
+
+The existing `test_transformation_failure_reader_uses_observed_relation_stage`
+harness checks that the stage describes the reported failure. The reader
+rejects the reported case in which relation emission completed before a
+provenance-construction failure. It also rejects an earlier relation
+failure paired with the cause of a later failure. It accepts the prior
+equivalent-wording controls, explicit stage and cause fields, and
+affirmative claims in which relation emission is the subject or the
+timing of the failure. The exact reported control failed against the
+prior reader and passed in the corrected harness.
+
+The same selectors above collected **3,627 identical node IDs**. The
+harness and all **68** fixture checks passed. The **196** regression
+outcomes matched by node and failure category, with **118 passes** and
+**78 existing unbound cases**. All **12** transformation-fault cases
+reached injection. Production propagated **three** Python exceptions
+and returned exit `1` in **nine** CLI cases. Later assertions await the
+transformation-abort implementation. Python parsing and
+`git diff --check` passed. The full suite was not run. Pending
+independent Test Reviewer review.

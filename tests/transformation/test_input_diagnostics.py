@@ -588,6 +588,19 @@ def test_transformation_failure_reader_uses_observed_relation_stage():
     """Harness control for the relation-emission fault under DK-DIAG-05."""
     cause = "RD04-TRANSFORM-417"
     for message, effect, expected in (
+        (f"Relation emission completed, then an unexpected error occurred during provenance construction: {cause}.",
+         "", False),
+        (f"Relation emission ran first and afterwards an exception was raised during provenance construction: {cause}.",
+         "", False),
+        (f"Relation emission encountered a separate error, then provenance construction failed: {cause}.",
+         "", False),
+        (f"Relation emission failed for another reason, and an exception occurred in a later step: {cause}.",
+         "", False),
+        (f"An unexpected error occurred after relation emission: {cause}.", "", False),
+        (f"During relation emission, the converter raised an unexpected error: {cause}.", "", True),
+        (f"Relation property generation was interrupted by an unexpected error: {cause}.", "", True),
+        (f"Relation transformation failed: {cause}.", "", True),
+        (f"The failure was during relation emission: {cause}.", "", True),
         (f"Internal transformation failed during class mapping: {cause}.", "", False),
         (f"No internal transformation failure occurred during relation mapping: {cause}.", "", False),
         (f"Internal transformation failure during relation emission did not occur: {cause}.", "", False),
