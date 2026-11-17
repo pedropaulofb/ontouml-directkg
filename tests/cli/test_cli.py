@@ -893,6 +893,11 @@ def test_diagnostics_report_write_error_reader_requires_stage_and_observed_reaso
         (f'[ERROR] DIAGNOSTICS_DELIVERY: Cannot write diagnostics to {destination}: Not a directory', True),
         (f'[ERROR] DIAGNOSTICS_DELIVERY: Cannot write diagnostics to {destination}: '
          f'[Errno 20] Not a directory: {str(destination)!r}', True),
+        (f'Error writing diagnostics: [Errno 20] Not a directory: {str(destination)!r}', True),
+        (f'Error writing diagnostics. [Errno 20] Not a directory: {str(destination)!r}', True),
+        (f'Error writing diagnostics: [Errno 20] Not a directory: {str(other_path)!r}', False),
+        (f'Error writing diagnostics to {other_path}: [Errno 20] Not a directory: {str(destination)!r}', False),
+        (f'Error writing diagnostics to {destination}: [Errno 20] Not a directory: {str(other_path)!r}', False),
         (f'JSON report writing failed for {destination}. The parent is a regular file.', True),
         (f'Could not write {destination}: not a folder.', True),
         (f'The report could not be written to {destination} because its parent path points to a regular file.', True),
@@ -916,6 +921,11 @@ def test_diagnostics_report_write_error_reader_requires_stage_and_observed_reaso
         assert diagnostics_report_write_error(event, destination, observed) is expected, message
     valid = SimpleNamespace(severity='ERROR', message=f'Cannot write diagnostics to {destination}: not a directory.')
     assert not diagnostics_report_write_error(valid, destination, {**observed, 'errno': errno.EACCES})
+    escaped_path = tmp_path / "report's folder" / 'report.json'
+    observed = {**observed, 'destination': str(escaped_path)}
+    exception = NotADirectoryError(errno.ENOTDIR, observed['reason'], str(escaped_path))
+    event = SimpleNamespace(severity='ERROR', message=f'Error writing diagnostics: {exception}')
+    assert diagnostics_report_write_error(event, escaped_path, observed)
 
 
 @pytest.mark.parametrize('kind,operation',[('ontology','create'),('ontology','write'),('sidecar','serialize'),('sidecar','create'),('sidecar','write')],ids=['ontology_create','ontology_write','sidecar_serialize','sidecar_create','sidecar_write'])

@@ -1236,8 +1236,11 @@ def _delivery_clauses(message, effect, destination):
     """Split diagnostic prose while preserving which statement names the destination."""
     clauses = []
     destination_pattern = _diagnostic_destination_pattern(destination)
+    quoted_destination = repr(str(destination))
+    quoted_marker = quoted_destination[0] + "<destination>" + quoted_destination[-1]
     for text in (message, effect):
         text = re.sub(r"^\s*\[ERROR\]\s+(?:[\w-]+:\s*)?", "", text)
+        text = text.replace(quoted_destination, quoted_marker)
         text = destination_pattern.sub("<destination>", text)
         text = text.casefold().replace("’", "'")
         text = re.sub(r"\bcan't\b", "cannot", text)
@@ -1274,27 +1277,24 @@ def _delivery_step_failure(step):
     )
 
 
-def _delivery_claim_targets_destination(clause, claim, explanation_start, structured_destination):
-    """Check the destination attached to the failure, including a leading qualifier."""
-    boundary = r"\b(?:and|but|while|whereas)\b"
-    prefix = re.split(boundary, clause[:claim.start()])[-1]
-    suffix = re.split(boundary, clause[claim.end():explanation_start], maxsplit=1)[0]
-    statement = prefix + claim.group() + suffix
+def _delivery_claim_targets_destination(statement, bound_destination):
+    """Allow additional destination evidence only if the failure names no competing path."""
     other_path = (r"(?:^|[\s'\"(])(?:/|[a-z]:[\\/]|\.\.?[\\/])\S"
                   r"|\b(?:to|for|at) ['\"]?(?:[\w.-]+[\\/])*[\w.-]+\.(?:ttl|json)\b")
     if re.search(other_path, statement):
         return False
-    return "<destination>" in statement or structured_destination
+    return "<destination>" in statement or bound_destination
 
 
-def _delivery_failure_identifies_cause(clauses, failure, reason, *, structured_destination=False):
-    """Require the native reason in the explanation of the named failure.
+def _delivery_failure_claims(clauses, failure, reason):
+    """Yield each named failure with an explanation matching the observed cause.
 
     The bound forms are an inline causal detail and an immediately following
     reason statement. An inline explanation takes precedence over a later
     mention of an otherwise matching condition.
     """
     link = re.compile(r":|\s+(?:because(?: of)?|due to|caused by|owing to)\s+")
+    boundary = r"\b(?:and|but|while|whereas)\b"
     heading = r"(?P<heading>(?:the )?(?:cause|reason)(?: is| was|:)?\s+)?"
     wrappers = (r"(?:(?:\[(?:errno|winerror) \d+\]|[\w.]*(?:error|exception):|"
                 r"(?:utf-8 )?encoding (?:error|failure):)\s*)*"
@@ -1302,7 +1302,7 @@ def _delivery_failure_identifies_cause(clauses, failure, reason, *, structured_d
     cause = re.compile(rf"^{heading}{wrappers}(?:(?:the|a|an|its) )?{reason}")
     if any(_excluded_diagnostic_claim(clause, mention)
            for clause in clauses for mention in re.finditer(reason, clause)):
-        return False
+        return
 
     for index, clause in enumerate(clauses):
         for claim in re.finditer(failure, clause):
@@ -1310,15 +1310,14 @@ def _delivery_failure_identifies_cause(clauses, failure, reason, *, structured_d
                 continue
             tail = clause[claim.end():]
             connection = link.search(tail)
-            explanation_start = claim.end() + connection.start() if connection else len(clause)
-            if not _delivery_claim_targets_destination(clause, claim, explanation_start, structured_destination):
-                continue
             if connection is not None:
+                qualifier = tail[:connection.start()]
                 # A connector belonging to another asserted failure is not this cause.
-                if re.search(r"\b(?:failed|succeeded|unrelated)\b", tail[:connection.start()]):
+                if re.search(r"\b(?:failed|succeeded|unrelated)\b", qualifier):
                     continue
                 detail = tail[connection.end():].strip()
             else:
+                qualifier = tail
                 detail = clauses[index + 1] if index + 1 < len(clauses) else ""
             match = cause.match(detail)
             if match is None or _excluded_diagnostic_claim(detail, match):
@@ -1326,8 +1325,9 @@ def _delivery_failure_identifies_cause(clauses, failure, reason, *, structured_d
             # Without an inline link, read an explicit reason or a complete
             # explanation fragment. A related term in a new claim is insufficient.
             if connection is not None or match["heading"] or not detail[match.end():].strip(" .;!?"):
-                return True
-    return False
+                prefix = re.split(boundary, clause[:claim.start()])[-1]
+                suffix = re.split(boundary, qualifier, maxsplit=1)[0]
+                yield prefix + claim.group() + suffix, match
 
 
 def ontology_serialization_error(record, operation, destination):
@@ -1353,8 +1353,13 @@ def ontology_serialization_error(record, operation, destination):
     else:
         stage = rf"(?:{serialization}|{encode})"
         reason = r"\bsurrogate(?:s| (?:code points?|characters?))?\b"
-    return _delivery_failure_identifies_cause(clauses, _delivery_step_failure(stage), reason,
-                                             structured_destination=structured_destination)
+    undelivered = (r"^(?:as a result,? |therefore,? )?"
+                   r"(?:no (?:new )?ontology(?: file)? (?:was |is |could be )?"
+                   r"|(?:the )?(?:new )?ontology(?: file)? (?:(?:was|is) not |could not be ))"
+                   r"(?:delivered|written|created|saved) (?:to|at) <destination>")
+    effect_names_destination = any(re.match(undelivered, clause) for clause in clauses)
+    return any(_delivery_claim_targets_destination(statement, structured_destination or effect_names_destination)
+               for statement, _ in _delivery_failure_claims(clauses, _delivery_step_failure(stage), reason))
 
 
 def reports_older_ontology_retained(record, destination):
@@ -1391,10 +1396,17 @@ def diagnostics_report_write_error(event, destination, observed_error):
     step = r"(?:diagnostics?(?:[- ](?:report|file))?|(?:json )?report)"
     reason = (r"\b(?:not (?:a )?(?:directory|folder)|non[- ]directory(?: (?:parent|component))?"
               r"|(?:parent(?: path)?|path component) (?:is|was|points to) (?:a )?(?:regular )?file"
-              r"|(?:path component|component of (?:the )?path) (?:is|was) not (?:a )?(?:directory|folder))\b")
+              r"|(?:path component|component of (?:the )?path) (?:is|was) not (?:a )?(?:directory|folder))\b"
+              r"""(?:\s*:\s*(?P<filename>'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|<destination>))?""")
     write_to_path = r"\b(?:cannot|could not|unable to|failed to) (?:write|create|save|deliver|export)(?: to)? <destination>"
     failure = rf"(?:{_delivery_step_failure(step)}|{write_to_path})"
-    return _delivery_failure_identifies_cause(clauses, failure, reason)
+    for statement, cause in _delivery_failure_claims(clauses, failure, reason):
+        filename = cause["filename"]
+        if filename is not None and filename.strip("'\"") != "<destination>":
+            continue
+        if _delivery_claim_targets_destination(statement, filename is not None):
+            return True
+    return False
 
 
 def _observed_diagnostics(events, *, retain_unclassified=False):

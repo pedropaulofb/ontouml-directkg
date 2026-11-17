@@ -7268,3 +7268,37 @@ stand-in for their pure assertions. The pytest workspace was unavailable.
 Native pytest collection, fixture, delivery and regression runs were
 unperformed on this revision. The prior reviewed production behavior
 still determines the end-to-end validation limit.
+
+### RD-04 ontology serialization failure destination evidence
+
+Independent Test Reviewer **NOT OK** at
+`cdb06592f7088d21899e3ca59f4e2bc037bc8333` identified two rejected
+diagnostics that satisfy DK-DIAG-04 and §15. The accepted serialization
+contract at `9cbad6c4ebb5c135e40bb17a275da2a049252fd1` governs.
+
+- **F1.** `test_ontology_serialization_diagnostic_reader_checks_affirmative_claims`
+  accepts a destination identified in the same diagnostic's failed
+  ontology-delivery effect, including the CLI rendering of that effect.
+  It rejects an unrelated successful delivery and an explicit
+  serialization failure at another path.
+- **F2.** `test_diagnostics_report_write_error_reader_requires_stage_and_observed_reason`
+  accepts the filename in the filesystem exception linked to the
+  report-write error. It rejects a different filename in either the
+  failure statement or the exception, even when the other names the
+  requested report.
+- **F3.** The four omitted-report and non-sidecar cases retain their
+  reviewed nodes and assertions.
+
+Both new controls failed in native pytest with the prior readers. Both
+updated harness nodes passed, including the prior controls. A native
+CLI probe observed the report writer's `ENOTDIR`, exit `4`, and the
+matching console diagnostic.
+
+The published selectors above collected **3,584 identical node IDs**.
+All **68 fixture-contract cases** passed. The **122** regression outcomes
+matched the base by node, with **66 passes** and **56 existing unbound
+cases**. The **52** delivery cases reached the same production limits on
+both revisions, with **18 propagated Python exceptions** and **34 CLI
+exits of 1**. Later assertions await production correction. Python
+parsing and `git diff --check` passed. Full-suite execution was outside
+this validation. Pending independent Test Reviewer review.
