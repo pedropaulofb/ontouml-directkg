@@ -15,9 +15,10 @@ from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
-from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_signatures,
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_record_counts, diagnostic_signatures,
                                       diagnostics_report_write_error, dkgm_chain_facts, ontology_serialization_error,
-                                      read_dkgm_mode_setting, reports_older_ontology_retained)
+                                      read_dkgm_mode_setting, reports_older_ontology_retained,
+                                      transformation_failure_diagnostic)
 from tests.support.rdf import assert_graph_equal, property_chains, rooted_graph
 
 BASE=Namespace('https://example.test/model#')
@@ -957,6 +958,69 @@ def test_diagnostics_failure_after_duplicate_abort_retains_both_failures_and_cod
     assert process.observation.ontology is None and not destination.exists()
     assert any(d.kind=='duplicate_id' and d.severity=='ERROR' for d in process.observation.diagnostics)
     assert any(d.kind=='diagnostics_delivery' and d.severity=='ERROR' for d in process.console)
+
+
+@pytest.mark.parametrize("reporting", ["report-written", "report-omitted", "report-failure"])
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, tmp_path, input_policy, reporting):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05. Also §15 exit 3 and precedence of 4."""
+    source = fixture_path("shared/binary_relation")
+    destination = tmp_path / "out.ttl"
+    report = None if reporting == "report-omitted" else tmp_path / "report.json"
+    if reporting == "report-failure":
+        blocker = tmp_path / "regular-file"
+        blocker.write_bytes(b"Not a directory")
+        report = blocker / report.name
+    existing = set(tmp_path.iterdir())
+
+    process = invoke.cli(source, options={"input_policy": input_policy, "provenance": "sidecar"},
+                         workdir=tmp_path, output_path=destination, diagnostics_path=report,
+                         faults=(Fault("transformation", "emit_relations"),))
+    _assert_process(process)
+    trace = process.execution_trace
+    failure = trace["transformation_failure"]
+    assert failure["graph_size"] > 0
+    earlier = diagnostic_record_counts(failure["earlier_events"])
+    warnings = [message for severity, _, message, _, _, _ in earlier
+                if severity == "WARNING" and "placeholder" in message.casefold()]
+    assert warnings
+    assert not destination.exists() and not (tmp_path / "out.provenance.ttl").exists()
+    assert process.returncode == (4 if reporting == "report-failure" else 3), process.stderr
+
+    converted, after = invoke.cli_report_content(process)
+    assert converted.outcome == after.outcome == "aborted"
+    actual = diagnostic_record_counts(after.events)
+    assert earlier <= diagnostic_record_counts(converted.events) <= actual
+    assert any(transformation_failure_diagnostic(severity, message, effect, failure["cause"])
+               for severity, _, message, effect, _, _ in actual - earlier)
+    internal_errors = [event for event in process.console
+                       if transformation_failure_diagnostic(event.severity, event.message, "", failure["cause"])]
+    assert internal_errors
+    for warning in warnings:
+        assert any(event.severity == "WARNING" and " ".join(warning.split()) in " ".join(event.message.split())
+                   for event in process.console)
+
+    if report is None:
+        assert trace["diagnostics_exports"] == trace["report_at_export"] == []
+        assert set(tmp_path.iterdir()) == existing
+        return
+    assert trace["diagnostics_exports"] and set(trace["diagnostics_exports"]) == {str(report)}
+    assert trace["report_at_export"]
+    for attempt in trace["report_at_export"]:
+        at_export = diagnostic_record_counts(attempt["events"])
+        assert attempt["outcome"] == "aborted" and earlier <= at_export
+        assert any(transformation_failure_diagnostic(severity, message, effect, failure["cause"])
+                   for severity, _, message, effect, _, _ in at_export - earlier)
+
+    if reporting == "report-failure":
+        failures = trace["report_io_errors"]
+        assert any(diagnostics_report_write_error(event, report, error)
+                   for event in process.console if event not in internal_errors for error in failures)
+        assert not report.exists() and set(tmp_path.iterdir()) == existing
+    else:
+        assert trace["report_io_errors"] == []
+        assert _cli_json_report_contract(json.loads(report.read_bytes())) == ("aborted", actual)
+        assert set(tmp_path.iterdir()) == existing | {report}
 
 
 @pytest.mark.parametrize('mode',['embedded','sidecar'])

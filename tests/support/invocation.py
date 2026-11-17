@@ -9,7 +9,7 @@ Never populate observations from expected fixtures or implement mappings here.
 from ast import literal_eval
 from dataclasses import dataclass, field
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import errno
 import json
 import inspect
@@ -220,8 +220,8 @@ class Observation:
 class Fault:
     """Test-only instruction to fail a REAL boundary, never a public option.
 
-    kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics.
-    operation: read, construct, serialize, encode, create, write, enrich. Bind to an
+    kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics, transformation.
+    operation: read, construct, serialize, encode, create, write, enrich, emit_relations. Bind to an
     observed implementation operation or standard I/O, including child-process
     I/O for CLI cases. Do not implement a replacement transformation, pre-return
     expected outcomes, or add production fault hooks to satisfy this protocol.
@@ -777,6 +777,41 @@ class _OntologySerializationProbe:
         }
 
 
+def _native_diagnostic_fields(events):
+    return [(event.severity, event.code, event.message, event.effect,
+             tuple((source.path, source.identifier, source.element_type) for source in event.sources),
+             event.generated_iri) for event in events]
+
+
+def diagnostic_record_counts(events):
+    """Count native and traced diagnostic records without imposing source order."""
+    return Counter((severity, code, message, effect, tuple(sorted(map(tuple, sources), key=repr)), iri)
+                   for severity, code, message, effect, sources, iri in events)
+
+
+def _fail_relation_emission(trace):
+    """Raise at the actual stage, after collecting the native graph and diagnostic evidence."""
+    import inspect
+    from unittest.mock import patch
+    from ontouml_directkg import conversion
+
+    emit = conversion.emit_relations
+    signature = inspect.signature(emit)
+
+    def fail(*args, **kwargs):
+        arguments = signature.bind(*args, **kwargs).arguments
+        emit(*args, **kwargs)
+        error = RuntimeError("RD04-TRANSFORM-417")
+        trace["transformation_failure"] = {
+            "graph_size": len(arguments["graph"]),
+            "earlier_events": _native_diagnostic_fields(arguments["diagnostics"].events),
+            "cause": str(error),
+        }
+        raise error
+
+    return patch.object(conversion, "emit_relations", fail)
+
+
 _CLI_OBSERVER = '''\
 import argparse
 import atexit
@@ -796,12 +831,18 @@ metadata = _MetadataCapture()
 native_result = None
 ontology_fault = os.environ.get("DIRECTKG_TEST_ONTOLOGY_FAULT")
 probe = _OntologySerializationProbe(ontology_fault) if ontology_fault is not None else None
+transformation_fault = os.environ.get("DIRECTKG_TEST_TRANSFORMATION_FAULT") == "emit_relations"
+if transformation_fault:
+    _fail_relation_emission(trace).start()
 if probe is not None:
-    from pathlib import Path
     from ontouml_directkg.conversion import ConversionResult
 
     def observed_turtle(result):
         return probe.serialize(result)
+
+    ConversionResult.to_turtle = observed_turtle
+if probe is not None or transformation_fault:
+    from pathlib import Path
 
     write_bytes = Path.write_bytes
 
@@ -815,16 +856,12 @@ if probe is not None:
                                                   "reason": str(error)})
             raise
 
-    ConversionResult.to_turtle = observed_turtle
     Path.write_bytes = observed_write_bytes
     trace["report_at_export"] = []
     trace["report_io_errors"] = []
 
 def report_fields(outcome, events):
-    return {"outcome": outcome,
-            "events": [[event.severity, event.code, event.message, event.effect,
-                        [[source.path, source.identifier, source.element_type] for source in event.sources],
-                        event.generated_iri] for event in events]}
+    return {"outcome": outcome, "events": _native_diagnostic_fields(events)}
 
 def report_snapshot(result):
     # Copy public field values immediately, without calling the report writer.
@@ -850,7 +887,7 @@ def observe(frame, event, argument):
             trace["parser_errors"].append(frame.f_locals["message"])
         elif frame.f_code is export_report.__code__:
             trace["diagnostics_exports"].append(str(frame.f_locals["destination"]))
-            if probe is not None:
+            if probe is not None or transformation_fault:
                 trace["report_at_export"].append(report_fields(
                     frame.f_locals["outcome"], frame.f_locals["events"]))
 
@@ -911,7 +948,7 @@ def _observe_python_input():
             raise ImplementationUnavailable("Incomplete Python input-processing evidence")
 
 
-def _run_observed_cli(command, workdir, *, ontology_fault=None):
+def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=False):
     """Observe the real -m CLI without replacing conversion or parser behavior.
 
     The inspected converter finishes configuration validation before calling
@@ -922,14 +959,18 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None):
     """
     with TemporaryDirectory(prefix="directkg-cli-observer-", dir=workdir) as directory:
         directory = Path(directory)
-        observers = (inspect.getsource(_MetadataCapture), inspect.getsource(_OntologySerializationProbe), _CLI_OBSERVER)
-        (directory / "sitecustomize.py").write_text("\n".join(observers), encoding="utf-8")
+        observers = tuple(map(inspect.getsource, (_MetadataCapture, _OntologySerializationProbe,
+                                                   _native_diagnostic_fields, _fail_relation_emission)))
+        (directory / "sitecustomize.py").write_text("\n".join((*observers, _CLI_OBSERVER)), encoding="utf-8")
         trace_path = directory / "execution.json"
         environment = dict(os.environ)
         environment["DIRECTKG_TEST_CLI_TRACE"] = str(trace_path)
         environment.pop("DIRECTKG_TEST_ONTOLOGY_FAULT", None)
+        environment.pop("DIRECTKG_TEST_TRANSFORMATION_FAULT", None)
         if ontology_fault is not None:
             environment["DIRECTKG_TEST_ONTOLOGY_FAULT"] = ontology_fault
+        if transformation_fault:
+            environment["DIRECTKG_TEST_TRANSFORMATION_FAULT"] = "emit_relations"
         environment["PYTHONPATH"] = str(directory) + (
             os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else ""
         )
@@ -1387,6 +1428,14 @@ def reports_older_ontology_retained(record, destination):
     return bool(claims) and all(not _excluded_diagnostic_claim(clause, match) for clause, match in claims)
 
 
+def transformation_failure_diagnostic(severity, message, effect, cause):
+    """Identify the observed internal failure without fixing its code or renderer."""
+    text = " ".join((message + " " + effect).casefold().split())
+    stage = (r"\b(?:transformation|emit_relations|(?:relations?|relationships?) (?:mapping|emission|transformation)"
+             r"|(?:mapping|emitting|transforming) (?:the )?(?:relations?|relationships?))\b")
+    return severity == "ERROR" and cause.casefold() in text and bool(re.search(stage, text))
+
+
 def diagnostics_report_write_error(event, destination, observed_error):
     """Bind a distinct console report-delivery error to the actual failed filesystem call."""
     if (event.severity != "ERROR" or observed_error["destination"] != str(destination)
@@ -1552,7 +1601,8 @@ class _DirectKGInvocation(_UnboundInvocation):
     """Minimal RD-02 wiring; no conversion, recovery or output rules live here."""
 
     def convert(self, source, *, options, workdir, faults=()):
-        if faults:
+        transformation_fault = faults == (Fault("transformation", "emit_relations"),)
+        if faults and not transformation_fault:
             self._unavailable()
         try:
             from ontouml_directkg import ConfigurationError, convert
@@ -1569,13 +1619,16 @@ class _DirectKGInvocation(_UnboundInvocation):
         # Observe real input/report-writer calls for explicit persistence checks;
         # no input option is used to infer that a report was or was not written.
         with _observe_metadata_output() as metadata, _observe_python_input() as trace:
+            injection = _fail_relation_emission(trace) if transformation_fault else nullcontext()
             try:
-                result = convert(source, **request)
+                with injection:
+                    result = convert(source, **request)
             except ConfigurationError as exc:
                 observed = _BasicObservation(None, None, (), configuration_error=exc)
             else:
                 observed = _MetadataPythonObservation(
-                    result.ontology, result.outcome, _observed_diagnostics(result.diagnostics),
+                    result.ontology, result.outcome, _observed_diagnostics(
+                        result.diagnostics, retain_unclassified=transformation_fault),
                     native=result, provenance=result.provenance,
                     external_metadata_output=_captured_metadata(metadata, result.ontology))
         if trace is not None:
@@ -1711,7 +1764,9 @@ class _DirectKGInvocation(_UnboundInvocation):
                       if (artifact, DCTERMS.format, Literal("application/json")) in graph})
 
     def read_diagnostics(self, observation):
-        return _observed_diagnostics(observation.native.diagnostics)
+        native_trace = vars(observation).get("execution_trace") or {}
+        return _observed_diagnostics(observation.native.diagnostics,
+                                     retain_unclassified="transformation_failure" in native_trace)
 
     def read_outcome(self, observation):
         return observation.native.outcome
@@ -1811,8 +1866,9 @@ class _DirectKGInvocation(_UnboundInvocation):
         fields.update(ontology=delivered.conversion.ontology, provenance=delivered.conversion.provenance,
                       provenance_mode=delivered.conversion.provenance_mode,
                       outcome=delivered.conversion.outcome, native=delivered.conversion,
-                      diagnostics=_observed_diagnostics(delivered.conversion.diagnostics,
-                                                        retain_unclassified=probe is not None),
+                      diagnostics=_observed_diagnostics(
+                          delivered.conversion.diagnostics, retain_unclassified=probe is not None or
+                          "transformation_failure" in (vars(observation).get("execution_trace") or {})),
                       delivery_failures=failures, operations=tuple(operations), pre_delivery_ontology=before_io,
                       valid_artifacts=tuple(path for path in (delivered.ontology_path, delivered.provenance_path)
                                             if path is not None))
@@ -1996,10 +2052,7 @@ class _DirectKGInvocation(_UnboundInvocation):
 
     def report_content(self, observation):
         result = observation.native
-        events = tuple((event.severity, event.code, event.message, event.effect,
-                        tuple((source.path, source.identifier, source.element_type) for source in event.sources),
-                        event.generated_iri) for event in result.diagnostics)
-        return ReportContent(result.outcome, events, result)
+        return ReportContent(result.outcome, tuple(_native_diagnostic_fields(result.diagnostics)), result)
 
     def cli_report_content(self, process):
         trace = process.execution_trace
@@ -2073,7 +2126,8 @@ class _DirectKGInvocation(_UnboundInvocation):
         serialization_fault = (faults[0] if len(faults) == 1 and faults[0].kind == "ontology"
                                and faults[0].operation in {"serialize", "encode"}
                                and (faults[0].path is None or faults[0].path == output_path) else None)
-        if ((faults and serialization_fault is None) or extra_args or output_path is None
+        transformation_fault = faults == (Fault("transformation", "emit_relations"),)
+        if ((faults and not (serialization_fault or transformation_fault)) or extra_args or output_path is None
                 or (serialization_fault is None and Path(output_path).exists())
                 or (diagnostics_path is not None and Path(diagnostics_path).exists())):
             self._unavailable()
@@ -2092,10 +2146,9 @@ class _DirectKGInvocation(_UnboundInvocation):
                     command.append("--" + name.replace("_", "-"))
             else:
                 command.extend(("--" + name.replace("_", "-"), str(value)))
-        if serialization_fault is None:
-            completed, trace = _run_observed_cli(command, workdir)
-        else:
-            completed, trace = _run_observed_cli(command, workdir, ontology_fault=serialization_fault.operation)
+        completed, trace = _run_observed_cli(
+            command, workdir, ontology_fault=serialization_fault.operation if serialization_fault else None,
+            transformation_fault=transformation_fault)
         started = trace["conversion_started"]
         if completed.returncode == 2 and trace["parser_errors"] and not started:
             # Actual native rejection before input processing has no conversion
@@ -2110,6 +2163,11 @@ class _DirectKGInvocation(_UnboundInvocation):
             observed = _SerializationFaultCLIObservation(None, native["outcome"], (), native=native)
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   observed, _observed_console(completed.stdout, completed.stderr),
+                                  conversion_started=started, execution_trace=trace)
+        if transformation_fault:
+            # Preserve the real status/console/trace if conversion raises instead of returning.
+            return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
+                                  None, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
         if diagnostics_path is None:
             from ontouml_directkg import Diagnostic as NativeDiagnostic, SourceLocation

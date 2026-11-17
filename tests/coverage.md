@@ -7302,3 +7302,58 @@ both revisions, with **18 propagated Python exceptions** and **34 CLI
 exits of 1**. Later assertions await production correction. Python
 parsing and `git diff --check` passed. Full-suite execution was outside
 this validation. Pending independent Test Reviewer review.
+
+## RD-04 unexpected failures during transformation, Alternative A
+
+The owner accepted Alternative A and forwarded independent Architect
+Reviewer **OK, no findings** at `9c38583f5999e2f8ba26be0b3e451e5d1514e756`.
+DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, and §15 govern these cases. The
+publication base `c1d6ab323f0980e835fa018e0f2d05e05a400a07` includes
+the independent RD-02 registration and preserves the applicable RD-04
+clauses and native converter and CLI sources.
+
+**Input and expectation.** Every node uses the existing VP-plugin-style
+`shared/binary_relation` at
+`tests/fixtures/shared/binary_relation/input.json`. The requested
+provenance mode is `sidecar`; omission of the base option produces a
+real warning. The invocation adapter raises a reportable RuntimeError
+after the actual relation emitter runs, then uses the existing Python
+result and CLI report interfaces. The graph size and full diagnostic
+snapshot at injection confirm there was real partial output and an earlier
+warning. Each node uses inline assertions; no stored RDF result is
+expected from this abort.
+
+| Exact pytest node | Rules | Inline expectations |
+| --- | --- | --- |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[strict-report-written]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI exits 3, preserves earlier diagnostics and internal ERROR on the console and in the report, and delivers no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[strict-report-omitted]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI exits 3 with earlier warning and internal ERROR. No report-writer call or output file. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[strict-report-failure]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI attempts report export after recording the internal ERROR. The native report write fails with ENOTDIR. Both failures appear on the console, with exit 4 and no artifact. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[tolerant-report-written]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI exits 3, preserves earlier diagnostics and internal ERROR on the console and in the report, and delivers no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[tolerant-report-omitted]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI exits 3 with earlier warning and internal ERROR. No report-writer call or output file. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[tolerant-report-failure]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI attempts report export after recording the internal ERROR. The native report write fails with ENOTDIR. Both failures appear on the console, with exit 4 and no artifact. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[best-effort-report-written]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI exits 3, preserves earlier diagnostics and internal ERROR on the console and in the report, and delivers no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[best-effort-report-omitted]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI exits 3 with earlier warning and internal ERROR. No report-writer call or output file. |
+| `tests/cli/test_cli.py::test_cli_unexpected_transformation_failure_aborts_with_diagnostics[best-effort-report-failure]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | CLI attempts report export after recording the internal ERROR. The native report write fails with ENOTDIR. Both failures appear on the console, with exit 4 and no artifact. |
+| `tests/transformation/test_input_diagnostics.py::test_python_unexpected_transformation_failure_aborts_with_diagnostics[strict]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | Python exposes aborted outcome and earlier diagnostics plus an internal ERROR. No graph or sidecar is exposed or delivered. Explicit JSON export mirrors the diagnostics. |
+| `tests/transformation/test_input_diagnostics.py::test_python_unexpected_transformation_failure_aborts_with_diagnostics[tolerant]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | Python exposes aborted outcome and earlier diagnostics plus an internal ERROR. No graph or sidecar is exposed or delivered. Explicit JSON export mirrors the diagnostics. |
+| `tests/transformation/test_input_diagnostics.py::test_python_unexpected_transformation_failure_aborts_with_diagnostics[best-effort]` | DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | Python exposes aborted outcome and earlier diagnostics plus an internal ERROR. No graph or sidecar is exposed or delivered. Explicit JSON export mirrors the diagnostics. |
+
+```sh
+export PYTHONPATH="$PWD/src"
+python -m pytest --rootdir=. -p no:cacheprovider -q --collect-only tests
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/cli/test_cli.py tests/transformation/test_input_diagnostics.py -k unexpected_transformation_failure --tb=short
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_input_diagnostics.py -k fixture_contract
+python -m pytest --rootdir=. -p no:cacheprovider -q tests -k 'shared_json_contract or separate_python_exports or console_threshold or cli_creates_no_diagnostics_report or diagnostics_failure_after_duplicate_abort or required_provenance_construction_failure or aborTs_in_every_policy or duplicate_declaration_ids or ontology_serialization_failure or diagnostic_reader_checks_affirmative_claims or diagnostics_report_write_error_reader or delivery_failure_precedence or python_diagnostics_export_is_explicit or python_report_delivery_failure_is_explicit'
+```
+
+Collection retained all **3,584** base node IDs and added the **12**
+listed above. Every new case reached the injected failure. The **three**
+Python invocations propagated it. The **nine** CLI runs exited `1` with
+a traceback, before the required structured abort and diagnostic export.
+The later assertions await the production correction.
+
+All **68 fixture-contract cases** passed. The **196** regression cases
+matched the base by node and outcome, with **82 passes**, **62 existing
+unbound cases**, and **52 known ontology serialization/encoding delivery
+failures**. Python parsing and `git diff --check` passed. Full-suite
+execution was unperformed. Pending independent Test Reviewer review.

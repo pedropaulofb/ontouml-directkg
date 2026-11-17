@@ -1803,3 +1803,9 @@ at the requested destination.
 The [RD-04 destination follow-up](coverage.md#rd-04-ontology-serialization-failure-destination-follow-up)
 checks that the reported failure applies to the requested file and
 accepts equivalent retention and report-cause wording.
+
+The [RD-04 transformation-abort cases](coverage.md#rd-04-unexpected-failures-during-transformation-alternative-a)
+invoke the native Python and CLI entry points with a fault at relation
+emission. The binding captures the earlier diagnostics at the live
+failure boundary and observes the CLI report writer. Consult the
+inventory for the exact nodes, commands, and production limitations.
