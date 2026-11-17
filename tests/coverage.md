@@ -7529,3 +7529,58 @@ Turtle parsing are covered by those fixture checks. Python parsing and
 `git diff --check` passed. Full-suite execution, new CLI-specific cases, and
 recovery assertions beyond the production guard were unperformed. No engine,
 vocabulary, site documentation, or governing specification was edited.
+
+### RD-04 transformation abort review corrections F1–F3
+
+The independent Test Reviewer returned **NOT OK** for
+`3e45c2da9ac935a7b760bd6910ab89268200a138`. The earlier Architect Reviewer
+**OK** at `9c38583f5999e2f8ba26be0b3e451e5d1514e756` governs this
+correction. The publication base is
+`e62454b98933a6ba6cb5890084fa7353d671c5a5`. This correction preserves the
+intervening serialization fix, categorized-set work, and separately
+registered diagnostic identifiers.
+
+- **F1.** In the 12 cases above, the reader verifies an affirmative
+  failure at the observed relation-emission stage with the injected
+  cause. It accepts generating relation properties and explicit stage
+  and cause fields. It rejects class-stage attribution and denied
+  failure or cause.
+- **F2.** All nine CLI cases compare the captured console records
+  one-to-one with the diagnostics observed before the fault. This
+  includes the three INFO records at the unchanged default threshold
+  and distinguishes records with identical text for different sources.
+- **F3.** Each Python case rereads the live structured diagnostics,
+  outcome, and ontology and provenance availability after successful
+  export and checks that the report is the only artifact.
+
+| Exact pytest node | Rules | Inline expectations |
+| --- | --- | --- |
+| `tests/transformation/test_input_diagnostics.py::test_transformation_failure_reader_uses_observed_relation_stage` | DK-DIAG-05; harness only | Inline diagnostic wording controls for stage, affirmation, and cause. No model fixture or production diagnostic code required. |
+
+The three reviewer wording examples reproduced against the prior
+reader and behaved as required on the correction. A native CLI run on
+`shared/binary_relation` supplied actual console events for the
+pre-fault record comparison. Controls rejected suppressed INFO and a
+duplicate rendering substituted for another class, and accepted
+whitespace reflow. The post-export assertions also ran against a real
+duplicate-ID policy abort. After the native report write, independent
+mutations of diagnostics, outcome, ontology, and provenance each failed
+those assertions.
+
+```sh
+export PYTHONPATH="$PWD/src"
+python -m pytest --rootdir=. -p no:cacheprovider -q --collect-only tests
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/cli/test_cli.py tests/transformation/test_input_diagnostics.py -k 'unexpected_transformation_failure or transformation_failure_reader' --tb=short
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_input_diagnostics.py -k fixture_contract
+python -m pytest --rootdir=. -p no:cacheprovider -q tests -k 'shared_json_contract or separate_python_exports or console_threshold or cli_creates_no_diagnostics_report or diagnostics_failure_after_duplicate_abort or required_provenance_construction_failure or aborts_in_every_policy or duplicate_declaration_ids or ontology_serialization_failure or diagnostic_reader_checks_affirmative_claims or diagnostics_report_write_error_reader or delivery_failure_precedence or python_diagnostics_export_is_explicit or python_report_delivery_failure_is_explicit'
+```
+
+Collection retained **3,626** base node IDs and added one harness, which
+passed. All **12** delivery-boundary cases reached the transformation
+fault. Current production propagated **three** Python exceptions and
+returned CLI exit `1` in **nine** cases. The later assertions await
+the production transformation-abort correction. All **68** fixture
+checks passed. The **196** regression outcomes matched the current base
+by node and failure category, with **118 passes** and **78 existing
+unbound cases**. Python parsing and `git diff --check` passed. Full-suite
+execution was unperformed. Pending independent Test Reviewer review.

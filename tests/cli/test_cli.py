@@ -15,7 +15,8 @@ from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
-from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, diagnostic_record_counts, diagnostic_signatures,
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, console_covers_diagnostic_records,
+                                      diagnostic_record_counts, diagnostic_signatures,
                                       diagnostics_report_write_error, dkgm_chain_facts, ontology_serialization_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained,
                                       transformation_failure_diagnostic)
@@ -981,9 +982,8 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
     failure = trace["transformation_failure"]
     assert failure["graph_size"] > 0
     earlier = diagnostic_record_counts(failure["earlier_events"])
-    warnings = [message for severity, _, message, _, _, _ in earlier
-                if severity == "WARNING" and "placeholder" in message.casefold()]
-    assert warnings
+    assert any(severity == "WARNING" and "placeholder" in message.casefold()
+               for severity, _, message, _, _, _ in earlier)
     assert not destination.exists() and not (tmp_path / "out.provenance.ttl").exists()
     assert process.returncode == (4 if reporting == "report-failure" else 3), process.stderr
 
@@ -996,9 +996,8 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
     internal_errors = [event for event in process.console
                        if transformation_failure_diagnostic(event.severity, event.message, "", failure["cause"])]
     assert internal_errors
-    for warning in warnings:
-        assert any(event.severity == "WARNING" and " ".join(warning.split()) in " ".join(event.message.split())
-                   for event in process.console)
+    # The default info threshold displays every earlier record, including INFO.
+    assert console_covers_diagnostic_records(process.console, failure["earlier_events"])
 
     if report is None:
         assert trace["diagnostics_exports"] == trace["report_at_export"] == []

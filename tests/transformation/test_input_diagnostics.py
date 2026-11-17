@@ -567,7 +567,8 @@ def test_python_unexpected_transformation_failure_aborts_with_diagnostics(invoke
     assert earlier <= actual
     assert any(transformation_failure_diagnostic(severity, message, effect, failure["cause"])
                for severity, _, message, effect, _, _ in actual - earlier)
-    assert diagnostic_signatures(invoke.read_diagnostics(result)) == diagnostic_signatures(result.diagnostics)
+    before_diagnostics = diagnostic_signatures(invoke.read_diagnostics(result))
+    assert before_diagnostics == diagnostic_signatures(result.diagnostics)
     assert invoke.read_ontology(result) is None and invoke.read_provenance(result) is None
     assert result.diagnostics_exports == () and not list(tmp_path.iterdir())
 
@@ -576,6 +577,33 @@ def test_python_unexpected_transformation_failure_aborts_with_diagnostics(invoke
     report = tmp_path / "report.json"
     assert invoke.export_diagnostics(result, report).failure is None
     assert _json_report_contract(json.loads(report.read_bytes())) == (outcome, actual)
+    assert _native_report_records(invoke.report_content(result)) == (outcome, actual)
+    assert diagnostic_signatures(invoke.read_diagnostics(result)) == before_diagnostics
+    assert invoke.read_outcome(result) == "aborted"
+    assert invoke.read_ontology(result) is None and invoke.read_provenance(result) is None
+    assert set(tmp_path.iterdir()) == {report}
+
+
+def test_transformation_failure_reader_uses_observed_relation_stage():
+    """Harness control for the relation-emission fault under DK-DIAG-05."""
+    cause = "RD04-TRANSFORM-417"
+    for message, effect, expected in (
+        (f"Internal transformation failed during class mapping: {cause}.", "", False),
+        (f"No internal transformation failure occurred during relation mapping: {cause}.", "", False),
+        (f"Internal transformation failure during relation emission did not occur: {cause}.", "", False),
+        (f"An unexpected error occurred while generating relation properties: {cause}.", "", True),
+        (f"After class mapping, an unexpected error interrupted generation of relation properties: {cause}.",
+         "", True),
+        (f"Internal transformation failed: {cause}.", "Stage: relation emission.", True),
+        ("Failure while emitting relations.", f"The cause was {cause}.", True),
+        (f"Class mapping failed: {cause}.", "Stage: relation emission.", False),
+        ("Relation emission failed.", f"Cause: class mapping raised {cause}.", False),
+        (f"Relation emission failed: {cause}.", f"The cause was not {cause}.", False),
+        (f"Relation mapping failed for another reason. The class mapping failed: {cause}.", "", False),
+        (f"Relation mapping failed, but it was not caused by {cause}.", "", False),
+        ("Relation mapping failed.", "", False),
+    ):
+        assert transformation_failure_diagnostic("ERROR", message, effect, cause) is expected, (message, effect)
 
 
 def _json_contract_source(source_json, tmp_path, scenario):

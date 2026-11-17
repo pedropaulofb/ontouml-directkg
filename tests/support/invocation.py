@@ -1429,11 +1429,81 @@ def reports_older_ontology_retained(record, destination):
 
 
 def transformation_failure_diagnostic(severity, message, effect, cause):
-    """Identify the observed internal failure without fixing its code or renderer."""
-    text = " ".join((message + " " + effect).casefold().split())
-    stage = (r"\b(?:transformation|emit_relations|(?:relations?|relationships?) (?:mapping|emission|transformation)"
-             r"|(?:mapping|emitting|transforming) (?:the )?(?:relations?|relationships?))\b")
-    return severity == "ERROR" and cause.casefold() in text and bool(re.search(stage, text))
+    """Read an affirmative failure at relation emission and its observed cause."""
+    if severity != "ERROR":
+        return False
+    operation = r"(?:mapping|emission|generation|transformation|creation)"
+    action = r"(?:mapping|emitting|generating|transforming|creating)"
+    relations = r"(?:relations?|relationships?)(?: (?:properties|axioms))?"
+    stage = re.compile(rf"\b(?:emit_relations|{relations} {operation}|{operation} of (?:the )?{relations}"
+                       rf"|{action} (?:the )?{relations})\b")
+    different_stage = re.compile(rf"\b(?:emit_classes|class(?:es)? {operation}|"
+                                 rf"(?:{operation} of|{action}) (?:the )?classes)\b")
+    failure = re.compile(r"\b(?:(?:unexpected|internal|transformation) )*"
+                         r"(?:failure|failed|error|exception|crashed)\b")
+    cause_text = re.compile(rf"(?<![\w-]){re.escape(cause.casefold())}(?![\w-])")
+    statements = []
+    for field in (message, effect):
+        field = re.sub(r"^\s*\[ERROR\]\s+(?:[\w-]+:\s*)?", "", field)
+        words = " ".join(field.casefold().replace("’", "'").split())
+        words = re.sub(r"n't\b", " not", words)
+        statements.extend(re.split(r"(?<=[.!?;])\s+", words))
+
+    def names_stage(pattern, statement):
+        return any(not _excluded_diagnostic_claim(statement, match)
+                   and not re.search(r"\b(?:after|following) (?:the )?$", statement[:match.start()])
+                   and not re.match(r" (?:succeeded|completed successfully)\b", statement[match.end():])
+                   for match in pattern.finditer(statement))
+
+    for index, statement in enumerate(statements):
+        asserted_failure = any(
+            not re.search(r"\b(?:not true|denied) that\b", statement[:match.start()])
+            and not _excluded_diagnostic_claim(statement, match)
+            and not re.match(r"[^,;:]*\b(?:did not|never) (?:occur|arise|happen)\b", statement[match.end():])
+            for match in failure.finditer(statement)
+        )
+        if not asserted_failure or names_stage(different_stage, statement):
+            continue
+        # The next fields may explicitly describe the same failure's stage or reason.
+        stage_reported = names_stage(stage, statement)
+        detail = cause_text.search(statement)
+        cause_reported = bool(detail and not _excluded_diagnostic_claim(statement, detail))
+        for following in statements[index + 1:]:
+            if re.match(r"^(?:the )?(?:stage(?: was| is)?[: ]|during |while |when )", following):
+                if names_stage(different_stage, following):
+                    stage_reported = False
+                    break
+                stage_reported |= names_stage(stage, following)
+            elif re.match(r"^(?:the )?(?:cause|reason)(?: was| is|:)", following):
+                detail = cause_text.search(following)
+                if names_stage(different_stage, following) or (
+                        detail and _excluded_diagnostic_claim(following, detail)):
+                    cause_reported = False
+                    break
+                cause_reported |= detail is not None
+            elif following:
+                break
+        if stage_reported and cause_reported:
+            return True
+    return False
+
+
+def console_covers_diagnostic_records(console, records):
+    """Match captured events one-to-one with the records visible at the info threshold."""
+    available = [(event.severity, " ".join(event.message.split())) for event in console]
+    for severity, _, message, effect, sources, _ in records:
+        text = (" ".join(message.split()), " ".join(effect.split()))
+        for index, (display_severity, displayed) in enumerate(available):
+            if display_severity != severity or not all(field in displayed for field in text):
+                continue
+            if not all(path in displayed or (identifier is not None and re.search(
+                    rf"(?<!\w){re.escape(identifier)}(?!\w)", displayed)) for path, identifier, _ in sources):
+                continue
+            del available[index]
+            break
+        else:
+            return False
+    return True
 
 
 def diagnostics_report_write_error(event, destination, observed_error):
