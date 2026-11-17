@@ -24,7 +24,7 @@ The warning's traceability and content have a strict boundary:
 
 Discarded values cannot reappear in RDF/OWL, provenance metadata, annotations, alternative resources, or diagnostic payloads. Retaining the source ID solely to locate the diagnostic is allowed; it is not an OWL representation of the association or a basis for minting one.
 
-The console form, when visible under its selected threshold, and persistent JSON describe the same underlying diagnostic event and respect the same content boundary. Their presentation formats may differ. Persistent JSON follows the [shared JSON report contract](../reference/diagnostics.md#shared-json-report-contract). Exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved. Console filtering does not remove the produced warning from complete diagnostic access/export.
+The console form, when visible under its selected threshold, and persistent JSON describe the same underlying diagnostic event and respect the same content boundary. Their presentation formats may differ. Persistent JSON follows the [shared JSON report contract](../reference/diagnostics.md#shared-json-report-contract). This warning's identifier remains [provisional](../reference/diagnostics.md#stable-first-release-diagnostic-core); it is outside the eight-code stable core. Console filtering does not remove the produced warning from complete diagnostic access/export.
 
 The warning makes information loss visible; it does not preserve the association-level semantics. See [Presentation and persistence](../reference/controls.md#presentation-and-persistence-do-not-change-transformation-outcomes) for the diagnostic boundary and [Preservation boundaries](../concepts/semantics.md#preservation-boundaries) for the limitation index.
 
@@ -36,4 +36,4 @@ The [semantic-validation boundary](../concepts/semantics.md#validation-boundary)
 
 ---
 
-Governing rules: DK-INS-01–03; DK-INV-02; DK-DIAG-04; baseline consolidated: **2026-11-06**; repository commit: `37e68764202a2a18e0c54ac264df1536ff47e28c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/37e68764202a2a18e0c54ac264df1536ff47e28c/documentation/specification/transformation-specification.md).
+Governing rules: DK-INS-01–03; DK-INV-02; DK-DIAG-04; baseline consolidated: **2026-11-17**; repository commit: `e62454b98933a6ba6cb5890084fa7353d671c5a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/e62454b98933a6ba6cb5890084fa7353d671c5a5/documentation/specification/transformation-specification.md).

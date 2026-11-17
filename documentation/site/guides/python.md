@@ -54,7 +54,7 @@ Structured access must retain **every diagnostic actually produced**, including 
 
 When an [unexpected internal failure stops transformation](../reference/diagnostics.md#unexpected-internal-failures-during-transformation) and DirectKG can report it, Python must expose `aborted`, the preceding diagnostics, and the internal-failure ERROR, with stage and cause when available. The accumulated ontology graph is unavailable through Python, and the aborted run delivers neither an ontology file nor a provenance sidecar. The specification does not prescribe whether the API communicates these outcomes through return values or exceptions.
 
-Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. The shared JSON contract fixes report fields and types; exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
+Accessing diagnostics or exporting them must not create additional transformation diagnostics, change their severity/meaning, recovery, outcome, or ontology-output eligibility. Console thresholds affect presentation only; they do not filter Python structured access. Intentional silence remains silent. The shared JSON contract fixes report fields and types. The [eight stable diagnostic identifiers](../reference/diagnostics.md#stable-first-release-diagnostic-core) have fixed condition meanings for the first release; all other identifiers remain provisional without suppressing required reporting. The complete catalogue remains unresolved.
 
 Python must signal failure programmatically and keep produced diagnostics accessible if Turtle serialization or encoding for a requested ontology file fails after transformation, or if creating or writing the file fails after successful serialization and construction of any required provenance. Both categories preserve the established outcome, generated graph, and requested provenance mode.
 
@@ -82,7 +82,7 @@ See the [metadata/provenance failure reference](metadata-and-provenance.md#failu
 
 ---
 
-Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-16**; repository commit: `9c38583f5999e2f8ba26be0b3e451e5d1514e756`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9c38583f5999e2f8ba26be0b3e451e5d1514e756/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-DIAG-04–05; DK-GEN-09–10; DK-IRI-01; baseline consolidated: **2026-11-17**; repository commit: `e62454b98933a6ba6cb5890084fa7353d671c5a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/e62454b98933a6ba6cb5890084fa7353d671c5a5/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 

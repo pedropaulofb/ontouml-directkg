@@ -51,11 +51,11 @@ Do not deliver the graph accumulated during an aborted conversion, even when use
 
 ### Unexpected internal failures during transformation
 
-If an unexpected internal error stops transformation after conversion has started and DirectKG can still report it, the outcome is `aborted` under every input policy, including `best-effort`. Retain all earlier diagnostics and add an ERROR identifying the internal failure, with stage and cause when available. Python exposes the outcome and diagnostics and withholds the accumulated ontology graph. The run delivers neither an ontology file nor a provenance sidecar.
+If an unexpected internal error stops transformation after conversion has started and DirectKG can still report it, the outcome is `aborted` under every input policy, including `best-effort`. Retain all earlier diagnostics and add an ERROR with code `INTERNAL_TRANSFORMATION_FAILURE`, identifying the internal failure, with stage and cause when available. Python exposes the outcome and diagnostics and withholds the accumulated ontology graph. The run delivers neither an ontology file nor a provenance sidecar.
 
-The CLI attempts requested JSON export after recording the ERROR. A successfully written report uses the shared schema and includes `aborted`, the preceding diagnostics, and the internal-failure ERROR. The CLI uses exit `3` when no report was requested or export succeeds. If the requested report cannot be written, both failures appear on the console and the CLI exits `4`. Exact diagnostic identifiers remain open. [CLI exit codes and example](../guides/cli.md#exit-codes-and-delivery-failures)
+The CLI attempts requested JSON export after recording the ERROR. A successfully written report uses the shared schema and includes `aborted`, the preceding diagnostics, and the internal-failure ERROR. The CLI uses exit `3` when no report was requested or export succeeds. If the requested report cannot be written, both failures appear on the console and the CLI exits `4`. [CLI exit codes and example](../guides/cli.md#exit-codes-and-delivery-failures)
 
-**Implementation status.** At [development revision `d933d65d29811e5d6fff5a13c9ae3136a4a30713`](https://github.com/pedropaulofb/ontouml-directkg/blob/d933d65d29811e5d6fff5a13c9ae3136a4a30713/src/ontouml_directkg/cli.py#L89), an unexpected exception from conversion can escape before the CLI report-export path. The behavior above describes the accepted contract.
+**Implementation status.** Source inspection at [development revision `f27fae955bdecbe75144a2a0b8e91a838beb6006`](https://github.com/pedropaulofb/ontouml-directkg/blob/f27fae955bdecbe75144a2a0b8e91a838beb6006/src/ontouml_directkg/conversion.py) found no `INTERNAL_TRANSFORMATION_FAILURE` reporting path for unexpected transformation exceptions; an exception can still escape before CLI report export. The behavior above remains the accepted contract. Selecting its identifier establishes neither implemented support nor completed testing.
 
 ## Diagnostic collection and export
 
@@ -93,9 +93,9 @@ CLI diagnostics files and Python's separate JSON export use the same minimum str
 
 Additional members may be added compatibly while required names, types, and meanings remain preserved. Consumers must ignore unrecognized members. No `schema_version` member is required.
 
-Exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved. This contract adds no stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Python object representations, API names, signatures, and result/exception mechanisms remain outside this JSON contract.
+The [stable first-release diagnostic core](#stable-first-release-diagnostic-core) fixes eight identifiers and their condition meanings; all other identifiers remain provisional, and the complete condition-to-code catalogue remains unresolved. This contract adds no stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Python object representations, API names, signatures, and result/exception mechanisms remain outside this JSON contract.
 
-The following is a **specification illustration**, not captured converter output. `PLACEHOLDER_BASE` is an existing implementation code used to illustrate the shape; this decision standardizes neither that identifier nor the example wording:
+The following is a **specification illustration**, not captured converter output. `PLACEHOLDER_BASE` belongs to the stable diagnostic core; the example wording remains illustrative:
 
 ```json
 {
@@ -122,6 +122,27 @@ A completed conversion with no produced diagnostics has the following report sha
 The structure introduces no diagnostic event, outcome, control, or change to consolidation, console filtering, abortion, output eligibility, or failure policies. Reports retain all produced events, including those hidden by console filtering or produced before an accepted abort. Delivery failures remain separate from transformation outcomes; rejection of a supplied base or ontology version IRI before conversion still produces no conversion report.
 
 **Implementation evidence:** With Python 3.12.14 at [revision `37e68764202a2a18e0c54ac264df1536ff47e28c`](https://github.com/pedropaulofb/ontouml-directkg/tree/37e68764202a2a18e0c54ac264df1536ff47e28c), ten CLI/Python exports passed bounded shape and mirroring checks covering all three outcomes, source context, empty diagnostics, and events hidden by console filtering. This verifies these report cases; it does not establish complete transformation conformance.
+
+## Stable first-release diagnostic core
+
+The following eight diagnostic identifiers and their specified condition meanings are stable for the first release (DK-DIAG-04 / RD-04). They identify diagnostic conditions in the `code` field; they are separate from [CLI exit codes](../guides/cli.md#exit-codes-and-delivery-failures).
+
+| Stable identifier | Condition meaning |
+| --- | --- |
+| `PLACEHOLDER_BASE` | No base IRI was supplied, so DirectKG used its placeholder base under DK-IRI-01. |
+| `UNPROCESSABLE_DOCUMENT` | The source JSON cannot be read or parsed, or an unsupported root makes meaningful document-level processing impossible under the accepted input contract and DK-DIAG-05. |
+| `DUPLICATE_SOURCE_ID` | Separate declarations share an ID within the existing [identity/reference scope](input.md#structural-requirements), invoking the fatal duplicate-ID rule. Repeated references to one declaration are excluded. |
+| `UNKNOWN_INFORMATION` | Unrecognized non-stereotype input information governed by DK-DIAG-05. Recognized intentional omissions are excluded. |
+| `REQUIRED_PROVENANCE` | Required transformation provenance cannot be constructed under DK-GEN-10. |
+| `INTERNAL_TRANSFORMATION_FAILURE` | A reportable unexpected internal error stops a transformation that has started, under DK-DIAG-05. |
+| `ONTOLOGY_DELIVERY` | Main-ontology serialization, encoding, creation, or writing fails within DK-DIAG-04's settled ontology-file delivery scope. |
+| `SIDECAR_DELIVERY` | Requested provenance-sidecar serialization, creation, or writing fails within DK-GEN-10's settled sidecar-delivery scope. |
+
+When a diagnostic is produced for one of these conditions, use the same identifier in CLI JSON exports, structured Python access, Python JSON exports, and any CLI presentation that displays the code. No additional console format is required. `UNKNOWN_INFORMATION` retains its identifier when the selected input policy changes its established severity or continuation behavior; the [policy rules](#policies-and-precedence) still apply.
+
+**All other identifiers remain provisional**, explicitly including `MISSING_CARDINALITY` and `INVALID_CARDINALITY`. They receive no first-release stability guarantee from this decision. Continue producing, exposing, and exporting their diagnostics under existing requirements; provisional status must not suppress required reporting. RD-04 remains partially unresolved: the complete catalogue and its other unresolved failure questions are not settled by this core.
+
+Stability covers only these strings and condition meanings. It adds no diagnostic events, report members, controls, or guarantee of exact message wording, diagnostic count, or ordering. Existing severity, consolidation, content boundaries, console filtering, recovery, outcomes, output eligibility, and exit-status rules remain unchanged. Identifier selection does not establish implementation or testing completion; the [unexpected-failure implementation limitation](#unexpected-internal-failures-during-transformation) remains explicit.
 
 ## Diagnostic conditions and intentional silence
 
@@ -242,7 +263,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; baseline consolidated: **2026-11-17**; repository commit: `c1d6ab323f0980e835fa018e0f2d05e05a400a07`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c1d6ab323f0980e835fa018e0f2d05e05a400a07/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; baseline consolidated: **2026-11-17**; repository commit: `e62454b98933a6ba6cb5890084fa7353d671c5a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/e62454b98933a6ba6cb5890084fa7353d671c5a5/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

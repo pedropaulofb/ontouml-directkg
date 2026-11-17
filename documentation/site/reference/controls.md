@@ -35,7 +35,7 @@ RD-05 requires an optional Python equivalent of `--ontology-version-iri`; its pa
 
 The specified DKGM vocabulary control requires equivalent Python behavior with the same choices and `import` default. The Python parameter name remains unspecified. See the [implementation status for DKGM delivery](../mapping/mereology.md#vocabulary-delivery-modes) before using the control.
 
-Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same [shared JSON report contract](diagnostics.md#shared-json-report-contract) as the CLI. Python conversion does not automatically write that file. Required JSON members, types, context representations, and compatibility rules are fixed; exact diagnostic identifiers and the complete condition-to-code catalogue remain unresolved.
+Persistent diagnostic writing is separate from transformation-control parity. The CLI can request its diagnostics file with the control above. Python must expose structured diagnostics, including after an accepted abort, and a **separate explicitly invoked** JSON export operation using the same [shared JSON report contract](diagnostics.md#shared-json-report-contract) as the CLI. Python conversion does not automatically write that file. Required JSON members, types, context representations, and compatibility rules are fixed. The [eight stable diagnostic identifiers](diagnostics.md#stable-first-release-diagnostic-core) have fixed condition meanings for the first release; all other identifiers remain provisional without suppressing required reporting. The complete catalogue remains unresolved.
 
 Python must also expose semantically equivalent metadata/provenance controls with the same provenance default, and make separate provenance available as a graph with explicit file serialization. The [generated API reference](api/index.md) describes actual public objects; the shared JSON contract does not prescribe their Python representations.
 
@@ -73,7 +73,7 @@ No independent ontology-IRI, format-selection, prefix-selection, sorting/canonic
 
 ---
 
-Governing rules: §15; DK-GEN-04, 09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-01, 07, 19; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-GEN-04, 09–10; DK-IRI-01–02, 09–10; DK-LBL-01–02; DK-INV-01, 04–05, 10; DK-REL-01, 07, 19; DK-ATT-04; DK-DIAG-04–07; baseline consolidated: **2026-11-17**; repository commit: `e62454b98933a6ba6cb5890084fa7353d671c5a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/e62454b98933a6ba6cb5890084fa7353d671c5a5/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 
