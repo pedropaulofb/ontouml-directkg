@@ -153,8 +153,6 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
     categorizer = data.get("categorizer")
     if categorizer is None:
         return
-    if not complete:
-        raise NotImplementedError("Categorizer recovery after a failed class-set member remains unspecified")
     try:
         classifier = index.resolve(categorizer)
     except KeyError as exc:
@@ -163,7 +161,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
     if classifier.data["type"] != "Class" or cid not in resources:
         raise NotImplementedError("Categorizer without a generated local class remains outside the decided baseline")
     extension = set(specifics)
-    if classifier.data.get("isPowertype") is True and len(general_ids) == 1:
+    if complete and classifier.data.get("isPowertype") is True and len(general_ids) == 1:
         pending = list(general_ids)
         visited = set()
         while pending:
