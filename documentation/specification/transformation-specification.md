@@ -2788,7 +2788,7 @@ The INFO diagnostic required whenever class or relation singleton completeness i
 
 The persistent export MUST NOT independently create diagnostics for every known limitation or information loss documented by this specification. Rules that intentionally require no diagnostic remain in force and do not become reportable merely because export is enabled. The DK-INS-02 warning is a produced diagnostic and MUST be included in the JSON mirror, observing DK-INS-02's boundary between source-locator and discarded-value content. Its console and JSON forms MAY differ in presentation but MUST represent the same underlying diagnostic event.
 
-Each exported diagnostic SHOULD contain sufficient structured information to identify what happened and, where applicable, trace it to the relevant source element. The shared JSON report contract below fixes the minimum structure, required member names and types, context representation, and compatibility rules. Exact diagnostic identifiers and the complete condition-to-code catalogue remain unspecified.
+Each exported diagnostic SHOULD contain sufficient structured information to identify what happened and, where applicable, trace it to the relevant source element. The shared JSON report contract below fixes the minimum structure, required member names and types, context representation, and compatibility rules. The stable first-release diagnostic core below selects eight identifier strings and their condition meanings. All other identifiers remain provisional, and the complete condition-to-code catalogue remains unresolved.
 
 The Python API and, when exported, the shared JSON diagnostics report MUST expose exactly one transformation outcome for each conversion, using the outcome names and classification defined in DK-DIAG-05: `completed`, `completed-with-errors`, or `aborted`. This applies to reports exported through either the CLI or Python. Exposing the outcome MUST NOT itself introduce additional diagnostics. The JSON report structure and member names follow DK-DIAG-04's shared report contract. Python representations remain unspecified.
 
@@ -2818,11 +2818,11 @@ All listed members MUST be present in their respective objects. Optional context
 
 Additional members MAY be added compatibly. Required members MUST retain their specified names, types, and meanings; consumers MUST ignore unrecognized members. This contract requires no `schema_version` member.
 
-Human-readable messages remain explanatory text. This contract establishes no new stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Exact diagnostic identifiers and the complete condition-to-code catalogue remain outside this decision.
+Human-readable messages remain explanatory text. This contract establishes no new stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. The identifiers and condition meanings receiving first-release stability guarantees are specified in the stable diagnostic core below.
 
 This structure MUST NOT change diagnostic production, consolidation, severity, meaning, console filtering, transformation outcomes, abortion, output eligibility, or existing failure and delivery policies. It does not prescribe Python object representations, API names, function signatures, or a result or exception mechanism.
 
-**Example (non-normative):** The following illustrative report uses an existing implementation identifier to demonstrate the shape. It does not register that identifier or exact message wording as part of the still-unselected diagnostic-code catalogue.
+**Example (non-normative):** The following report illustrates the shared shape using `PLACEHOLDER_BASE` from the stable diagnostic core below. Exact message wording remains illustrative.
 
 ```json
 {
@@ -2839,6 +2839,31 @@ This structure MUST NOT change diagnostic production, consolidation, severity, m
   ]
 }
 ```
+
+#### Stable first-release diagnostic core (RD-04, alternative A)
+
+For the first release, DirectKG MUST stabilize the following eight diagnostic identifier strings and their specified condition meanings. When a diagnostic is produced for one of these conditions under its governing rule, it MUST use the corresponding identifier consistently in CLI JSON exports, structured Python diagnostic access, Python JSON exports, and any CLI presentation that displays the code.
+
+| Stable identifier | Specified condition meaning |
+|---|---|
+| `PLACEHOLDER_BASE` | No base IRI was supplied and DirectKG used its placeholder base under DK-IRI-01. |
+| `UNPROCESSABLE_DOCUMENT` | DirectKG cannot read or parse the source JSON document, or its root is unsupported under the input contract in §3.2 and meaningful document-level processing is impossible under DK-DIAG-05. |
+| `DUPLICATE_SOURCE_ID` | Separate source declarations share an ID within §3.4's existing identity/reference scope, invoking DK-DIAG-05's fatal duplicate-ID rule. |
+| `UNKNOWN_INFORMATION` | DirectKG encounters unrecognized non-stereotype input information governed by DK-DIAG-05. Recognized intentional omissions are excluded. |
+| `REQUIRED_PROVENANCE` | DirectKG cannot construct required transformation provenance under DK-GEN-10. |
+| `INTERNAL_TRANSFORMATION_FAILURE` | A reportable unexpected internal error stops a transformation that has started, under DK-DIAG-05's unexpected-internal-failure contract. |
+| `ONTOLOGY_DELIVERY` | Main-ontology serialization, encoding, creation, or writing fails within this rule's settled ontology-file delivery scope. |
+| `SIDECAR_DELIVERY` | Serialization, creation, or writing of the requested provenance sidecar fails within DK-GEN-10's settled sidecar-delivery scope. |
+
+All other identifiers, including `MISSING_CARDINALITY` and `INVALID_CARDINALITY`, MUST remain provisional for the first release and receive no stability guarantee from this decision. DirectKG MUST continue to produce, expose, and export the corresponding diagnostics under their existing requirements. Provisional identifier status MUST NOT suppress required diagnostics.
+
+This core does not complete the condition-to-code catalogue. Identifiers and condition mappings outside it remain unselected for stability; other unresolved RD-04 questions remain unresolved.
+
+Stabilization concerns only these identifier strings and their specified meanings. It MUST NOT alter diagnostic production, severity, consolidation, content boundaries, console filtering, transformation outcomes, recovery, output eligibility, or exit-status rules. Existing input and stereotype policies, provenance requirements, and delivery-failure distinctions and precedence remain applicable. This decision introduces no guarantee of exact message wording, diagnostic count or order, and no new report member, control, or console format.
+
+Selecting `INTERNAL_TRANSFORMATION_FAILURE` MUST NOT be treated as evidence that the existing unexpected-failure reporting contract is implemented or tested. That existing contract remains an implementation and testing obligation independently of identifier selection.
+
+**Rationale (non-normative):** The bounded core supports publication safeguards, supported-input compatibility checks, identity-integrity reporting, and distinctions between conversion and artifact-delivery failures. Other identifiers remain available without requiring a complete stable catalogue before the first release.
 
 #### Ontology-file delivery failures (RD-04, option A)
 
@@ -2962,7 +2987,7 @@ If an unexpected internal error stops transformation after conversion has starte
 
 The Python interface MUST expose the `aborted` outcome and diagnostics through DK-DIAG-04. DirectKG MUST NOT make an accumulated ontology graph available through Python or deliver an ontology file or provenance sidecar for the aborted conversion. The CLI MUST attempt any requested JSON diagnostics export after recording the ERROR. Under §15 the CLI MUST exit with code `3`, overridden by `4` if that export fails. Both failures MUST remain visible on the console in that case.
 
-The established rules for input handling, required-provenance generation, and artifact delivery retain their own scope. This rule leaves the exact diagnostic identifier to the diagnostic-code catalogue.
+The established rules for input handling, required-provenance generation, and artifact delivery retain their own scope. Diagnostics produced for this condition MUST use `INTERNAL_TRANSFORMATION_FAILURE` from DK-DIAG-04's stable first-release core. Identifier selection does not establish implementation or test completion; the existing failure-reporting requirements remain applicable.
 
 **Example (non-normative):** If a placeholder-base WARNING has already been produced when an unexpected internal error stops relation mapping, a successfully written diagnostics report records `aborted`, the earlier WARNING, and the internal-failure ERROR. No ontology or provenance sidecar is delivered.
 
