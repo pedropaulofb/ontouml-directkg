@@ -1,7 +1,7 @@
 """DirectKG's file-based CLI, using the public Python converter and delivery API."""
 
 import argparse
-from errno import ELOOP, ENOENT, ENOTDIR
+from errno import ELOOP, ENAMETOOLONG, ENOENT, ENOTDIR
 from pathlib import Path
 import sys
 
@@ -60,7 +60,7 @@ def _finish(result: ConversionResult, threshold: str, report: Path | None, outpu
                     aliases_artifact = report.samefile(artifact)
                 except OSError as exc:
                     # Unresolvable paths have no file identity to compare.
-                    if exc.errno not in {ENOENT, ENOTDIR, ELOOP}:
+                    if exc.errno not in {ENOENT, ENOTDIR, ELOOP, ENAMETOOLONG}:
                         raise
                     continue
                 if aliases_artifact:
