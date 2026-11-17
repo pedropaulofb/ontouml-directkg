@@ -55,11 +55,12 @@ def _write_artifact(destination: Path, content: bytes) -> None:
 
 
 def _failure(result: "ConversionResult", kind: str, destination: Path,
-              cause: Exception, old: bool | None) -> DeliveryFailure:
+             cause: Exception, old: bool | None, *, stage: str | None = None) -> DeliveryFailure:
     retained = (" An older file remains at the destination and was not updated for this execution." if old
                 else " Any existing file was not updated for this execution." if old is None else "")
+    failure = f"{stage} failed for {kind} delivery" if stage else f"Cannot deliver {kind}"
     result.diagnostics += (Diagnostic(
-        "ERROR", kind.upper() + "_DELIVERY", f"Cannot deliver {kind} to {destination}: {cause}.",
+        "ERROR", kind.upper() + "_DELIVERY", f"{failure} to {destination}: {cause}.",
         "Requested artifact delivery failed; the transformation outcome and generated ontology graph are unchanged."
         + retained, (SourceLocation(str(destination), element_type=kind + " destination"),)),)
     return DeliveryFailure(kind, destination, cause, old)
@@ -68,7 +69,18 @@ def _failure(result: "ConversionResult", kind: str, destination: Path,
 def deliver(result: "ConversionResult", destination: Path) -> DeliveryResult:
     if result.outcome == "aborted":
         return DeliveryResult(result)
-    content = result.to_turtle().encode("utf-8")
+    try:
+        stage = "Turtle serialization"
+        turtle = result.to_turtle()
+        stage = "UTF-8 encoding"
+        content = turtle.encode("utf-8")
+    except Exception as exc:
+        try:
+            old = destination.is_file()
+        except OSError:
+            old = None
+        failure = _failure(result, "ontology", destination, exc, old, stage=stage)
+        return DeliveryResult(result, failures=(failure,))
     sidecar_graph = None
     if result.provenance_mode == "sidecar":
         try:
