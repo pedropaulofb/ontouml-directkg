@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-16
+**Consolidated:** 2026-11-17
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -586,7 +586,7 @@ Repeated membership alone MUST NOT produce an additional diagnostic. Independent
 
 Distinct source generalization declarations MUST remain distinct members; sharing endpoint classifiers MUST NOT make them duplicate memberships. This rule MUST NOT authorize ignoring invalid or unresolved references or failed member transformations. Existing duplicate-declaration-ID, structural-error, and partial-recovery rules remain unchanged. In particular, deduplication MUST NOT turn a partially failed larger set into a complete singleton.
 
-This rule establishes membership identity only. Missing or malformed membership containers and unresolved categorizer/powertype recovery remain outside its scope. Explicitly empty `generalizations` arrays remain governed by DK-DIAG-12.
+This rule establishes membership identity only. DK-HO-04 governs categorizer recovery for incomplete class sets. Missing or malformed membership containers remain outside this rule's scope. Explicitly empty `generalizations` arrays remain governed by DK-DIAG-12.
 
 **Rationale and examples (non-normative):** Repeating a reference does not introduce another source generalization. Counting the referenced declarations once lets the existing mappings operate on the same members regardless of redundant array entries.
 
@@ -792,7 +792,7 @@ DirectKG MUST NOT apply the singleton-completeness mapping in DK-CLS-08 merely b
 
 The underlying failure MUST retain error severity. Under `strict` or `tolerant`, DirectKG MUST report the error and abort the transformation under DK-DIAG-05. Under `best-effort`, independently applicable class and generalization mappings MUST remain applicable.
 
-This rule does not change the mappings for fully resolved sets. It does not settle categorizer recovery or missing or malformed membership containers.
+The mappings for fully resolved sets continue to apply. DK-HO-04 governs categorizer recovery for incomplete class sets. Missing or malformed membership containers remain outside this rule's scope.
 
 **Rationale and example (non-normative):** If a complete, disjoint set specializes `A` into `B`, `C`, and `D`, but the `D` member cannot be resolved or transformed, retaining `B owl:disjointWith C` preserves part of the original constraint. Covering `A` using only `B` and `C` would incorrectly strengthen the model by excluding the missing alternative.
 
@@ -877,7 +877,7 @@ Documentation MUST explain that the shared IRI has logically separate class and 
 
 For a generalization set whose categorizer is `C`, DirectKG MUST emit `S rdf:type C` for every explicit specific classifier `S` in the set. Each categorizer declaration is transformed as stated. Multiple higher-order classifications of the same classifier MUST all be emitted.
 
-When `C.isPowertype` is false or null, only the set's explicit specifics receive this assertion from the categorizer rule. The common general and specializations outside the set do not.
+When `C.isPowertype` is false or null, only the set's explicit specifics receive this assertion from the categorizer rule. The common general and specializations outside the set do not. DK-HO-04 governs the surviving specifics when a member of a categorized class set fails.
 
 ### DK-HO-03 — Powertype extension
 
@@ -888,7 +888,7 @@ When `C.isPowertype` is false or null, only the set's explicit specifics receive
 - every modeled indirect specialization of `B`;
 - including modeled specializations not explicitly listed in the generalization set.
 
-These assertions MUST be materialized because subclass axioms over the class facets do not propagate `rdf:type` facts over their punned individual facets. The rule applies only to classifiers represented in the transformed model and makes no claim about unknown, unmodeled, or future specializations.
+These assertions MUST be materialized because subclass axioms over the class facets do not propagate `rdf:type` facts over their punned individual facets. The rule applies only to classifiers represented in the transformed model and makes no claim about unknown, unmodeled, or future specializations. DK-HO-04 governs when powertype expansion is omitted for an incomplete class set.
 
 ### DK-HO-04 — No higher-order reconciliation or validation
 
@@ -905,7 +905,17 @@ DirectKG MUST NOT:
 
 Different higher-order types are not treated as conflicting merely because they classify related elements.
 
-The class generalization-set `isDisjoint` mapping is specified in DK-CLS-06 and completeness in DK-CLS-07–08 (RD-13). Partial recovery of those class-set constraints is specified in DK-CLS-09 (RD-13 / RD-02). Explicitly empty `generalizations` arrays are structural errors under DK-DIAG-12 (RD-13 / RD-02). Relation generalization-set disjointness is specified in DK-REL-15 (RD-13). DK-REL-16 establishes the explicit coverage limitation for complete relation sets with two or more distinct specific relations. DK-REL-20 specifies fully resolved singleton relation-set completeness. Repeated references to the same generalization are counted once under DK-GEN-12. Handling for missing or malformed membership containers and categorizer recovery when a class-set member is unresolved or fails transformation remain unspecified.
+The class generalization-set `isDisjoint` mapping is specified in DK-CLS-06 and completeness in DK-CLS-07–08 (RD-13). Partial recovery of those class-set constraints is specified in DK-CLS-09 (RD-13 / RD-02). Explicitly empty `generalizations` arrays are structural errors under DK-DIAG-12 (RD-13 / RD-02). Relation generalization-set disjointness is specified in DK-REL-15 (RD-13). DK-REL-16 establishes the explicit coverage limitation for complete relation sets with two or more distinct specific relations. DK-REL-20 specifies fully resolved singleton relation-set completeness. Repeated references to the same generalization are counted once under DK-GEN-12. Handling for missing or malformed membership containers remains unspecified.
+
+#### Recovery for incomplete categorized class generalization sets (RD-02, option A)
+
+This rule applies to a class generalization set with a nonempty `generalizations` array and a categorizer `C` that resolves to an otherwise eligible classifier with a generated local OWL class. It applies when at least one member reference cannot be resolved or a required member transformation fails under DK-CLS-09.
+
+Under `best-effort`, DirectKG MUST apply the existing categorizer mapping to each distinct specific classifier `S` of the surviving, successfully transformed explicit members, using `S rdf:type C` and the existing punning rules. If no member survives, the set contributes no categorizer assertions. When `C.isPowertype` is true, DirectKG MUST omit the DK-HO-03 extension for that incomplete set, including classifications of the common general or other specializations that would arise solely from the extension. Classifications independently established by other mappings remain applicable.
+
+The underlying failure MUST retain its existing ERROR and input-policy behavior under DK-CLS-09 and DK-DIAG-05. Under `strict` or `tolerant`, DirectKG MUST abort. DK-CLS-09 continues to govern coverage, disjointness, and independent output. Use existing diagnostic and recovery mechanisms for this case. Fully resolved sets retain the DK-HO-02 and DK-HO-03 mappings. Recovery for an unusable categorizer remains outside this rule's scope.
+
+**Example (non-normative):** If `VehicleType` categorizes a set with explicit members `Car` and `Truck`, and the `Truck` member fails, `best-effort` preserves `Car rdf:type VehicleType`. If `VehicleType.isPowertype` is true, the incomplete set contributes no extension to `Vehicle` or other specializations.
 
 ## 8. Attributes and datatypes
 
@@ -2685,7 +2695,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Singleton membership without application of completeness, or one survivor after partial failure of a larger set | No singleton-completeness INFO solely for this condition; membership alone produces no warning; partial failure MUST NOT trigger singleton completeness and retains its existing structural diagnostics | No additional fatality solely for membership or survivor count |
 | Either named inverse is absent for singleton relation completeness | Omit the reverse inverse-specialization axiom without a warning under DK-REL-20; do not generate an inverse solely for completeness | No solely for this omission |
 | Generalization set with an explicitly empty `generalizations` array | Structural error under DK-DIAG-12; report an error and abort under `strict` or `tolerant`; under `best-effort`, report an error, omit the set's contribution, and continue with other transformable input | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
-| Unresolved member reference or failed member transformation in a class generalization set | Error; under `strict` or `tolerant`, abort; under `best-effort`, apply DK-CLS-09 by omitting coverage while preserving applicable pairwise disjointness and independent mappings | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Unresolved member reference or failed member transformation in a class generalization set | Error; under `strict` or `tolerant`, abort; under `best-effort`, apply DK-CLS-09 by omitting coverage while preserving applicable pairwise disjointness and independent mappings, and apply DK-HO-04's bounded categorizer recovery when its conditions hold | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
 | Enumeration `literals` field is null, absent, or explicitly empty | Warning that no enumeration values were available and closure was omitted; retain the enumeration class and independent mappings under DK-CLS-11 and DK-DIAG-13 | No under any input policy, including `strict` |
 | Malformed enumeration value list or untransformable supplied value | Error; under `strict` or `tolerant`, abort; under `best-effort`, preserve successfully transformable information under DK-CLS-11 and DK-DIAG-13 | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
 | Incomplete enumeration transformation leaves multiple, one, or zero surviving values | No additional diagnostic solely because of the survivor count; existing transformation errors report failed values | No additional fatality solely for the survivor count |
@@ -2976,7 +2986,7 @@ An enumeration whose `literals` field is null, absent, or explicitly empty uses 
 
 A generalization set with an explicitly empty `generalizations` array is a structural error governed by DK-DIAG-12: `strict` and `tolerant` abort, while `best-effort` retains error severity, omits the empty set's contribution, and continues with other transformable input.
 
-An unresolved member reference or failed member transformation in a class generalization set is an error. Under `strict` and `tolerant`, transformation aborts. Under `best-effort`, error severity is retained and partial recovery follows DK-CLS-09: the covering axiom is omitted, applicable pairwise disjointness is retained, and independently applicable class and generalization mappings remain applicable.
+An unresolved member reference or failed member transformation in a class generalization set is an error. Under `strict` and `tolerant`, transformation aborts. Under `best-effort`, error severity is retained and partial recovery follows DK-CLS-09: the covering axiom is omitted, applicable pairwise disjointness is retained, and independently applicable class and generalization mappings remain applicable. DK-HO-04 governs categorizer recovery for incomplete class sets.
 
 The warning required by DK-REL-16 for a complete relation generalization set with two or more distinct specific relations is nonfatal under every input policy, including `strict`. All other applicable relation mappings continue.
 
