@@ -1,6 +1,19 @@
 # Requirement-to-test inventory
 
-**Current assignment authority:** RD-04 general OWL profile claim, Alternative A.
+**Current assignment authority:** RD-02 recovery for incomplete categorized class
+sets, Alternative A. The owner forwarded the Architect's unified handoff and
+independent Architect Reviewer **OK, no findings** for
+`c1d6ab323f0980e835fa018e0f2d05e05a400a07`. Behavioral source:
+`documentation/specification/transformation-specification.md`, blob
+`798a8a51f78d9645305a4a6d04c302af42718afa`; placement source:
+`documentation/specification/test-suite-structure.md`, blob
+`ae7a5f3b392a90db8baacf938460314c87de9698`. Both blobs remain unchanged at
+inspection/publication base `c3b36bb91b85e4725dd32587a3ee40945521ad95`.
+This TEST CHANGE is pending independent Test Reviewer review. The scoped
+authority, exact nodes, fixture pairings, supersession, and execution limits are
+recorded in the RD-02 recovery section below. No waiver or review reuse applies.
+
+**Previous assignment authority:** RD-04 general OWL profile claim, Alternative A.
 The owner accepted all three boundaries and forwarded independent Architect
 Reviewer **OK, no findings** at `5578cc009c70bcf94e23b4154c06d849363e1488`.
 Behavioral source `documentation/specification/transformation-specification.md`,
@@ -7357,3 +7370,162 @@ matched the base by node and outcome, with **82 passes**, **62 existing
 unbound cases**, and **52 known ontology serialization/encoding delivery
 failures**. Python parsing and `git diff --check` passed. Full-suite
 execution was unperformed. Pending independent Test Reviewer review.
+
+
+## RD-02 recovery for incomplete categorized class sets
+
+**Disposition:** TEST CHANGE. **Status:** pending independent Test Reviewer review.
+The owner supplied the Architect's unified downstream handoff and independent
+Architect Reviewer **OK, no findings** for registration
+[`c1d6ab323f0980e835fa018e0f2d05e05a400a07`](https://github.com/pedropaulofb/ontouml-directkg/commit/c1d6ab323f0980e835fa018e0f2d05e05a400a07).
+Base `c3b36bb91b85e4725dd32587a3ee40945521ad95` descends from that
+registration. The reviewed transformation blob
+`798a8a51f78d9645305a4a6d04c302af42718afa`, structure blob
+`ae7a5f3b392a90db8baacf938460314c87de9698`, and relevant converter blob
+`d6f4635948fe94ee0342e4013d275bcf4fd80e70` are unchanged. No waiver,
+review reuse, additional downstream sign-off, or production acceptance is claimed.
+
+**Accepted scope and supersession.** DK-HO-04's recovery clause applies to a
+class set with a nonempty membership array, an otherwise eligible categorizer
+with a generated local OWL class, and an unresolved or failed member. Under
+best-effort, retain each distinct surviving explicit specific's classification
+and its punned identity; with no survivors, this set contributes no categorizer
+assertions. Omit powertype expansion from the incomplete set while retaining
+classifications independently established by other mappings. The existing
+member ERROR remains; strict and tolerant abort. DK-CLS-09 still prohibits
+coverage or singleton completeness from survivors and retains applicable
+pairwise disjointness and independent mappings. DK-GEN-12 still counts repeated
+references to one declaration once. Fully resolved sets retain DK-HO-02–03.
+This resolves only that formerly unspecified recovery. Earlier assignment
+bounds excluding partial categorizer recovery remain historical; they do not
+exclude these new assertions. Missing/malformed membership containers and
+unusable categorizers remain outside this submission. Diagnostic identifiers,
+counts, and additional recovery mechanisms are not selected here.
+
+**Placement, input, and expectations.** All new nodes extend the existing
+higher-order module. Case key `higher_order/categorizers` selects the unchanged
+`tests/fixtures/transformation/higher_order/categorizers/input.json`.
+Every new expectation is inline; no new stored graph is paired with these nodes.
+The existing `expected.ttl` in that bundle remains paired only with its existing
+fully resolved consumer. No promotion, new fixture, helper module, configuration,
+or invocation-adapter change is needed. The two null-categorizer class-test
+comments now point to the separately assigned categorized recovery tests.
+
+The local helper preserves the complete Project/Package/Class/Generalization/
+GeneralizationSet structure. It makes gsFirst complete and disjoint, retains
+zero, one, or two valid explicit members, and adds either one dangling member
+reference (`missingMember`) or a declared `gFailed` with an explicitly null
+specific reference. The latter is deliberately malformed. Each call asserts
+exactly the corresponding fixture-authoring defect. One-survivor cases repeat
+the valid membership to exercise DK-GEN-12 without allowing singleton coverage.
+The existing second categorizer still independently classifies One. Additional
+cases add a fully resolved set using the SAME categorizer and gOutside, proving
+that its ordinary classification or full powertype expansion is retained.
+
+**Bounded source check.** Inspected only
+[`models/guizzardi2005ontological/ontology.json`](https://github.com/OntoUML/ontouml-models/blob/9f5caff6c838bf8fdfa7fcc15726998eebc15c88/models/guizzardi2005ontological/ontology.json)
+at Catalog `9f5caff6c838bf8fdfa7fcc15726998eebc15c88`, blob
+`8d48eac24e8bb451893ec136be1bb2f366edb28e`. Its Project/Package containers,
+class fields, generalization reference objects, and populated generalization-set
+arrays corroborate the existing fixture shapes. Its inspected sets have null
+categorizers; it supplies no example of the assigned recovery. No Catalog model
+was copied or claimed to exhibit a defect. The purpose-authored fixture remains
+unchanged; only the explicit runtime mutations above are introduced. The supported
+0.5.3 serializer was independently checked at exporter commit
+`9fc02b8162db9910f21b8713549cafce2627dad0`:
+`src/main/java/it/unibz/inf/ontouml/vp/model/ontouml/serialization/GeneralizationSetSerializer.java`,
+blob `7127f412b19233be1f2f1fd054e354c821b8faae`, writes the boolean flags,
+nullable categorizer reference, and generalization-reference array. This verifies
+the used representation, not the Catalog file's exporter-version provenance.
+No arbitrary newer-schema feature or language enrichment is required.
+
+**Binding.** The existing adapter calls the real public
+`ontouml_directkg.convert(source, **options)` and reads the native graph, outcome,
+and diagnostics. Existing mappings for FAILED_CLASS_GENERALIZATION and
+UNRESOLVED_GENERALIZATION_SET_MEMBER preserve actual severity and source locators;
+the tests require the member ERROR and appropriate locator, not either native
+code spelling or a fixed diagnostic count. No conversion, diagnostic, or graph
+is simulated. No new node uses an unbound observation field.
+
+All rows below were introduced by RD-02 registration `c1d6ab323f0980e835fa018e0f2d05e05a400a07`.
+
+| Exact pytest node | Rules | Case and exact pairing | Assertions and observed execution |
+| --- | --- | --- | --- |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[strict-failed_member-ordinary]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `strict-failed_member-ordinary`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[strict-failed_member-powertype]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `strict-failed_member-powertype`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[strict-unresolved_member-ordinary]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `strict-unresolved_member-ordinary`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[strict-unresolved_member-powertype]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `strict-unresolved_member-powertype`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[tolerant-failed_member-ordinary]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `tolerant-failed_member-ordinary`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[tolerant-failed_member-powertype]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `tolerant-failed_member-powertype`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[tolerant-unresolved_member-ordinary]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `tolerant-unresolved_member-ordinary`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_aborts_without_recoverable_output[tolerant-unresolved_member-powertype]` | DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `tolerant-unresolved_member-powertype`. | Strict/tolerant preserve the localized member ERROR, return aborted, expose no ontology/provenance, and emit no singleton-completeness INFO. **Observed: passed.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_keeps_independent_classifications[no_survivors-ordinary]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-ordinary`. | Best-effort retains independently established SAME-C ordinary or powertype classifications and the other categorizer, with zero or one survivor in the incomplete set; no false coverage or singleton INFO. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_keeps_independent_classifications[no_survivors-powertype]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-powertype`. | Best-effort retains independently established SAME-C ordinary or powertype classifications and the other categorizer, with zero or one survivor in the incomplete set; no false coverage or singleton INFO. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_keeps_independent_classifications[one_survivor-ordinary]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-ordinary`. | Best-effort retains independently established SAME-C ordinary or powertype classifications and the other categorizer, with zero or one survivor in the incomplete set; no false coverage or singleton INFO. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_keeps_independent_classifications[one_survivor-powertype]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-05 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-powertype`. | Best-effort retains independently established SAME-C ordinary or powertype classifications and the other categorizer, with zero or one survivor in the incomplete set; no false coverage or singleton INFO. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[no_survivors-failed_member-ordinary_false]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-failed_member-ordinary_false`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[no_survivors-failed_member-ordinary_null]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-failed_member-ordinary_null`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[no_survivors-failed_member-powertype_true]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-failed_member-powertype_true`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[no_survivors-unresolved_member-ordinary_false]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-unresolved_member-ordinary_false`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[no_survivors-unresolved_member-ordinary_null]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-unresolved_member-ordinary_null`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[no_survivors-unresolved_member-powertype_true]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `no_survivors-unresolved_member-powertype_true`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[one_survivor-failed_member-ordinary_false]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-failed_member-ordinary_false`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[one_survivor-failed_member-ordinary_null]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-failed_member-ordinary_null`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[one_survivor-failed_member-powertype_true]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-failed_member-powertype_true`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[one_survivor-unresolved_member-ordinary_false]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-unresolved_member-ordinary_false`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[one_survivor-unresolved_member-ordinary_null]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-unresolved_member-ordinary_null`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[one_survivor-unresolved_member-powertype_true]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `one_survivor-unresolved_member-powertype_true`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[two_survivors-failed_member-ordinary_false]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `two_survivors-failed_member-ordinary_false`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[two_survivors-failed_member-ordinary_null]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `two_survivors-failed_member-ordinary_null`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[two_survivors-failed_member-powertype_true]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `two_survivors-failed_member-powertype_true`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[two_survivors-unresolved_member-ordinary_false]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `two_survivors-unresolved_member-ordinary_false`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[two_survivors-unresolved_member-ordinary_null]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `two_survivors-unresolved_member-ordinary_null`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+| `tests/transformation/test_higher_order.py::test_incomplete_categorized_set_preserves_explicit_classifications[two_survivors-unresolved_member-powertype_true]` | DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14 | Key: `higher_order/categorizers`. Input: `tests/fixtures/transformation/higher_order/categorizers/input.json`. Expectation: inline runtime case `two_survivors-unresolved_member-powertype_true`. | Best-effort retains exactly the surviving explicit C classifications and punning, never expands the incomplete powertype, retains the other categorizer and all independent class edges, omits coverage/singleton INFO, and preserves disjointness only among the two survivors. **Observed: production guard.** |
+
+**Existing executable regressions.** The existing
+`test_categorizers_pun_same_iris_and_materialize_only_applicable_extension`
+asserts the exact ordinary-false, ordinary-null, and powertype-true extensions,
+same-IRI class/individual facets, independently retained second categorizer,
+subclasses, and absence of semantic-validation errors under all three input
+policies. Its nine exact parameter nodes remain listed in the earlier inventory
+and retain the input/expected.ttl pairing. The existing twelve
+`test_repeated_membership_preserves_categorizer_and_powertype_extensions` nodes
+assert unchanged fully resolved classifications and diagnostic signatures after
+repetition. The two `test_punning_identity_is_the_same_under_both_iri_strategies`
+nodes retain class/individual identity under name and id strategies. Null-categorizer
+partial-set tests independently assert the existing error, disjointness, and
+coverage boundaries. No existing assertions or parameter IDs were removed.
+
+**Actual validation (2026-11-17).** Python 3.12.14, pytest 9.1.1, rdflib 7.6.0,
+PyYAML 6.0.3, using `/tmp/directkg-rd02-venv/bin/python`.
+Each pytest process had its checkout's absolute `src` directory on PYTHONPATH.
+The base used a separate detached worktree at
+`c3b36bb91b85e4725dd32587a3ee40945521ad95`.
+
+```sh
+python -m pytest --rootdir=. -p no:cacheprovider --collect-only -q tests
+python -m pytest --rootdir=. -p no:cacheprovider -q tests/transformation/test_higher_order.py -k incomplete_categorized_set --tb=short -rN --junitxml=/tmp/directkg-rd02-validation/targeted.xml
+python -m pytest --rootdir=. -p no:cacheprovider -q tests -k 'categorizers_pun or repeated_membership_preserves_categorizer or punning_identity or partial_set or partial_non_disjoint_set or repeated_membership_preserves_class_set_failure_boundaries or fixture_contract or rdf_helper' --tb=short -rN --junitxml=/tmp/directkg-rd02-validation/new-regressions.xml
+python -m compileall -q tests/transformation/test_higher_order.py
+git diff --check
+```
+
+Collection succeeded: all **3,596** base node IDs are preserved; **30** new nodes
+produce **3,626** total, with no duplicate node IDs. The targeted run returned
+**8 passed, 22 failed**. Every failure is the unchanged converter's
+`NotImplementedError` at `src/ontouml_directkg/generalizations.py:157`, before a
+conversion result is returned. The failed nodes' graph-recovery/outcome assertions
+therefore remain unexecuted; they are test-first expectations, not passing
+production evidence. Every new case reached conversion after its exact mutation
+contract passed. No skips, xfails, unbound readers, or normative blockers occurred
+in the new selection.
+
+The identical regression selection ran on the base and changed checkout:
+**149 passed** in each, with the same node IDs and outcomes. This includes all
+**68** fixture-contract cases, RDF helper cases, fully resolved categorizers,
+repeated memberships, both-strategy punning, and directly affected null-categorizer
+class-set recovery. Stored JSON/Turtle remain unchanged and their contracts and
+Turtle parsing are covered by those fixture checks. Python parsing and
+`git diff --check` passed. Full-suite execution, new CLI-specific cases, and
+recovery assertions beyond the production guard were unperformed. No engine,
+vocabulary, site documentation, or governing specification was edited.

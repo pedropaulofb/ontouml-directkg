@@ -89,6 +89,117 @@ def test_repeated_membership_preserves_categorizer_and_powertype_extensions(run,
     assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
 
 
+def _incomplete_categorized_set(document, *, powertype, survivors, failure):
+    """Mutate the existing complete export-style fixture with one stated defect."""
+    source_element(document, "cCategorizer")["isPowertype"] = powertype
+    affected = source_element(document, "gsFirst")
+    members = copy.deepcopy(affected["generalizations"][:survivors])
+    if survivors == 1:
+        # Repetition cannot turn an incomplete set into a complete singleton.
+        members.append(copy.deepcopy(members[0]))
+    if failure == "unresolved_member":
+        defect, locator = {"unresolved_reference:missingMember"}, "gsFirst"
+        failed_id = "missingMember"
+    elif failure == "failed_member":
+        failed = copy.deepcopy(source_element(document, "gOne"))
+        failed.update(id="gFailed", specific=None)
+        document["model"]["contents"].append(failed)
+        defect, locator = {"malformed_reference"}, "gFailed"
+        failed_id = "gFailed"
+    else:
+        raise AssertionError(f"Unlisted governed member failure: {failure}")
+    affected.update(isComplete=True, isDisjoint=True,
+                    generalizations=members + [{"id": failed_id, "type": "Generalization"}])
+    assert fixture_issues(document) == defect
+    return locator
+
+
+@pytest.mark.parametrize("powertype", [False, None, True],
+                         ids=["ordinary_false", "ordinary_null", "powertype_true"])
+@pytest.mark.parametrize("failure", ["unresolved_member", "failed_member"])
+@pytest.mark.parametrize("survivors", [0, 1, 2], ids=["no_survivors", "one_survivor", "two_survivors"])
+def test_incomplete_categorized_set_preserves_explicit_classifications(run, source_json, tmp_path, powertype, failure, survivors):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 recovery, c1d6ab323f0980e835fa018e0f2d05e05a400a07. Expected
+    classifications come from surviving explicit members, never subclass closure.
+    """
+    document = source_json("higher_order/categorizers")
+    locator = _incomplete_categorized_set(document, powertype=powertype, survivors=survivors, failure=failure)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    assert any(event.severity == "ERROR" and locator in event.identified_sources for event in result.diagnostics)
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    explicit = {BASE.cOne, BASE.cTwo} if survivors == 2 else {BASE.cOne} if survivors == 1 else set()
+    assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == explicit
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == explicit | {BASE.cOne}
+    assert set(graph.subjects(RDF.type, OWL.Class)) == MODELED
+    assert set(graph.subject_objects(RDFS.subClassOf)) == {
+        (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+        (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside)}
+    # Incomplete coverage cannot close the general over survivors, including one.
+    for predicate in (RDFS.subClassOf, OWL.equivalentClass, OWL.disjointUnionOf):
+        assert not list(graph.objects(BASE.cBase, predicate))
+    survivor_pairs = {frozenset((left, right)) for left, right in graph.subject_objects(OWL.disjointWith)
+                      if left in {BASE.cOne, BASE.cTwo} and right in {BASE.cOne, BASE.cTwo}}
+    assert survivor_pairs == ({frozenset((BASE.cOne, BASE.cTwo))} if survivors == 2 else set())
+
+
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+@pytest.mark.parametrize("failure", ["unresolved_member", "failed_member"])
+@pytest.mark.parametrize("input_policy", ["strict", "tolerant"])
+def test_incomplete_categorized_set_aborts_without_recoverable_output(run, source_json, tmp_path, powertype, failure, input_policy):
+    """Rules: DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-04, DK-DIAG-05.
+
+    RD-02 recovery, c1d6ab323f0980e835fa018e0f2d05e05a400a07. Recovery is
+    limited to best-effort; the existing member ERROR and abort remain observable.
+    """
+    document = source_json("higher_order/categorizers")
+    locator = _incomplete_categorized_set(document, powertype=powertype, survivors=1, failure=failure)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "aborted"
+    assert result.ontology is None
+    assert result.provenance is None
+    assert any(event.severity == "ERROR" and locator in event.identified_sources for event in result.diagnostics)
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+
+
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+@pytest.mark.parametrize("survivors", [0, 1], ids=["no_survivors", "one_survivor"])
+def test_incomplete_categorized_set_keeps_independent_classifications(run, source_json, tmp_path, powertype, survivors):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-09, DK-DIAG-05.
+
+    RD-02 recovery, c1d6ab323f0980e835fa018e0f2d05e05a400a07. A separate
+    fully resolved set establishes ordinary or powertype facts for the SAME C.
+    Omitting expansion for the incomplete set must not erase those facts.
+    """
+    document = source_json("higher_order/categorizers")
+    locator = _incomplete_categorized_set(document, powertype=powertype, survivors=survivors,
+                                         failure="unresolved_member")
+    independent = copy.deepcopy(source_element(document, "gsSecond"))
+    independent.update(id="gsIndependent", name="Independent", categorizer={"id": "cCategorizer", "type": "Class"},
+                       generalizations=[{"id": "gOutside", "type": "Generalization"}])
+    document["model"]["contents"].append(independent)
+    assert fixture_issues(document) == {"unresolved_reference:missingMember"}
+    explicit = {BASE.cOne} if survivors else set()
+    expected = ({BASE.cBase, BASE.cOne, BASE.cTwo, BASE.cOutside, BASE.cDeep}
+                if powertype else explicit | {BASE.cOutside})
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    assert any(event.severity == "ERROR" and locator in event.identified_sources for event in result.diagnostics)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == expected
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == expected | {BASE.cOne}
+    assert set(graph.subjects(RDF.type, OWL.Class)) == MODELED
+    assert not list(graph.objects(BASE.cBase, RDFS.subClassOf))
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+
+
 @pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
 def test_restricted_to_order_and_stereotype_do_not_validate_higher_order_assertions(run, source_json, tmp_path, input_policy, powertype):

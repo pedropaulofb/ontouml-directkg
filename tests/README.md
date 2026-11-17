@@ -1809,3 +1809,23 @@ invoke the native Python and CLI entry points with a fault at relation
 emission. The binding captures the earlier diagnostics at the live
 failure boundary and observes the CLI report writer. Consult the
 inventory for the exact nodes, commands, and production limitations.
+
+## RD-02 recovery for incomplete categorized class sets
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK, no findings** for `c1d6ab323f0980e835fa018e0f2d05e05a400a07`.
+The [scoped inventory](coverage.md#rd-02-recovery-for-incomplete-categorized-class-sets)
+records the exact nodes, accepted clauses, fixture mutations, and validation.
+The governing transformation and structure blobs match that reviewed registration
+at base `c3b36bb91b85e4725dd32587a3ee40945521ad95`.
+
+Thirty new cases reuse `higher_order/categorizers/input.json` with explicit
+runtime defects. They use the existing public `convert()` binding and real
+ontology, outcome, and diagnostic fields. No new reader or simulated conversion
+is needed. The targeted run has **8 passes** for strict/tolerant aborts and
+**22 test-first failures** at the converter's incomplete-categorizer
+`NotImplementedError`. Graph-recovery assertions after that call remain
+unexecuted until production supports the decision. All **149** selected
+regression and fixture/helper cases pass, matching the base by node and outcome.
+Full-suite execution was unperformed. This submission awaits independent Test
+Reviewer review; no production-correctness claim is made.

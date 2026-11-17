@@ -214,7 +214,8 @@ def test_explicit_empty_generalization_set_is_error_regardless_of_flags(run, sou
 def test_partial_set_retains_only_valid_disjoint_pairs_never_coverage(run, source_json, tmp_path, input_policy, survivors, failure):
     """Rules: DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
 
-    Categorizer is explicitly null: its partial recovery is not specified.
+    Categorizer is explicitly null; categorized recovery is covered in
+    test_higher_order.py under the accepted RD-02 recovery decision.
     """
     document = source_json("classes/generalization_sets")
     gs = source_element(document, "gsMain")
@@ -399,7 +400,7 @@ def test_repeated_membership_preserves_class_set_failure_boundaries(run, source_
     """Rules: DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
 
     RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Categorizer remains null;
-    unresolved categorizer/powertype recovery is outside the assignment.
+    categorized recovery is exercised separately in test_higher_order.py.
     """
     document = source_json("classes/generalization_sets")
     gs = source_element(document, "gsMain")
