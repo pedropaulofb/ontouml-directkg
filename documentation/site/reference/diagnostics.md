@@ -161,7 +161,7 @@ An explicitly empty `generalizations` array is an ERROR under every flag combina
 
 Otherwise valid repeated references to one generalization count as one membership under every input policy, with no additional diagnostic solely for repetition. The [membership-identity rule](input.md#generalization-set-membership) preserves existing errors and independently required diagnostics; it cannot turn a partially failed larger set into a complete singleton. The linked reference records the implementation status of this accepted behavior.
 
-Unresolved/failed class-set members are errors. `strict`/`tolerant` abort; `best-effort` omits coverage while retaining applicable surviving pairwise disjointness and independent mappings. Never apply singleton coverage merely because one member survives. See [Class-set recovery](../mapping/classes.md#singleton-and-recovery-boundaries).
+Unresolved/failed class-set members are errors. `strict`/`tolerant` abort; `best-effort` omits coverage while retaining applicable surviving pairwise disjointness and independent mappings. Never apply singleton coverage merely because one member survives. For a class set with a nonempty membership array and a usable categorizer, [bounded categorizer recovery](../mapping/higher-order.md#recovery-for-incomplete-categorized-class-sets) uses the existing member ERROR and preserves surviving explicit classifications under `best-effort`, with powertype expansion omitted. See [Class-set recovery](../mapping/classes.md#singleton-and-recovery-boundaries).
 
 Absent/null/empty enumeration `literals` requires a nonfatal warning even under `strict`, retaining the class and independent mappings without closure/empty-extension assertions. With owned properties, the warning should clarify that they were not treated as values. Malformed supplied lists or failed values remain errors: strict/tolerant abort, best-effort preserves successful individuals/membership without subset closure. Survivor count alone adds no event. A generic fallback-preserved literal is a success, not a failed value (DK-DIAG-13; [enumeration mapping](../mapping/classes.md#enumerations-and-closure)).
 
@@ -242,7 +242,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; baseline consolidated: **2026-11-16**; repository commit: `9c38583f5999e2f8ba26be0b3e451e5d1514e756`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9c38583f5999e2f8ba26be0b3e451e5d1514e756/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; baseline consolidated: **2026-11-17**; repository commit: `c1d6ab323f0980e835fa018e0f2d05e05a400a07`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c1d6ab323f0980e835fa018e0f2d05e05a400a07/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 
