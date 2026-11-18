@@ -49,7 +49,7 @@ An unresolved member reference or failed member transformation is an error. `str
 
 An explicitly empty `generalizations` array is a structural error under every completeness/disjointness combination. `strict` and `tolerant` abort; `best-effort` reports the error, omits the empty set's contribution, and continues elsewhere. Do not infer a general class, invent members, or assert an empty class extension from that array (DK-DIAG-12).
 
-For an incomplete class set with a usable categorizer, [categorizer recovery](higher-order.md#recovery-for-incomplete-categorized-class-sets) preserves classifications of surviving explicit specifics under `best-effort` and omits powertype expansion. Handling of missing or malformed membership containers remains unspecified. See [Higher-order classification](higher-order.md#categorizers-and-powertypes) for the fully resolved mappings and [Controls](../reference/controls.md#control-boundaries) for policy boundaries; see [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-conditions-and-intentional-silence) for the detailed conditions.
+For an incomplete class set with a usable categorizer, [categorizer recovery](higher-order.md#recovery-for-incomplete-categorized-class-sets) preserves classifications of surviving explicit specifics under `best-effort` and omits powertype expansion. For [missing or malformed membership containers](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership), `best-effort` omits the entire set contribution and preserves independently supported class generalizations and classifications. See [Higher-order classification](higher-order.md#categorizers-and-powertypes) for the fully resolved mappings and [Controls](../reference/controls.md#control-boundaries) for policy boundaries; see [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-conditions-and-intentional-silence) for the detailed conditions.
 
 ## Enumerations and closure
 
@@ -106,4 +106,4 @@ Explicit `isDerived` values have the separate cross-cutting [derived-status comm
 
 ---
 
-Governing rules: DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05, 12; DK-HO-04; DK-DIAG-12–17; baseline consolidated: **2026-11-17**; repository commit: `c1d6ab323f0980e835fa018e0f2d05e05a400a07`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c1d6ab323f0980e835fa018e0f2d05e05a400a07/documentation/specification/transformation-specification.md).
+Governing rules: DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05, 12; DK-HO-04; DK-DIAG-12–17; baseline consolidated: **2026-11-18**; repository commit: `5f8de1888f307c42b55c40bfac82ea07f60836a7`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5f8de1888f307c42b55c40bfac82ea07f60836a7/documentation/specification/transformation-specification.md).

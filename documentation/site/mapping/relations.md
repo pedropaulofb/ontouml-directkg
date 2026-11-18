@@ -315,7 +315,7 @@ For exactly one member generalization in a fully resolved complete relation set,
 
 If both named inverses exist, add the corresponding general-inverse-to-specific-inverse inclusion alongside their ordinary specialization. An absent inverse means this extra axiom is omitted without a warning; do not create a named or anonymous inverse solely for completeness. Applying singleton completeness requires nonfatal INFO identifying the set, general, specific, and equivalence consequence. Membership alone is not a warning and supplies no disjoint pair.
 
-The added hierarchy participates in material-chain non-simplicity propagation; the hierarchy axioms themselves are not targeted for omission. Do not apply singleton completeness merely because partial failure leaves one member of a larger set, including after counting repeated references once. An explicitly empty membership array follows the structural-error policy: `strict`/`tolerant` abort; `best-effort` reports the error and omits that set's contribution. Missing/malformed membership-container handling remains unspecified. Class-set recovery does not establish an additional relation-set recovery algorithm.
+The added hierarchy participates in material-chain non-simplicity propagation; the hierarchy axioms themselves are not targeted for omission. Do not apply singleton completeness merely because partial failure leaves one member of a larger set, including after counting repeated references once. An explicitly empty membership array follows the structural-error policy: `strict`/`tolerant` abort; `best-effort` reports the error and omits that set's contribution. Under `best-effort`, a [missing or malformed membership container](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) contributes no set-derived disjointness or completeness axioms. Independently supported relation generalizations still apply. Class-set recovery does not establish an additional relation-set recovery algorithm.
 
 ## Relation-valued endpoints
 
@@ -331,7 +331,7 @@ For the last case, identify the connector and lack of an accepted endpoint-patte
 
 ---
 
-Governing rules: DK-REL-01–17, 19–20; DK-GEN-03–04, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01–17, 19–20; DK-GEN-03–04, 11–12; DK-INV-12; DK-LBL-01–02; DK-PROP-04; DK-DIAG-01, 07, 09–12, 14; baseline consolidated: **2026-11-18**; repository commit: `5f8de1888f307c42b55c40bfac82ea07f60836a7`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5f8de1888f307c42b55c40bfac82ea07f60836a7/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
 

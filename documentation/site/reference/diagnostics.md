@@ -178,7 +178,7 @@ Multiple localized naming values alone and multilingual primitive recognition ad
 
 For directional relation generation, missing/invalid end IDs or null/unresolved end types mean **neither primary nor inverse property is generated in any policy**. Diagnose the structural problem; a valid end ID does not make a null type resolvable. Accepted best-effort continuation concerns other transformable information, not invention of that relation (DK-DIAG-03).
 
-An explicitly empty `generalizations` array is an ERROR under every flag combination: `strict`/`tolerant` abort; `best-effort` omits the set contribution and continues elsewhere. Do not infer a general, invent members, or assert an empty class extension. This empty-array rule does not define missing/malformed containers or a set emptied by failed transformations (DK-DIAG-12).
+An explicitly empty `generalizations` array is an ERROR under every flag combination: `strict`/`tolerant` abort; `best-effort` omits the set contribution and continues elsewhere. Do not infer a general, invent members, or assert an empty class extension. This rule applies to an explicitly empty input array (DK-DIAG-12).
 
 Otherwise valid repeated references to one generalization count as one membership under every input policy, with no additional diagnostic solely for repetition. The [membership-identity rule](input.md#generalization-set-membership) preserves existing errors and independently required diagnostics; it cannot turn a partially failed larger set into a complete singleton. The linked reference records the implementation status of this accepted behavior.
 
@@ -193,6 +193,21 @@ For chains, ambiguities omit the affected chain with their specified nonfatal di
 With [DKGM vocabulary mode `none`](../mapping/mereology.md#vocabulary-delivery-modes), an emitted bridge to `dkgm:memberOf`, `dkgm:subCollectionOf` or `dkgm:subQuantityOf` requires a **nonfatal WARNING under every input policy, including `strict`**. The warning explains that the generic chains are absent and that consumers needing those entailments must supply the chain axioms or equivalent rules to their reasoner. This condition applies only in `none` and depends on emitted bridges. A graph with only `componentOf` bridges or no emitted bridge does not trigger it. [Diagnostic collection and export](#diagnostic-collection-and-export) governs consolidation, content, filtering and delivery.
 
 Intentional non-representation or either valid endpoint order of a supported material derivation alone adds no warning/error. A comparative–quality connector instead has its specific nonfatal unsupported-semantics diagnostic. Other resolved relation-valued patterns without accepted mappings warn nonfatally and omit the connector while retaining independent endpoints. Null/malformed/unresolved endpoints are structural errors, not that intentional-omission fallback.
+
+#### Missing or malformed generalization-set membership
+
+For a recognized `GeneralizationSet`, an absent, explicitly `null`, or other non-array JSON value for `generalizations` requires a structural **ERROR** under DK-DIAG-12. The diagnostic identifies the set and which field condition occurred. Its identifier remains [provisional](#stable-first-release-diagnostic-core). A fatal duplicate declaration ID still takes precedence under the [input-policy rules](#input-policy).
+
+| Input policy | Transformation outcome and output | CLI exit code |
+| --- | --- | --- |
+| `strict` or `tolerant` (default) | `aborted`. No ontology is delivered. | `3` when diagnostics delivery does not fail. |
+| `best-effort` | `completed-with-errors` for this error alone. Omit all output derived solely from the affected set and continue with independently transformable information. The ontology remains eligible for delivery. | `1` when requested output delivery succeeds. |
+
+Under `best-effort`, DirectKG infers no members and emits no coverage, disjointness, categorizer assertions, or powertype expansion from the affected set. Generalization axioms and classifications supported independently of that set still apply. Failures inside a nonempty array follow the applicable member-failure rules above. [Input contract and exporter behavior](input.md#generalization-set-membership)
+
+The diagnostic follows the existing [CLI and Python access and export rules](#diagnostic-collection-and-export). Failure to deliver requested diagnostics takes precedence with CLI exit code `4`, leaving the transformation outcome intact. [CLI exit codes and delivery precedence](../guides/cli.md#exit-codes-and-delivery-failures)
+
+**Implementation status.** At the [reviewed registration revision](https://github.com/pedropaulofb/ontouml-directkg/blob/5f8de1888f307c42b55c40bfac82ea07f60836a7/src/ontouml_directkg/generalizations.py#L90-L101), the non-array guard still raises `NotImplementedError`. The recovery above describes the accepted behavior.
 
 ### Informational preservation notices
 
@@ -263,7 +278,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; baseline consolidated: **2026-11-17**; repository commit: `e62454b98933a6ba6cb5890084fa7353d671c5a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/e62454b98933a6ba6cb5890084fa7353d671c5a5/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; baseline consolidated: **2026-11-18**; repository commit: `5f8de1888f307c42b55c40bfac82ea07f60836a7`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5f8de1888f307c42b55c40bfac82ea07f60836a7/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

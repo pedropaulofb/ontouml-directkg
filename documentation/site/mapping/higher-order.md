@@ -60,8 +60,8 @@ DirectKG does not reconcile explicit `instantiation` declarations with `Generali
 
 `restrictedTo` is recognized and omitted. It does not replace a stereotype, guide powertype membership, or authorize semantic-appropriateness checks. See [Class declarations preserved as comments](classes.md#class-declarations-preserved-as-comments) for its omission boundary and the separate order-comment rule.
 
-Structural processing still matters. Explicitly empty generalization arrays have their defined error handling. Recovery for missing or malformed membership containers or an unusable categorizer remains unspecified. [Instantiation associations](instantiation.md#no-reconciliation) explains the separate declaration and discarded-data boundary.
+Explicitly empty generalization arrays have their defined error handling. Under `best-effort`, a [missing or malformed membership container](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) contributes no categorizer assertions or powertype expansion. Independently supported classifications still apply. Recovery for an unusable categorizer remains unspecified. [Instantiation associations](instantiation.md#no-reconciliation) explains the separate declaration and discarded-data boundary.
 
 ---
 
-Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01, 05–09; DK-DIAG-01, 05, 12; baseline consolidated: **2026-11-17**; repository commit: `c1d6ab323f0980e835fa018e0f2d05e05a400a07`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c1d6ab323f0980e835fa018e0f2d05e05a400a07/documentation/specification/transformation-specification.md).
+Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01, 05–09; DK-DIAG-01, 05, 12; baseline consolidated: **2026-11-18**; repository commit: `5f8de1888f307c42b55c40bfac82ea07f60836a7`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5f8de1888f307c42b55c40bfac82ea07f60836a7/documentation/specification/transformation-specification.md).
