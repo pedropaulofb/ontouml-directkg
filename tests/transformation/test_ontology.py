@@ -721,11 +721,15 @@ def test_source_input_surface_has_no_fileless_or_checksum_extension(invoke):
 @pytest.mark.parametrize('mode',['embedded','sidecar'])
 @pytest.mark.parametrize('input_policy',['strict','tolerant','best-effort'])
 def test_required_provenance_failure_aborts_independently_of_input_policy(invoke,source_path,tmp_path,mode,input_policy):
-    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05."""
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05.
+
+    RD-04 e62454b98933a6ba6cb5890084fa7353d671c5a5 stabilizes REQUIRED_PROVENANCE.
+    """
     fault=Fault('provenance','construct')
     result=invoke.convert(source_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':mode,'input_policy':input_policy},workdir=tmp_path,faults=(fault,))
     assert result.outcome=='aborted' and result.ontology is None
-    assert any(d.kind=='required_provenance' and d.severity=='ERROR' for d in result.diagnostics)
+    assert any(d.kind=='required_provenance' and d.severity=='ERROR' and d.code=='REQUIRED_PROVENANCE'
+               for d in result.diagnostics)
     assert any(op.kind=='provenance' and op.failed and op.raw is not None for op in result.operations or ())
     assert invoke.read_outcome(result)=='aborted'
     assert invoke.read_ontology(result) is None
@@ -821,7 +825,10 @@ def test_python_explicit_delivery_places_sidecar_and_checks_final_ontology_bytes
 @pytest.mark.parametrize('old_file',[False,True],ids=['new_destination','old_destination'])
 def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_substitution(
         invoke, source_path, tmp_path, kind, operation, old_file, monkeypatch):
-    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05."""
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05.
+
+    RD-04 e62454b98933a6ba6cb5890084fa7353d671c5a5 stabilizes the delivery codes.
+    """
     result=invoke.convert(source_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':'sidecar'},workdir=tmp_path)
     destination=tmp_path/'model.ttl';sidecar=tmp_path/'model.provenance.ttl'
     failed_path=destination if kind=='ontology' else sidecar
@@ -849,6 +856,7 @@ def test_python_delivery_failure_is_explicit_without_graph_mode_or_outcome_subst
 
     errors = [event for event in actual.diagnostics if event.kind == kind + '_delivery' and event.severity == 'ERROR']
     assert errors
+    assert all(event.code == ('ONTOLOGY_DELIVERY' if kind == 'ontology' else 'SIDECAR_DELIVERY') for event in errors)
     if kind == 'ontology':
         assert any(
             (str(failed_path) in event.message or any(source.path == str(failed_path) for source in event.raw.sources))

@@ -1829,3 +1829,31 @@ unexecuted until production supports the decision. All **149** selected
 regression and fixture/helper cases pass, matching the base by node and outcome.
 Full-suite execution was unperformed. This submission awaits independent Test
 Reviewer review; no production-correctness claim is made.
+
+## RD-04 eight-code first-release diagnostic core
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK, no findings** for `e62454b98933a6ba6cb5890084fa7353d671c5a5`.
+The [scoped inventory](coverage.md#rd-04-eight-code-first-release-diagnostic-core)
+records the fixed eight strings, their condition mappings, exact node IDs,
+fixture pairings, supersession boundary, and execution evidence. All other
+identifiers remain provisional; their diagnostics still require access/export.
+The preceding RD-02 test submission at
+`c5bc7c1e37f41ffae0d5c3097d656c53b6bd1149` has owner-relayed Test Reviewer OK.
+
+The binding now preserves actual native diagnostic codes and reads codes from
+the inspected console renderer. Console matching checks a displayed code without
+requiring a new console format. Required-provenance faults intercept the real
+`construct_provenance` call; native conversion still performs the abort and
+diagnostic generation. Same-execution CLI snapshots preserve native diagnostic
+access even if requested JSON writing fails. Real filesystem report failures
+exercise the existing exit-code precedence. No observations are fabricated.
+
+At base `d450573404f999d3ae278f360dc6d4f94c44052e`, all **38** new cases pass.
+The **243** affected existing cases yield **231 passes** and **12 production-only
+failures** at the still-unimplemented unexpected-transformation-failure contract.
+The base has 197 passes and 46 failures; 34 previously blocked cases now pass,
+and no previously passing case regressed. Collection retains all 3,627 base
+node IDs and adds 38, for 3,665 total. Full-suite execution was unperformed.
+Identifier assertions beyond the internal-failure exception remain test-first.
+This TEST CHANGE awaits independent Test Reviewer review.

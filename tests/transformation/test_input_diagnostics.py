@@ -551,7 +551,11 @@ def _native_report_records(content):
 
 @pytest.mark.parametrize("input_policy", POLICIES)
 def test_python_unexpected_transformation_failure_aborts_with_diagnostics(invoke, source_path, tmp_path, input_policy):
-    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05. Also §15 Python outcome and reports."""
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05. Also §15 Python outcome and reports.
+
+    RD-04 e62454b98933a6ba6cb5890084fa7353d671c5a5 stabilizes the identifiers;
+    the retained stage/cause, abort, output and diagnostic-preservation checks apply.
+    """
     source = source_path("shared/binary_relation")
     result = invoke.convert(source, options={"input_policy": input_policy, "provenance": "sidecar"},
                             workdir=tmp_path, faults=(Fault("transformation", "emit_relations"),))
@@ -559,14 +563,15 @@ def test_python_unexpected_transformation_failure_aborts_with_diagnostics(invoke
     failure = trace["transformation_failure"]
     assert result.conversion_started and failure["graph_size"] > 0
     earlier = diagnostic_record_counts(failure["earlier_events"])
-    assert any(severity == "WARNING" and "placeholder" in message.casefold()
-               for severity, _, message, _, _, _ in earlier)
+    assert any(severity == "WARNING" and code == "PLACEHOLDER_BASE" and "placeholder" in message.casefold()
+               for severity, code, message, _, _, _ in earlier)
 
     outcome, actual = _native_report_records(invoke.report_content(result))
     assert outcome == invoke.read_outcome(result) == "aborted"
     assert earlier <= actual
-    assert any(transformation_failure_diagnostic(severity, message, effect, failure["cause"])
-               for severity, _, message, effect, _, _ in actual - earlier)
+    assert any(code == "INTERNAL_TRANSFORMATION_FAILURE"
+               and transformation_failure_diagnostic(severity, message, effect, failure["cause"])
+               for severity, code, message, effect, _, _ in actual - earlier)
     before_diagnostics = diagnostic_signatures(invoke.read_diagnostics(result))
     assert before_diagnostics == diagnostic_signatures(result.diagnostics)
     assert invoke.read_ontology(result) is None and invoke.read_provenance(result) is None

@@ -583,6 +583,219 @@ def test_cli_and_separate_python_exports_use_the_same_real_schema_and_event_cont
     assert diagnostic_signatures(left.diagnostics)==diagnostic_signatures(right.diagnostics)
 
 
+STABLE_DIAGNOSTIC_CODES = frozenset({
+    "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+    "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+})
+
+
+def _diagnostic_core_request(tmp_path, case, policy):
+    """Keep the complete shared export-style source, except for the stated defect."""
+    document = load_json("shared/core_model")
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": policy}
+    faults, defects = (), set()
+    source = tmp_path / "source.json"
+    if case == "unreadable_source":
+        assert not source.exists()
+        return source, options, faults
+    if case == "malformed_json":
+        source.write_text('{"type": "Project",', encoding="utf-8")
+        return source, options, faults
+    if case == "placeholder_base":
+        options.pop("base_iri")
+    elif case == "unsupported_root":
+        document["type"] = "UnsupportedRoot"
+        defects = {"wrong_container_type", "unknown_element"}
+    elif case == "duplicate_id":
+        duplicate = copy.deepcopy(source_element(document, "cOrg"))
+        duplicate["id"] = "cPerson"
+        document["model"]["contents"].append(duplicate)
+        defects = {"duplicate_id:cPerson"}
+    elif case == "unknown_field":
+        source_element(document, "cPerson")["unrecognizedField"] = True
+        defects = {"unknown_field:unrecognizedField"}
+    elif case == "unknown_element":
+        foreign = copy.deepcopy(source_element(document, "cOrg"))
+        foreign.update(id="foreignElement", type="ForeignElement")
+        document["model"]["contents"].append(foreign)
+        defects = {"unknown_element"}
+    elif case in {"required_embedded", "required_sidecar"}:
+        options["provenance"] = case.removeprefix("required_")
+        faults = (Fault("provenance", "construct"),)
+    elif case == "missing_cardinality":
+        del source_element(document, "aAge")["cardinality"]
+    elif case == "invalid_cardinality":
+        # Explicitly untranslatable bound; the exporter-style carrier is a string.
+        source_element(document, "aAge")["cardinality"] = "1..n"
+    elif case == "recognized_omissions":
+        document["model"]["description"] = "Omitted package description"
+        document["model"]["propertyAssignments"] = {"language": "fr", "tag": "Omitted custom metadata"}
+        source_element(document, "cPerson")["restrictedTo"] = ["situation"]
+    else:
+        raise AssertionError(f"Unlisted diagnostic-core case: {case}")
+    assert fixture_issues(document) == defects
+    return write_input(tmp_path, document, source.name), options, faults
+
+
+def _assert_native_json_mirror(invoke, observation, path):
+    content = invoke.report_content(observation)
+    assert invoke.export_diagnostics(observation, path).failure is None
+    assert _cli_json_report_contract(json.loads(path.read_bytes())) == (
+        content.outcome, diagnostic_record_counts(content.events))
+    return content
+
+
+def _assert_cli_json_and_console(invoke, process, path):
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert _cli_json_report_contract(json.loads(path.read_bytes())) == (
+        delivered.outcome, diagnostic_record_counts(delivered.events))
+    # Code equality is checked only when the observed console record displays it.
+    assert console_covers_diagnostic_records(process.console, delivered.events)
+    return delivered
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,expected_code", [
+    ("placeholder_base", "PLACEHOLDER_BASE"),
+    ("unreadable_source", "UNPROCESSABLE_DOCUMENT"),
+    ("malformed_json", "UNPROCESSABLE_DOCUMENT"),
+    ("unsupported_root", "UNPROCESSABLE_DOCUMENT"),
+    ("duplicate_id", "DUPLICATE_SOURCE_ID"),
+    ("unknown_field", "UNKNOWN_INFORMATION"),
+    ("unknown_element", "UNKNOWN_INFORMATION"),
+    ("required_embedded", "REQUIRED_PROVENANCE"),
+    ("required_sidecar", "REQUIRED_PROVENANCE"),
+], ids=["placeholder", "unreadable", "malformed_json", "unsupported_root", "duplicate",
+        "unknown_field", "unknown_element", "required_embedded", "required_sidecar"])
+def test_stable_diagnostic_core_matches_conditions_across_interfaces(invoke, tmp_path, case, expected_code, input_policy):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-IRI-01, DK-GEN-10; §3.2, §3.4, §15.
+
+    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5.
+    Native Python, separate JSON exports, actual CLI JSON and displayed codes
+    must agree without fixing wording, diagnostic multiplicity or ordering.
+    """
+    source, options, faults = _diagnostic_core_request(tmp_path, case, input_policy)
+    warning = case == "placeholder_base" or (case.startswith("unknown_") and input_policy != "strict")
+    severity, outcome = ("WARNING", "completed") if warning else ("ERROR", "aborted")
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    python = invoke.convert(source, options=options, workdir=python_dir, faults=faults)
+    assert python.outcome == outcome
+    events = invoke.read_diagnostics(python)
+    assert any(event.code == expected_code and event.severity == severity for event in events)
+    assert not list(python_dir.iterdir()), "Python conversion must not persist diagnostics automatically"
+    native = _assert_native_json_mirror(invoke, python, python_dir / "report.json")
+    assert any(code == expected_code and level == severity for level, code, *_ in native.events)
+
+    destination, report = cli_dir / "out.ttl", cli_dir / "report.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir, output_path=destination,
+                         diagnostics_path=report, faults=faults)
+    assert process.returncode == (0 if outcome == "completed" else 3), process.stderr
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert delivered.outcome == outcome
+    assert any(code == expected_code and level == severity for level, code, *_ in delivered.events)
+    if outcome == "aborted":
+        assert invoke.read_ontology(python) is None and invoke.read_provenance(python) is None
+        assert not destination.exists() and not (cli_dir / "out.provenance.ttl").exists()
+    else:
+        assert isinstance(invoke.read_ontology(python), Graph)
+        assert destination.is_file() and len(Graph().parse(destination, format="turtle")) > 0
+    if case.startswith("required_"):
+        assert python.operations and process.execution_trace["provenance_probe"]["calls"]
+
+
+@pytest.mark.parametrize("case", ["ontology_serialize", "ontology_encode", "ontology_create", "sidecar_write"])
+def test_stable_delivery_identifiers_match_across_interfaces(invoke, tmp_path, case):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 delivery codes and outcome separation.
+
+    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5.
+    Use native serialization faults and real non-directory/directory destinations.
+    """
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destinations = [directory / "out.ttl" for directory in (python_dir, cli_dir)]
+    if case == "ontology_create":
+        for directory in (python_dir, cli_dir):
+            (directory / "blocker").write_bytes(b"Not a directory")
+        destinations = [directory / "blocker" / "out.ttl" for directory in (python_dir, cli_dir)]
+    elif case == "sidecar_write":
+        for directory in (python_dir, cli_dir):
+            (directory / "out.provenance.ttl").mkdir()
+    py_destination, cli_destination = destinations
+    operation = case.removeprefix("ontology_")
+    py_faults = (Fault("ontology", operation, py_destination),) if operation in {"serialize", "encode"} else ()
+    cli_faults = (Fault("ontology", operation, cli_destination),) if operation in {"serialize", "encode"} else ()
+    python = invoke.convert(fixture_path("shared/core_model"), options=options, workdir=python_dir)
+    python = invoke.deliver(python, output_path=py_destination, faults=py_faults).observation
+    expected = "SIDECAR_DELIVERY" if case == "sidecar_write" else "ONTOLOGY_DELIVERY"
+    assert python.outcome == "completed" and isinstance(invoke.read_ontology(python), Graph)
+    assert any(event.code == expected and event.severity == "ERROR" for event in invoke.read_diagnostics(python))
+    _assert_native_json_mirror(invoke, python, python_dir / "report.json")
+    report = cli_dir / "report.json"
+    process = invoke.cli(fixture_path("shared/core_model"), options=options, workdir=cli_dir,
+                         output_path=cli_destination, diagnostics_path=report, faults=cli_faults)
+    assert process.returncode == (5 if case == "sidecar_write" else 6), process.stderr
+    content = _assert_cli_json_and_console(invoke, process, report)
+    assert content.outcome == "completed"
+    assert any(code == expected and severity == "ERROR" for severity, code, *_ in content.events)
+    assert py_destination.is_file() == cli_destination.is_file() == (case == "sidecar_write")
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,kind", [("missing_cardinality", "missing_cardinality"),
+                                       ("invalid_cardinality", "invalid_cardinality")],
+                         ids=["missing", "invalid"])
+def test_provisional_diagnostics_remain_reported_without_fixed_identifiers(invoke, tmp_path, case, kind, input_policy):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-09, DK-DIAG-10, DK-DIAG-11.
+
+    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5.
+    Require the actual provisional code and event to survive each interface;
+    deliberately do not assert its spelling or promise future stability.
+    """
+    source, options, faults = _diagnostic_core_request(tmp_path, case, input_policy)
+    severity = "WARNING" if case == "missing_cardinality" else "ERROR"
+    outcome = "completed" if severity == "WARNING" else "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    python = invoke.convert(source, options=options, workdir=tmp_path, faults=faults)
+    assert python.outcome == outcome
+    provisional = [event for event in invoke.read_diagnostics(python) if event.kind == kind]
+    assert provisional and all(event.severity == severity and isinstance(event.code, str)
+                               and event.code and event.code not in STABLE_DIAGNOSTIC_CODES for event in provisional)
+    _assert_native_json_mirror(invoke, python, tmp_path / "python.json")
+    report, destination = tmp_path / "cli.json", tmp_path / "out.ttl"
+    process = invoke.cli(source, options=options, workdir=tmp_path, output_path=destination, diagnostics_path=report)
+    assert process.returncode == {"completed": 0, "completed-with-errors": 1, "aborted": 3}[outcome]
+    content = _assert_cli_json_and_console(invoke, process, report)
+    assert content.outcome == outcome
+    cli_provisional = [event for event in process.observation.diagnostics if event.kind == kind]
+    assert cli_provisional and all(event.severity == severity and isinstance(event.code, str)
+                                   and event.code and event.code not in STABLE_DIAGNOSTIC_CODES for event in cli_provisional)
+    actual_codes = {event.code for event in cli_provisional}
+    assert any(code in actual_codes and level == severity for level, code, *_ in content.events)
+    assert destination.is_file() == (outcome != "aborted")
+
+
+def test_recognized_omissions_do_not_use_unknown_information_code(invoke, tmp_path):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-GEN-06, DK-GEN-07, DK-CLS-01.
+
+    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5.
+    Recognized package/custom/nature omissions are not unrecognized input.
+    """
+    source, options, _ = _diagnostic_core_request(tmp_path, "recognized_omissions", "strict")
+    python = invoke.convert(source, options=options, workdir=tmp_path)
+    assert python.outcome == "completed"
+    native = _assert_native_json_mirror(invoke, python, tmp_path / "python.json")
+    assert all(code != "UNKNOWN_INFORMATION" for _, code, *_ in native.events)
+    report = tmp_path / "cli.json"
+    process = invoke.cli(source, options=options, workdir=tmp_path, output_path=tmp_path / "out.ttl", diagnostics_path=report)
+    assert process.returncode == 0
+    content = _assert_cli_json_and_console(invoke, process, report)
+    assert all(code != "UNKNOWN_INFORMATION" for _, code, *_ in content.events)
+
+
 INVALID_ARGS=[('--unknown-directkg-option',),('--iri-strategy','INVALID'),('--input-policy','INVALID'),
               ('--stereotype-policy','INVALID'),('--inverse-properties','INVALID'),('--relation-labels','INVALID'),
               ('--material-property-chains',),('--material-property-chains','INVALID'),('--provenance','INVALID'),('--language',)]
@@ -878,7 +1091,8 @@ def _assert_cli_ontology_serialization_failure(invoke, tmp_path, policy, scenari
         observed_failures = [error for error in trace['report_io_errors'] if error['destination'] == str(report_path)]
         assert observed_failures
         assert any(diagnostics_report_write_error(event, report_path, error)
-                   for event in process.console if event not in console_errors for error in observed_failures)
+                   for event in process.console if all(event is not internal for internal in console_errors)
+                   for error in observed_failures)
         assert not report_path.exists() and set(tmp_path.iterdir()) == existing
     else:
         assert trace['report_io_errors'] == []
@@ -964,7 +1178,11 @@ def test_diagnostics_failure_after_duplicate_abort_retains_both_failures_and_cod
 @pytest.mark.parametrize("reporting", ["report-written", "report-omitted", "report-failure"])
 @pytest.mark.parametrize("input_policy", POLICIES)
 def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, tmp_path, input_policy, reporting):
-    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05. Also §15 exit 3 and precedence of 4."""
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05. Also §15 exit 3 and precedence of 4.
+
+    RD-04 e62454b98933a6ba6cb5890084fa7353d671c5a5 fixes the internal-failure
+    code without changing the existing stage/cause, delivery or export assertions.
+    """
     source = fixture_path("shared/binary_relation")
     destination = tmp_path / "out.ttl"
     report = None if reporting == "report-omitted" else tmp_path / "report.json"
@@ -982,8 +1200,8 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
     failure = trace["transformation_failure"]
     assert failure["graph_size"] > 0
     earlier = diagnostic_record_counts(failure["earlier_events"])
-    assert any(severity == "WARNING" and "placeholder" in message.casefold()
-               for severity, _, message, _, _, _ in earlier)
+    assert any(severity == "WARNING" and code == "PLACEHOLDER_BASE" and "placeholder" in message.casefold()
+               for severity, code, message, _, _, _ in earlier)
     assert not destination.exists() and not (tmp_path / "out.provenance.ttl").exists()
     assert process.returncode == (4 if reporting == "report-failure" else 3), process.stderr
 
@@ -991,11 +1209,13 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
     assert converted.outcome == after.outcome == "aborted"
     actual = diagnostic_record_counts(after.events)
     assert earlier <= diagnostic_record_counts(converted.events) <= actual
-    assert any(transformation_failure_diagnostic(severity, message, effect, failure["cause"])
-               for severity, _, message, effect, _, _ in actual - earlier)
+    assert any(code == "INTERNAL_TRANSFORMATION_FAILURE"
+               and transformation_failure_diagnostic(severity, message, effect, failure["cause"])
+               for severity, code, message, effect, _, _ in actual - earlier)
     internal_errors = [event for event in process.console
                        if transformation_failure_diagnostic(event.severity, event.message, "", failure["cause"])]
     assert internal_errors
+    assert all(event.code is None or event.code == "INTERNAL_TRANSFORMATION_FAILURE" for event in internal_errors)
     # The default info threshold displays every earlier record, including INFO.
     assert console_covers_diagnostic_records(process.console, failure["earlier_events"])
 
@@ -1008,13 +1228,15 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
     for attempt in trace["report_at_export"]:
         at_export = diagnostic_record_counts(attempt["events"])
         assert attempt["outcome"] == "aborted" and earlier <= at_export
-        assert any(transformation_failure_diagnostic(severity, message, effect, failure["cause"])
-                   for severity, _, message, effect, _, _ in at_export - earlier)
+        assert any(code == "INTERNAL_TRANSFORMATION_FAILURE"
+                   and transformation_failure_diagnostic(severity, message, effect, failure["cause"])
+                   for severity, code, message, effect, _, _ in at_export - earlier)
 
     if reporting == "report-failure":
         failures = trace["report_io_errors"]
         assert any(diagnostics_report_write_error(event, report, error)
-                   for event in process.console if event not in internal_errors for error in failures)
+                   for event in process.console if all(event is not internal for internal in internal_errors)
+                   for error in failures)
         assert not report.exists() and set(tmp_path.iterdir()) == existing
     else:
         assert trace["report_io_errors"] == []
@@ -1026,14 +1248,23 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
 @pytest.mark.parametrize('policy',POLICIES)
 @pytest.mark.parametrize('report_failure',[False,True],ids=['report_written','report_failure'])
 def test_required_provenance_construction_failure_aborts_before_cli_ontology_delivery(invoke,tmp_path,mode,policy,report_failure):
-    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05. Also §15 codes 3/4."""
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05. Also §15 codes 3/4.
+
+    RD-04 e62454b98933a6ba6cb5890084fa7353d671c5a5 stabilizes REQUIRED_PROVENANCE.
+    A real non-directory report parent exercises the preserved delivery precedence.
+    """
     report=tmp_path/'report.json';destination=tmp_path/'out.ttl'
-    faults=(Fault('provenance','construct'),)+((Fault('diagnostics','write',report),) if report_failure else ())
+    faults=(Fault('provenance','construct'),)
+    if report_failure:
+        blocker=tmp_path/'report-parent'
+        blocker.write_bytes(b'Not a directory')
+        report=blocker/report.name
     process=invoke.cli(fixture_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':mode,'input_policy':policy},workdir=tmp_path,output_path=destination,diagnostics_path=report,faults=faults)
     assert process.returncode==(4 if report_failure else 3)
     assert process.observation.outcome=='aborted' and process.observation.ontology is None
     assert not destination.exists() and not (tmp_path/'out.provenance.ttl').exists()
-    assert any(d.kind=='required_provenance' and d.severity=='ERROR' for d in process.observation.diagnostics)
+    assert any(d.kind=='required_provenance' and d.severity=='ERROR' and d.code=='REQUIRED_PROVENANCE'
+               for d in process.observation.diagnostics)
     if not report_failure:_report(invoke,report,process.observation)
 
 

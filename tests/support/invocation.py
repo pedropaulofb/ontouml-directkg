@@ -1,8 +1,9 @@
 """Replaceable binding to REAL DirectKG interfaces.
 
 The dataclasses below are a test-side observation format, not a proposed public
-API. The RD-02 binding below covers actual file conversion, public result reads
-and fresh-file CLI JSON reports. Other capabilities remain explicitly unbound.
+API. The binding covers actual file conversion, public result reads, diagnostic
+codes, CLI reports and the explicitly implemented fault boundaries. Other
+capabilities remain explicitly unbound.
 Never populate observations from expected fixtures or implement mappings here.
 """
 
@@ -72,6 +73,9 @@ class Diagnostic:
     facts: frozenset[str] = frozenset()
     raw: Any = None
     identified_sources: tuple[str, ...] = ()
+    # The actual native/report identifier, distinct from normalized meaning.
+    # None on console records whose inspected presentation displays no code.
+    code: str | None = None
 
 
 @dataclass
@@ -610,6 +614,10 @@ class _InputObservedMetadataPython(_InputObservedPython):
     _available_fields = _InputObservedPython._available_fields | {"external_metadata_output"}
 
 
+class _ProvenanceObservedPython(_InputObservedMetadataPython):
+    _available_fields = _InputObservedMetadataPython._available_fields | {"operations"}
+
+
 class _MetadataCLIObservation(_BasicObservation):
     _available_fields = _BasicObservation._available_fields | {"external_metadata_output"}
 
@@ -641,7 +649,7 @@ class _ReportProcess(_BoundFieldsOnly, CLIObservation):
 
 
 class _ConsoleDiagnostic(_BoundFieldsOnly, Diagnostic):
-    _available_fields = frozenset({"severity", "message", "raw"})
+    _available_fields = frozenset({"severity", "message", "raw", "code"})
 
 
 def _observed_console(stdout, stderr):
@@ -659,10 +667,14 @@ def _observed_console(stdout, stderr):
         for index, match in enumerate(matches):
             end = matches[index + 1].start() if index + 1 < len(matches) else len(data)
             raw = data[match.start():end]
+            # The inspected bracket-header renderer displays CODE: immediately
+            # after severity. A bare severity header does not establish a code.
+            displayed = re.match(rb"([^:\s]+):", data[match.end():end]) if match.group(1) else None
             events.append(_ConsoleDiagnostic(
                 (match.group(1) or match.group(2)).decode("ascii").upper(),
                 "console", raw.decode("utf-8", errors="replace"),
                 raw={"stream": stream, "data": raw},
+                code=displayed.group(1).decode("utf-8", errors="replace") if displayed else None,
             ))
     return tuple(events)
 
@@ -812,6 +824,26 @@ def _fail_relation_emission(trace):
     return patch.object(conversion, "emit_relations", fail)
 
 
+def _fail_required_provenance(trace):
+    """Inject a failure at the real required-provenance construction boundary."""
+    import inspect
+    from unittest.mock import patch
+    from ontouml_directkg import provenance
+
+    construct = provenance.construct_provenance
+    signature = inspect.signature(construct)
+    trace["provenance_probe"] = {"module": construct.__module__,
+                                  "name": construct.__qualname__, "calls": []}
+
+    def fail(*args, **kwargs):
+        signature.bind(*args, **kwargs)
+        error = RuntimeError("RD04-PROVENANCE-271")
+        trace["provenance_probe"]["calls"].append({"cause": str(error), "operation": "construct"})
+        raise error
+
+    return patch.object(provenance, "construct_provenance", fail)
+
+
 _CLI_OBSERVER = '''\
 import argparse
 import atexit
@@ -832,8 +864,11 @@ native_result = None
 ontology_fault = os.environ.get("DIRECTKG_TEST_ONTOLOGY_FAULT")
 probe = _OntologySerializationProbe(ontology_fault) if ontology_fault is not None else None
 transformation_fault = os.environ.get("DIRECTKG_TEST_TRANSFORMATION_FAULT") == "emit_relations"
+provenance_fault = os.environ.get("DIRECTKG_TEST_PROVENANCE_FAULT") == "construct"
 if transformation_fault:
     _fail_relation_emission(trace).start()
+if provenance_fault:
+    _fail_required_provenance(trace).start()
 if probe is not None:
     from ontouml_directkg.conversion import ConversionResult
 
@@ -841,7 +876,7 @@ if probe is not None:
         return probe.serialize(result)
 
     ConversionResult.to_turtle = observed_turtle
-if probe is not None or transformation_fault:
+if probe is not None or transformation_fault or provenance_fault:
     from pathlib import Path
 
     write_bytes = Path.write_bytes
@@ -887,7 +922,7 @@ def observe(frame, event, argument):
             trace["parser_errors"].append(frame.f_locals["message"])
         elif frame.f_code is export_report.__code__:
             trace["diagnostics_exports"].append(str(frame.f_locals["destination"]))
-            if probe is not None or transformation_fault:
+            if probe is not None or transformation_fault or provenance_fault:
                 trace["report_at_export"].append(report_fields(
                     frame.f_locals["outcome"], frame.f_locals["events"]))
 
@@ -948,7 +983,7 @@ def _observe_python_input():
             raise ImplementationUnavailable("Incomplete Python input-processing evidence")
 
 
-def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=False):
+def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=False, provenance_fault=False):
     """Observe the real -m CLI without replacing conversion or parser behavior.
 
     The inspected converter finishes configuration validation before calling
@@ -960,17 +995,21 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_f
     with TemporaryDirectory(prefix="directkg-cli-observer-", dir=workdir) as directory:
         directory = Path(directory)
         observers = tuple(map(inspect.getsource, (_MetadataCapture, _OntologySerializationProbe,
-                                                   _native_diagnostic_fields, _fail_relation_emission)))
+                                                   _native_diagnostic_fields, _fail_relation_emission,
+                                                   _fail_required_provenance)))
         (directory / "sitecustomize.py").write_text("\n".join((*observers, _CLI_OBSERVER)), encoding="utf-8")
         trace_path = directory / "execution.json"
         environment = dict(os.environ)
         environment["DIRECTKG_TEST_CLI_TRACE"] = str(trace_path)
         environment.pop("DIRECTKG_TEST_ONTOLOGY_FAULT", None)
         environment.pop("DIRECTKG_TEST_TRANSFORMATION_FAULT", None)
+        environment.pop("DIRECTKG_TEST_PROVENANCE_FAULT", None)
         if ontology_fault is not None:
             environment["DIRECTKG_TEST_ONTOLOGY_FAULT"] = ontology_fault
         if transformation_fault:
             environment["DIRECTKG_TEST_TRANSFORMATION_FAULT"] = "emit_relations"
+        if provenance_fault:
+            environment["DIRECTKG_TEST_PROVENANCE_FAULT"] = "construct"
         environment["PYTHONPATH"] = str(directory) + (
             os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else ""
         )
@@ -988,6 +1027,8 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_f
 
 
 _DIAGNOSTIC_KINDS = {
+    "REQUIRED_PROVENANCE": "required_provenance",
+    "INTERNAL_TRANSFORMATION_FAILURE": "internal_transformation_failure",
     "ONTOLOGY_DELIVERY": "ontology_delivery", "SIDECAR_DELIVERY": "sidecar_delivery",
     "MISSING_SOURCE_ID": "missing_id", "INVALID_SOURCE_ID": "invalid_id",
     "FAILED_RELATION": "failed_relation", "DUPLICATE_SOURCE_ID": "duplicate_id",
@@ -1518,11 +1559,13 @@ def transformation_failure_diagnostic(severity, message, effect, cause):
 
 def console_covers_diagnostic_records(console, records):
     """Match captured events one-to-one with the records visible at the info threshold."""
-    available = [(event.severity, " ".join(event.message.split())) for event in console]
-    for severity, _, message, effect, sources, _ in records:
+    available = [(event.severity, " ".join(event.message.split()), event.code) for event in console]
+    for severity, code, message, effect, sources, _ in records:
         text = (" ".join(message.split()), " ".join(effect.split()))
-        for index, (display_severity, displayed) in enumerate(available):
+        for index, (display_severity, displayed, displayed_code) in enumerate(available):
             if display_severity != severity or not all(field in displayed for field in text):
+                continue
+            if displayed_code is not None and displayed_code != code:
                 continue
             if not all(path in displayed or (identifier is not None and re.search(
                     rf"(?<!\w){re.escape(identifier)}(?!\w)", displayed)) for path, identifier, _ in sources):
@@ -1653,6 +1696,7 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             source_types=tuple(source.element_type for source in event.sources if source.element_type is not None),
             generated_iris=() if event.generated_iri is None else (event.generated_iri,),
             facts=frozenset(facts), raw=event, identified_sources=ids,
+            code=event.code,
         ))
     return tuple(observed)
 
@@ -1696,11 +1740,12 @@ def _delivery_provenance(result):
 
 
 class _DirectKGInvocation(_UnboundInvocation):
-    """Minimal RD-02 wiring; no conversion, recovery or output rules live here."""
+    """Bind native calls and observations; no transformation rules live here."""
 
     def convert(self, source, *, options, workdir, faults=()):
         transformation_fault = faults == (Fault("transformation", "emit_relations"),)
-        if faults and not transformation_fault:
+        provenance_fault = faults == (Fault("provenance", "construct"),)
+        if faults and not (transformation_fault or provenance_fault):
             self._unavailable()
         try:
             from ontouml_directkg import ConfigurationError, convert
@@ -1717,7 +1762,8 @@ class _DirectKGInvocation(_UnboundInvocation):
         # Observe real input/report-writer calls for explicit persistence checks;
         # no input option is used to infer that a report was or was not written.
         with _observe_metadata_output() as metadata, _observe_python_input() as trace:
-            injection = _fail_relation_emission(trace) if transformation_fault else nullcontext()
+            injection = (_fail_relation_emission(trace) if transformation_fault else
+                         _fail_required_provenance(trace) if provenance_fault else nullcontext())
             try:
                 with injection:
                     result = convert(source, **request)
@@ -1733,6 +1779,10 @@ class _DirectKGInvocation(_UnboundInvocation):
             extra = ({"external_metadata_output": observed.external_metadata_output}
                      if observed.native is not None else {})
             cls = _InputObservedMetadataPython if extra else _InputObservedPython
+            if provenance_fault and observed.native is not None:
+                cls = _ProvenanceObservedPython
+                extra["operations"] = tuple(Operation("provenance", "construct", None, True, call)
+                                            for call in trace["provenance_probe"]["calls"])
             return cls(observed.ontology, observed.outcome, observed.diagnostics,
                 configuration_error=observed.configuration_error, native=observed.native,
                 provenance=None if observed.native is None else observed.provenance,
@@ -2225,7 +2275,8 @@ class _DirectKGInvocation(_UnboundInvocation):
                                and faults[0].operation in {"serialize", "encode"}
                                and (faults[0].path is None or faults[0].path == output_path) else None)
         transformation_fault = faults == (Fault("transformation", "emit_relations"),)
-        if ((faults and not (serialization_fault or transformation_fault)) or extra_args or output_path is None
+        provenance_fault = faults == (Fault("provenance", "construct"),)
+        if ((faults and not (serialization_fault or transformation_fault or provenance_fault)) or extra_args or output_path is None
                 or (serialization_fault is None and Path(output_path).exists())
                 or (diagnostics_path is not None and Path(diagnostics_path).exists())):
             self._unavailable()
@@ -2246,7 +2297,7 @@ class _DirectKGInvocation(_UnboundInvocation):
                 command.extend(("--" + name.replace("_", "-"), str(value)))
         completed, trace = _run_observed_cli(
             command, workdir, ontology_fault=serialization_fault.operation if serialization_fault else None,
-            transformation_fault=transformation_fault)
+            transformation_fault=transformation_fault, provenance_fault=provenance_fault)
         started = trace["conversion_started"]
         if completed.returncode == 2 and trace["parser_errors"] and not started:
             # Actual native rejection before input processing has no conversion
@@ -2267,9 +2318,11 @@ class _DirectKGInvocation(_UnboundInvocation):
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   None, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
-        if diagnostics_path is None:
+        if diagnostics_path is None or provenance_fault:
             from ontouml_directkg import Diagnostic as NativeDiagnostic, SourceLocation
 
+            # Required-provenance aborts expose the observed native result even
+            # if requested JSON delivery fails. Do not reconstruct a missing file.
             if trace.get("conversion_calls") != 1 or trace.get("conversion_returns") != 1 or "native_report" not in trace:
                 raise ImplementationUnavailable("Complete CLI result evidence is unavailable without a report")
             native = trace["native_report"]
