@@ -27,7 +27,7 @@ The same accepted rule can apply recursively at further classification orders, c
 
 ## Categorizers and powertypes
 
-A generalization set's `categorizer` supplies a higher-order classifier. In a fully resolved class set, DirectKG emits a classification for **every explicit specific** in that set. Multiple categorizer declarations are all transformed; one classification does not replace another.
+A generalization set's `categorizer` supplies a higher-order classifier. An absent or explicit `null` `categorizer` denotes an uncategorized generalization set without error. In a fully resolved class set with a usable categorizer, DirectKG emits a classification for **every explicit specific** in that set. Multiple categorizer declarations are all transformed; one classification does not replace another.
 
 The [generalization-set membership rule](../reference/input.md#generalization-set-membership) counts repeated references to the same declaration once within each set before applying these existing categorizer and powertype mappings. That reference also distinguishes the accepted rule from its implementation status.
 
@@ -54,14 +54,43 @@ The existing member ERROR remains. `strict` and `tolerant` abort. Under `best-ef
 
 **Implementation status.** At [development revision `3e45c2da9ac935a7b760bd6910ab89268200a138`](https://github.com/pedropaulofb/ontouml-directkg/blob/3e45c2da9ac935a7b760bd6910ab89268200a138/src/ontouml_directkg/generalizations.py#L153), incomplete categorized class sets that reach the categorizer branch still raise `NotImplementedError`. This subsection describes the accepted recovery.
 
+### Recovery for an unusable categorizer
+
+This rule applies to a class generalization set with a nonempty `generalizations` array and a present, non-null `categorizer` value that cannot supply a generated local `owl:Class` (DK-HO-04). An unusable categorizer includes:
+
+- a malformed reference value;
+- an unresolved reference, including a dangling identifier, a reference-type mismatch, or a target class omitted earlier under `best-effort`;
+- a reference resolving to a non-`Class` declaration; or
+- a reference resolving to a `Class` without a generated local `owl:Class` under DK-CLS-01, such as a supported primitive datatype or Visual Paradigm `void`.
+
+An absent or explicit `null` `categorizer` continues to denote an uncategorized generalization set without error.
+
+DirectKG reports a structural **ERROR** identifying the affected generalization set and the unusable-categorizer condition. This rule selects no new stable diagnostic identifier; its code remains [provisional](../reference/diagnostics.md#stable-first-release-diagnostic-core). Under `strict` or `tolerant` (the default), conversion aborts under DK-DIAG-05 and delivers no ontology. Under `best-effort`, DirectKG retains ERROR severity, omits all categorizer assertions (DK-HO-02) and powertype-extension assertions (DK-HO-03) derived from that generalization set, and continues processing. See [unusable-categorizer diagnostics](../reference/diagnostics.md#unusable-categorizer-in-class-generalization-sets) for the outcome, delivery, and CLI exit-code contract.
+
+Under `best-effort`, an unusable categorizer alone does not suppress:
+
+- the set's independently valid membership-based constraints: `isDisjoint: true` pairwise disjointness (DK-CLS-06 or DK-CLS-09) and, when membership is complete, `isComplete: true` multi-member coverage (DK-CLS-07) or singleton completeness with its required DK-DIAG-14 INFO diagnostic (DK-CLS-08);
+- independent class generalizations (DK-CLS-02); or
+- higher-order classifications established independently by other rules.
+
+When a class generalization set has both an unresolved or failed member under DK-CLS-09 and an unusable categorizer, both rules apply together under `best-effort`: coverage and all categorizer/powertype assertions from that set are omitted, while applicable pairwise disjointness among surviving specifics and independent mappings are retained. See [Class-set recovery](classes.md#singleton-and-recovery-boundaries).
+
+DirectKG must not invent a substitute categorizer class, assert `rdf:type` against a shared XSD datatype IRI or `void`, or perform DK-HO-03 powertype expansion without a usable categorizer.
+
+For example (**specification illustration**, not observed converter output), if a complete, disjoint class generalization set specializes `Vehicle` into `Car` and `Truck`, but its `categorizer` references the primitive datatype `string` or a dangling ID, `strict` and `tolerant` report a structural ERROR and abort. Under `best-effort`, DirectKG retains ERROR severity, omits all categorizer and powertype-extension assertions derived from that set, and retains `Car owl:disjointWith Truck`, the covering axiom for `Vehicle`, and the subclass axioms `Car rdfs:subClassOf Vehicle` and `Truck rdfs:subClassOf Vehicle`.
+
+[DK-DIAG-12](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) continues to govern explicitly empty, absent, `null`, or other non-array `generalizations` containers, and the fatal [duplicate-declaration-ID rule](../reference/diagnostics.md#input-policy) (§3.4 / DK-DIAG-05) retains precedence under every input policy, including `best-effort`. Non-null categorizers on relation generalization sets remain outside this rule's scope.
+
+**Implementation status.** At the [reviewed registration revision `0f290d3afb830418297af13c30c4c65be1e13ca8`](https://github.com/pedropaulofb/ontouml-directkg/blob/0f290d3afb830418297af13c30c4c65be1e13ca8/src/ontouml_directkg/generalizations.py#L153-L162), unresolved or malformed categorizers, non-`Class` targets, and `Class` targets without a generated local `owl:Class` still raise `NotImplementedError`, caught in [`conversion.py`](https://github.com/pedropaulofb/ontouml-directkg/blob/0f290d3afb830418297af13c30c4c65be1e13ca8/src/ontouml_directkg/conversion.py#L246-L250) as `INTERNAL_TRANSFORMATION_FAILURE` and aborting under every input policy, including `best-effort`. This subsection describes the accepted intended recovery.
+
 ## No reconciliation
 
 DirectKG does not reconcile explicit `instantiation` declarations with `GeneralizationSet.categorizer`, choose precedence between higher-order sources, suppress multiple classifications, validate classifier orders/stereotype appropriateness, detect their semantic conflicts, or omit an assertion merely because it could contribute to inconsistency. Different higher-order types are not treated as conflicting solely because they classify related elements (DK-HO-04).
 
 `restrictedTo` is recognized and omitted. It does not replace a stereotype, guide powertype membership, or authorize semantic-appropriateness checks. See [Class declarations preserved as comments](classes.md#class-declarations-preserved-as-comments) for its omission boundary and the separate order-comment rule.
 
-Explicitly empty generalization arrays have their defined error handling. Under `best-effort`, a [missing or malformed membership container](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) contributes no categorizer assertions or powertype expansion. Independently supported classifications still apply. Recovery for an unusable categorizer remains unspecified. [Instantiation associations](instantiation.md#no-reconciliation) explains the separate declaration and discarded-data boundary.
+Explicitly empty generalization arrays have their defined error handling. Under `best-effort`, a [missing or malformed membership container](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) contributes no categorizer assertions or powertype expansion. Independently supported classifications still apply. Unusable categorizers on class sets with a nonempty `generalizations` array follow the [unusable-categorizer recovery rule](#recovery-for-an-unusable-categorizer) above; non-null categorizers on relation generalization sets remain outside that settled class-set rule. [Instantiation associations](instantiation.md#no-reconciliation) explains the separate declaration and discarded-data boundary.
 
 ---
 
-Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01, 05–09; DK-DIAG-01, 05, 12; baseline consolidated: **2026-11-18**; repository commit: `5f8de1888f307c42b55c40bfac82ea07f60836a7`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/5f8de1888f307c42b55c40bfac82ea07f60836a7/documentation/specification/transformation-specification.md).
+Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01–02, 05–09; DK-DIAG-01, 04–05, 12, 14; §3.4; §15; baseline consolidated: **2026-11-18**; repository commit: `0f290d3afb830418297af13c30c4c65be1e13ca8`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0f290d3afb830418297af13c30c4c65be1e13ca8/documentation/specification/transformation-specification.md).
