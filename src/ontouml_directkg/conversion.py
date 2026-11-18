@@ -90,12 +90,13 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     only explicit ``result.deliver(path)`` writes ontology/provenance files.
     Select the vocabulary delivery with ``dkgm_vocabulary``: the stable import
     (default), the fixed local core (``embed``), or bridge-target typing (``none``).
-    Unresolved naming/recovery branches raise NotImplementedError rather than
-    returning an apparently completed partial conversion.
+    Unresolved naming/recovery branches remain unimplemented; their failures
+    abort conversion rather than return an apparently completed partial result.
 
     ConfigurationError occurs before source reading and produces no conversion
-    result/report. Policy-driven aborts return their actual produced diagnostics
-    with outcome ``aborted`` and no ontology. Conversion writes no output files.
+    result/report. Policy-driven aborts and reportable internal failures return
+    all produced diagnostics with outcome ``aborted`` and no ontology or
+    provenance graph. Conversion writes no output files.
     """
     base, ontology_iri = select_base(base_iri)
     if ontology_version_iri is not None and (not isinstance(ontology_version_iri, str)
@@ -133,27 +134,41 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         diagnostics.add("WARNING", "PLACEHOLDER_BASE",
                         "No base IRI supplied: using a placeholder namespace, which is not recommended for publication.",
                         f"Effective entity base is {base}.")
+    stage = "read_project"
     try:
         captured = [] if provenance != "none" else None
         project = read_project(Path(source), diagnostics, captured_bytes=captured)
+        stage = "index_project"
         index = index_project(project, diagnostics, input_policy)
+        stage = "check_stereotypes"
         check_stereotypes(index, diagnostics, stereotype_policy)
+        stage = "apply_identifier_policy"
         index = apply_identifier_policy(index, diagnostics, input_policy)
+        stage = "baseline_classes"
         classes = baseline_classes(index)
+        stage = "collect_enumerations"
         enumerations = collect_enumerations(classes, diagnostics, input_policy)
+        stage = "collect_relations"
         relations, groundings, omitted = collect_relations(index, classes, diagnostics, input_policy)
+        stage = "collect_attributes"
         attributes = collect_attributes(index, classes, diagnostics, input_policy)
+        stage = "relation_names"
         names, lexical = relation_names(relations, groundings, iri_strategy, relation_labels,
                                        no_stereotype_relation_naming, diagnostics)
         claims: set[str] = set()
+        stage = "property_candidates"
         candidates = property_candidates(attributes, iri_strategy,
             {relation.target_end.data["id"]: (names[relation.target_end.data["id"]], relation.domain)
              for relation in relations}, claims)
+        stage = "allocate_resources"
         resources = allocate_resources(classes, enumerations, base, iri_strategy,
                                        candidates, claims)
+        stage = "allocate_inverses"
         inverses = allocate_inverses(relations, resources, base, iri_strategy, inverse_properties, claims)
         resources.update(inverses)
+        stage = "TextAnnotations"
         text = TextAnnotations(project, language, diagnostics)
+        stage = "ontology initialization"
         graph = Graph(bind_namespaces="none")
         for prefix, namespace in (("", base), ("rdf", RDF), ("rdfs", RDFS), ("owl", OWL),
                                   ("xsd", XSD), ("dcterms", DCTERMS), ("dkgm", DKGM)):
@@ -162,30 +177,46 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         graph.add((ontology, RDF.type, OWL.Ontology))
         if ontology_version_iri is not None:
             graph.add((ontology, OWL.versionIRI, URIRef(ontology_version_iri)))
+        stage = "project annotations"
         text.describe(graph, ontology, project)
+        stage = "emit_classes"
         emit_classes(graph, classes, resources, iri_strategy, omit_identifiers, text, diagnostics)
+        stage = "emit_stereotype_disjointness"
         emit_stereotype_disjointness(graph, classes, resources)
+        stage = "emit_enumerations"
         emit_enumerations(graph, enumerations, resources, iri_strategy, text, diagnostics)
+        stage = "emit_generalizations"
         emit_generalizations(graph, index, resources, diagnostics, input_policy)
+        stage = "emit_attributes"
         emit_attributes(graph, attributes, resources, iri_strategy, text, diagnostics, input_policy)
+        stage = "PropertyExpressions"
         ends = {end.data["id"]: (relation.target_end.data["id"], reverse)
                 for relation in relations for end, reverse in ((relation.source_end, True), (relation.target_end, False))}
         expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted)
+        stage = "emit_relations"
         bridges = emit_relations(graph, relations, resources, inverses, lexical, relation_labels, text,
                                  diagnostics, input_policy, expressions)
+        stage = "emit_relation_generalizations"
         emit_relation_generalizations(graph, index,
             {relation.source.data["id"]: resources[relation.target_end.data["id"]] for relation in relations},
             {relation.source.data["id"]: inverses[relation.source_end.data["id"]]
              for relation in relations if relation.source_end.data["id"] in inverses}, diagnostics, input_policy)
+        stage = "emit_property_references"
         emit_property_references(graph, index, expressions, diagnostics, input_policy)
+        stage = "emit_material_chains"
         emit_material_chains(graph, relations, groundings, attributes, expressions,
                              material_property_chains, diagnostics)
+        stage = "emit_dkgm"
         emit_dkgm(graph, ontology, dkgm_vocabulary, bridges, diagnostics)
+        stage = "emit_relation_axioms"
         emit_relation_axioms(graph, relations, expressions)
+        stage = "read_metadata"
         metadata = read_metadata(metadata_file, diagnostics, input_policy)
+        stage = "emit_metadata"
         emit_metadata(graph, ontology, metadata)
         record = None
         if provenance != "none":
+            stage = "transformation provenance"
             configuration = {
                 "base_iri": base_iri, "effective_base_iri": base,
                 "ontology_version_iri": str(ontology_version_iri) if ontology_version_iri is not None else None,
@@ -211,6 +242,11 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
                                 "Conversion aborted; no ontology, incomplete provenance or substitute mode is delivered.")
                 raise _AbortConversion from exc
     except _AbortConversion:
+        return ConversionResult(None, "aborted", tuple(diagnostics.events), provenance_mode=provenance)
+    except Exception as exc:
+        diagnostics.add("ERROR", "INTERNAL_TRANSFORMATION_FAILURE",
+                        f"Unexpected internal failure in stage '{stage}': {type(exc).__name__}: {exc}.",
+                        "Conversion aborted; no ontology or provenance sidecar is delivered.")
         return ConversionResult(None, "aborted", tuple(diagnostics.events), provenance_mode=provenance)
     outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"
     return ConversionResult(graph, outcome, tuple(diagnostics.events),
