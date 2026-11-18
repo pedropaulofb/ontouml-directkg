@@ -1,6 +1,7 @@
 """Punned class/individual identity, categorizers, and powertype extension."""
 
 import copy
+
 import pytest
 from rdflib import Graph, Literal, Namespace
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
@@ -87,6 +88,77 @@ def test_repeated_membership_preserves_categorizer_and_powertype_extensions(run,
         assert not any(event.kind == "singleton_completeness" or event.severity in {"WARNING", "ERROR"}
                        for event in result.diagnostics)
     assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+@pytest.mark.parametrize("condition,value", [
+    ("absent", None), ("null", None), ("non_array", {"id": "gOne", "type": "Generalization"}),
+    ("non_array", "gOne"), ("non_array", 1), ("non_array", False),
+], ids=["absent", "null", "object", "string", "number", "boolean"])
+def test_unusable_membership_container_omits_only_the_affected_set(
+        run, source_json, tmp_path, condition, value, powertype, input_policy):
+    """Rules: DK-DIAG-12, DK-DIAG-05, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-07, DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04.
+
+    RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
+    Only gsFirst is unusable. The independently supported subclass edges and
+    gsSecond's classification must survive when the input policy permits recovery.
+    """
+    document = source_json("higher_order/categorizers")
+    assert not fixture_issues(document)
+    source_element(document, "cCategorizer")["isPowertype"] = powertype
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True, generalizations=value)
+    if condition == "absent":
+        del affected["generalizations"]
+    # This fixture validator flags non-null non-arrays. Absent and null are
+    # deliberately supplied above and covered separately by the converter rule.
+    defects = {"malformed_membership"} if condition == "non_array" else set()
+    assert fixture_issues(document) == defects
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
+               and f"membership_{condition}" in event.facts for event in result.diagnostics), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        assert result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    assert set(graph.subjects(RDF.type, OWL.Class)) == MODELED
+    assert set(graph.subject_objects(RDFS.subClassOf)) == {
+        (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+        (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside),
+    }
+    assert not list(graph.subjects(RDF.type, BASE.cCategorizer))
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+    assert not any(BASE.gsFirst in triple for triple in graph)
+    for predicate in (OWL.unionOf, OWL.disjointUnionOf, OWL.equivalentClass):
+        assert not list(graph.triples((None, predicate, None)))
+    for left, right in ((BASE.cOne, BASE.cTwo), (BASE.cTwo, BASE.cOne)):
+        assert (left, OWL.disjointWith, right) not in graph
+    assert not list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_duplicate_declaration_is_fatal_with_unusable_membership(run, source_json, tmp_path, input_policy):
+    """Rules: DK-DIAG-12, DK-DIAG-05; §3.4 duplicate declaration IDs.
+
+    RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
+    """
+    document = source_json("higher_order/categorizers")
+    source_element(document, "gsFirst")["generalizations"] = None
+    document["model"]["contents"].append(copy.deepcopy(source_element(document, "cOne")))
+    assert fixture_issues(document) == {"duplicate_id:cOne"}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "aborted" and result.ontology is None
+    assert any(event.severity == "ERROR" and event.code == "DUPLICATE_SOURCE_ID"
+               and "cOne" in event.identified_sources for event in result.diagnostics)
+    assert all(not ({"membership_absent", "membership_null", "membership_non_array"} & event.facts)
+               for event in result.diagnostics)
 
 
 def _incomplete_categorized_set(document, *, powertype, survivors, failure):

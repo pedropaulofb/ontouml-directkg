@@ -706,6 +706,78 @@ def test_stable_diagnostic_core_matches_conditions_across_interfaces(invoke, tmp
         assert python.operations and process.execution_trace["provenance_probe"]["calls"]
 
 
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("condition", ["absent", "null", "non_array"])
+def test_unusable_membership_container_diagnostics_match_python_and_cli(
+        invoke, tmp_path, condition, input_policy):
+    """Rules: DK-DIAG-12, DK-DIAG-04, DK-DIAG-05; §15 diagnostic access, exit codes and delivery.
+
+    RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
+    Assert the condition and locator using native data, without fixing its provisional code.
+    """
+    document = load_json("higher_order/categorizers")
+    affected = source_element(document, "gsFirst")
+    if condition == "absent":
+        del affected["generalizations"]
+    else:
+        affected["generalizations"] = None if condition == "null" else {"id": "gOne", "type": "Generalization"}
+    assert fixture_issues(document) == ({"malformed_membership"} if condition == "non_array" else set())
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+    recover = input_policy == "best-effort"
+    outcome = "completed-with-errors" if recover else "aborted"
+
+    destination, report = tmp_path / "out.ttl", tmp_path / "cli.json"
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=tmp_path)
+    assert process.conversion_started is True
+    assert process.returncode == (1 if recover else 3), process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == recover
+    assert (invoke.read_provenance(python) is not None) == recover
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert not python.diagnostics_exports
+
+    exported = _assert_native_json_mirror(invoke, python, tmp_path / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
+                   and f"membership_{condition}" in event.facts
+                   and event.code and event.code not in STABLE_DIAGNOSTIC_CODES for event in events), events
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_unusable_membership_container_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-DIAG-12, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence.
+
+    RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
+    """
+    document = load_json("higher_order/categorizers")
+    source_element(document, "gsFirst")["generalizations"] = None
+    assert not fixture_issues(document)
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
+               and "membership_null" in event.facts for event in process.observation.diagnostics)
+
+
 @pytest.mark.parametrize("case", ["ontology_serialize", "ontology_encode", "ontology_create", "sidecar_write"])
 def test_stable_delivery_identifiers_match_across_interfaces(invoke, tmp_path, case):
     """Rules: DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 delivery codes and outcome separation.

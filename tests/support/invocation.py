@@ -876,24 +876,23 @@ if probe is not None:
         return probe.serialize(result)
 
     ConversionResult.to_turtle = observed_turtle
-if probe is not None or transformation_fault or provenance_fault:
-    from pathlib import Path
+from pathlib import Path
 
-    write_bytes = Path.write_bytes
+write_bytes = Path.write_bytes
 
-    def observed_write_bytes(path, data):
-        is_report = sys._getframe(1).f_code is export_report.__code__
-        try:
-            return write_bytes(path, data)
-        except OSError as error:
-            if is_report:
-                trace["report_io_errors"].append({"destination": str(path), "errno": error.errno,
-                                                  "reason": str(error)})
-            raise
+def observed_write_bytes(path, data):
+    is_report = sys._getframe(1).f_code is export_report.__code__
+    try:
+        return write_bytes(path, data)
+    except OSError as error:
+        if is_report:
+            trace["report_io_errors"].append({"destination": str(path), "errno": error.errno,
+                                              "reason": str(error)})
+        raise
 
-    Path.write_bytes = observed_write_bytes
-    trace["report_at_export"] = []
-    trace["report_io_errors"] = []
+Path.write_bytes = observed_write_bytes
+trace["report_at_export"] = []
+trace["report_io_errors"] = []
 
 def report_fields(outcome, events):
     return {"outcome": outcome, "events": _native_diagnostic_fields(events)}
@@ -1599,6 +1598,24 @@ def diagnostics_report_write_error(event, destination, observed_error):
     return False
 
 
+def _generalization_membership_facts(wording):
+    """Read the reported condition of the membership field independently of the code."""
+    if not re.search(r"\b(?:generalizations|membership (?:field|container|array|list))\b", wording):
+        return set()
+    patterns = {
+        "membership_absent": r"\b(?:absent|missing|omitted|not (?:present|provided|supplied))\b",
+        "membership_null": r"\bnull\b",
+        "membership_non_array": (
+            r"\b(?:non[- ](?:array|list)|not (?:an? )?(?:json )?(?:array|list)|wrong type|"
+            r"(?:must be|expected|requires?) (?:an? )?(?:json )?(?:array|list))\b"
+        ),
+    }
+    for fact, pattern in patterns.items():
+        if re.search(pattern, wording):
+            return {fact}
+    return set()
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -1610,6 +1627,11 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
         wording = (event.message + " " + event.effect).casefold()
         facts = dkgm_chain_facts(event.message, event.effect)
         kind = _DIAGNOSTIC_KINDS.get(event.code)
+        membership_facts = _generalization_membership_facts(wording) if event.severity == "ERROR" else set()
+        if membership_facts:
+            facts.update(membership_facts)
+            if kind is None:
+                kind = "unusable_generalization_membership"
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
@@ -2318,13 +2340,13 @@ class _DirectKGInvocation(_UnboundInvocation):
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   None, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
-        if diagnostics_path is None or provenance_fault:
+        if diagnostics_path is None or provenance_fault or trace.get("report_io_errors"):
             from ontouml_directkg import Diagnostic as NativeDiagnostic, SourceLocation
 
-            # Required-provenance aborts expose the observed native result even
-            # if requested JSON delivery fails. Do not reconstruct a missing file.
+            # Keep the native result if no report was requested or filesystem
+            # evidence shows that report delivery failed.
             if trace.get("conversion_calls") != 1 or trace.get("conversion_returns") != 1 or "native_report" not in trace:
-                raise ImplementationUnavailable("Complete CLI result evidence is unavailable without a report")
+                raise ImplementationUnavailable("Complete native CLI result evidence is unavailable")
             native = trace["native_report"]
             events = tuple(NativeDiagnostic(severity, code, message, effect,
                                             tuple(SourceLocation(*item) for item in sources), iri)
