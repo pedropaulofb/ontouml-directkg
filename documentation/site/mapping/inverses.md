@@ -93,11 +93,11 @@ These are **specification illustrations, not captured converter output**. `Q` de
 
 The last row preserves numeric text in the original candidate. By contrast, when the original candidate is `Q` and slot `Q_1` is occupied, use `Q_2`, not `Q_1_1`. An inverse retained at `Q_1` reserves that name before allocation for a group using `Q`.
 
-General name normalization and technical ID escaping remain distinct processes. These rules do not resolve the separate exceptional collision question for distinct escaped source IDs.
+General name normalization and technical ID escaping remain distinct processes.
 
 ### ID mode and stability
 
-ID mode uses the **source association-end ID**, processed by established escaping and exceptional-collision rules. Do not substitute the association ID, target-end ID, or the name-mode `inverseOf…` form. The [designated-ID table](../reference/identifiers.md#strategy-and-renaming) also explains primary-property identity.
+ID mode uses the **source association-end ID**, processed by the established escaping rules. A detected collision between distinct valid IDs under the same ID-based construction triggers the [fatal IRI allocation rule](../reference/identifiers.md#collisions-between-distinct-escaped-source-ids) in DK-INV-09 and DK-IRI-07. Do not substitute the association ID, target-end ID, or the name-mode `inverseOf…` form. The [designated-ID table](../reference/identifiers.md#strategy-and-renaming) also explains primary-property identity.
 
 Changing inverse mode can change generated inverse IRIs through inverse–inverse collisions, and changing the inverse-facing role can change a name-based inverse IRI. Source-backed IRIs remain unaffected by inverse-mode changes. Intentional omission under `informed` or `named` produces no warning, INFO, or element-level report entry. This silence does not cover malformed input, unresolved endpoints, or a failed primary transformation.
 
@@ -115,6 +115,6 @@ This required mirroring is specific to relation generalizations. UML `subsets` a
 
 ---
 
-Governing rules: DK-INV-01–12; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01; baseline consolidated: **2026-11-02**; repository commit: `0328ae1300e99eafbce7d5f32d2476c4aa5db71f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md). A1.1, A1.2 and revised A1.3 are the accepted inverse-naming resolutions in this revision; architectural acceptance does not establish their implementation.
+Governing rules: DK-INV-01–12; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01; baseline consolidated: **2026-11-18**; repository commit: `a919e64df8555227270d1f8b3b82ac4ef8c4edc5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/documentation/specification/transformation-specification.md). The A1.1, A1.2 and revised A1.3 inverse-naming resolutions are recorded in the [2 November 2026 specification](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).

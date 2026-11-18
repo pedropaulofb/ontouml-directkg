@@ -53,9 +53,11 @@ Do not deliver the graph accumulated during an aborted conversion, even when use
 
 If an unexpected internal error stops transformation after conversion has started and DirectKG can still report it, the outcome is `aborted` under every input policy, including `best-effort`. Retain all earlier diagnostics and add an ERROR with code `INTERNAL_TRANSFORMATION_FAILURE`, identifying the internal failure, with stage and cause when available. Python exposes the outcome and diagnostics and withholds the accumulated ontology graph. The run delivers neither an ontology file nor a provenance sidecar.
 
+A [collision between distinct escaped source IDs](identifiers.md#collisions-between-distinct-escaped-source-ids) detected during allocation under the same DK-IRI-05 construction follows this contract (DK-IRI-07).
+
 The CLI attempts requested JSON export after recording the ERROR. A successfully written report uses the shared schema and includes `aborted`, the preceding diagnostics, and the internal-failure ERROR. The CLI uses exit `3` when no report was requested or export succeeds. If the requested report cannot be written, both failures appear on the console and the CLI exits `4`. [CLI exit codes and example](../guides/cli.md#exit-codes-and-delivery-failures)
 
-**Implementation status.** Source inspection at [development revision `f27fae955bdecbe75144a2a0b8e91a838beb6006`](https://github.com/pedropaulofb/ontouml-directkg/blob/f27fae955bdecbe75144a2a0b8e91a838beb6006/src/ontouml_directkg/conversion.py) found no `INTERNAL_TRANSFORMATION_FAILURE` reporting path for unexpected transformation exceptions; an exception can still escape before CLI report export. The behavior above remains the accepted contract. Selecting its identifier establishes neither implemented support nor completed testing.
+**Implementation status at the reviewed registration.** The conversion handler reports caught unexpected exceptions as `INTERNAL_TRANSFORMATION_FAILURE`. Both allocation guards still raise `NotImplementedError` with a message that calls for an Architect decision. This is based on static source inspection. [Conversion handler](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/src/ontouml_directkg/conversion.py#L243-L251) · [Source-resource guard](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/src/ontouml_directkg/classifiers.py#L115-L116) · [Inverse guard](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/src/ontouml_directkg/inverses.py#L27-L29)
 
 ## Diagnostic collection and export
 
@@ -168,7 +170,7 @@ The following groups explain when diagnostics occur. Their linked mapping pages 
 | Usable material semantic name unavailable | Warning, then accepted source–target fallback |
 | Multiple project languages with no local tag or override for a supported value | Nonfatal WARNING and untagged value; may consolidate to avoid unnecessary repetition |
 
-[Identifiers](identifiers.md#unnamed-or-unusably-named-resources) owns fallback prerequisites and exceptions; [Binary relations](../mapping/relations.md#primary-direction-and-naming) owns naming precedence. Collision after injective ID escaping remains exceptional: do not merge; its exact disposition is unspecified rather than an invented ordinary warning/recovery.
+[Identifiers](identifiers.md#unnamed-or-unusably-named-resources) owns fallback prerequisites and exceptions; [Binary relations](../mapping/relations.md#primary-direction-and-naming) owns naming precedence. Detected collisions under the same ID-based construction follow the [internal-failure contract](#unexpected-internal-failures-during-transformation).
 
 Insufficient semantic-role evidence alone is not a structural failure: use the established endpoint naming fallback without omitting the relation or aborting solely for that uncertainty. Structured JSON remains authoritative; this creates no semantic-orientation validation or source-repair branch. Malformed input and unresolved required references retain their existing policies.
 
@@ -293,7 +295,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; baseline consolidated: **2026-11-18**; repository commit: `0f290d3afb830418297af13c30c4c65be1e13ca8`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0f290d3afb830418297af13c30c4c65be1e13ca8/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §3.4; §15; DK-REL-01–06; DK-LBL-01; DK-GEN-04, 09–10, 12, including I1's recovery within list-valued metadata; DK-INV-06–08, 10; DK-HO-04; DK-IRI-05, 07; baseline consolidated: **2026-11-18**; repository commit: `a919e64df8555227270d1f8b3b82ac4ef8c4edc5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
 

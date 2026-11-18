@@ -86,9 +86,15 @@ After applicable fallbacks and qualification, a unique candidate remains unsuffi
 
 Generated inverses follow the more specific [inverse numeric-allocation rules](../mapping/inverses.md#numeric-allocation): source-backed names remain fixed, reserved numeric slots are skipped, and reservations are shared across inverse groups. This permits gaps in generated-inverse numbering only; ordinary source-backed collision groups retain the contiguous `_1` through `_N` rule above. Keep original numeric text in the inverse's qualified candidate.
 
-Do not merge properties, change an object/datatype property kind, replace them through inclusion axioms, or repair a merge by introducing union domains/ranges. Name collisions are also not duplicate declaration IDs: duplicates in the [input contract's scope](input.md#structural-requirements) abort under every input policy. A collision between distinct escaped source IDs is exceptional and must not be silently repaired as an ordinary name collision; its exact disposition is unspecified.
+Do not merge properties, change an object/datatype property kind, replace them through inclusion axioms, or repair a merge by introducing union domains/ranges. In `name` mode, ordinary collision handling also applies when a source-ID fallback and a name-derived candidate yield the same local name.
 
 For a usable name-based enumeration value, construct `<ResolvedEnumerationLocalName>_<NormalizedValueName>`. The enumeration prefix is its class's **already resolved** local name after naming/collisions. A value's normalized name follows the same lexical selector and normalization; distinct literals remain distinct even when their names coincide (DK-IRI-08).
+
+### Collisions between distinct escaped source IDs
+
+DK-IRI-05 requires distinct valid source IDs to produce distinct local names under the same ID-based construction. If allocation detects two such IDs yielding the same local name, the injectivity requirement has been violated. Under DK-IRI-07, DirectKG must abort under every input policy, including `best-effort`. It must neither merge the resources nor add a suffix to resolve the collision. The aborted conversion provides diagnostics and suppresses partial output. [Internal-failure handling](diagnostics.md#unexpected-internal-failures-during-transformation)
+
+Separate declarations with the same ID follow the fatal duplicate-ID rule whenever they fall within its defined scope. [Structural requirements](input.md#structural-requirements)
 
 ## Source identifiers
 
@@ -141,7 +147,7 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 
 ---
 
-Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; baseline consolidated: **2026-11-18**; repository commit: `a919e64df8555227270d1f8b3b82ac4ef8c4edc5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/documentation/specification/transformation-specification.md).
 
 Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization included in the cited consolidation).
 
