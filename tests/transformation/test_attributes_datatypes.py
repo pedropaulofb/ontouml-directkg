@@ -728,7 +728,7 @@ def test_class_valued_attribute_preserves_flags_stereotypes_labels_and_fallback_
     focus = source_element(document, 'pFocus')
     focus.update(
         name={'en': 'Primary Target'},
-        description={'en': 'Assigned target.'},
+        description=None,
         stereotype=prop_stereotype,
         isDerived=True,
         isReadOnly=True,
@@ -759,7 +759,6 @@ def test_class_valued_attribute_preserves_flags_stereotypes_labels_and_fallback_
     assert Literal('Primary Target', lang='en') in set(graph.objects(prop_iri, RDFS.label))
     assert not list(graph.objects(unnamed_iri, RDFS.label))
     comments = set(graph.objects(prop_iri, RDFS.comment))
-    assert Literal('Assigned target.', lang='en') in comments
     assert any('isderived' in str(c).casefold() and 'true' in str(c).casefold() for c in comments)
     assert any('read-only' in str(c).casefold() for c in comments)
     assert any('ordered' in str(c).casefold() for c in comments)
@@ -789,6 +788,18 @@ def test_class_valued_attribute_preserves_flags_stereotypes_labels_and_fallback_
         assert any(d.kind == 'missing_name' and d.severity == 'INFO' and 'pUnnamed' in d.identified_sources
                    for d in result.diagnostics)
     assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+
+    focus['description'] = {'en': 'Assigned target.', 'pt': 'Alvo atribuído.'}
+    described = run(path=write_input(tmp_path, document, 'described.json'),
+                    iri_strategy=iri_strategy, omit_identifiers=omit_identifiers)
+    assert described.outcome == 'completed'
+    described_graph = described.ontology
+    _assert_ordinary_class_attribute(described_graph, prop_iri, owner_iri, target_iri)
+    assert Literal('Primary Target', lang='en') in set(described_graph.objects(prop_iri, RDFS.label))
+    described_comments = set(described_graph.objects(prop_iri, RDFS.comment))
+    assert Literal('Assigned target.', lang='en') in described_comments
+    assert Literal('Alvo atribuído.', lang='pt') in described_comments
+    assert not any(d.severity == 'ERROR' for d in described.diagnostics)
 
 
 @pytest.mark.parametrize('input_policy', POLICIES)

@@ -721,12 +721,13 @@ def test_boundary_preservation_adds_no_diagnostic_and_retains_existing_ordering_
 @pytest.mark.parametrize('input_policy', POLICIES)
 def test_class_valued_attribute_participates_in_owner_qualification_and_collisions(
         run, source_json, tmp_path, input_policy):
-    """Rules: DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-02."""
+    """Rules: DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-REL-02, DK-IRI-07, DK-IRI-09, DK-INV-02."""
     document = source_json('properties/references')
     source_element(document, 'cA')['stereotype'] = 'kind'
     source_element(document, 'cB')['stereotype'] = 'category'
     attr_owner = source_element(document, 'pBase')
     attr_owner.update(name='related', propertyType={'id': 'cA', 'type': 'Class'})
+    source_element(document, 'r0')['name'] = 'related'
     source_element(document, 't0')['name'] = 'related'
     attr_other = copy.deepcopy(attr_owner)
     attr_other.update(id='pOtherRel', name='related', propertyType={'id': 'cB', 'type': 'Class'})

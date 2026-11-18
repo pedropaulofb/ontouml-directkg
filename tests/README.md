@@ -139,7 +139,12 @@ non-null categorizers on relation generalization sets
 (`cc562c49a8274367e3a52d95c368abb484bfa713`), the adapter likewise reads
 affirmative inapplicable relation-set categorizer conditions from native
 `ERROR` reasons into `inapplicable_relation_categorizer` without fixing
-provisional diagnostic codes, applying the same rejections.
+provisional diagnostic codes, applying the same rejections. For RD-23 / RD-02
+class-valued attributes (`4f9a9ccfa016a052a9b955afb0f9d863e3df8222`), the
+adapter maps `UNRESOLVED_ATTRIBUTE_TYPE` and affirmative unresolved
+attribute-type `ERROR` reasons into `unresolved_attribute_type` without fixing
+provisional diagnostic codes, rejecting internal-guard, negated, hedged, and
+unrelated statements.
 
 Unmapped diagnostic meanings, fault injection, detailed console normalization,
 existing-destination delivery and other protocol operations remain explicitly

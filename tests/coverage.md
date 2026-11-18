@@ -11,8 +11,10 @@ decision and scope. The governing specification blob is
 `documentation/specification/test-suite-structure.md`, blob
 `ae7a5f3b392a90db8baacf938460314c87de9698`. Exact nodes, test-only binding
 changes, and validation results appear in the RD-23 / RD-02 class-valued
-attributes section below. This TEST CHANGE is pending independent Test
-Reviewer review.
+attributes section below. This submission resolves findings F1 and F2 (and the
+optional `tests/README.md` documentation note) from the Test Reviewer **NOT OK**
+verdict on prior SHA `16e5074e096f02a2a192edef84440e0b438c4806` and is pending
+independent Test Reviewer review.
 
 **Historical assignment authority:** RD-02 non-null categorizer on relation
 generalization sets, Alternative A, registered at
@@ -8699,10 +8701,13 @@ Reviewer **OK, no findings**. Governing specification blob:
 (`ae7a5f3b392a90db8baacf938460314c87de9698`). Extends
 `tests/transformation/test_attributes_datatypes.py`,
 `tests/transformation/test_properties.py`,
-`tests/transformation/test_inverses.py`, `tests/cli/test_cli.py`, and
-`tests/support/invocation.py` (`UNRESOLVED_ATTRIBUTE_TYPE`,
-`_unresolved_attribute_type_facts`, and
-`unresolved_attribute_type_diagnostic`).
+`tests/transformation/test_inverses.py`, `tests/cli/test_cli.py`,
+`tests/README.md`, and `tests/support/invocation.py`
+(`UNRESOLVED_ATTRIBUTE_TYPE`, `_unresolved_attribute_type_facts`, and
+`unresolved_attribute_type_diagnostic`). Resolves F1 (`DK-REL-02` `r0` name in
+owner-qualification collision test) and F2 (separated `description` check from
+`read_property_stereotype_comments`) from prior reviewed SHA
+`16e5074e096f02a2a192edef84440e0b438c4806`.
 
 | Exact pytest node | Authority | Case key and input | Assertion exercised |
 | --- | --- | --- | --- |
@@ -8896,9 +8901,9 @@ Reviewer **OK, no findings**. Governing specification blob:
 | `tests/transformation/test_attributes_datatypes.py::test_class_valued_attribute_handles_unresolved_or_omitted_target_class_boundary[omitted_target_invalid_id-tolerant]` | DK-ATT-01, DK-GEN-03, DK-DIAG-05; §3.4 | `attributes_datatypes/value_types` / `tests/fixtures/transformation/attributes_datatypes/value_types/input.json`. Runtime mutation and inline assertions. | Dangling, type-mismatched, or invalid-ID omitted target Class produces structural ERROR (abort under strict/tolerant; best-effort omits affected attribute while retaining valid owner and peer class-valued attribute). |
 | `tests/transformation/test_attributes_datatypes.py::test_class_valued_attribute_handles_unresolved_or_omitted_target_class_boundary[omitted_target_invalid_id-best-effort]` | DK-ATT-01, DK-GEN-03, DK-DIAG-05; §3.4 | `attributes_datatypes/value_types` / `tests/fixtures/transformation/attributes_datatypes/value_types/input.json`. Runtime mutation and inline assertions. | Dangling, type-mismatched, or invalid-ID omitted target Class produces structural ERROR (abort under strict/tolerant; best-effort omits affected attribute while retaining valid owner and peer class-valued attribute). |
 | `tests/transformation/test_attributes_datatypes.py::test_unresolved_attribute_type_reader_requires_affirmative_condition` | DK-ATT-01, DK-DIAG-05 (harness only) | None. Inline diagnostic message strings. | Verify the adapter reader matches affirmative unresolved-attribute-type ERROR wording while rejecting internal-guard, negated, hedged, and unrelated messages. |
-| `tests/transformation/test_properties.py::test_class_valued_attribute_participates_in_owner_qualification_and_collisions[strict]` | DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | Colliding class-valued attributes and relation primaries participate in DK-PROP-02 owner qualification and deterministic suffixing while preserving owl:ObjectProperty, domain, range, and inverse exclusion. |
-| `tests/transformation/test_properties.py::test_class_valued_attribute_participates_in_owner_qualification_and_collisions[tolerant]` | DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | Colliding class-valued attributes and relation primaries participate in DK-PROP-02 owner qualification and deterministic suffixing while preserving owl:ObjectProperty, domain, range, and inverse exclusion. |
-| `tests/transformation/test_properties.py::test_class_valued_attribute_participates_in_owner_qualification_and_collisions[best-effort]` | DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | Colliding class-valued attributes and relation primaries participate in DK-PROP-02 owner qualification and deterministic suffixing while preserving owl:ObjectProperty, domain, range, and inverse exclusion. |
+| `tests/transformation/test_properties.py::test_class_valued_attribute_participates_in_owner_qualification_and_collisions[strict]` | DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-REL-02, DK-IRI-07, DK-IRI-09, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | Colliding class-valued attributes and relation primaries participate in DK-PROP-02 owner qualification and deterministic suffixing while preserving owl:ObjectProperty, domain, range, and inverse exclusion. |
+| `tests/transformation/test_properties.py::test_class_valued_attribute_participates_in_owner_qualification_and_collisions[tolerant]` | DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-REL-02, DK-IRI-07, DK-IRI-09, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | Colliding class-valued attributes and relation primaries participate in DK-PROP-02 owner qualification and deterministic suffixing while preserving owl:ObjectProperty, domain, range, and inverse exclusion. |
+| `tests/transformation/test_properties.py::test_class_valued_attribute_participates_in_owner_qualification_and_collisions[best-effort]` | DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-REL-02, DK-IRI-07, DK-IRI-09, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | Colliding class-valued attributes and relation primaries participate in DK-PROP-02 owner qualification and deterministic suffixing while preserving owl:ObjectProperty, domain, range, and inverse exclusion. |
 | `tests/transformation/test_properties.py::test_class_valued_attribute_property_references_resolve_object_properties_without_merging[all-subsets]` | DK-ATT-01, DK-PROP-01, DK-PROP-03, DK-GEN-02, DK-GEN-03, DK-ATT-03, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | subsettedProperties and redefinedProperties on class-valued attributes resolve to their generated owl:ObjectProperty IRIs and target expressions without merging domains, ranges, or cardinalities and without inverse generation. |
 | `tests/transformation/test_properties.py::test_class_valued_attribute_property_references_resolve_object_properties_without_merging[all-redefines]` | DK-ATT-01, DK-PROP-01, DK-PROP-03, DK-GEN-02, DK-GEN-03, DK-ATT-03, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | subsettedProperties and redefinedProperties on class-valued attributes resolve to their generated owl:ObjectProperty IRIs and target expressions without merging domains, ranges, or cardinalities and without inverse generation. |
 | `tests/transformation/test_properties.py::test_class_valued_attribute_property_references_resolve_object_properties_without_merging[none-subsets]` | DK-ATT-01, DK-PROP-01, DK-PROP-03, DK-GEN-02, DK-GEN-03, DK-ATT-03, DK-INV-02 | `properties/references` / `tests/fixtures/transformation/properties/references/input.json`. Runtime mutation and inline assertions. | subsettedProperties and redefinedProperties on class-valued attributes resolve to their generated owl:ObjectProperty IRIs and target expressions without merging domains, ranges, or cardinalities and without inverse generation. |
@@ -8925,5 +8930,8 @@ exit-4 precedence, and harness-reader cases pass; the **188** test-first
 class-valued attribute transformation, control, property-reference, inverse,
 and recovery cases fail solely at the existing unimplemented production guard
 (`INTERNAL_TRANSFORMATION_FAILURE` from `NotImplementedError` in
-`src/ontouml_directkg/properties.py:78`). Pending independent Test Reviewer
-review.
+`src/ontouml_directkg/properties.py:78`). In-memory verification against an
+uncommitted local `collect_attributes` prototype (not saved or published)
+confirmed all **198** new transformation cases (including F1 and F2) and all
+**14** new CLI cases pass (`212/212`) once production implements RD-23.
+Pending independent Test Reviewer review.
