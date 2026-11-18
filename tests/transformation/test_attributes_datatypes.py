@@ -6,7 +6,8 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
-from tests.support.invocation import diagnostic_signatures
+from tests.support.dkgm import assert_dkgm_vocabulary
+from tests.support.invocation import diagnostic_signatures, unresolved_attribute_type_diagnostic
 from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_object, one_subject, rooted_graph)
 
@@ -480,3 +481,424 @@ def test_rdf_helper_equal_attribute_counts_accept_exact_bounds_and_zero_maximum(
                 graph.add((node,predicate,Literal(n,datatype=XSD.nonNegativeInteger)))
             _counts(graph,BASE.cOwner,BASE.pFocus,{('exact',number)},XSD.int)
             with pytest.raises(AssertionError): _counts(graph,BASE.cOwner,BASE.pFocus,{('exact',number+1)},XSD.int)
+
+
+_RELATION_AXIOM_TYPES = (
+    OWL.AsymmetricProperty, OWL.IrreflexiveProperty, OWL.FunctionalProperty,
+    OWL.InverseFunctionalProperty, OWL.SymmetricProperty, OWL.TransitiveProperty,
+    OWL.ReflexiveProperty,
+)
+
+
+def _assert_ordinary_class_attribute(graph, prop, owner, target_cls):
+    _focus(graph, OWL.ObjectProperty, target_cls, owner, prop)
+    for axiom_type in _RELATION_AXIOM_TYPES:
+        assert (prop, RDF.type, axiom_type) not in graph
+    assert not any(prop in pair for pair in graph.subject_objects(OWL.inverseOf))
+    assert not list(graph.objects(prop, OWL.propertyChainAxiom))
+    assert not list(graph.objects(owner, OWL.equivalentClass))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('target_case', [
+    'kind', 'category', 'relator', 'mode', 'quality', 'event', 'situation',
+    'collective', 'quantity', 'abstract', 'type', 'self_owner',
+    'kind_named_int', 'null_stereotype', 'custom_stereotype',
+])
+def test_class_valued_attribute_maps_to_ordinary_object_property_without_inferred_relation_semantics(
+        run, source_json, tmp_path, input_policy, iri_strategy, target_case):
+    """Rules: DK-ATT-01, DK-GEN-03, DK-CLS-01, DK-DAT-02, DK-ATT-04, DK-GEN-04, DK-REL-19, DK-INV-02, DK-IRI-02, DK-IRI-06, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-DIAG-15.
+
+    RD-23 / RD-02 Alternative A (4f9a9ccfa016a052a9b955afb0f9d863e3df8222):
+    class-valued attributes generate ordinary owl:ObjectProperty mappings with
+    no inferred relation stereotypes, relation axioms, mereology bridges, or
+    flattened target attributes.
+    """
+    document = source_json('attributes_datatypes/value_types')
+    focus = source_element(document, 'pFocus')
+    other = source_element(document, 'cOther')
+    target_owned = copy.deepcopy(focus)
+    target_owned.update(id='pTargetOwned', name='targetOwned', cardinality='1',
+                        propertyType={'id': 'dValue', 'type': 'Class'})
+
+    if target_case == 'self_owner':
+        focus['propertyType'] = {'id': 'cOwner', 'type': 'Class'}
+        source_element(document, 'cOwner')['properties'].append(target_owned)
+        target_id = 'cOwner'
+        stereotype_policy = 'require-known'
+    else:
+        focus['propertyType'] = {'id': 'cOther', 'type': 'Class'}
+        other['properties'] = [target_owned]
+        target_id = 'cOther'
+        if target_case == 'kind_named_int':
+            other.update(name='int', stereotype='kind')
+            stereotype_policy = 'require-known'
+        elif target_case == 'null_stereotype':
+            other['stereotype'] = None
+            stereotype_policy = 'allow-missing'
+        elif target_case == 'custom_stereotype':
+            other['stereotype'] = 'customDomainClass'
+            stereotype_policy = 'allow-custom'
+        else:
+            other['stereotype'] = target_case
+            stereotype_policy = 'require-known'
+
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy,
+                 input_policy=input_policy, stereotype_policy=stereotype_policy)
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+
+    if iri_strategy == 'id':
+        owner_iri = BASE.cOwner
+        target_cls = BASE[target_id]
+        prop_iri = BASE.pFocus
+        owned_iri = BASE.pTargetOwned
+    else:
+        owner_iri = one_subject(graph, DCTERMS.identifier, Literal('cOwner'))
+        target_cls = one_subject(graph, DCTERMS.identifier, Literal(target_id))
+        prop_iri = one_subject(graph, DCTERMS.identifier, Literal('pFocus'))
+        owned_iri = one_subject(graph, DCTERMS.identifier, Literal('pTargetOwned'))
+
+    assert (owner_iri, RDF.type, OWL.Class) in graph
+    assert (target_cls, RDF.type, OWL.Class) in graph
+    _assert_ordinary_class_attribute(graph, prop_iri, owner_iri, target_cls)
+    assert not list(graph.subject_objects(OWL.inverseOf))
+    assert not list(graph.triples((None, OWL.propertyChainAxiom, None)))
+    ontology_iri = one_subject(graph, RDF.type, OWL.Ontology)
+    assert_dkgm_vocabulary(graph, ontology_iri, 'import', bridges=())
+
+    _focus(graph, OWL.DatatypeProperty, XSD.int, target_cls, owned_iri)
+    _counts(graph, target_cls, owned_iri, {('exact', 1)}, XSD.int)
+    if target_case != 'self_owner':
+        assert not any((node, OWL.onProperty, owned_iri) in graph
+                       for node in graph.objects(owner_iri, RDFS.subClassOf))
+    if target_case == 'kind_named_int':
+        assert (target_cls, RDFS.label, Literal('int')) in graph
+        assert (prop_iri, RDFS.range, XSD.int) not in graph
+
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    assert not any(d.kind in {'unmapped_relation_stereotype', 'chain_compatibility', 'chain_ambiguity'}
+                   for d in result.diagnostics)
+    if target_case == 'abstract':
+        assert any(d.kind == 'abstractness' and d.severity == 'INFO' and target_id in d.identified_sources
+                   for d in result.diagnostics)
+        assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+    elif target_case == 'custom_stereotype':
+        warnings = [d for d in result.diagnostics if d.severity == 'WARNING']
+        assert warnings and all(d.kind == 'unrecognized_stereotype' and target_id in d.identified_sources
+                                and 'pFocus' not in d.identified_sources for d in warnings)
+    else:
+        assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('dkgm_mode', ['import', 'embed', 'none'])
+@pytest.mark.parametrize('chain_mode', ['none', 'omit-conflicting-constraints', 'preserve-conflicting-constraints'])
+@pytest.mark.parametrize('inverse_mode', ['all', 'informed', 'named', 'none'])
+def test_class_valued_attribute_respects_dkgm_chain_and_inverse_controls(
+        run, source_json, tmp_path, dkgm_mode, chain_mode, inverse_mode):
+    """Rules: DK-ATT-01, DK-ATT-02, DK-ATT-03, DK-GEN-03, DK-GEN-04, DK-REL-07, DK-REL-19, DK-INV-01, DK-INV-02, DK-CLS-11."""
+    document = source_json('attributes_datatypes/value_types')
+    owner_cls = source_element(document, 'cOwner')
+    owner_cls['stereotype'] = 'kind'
+    base_prop = copy.deepcopy(source_element(document, 'pFocus'))
+    targets = [
+        ('cRelator', 'RelatorTarget', 'relator', 'pRelator', 'relatorAttr', '1'),
+        ('cMode', 'ModeTarget', 'mode', 'pMode', 'modeAttr', '0..1'),
+        ('cCollective', 'CollectiveTarget', 'collective', 'pCollective', 'collectiveAttr', '1..*'),
+        ('cQuantity', 'QuantityTarget', 'quantity', 'pQuantity', 'quantityAttr', '2..5'),
+        ('cSubkind', 'SubkindTarget', 'subkind', 'pSubkind', 'subkindAttr', '1'),
+    ]
+    new_classes = []
+    new_props = []
+    for cls_id, cls_name, stereotype, prop_id, prop_name, card in targets:
+        cls = copy.deepcopy(source_element(document, 'cOther'))
+        cls.update(id=cls_id, name=cls_name, stereotype=stereotype)
+        new_classes.append(cls)
+        prop = copy.deepcopy(base_prop)
+        prop.update(id=prop_id, name=prop_name, cardinality=card, propertyType={'id': cls_id, 'type': 'Class'})
+        new_props.append(prop)
+    self_prop = copy.deepcopy(base_prop)
+    self_prop.update(id='pSelf', name='selfAttr', cardinality='*', propertyType={'id': 'cOwner', 'type': 'Class'})
+    new_props.append(self_prop)
+
+    document['model']['contents'].extend(new_classes)
+    owner_cls['properties'] = new_props
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 dkgm_vocabulary=dkgm_mode, material_property_chains=chain_mode,
+                 inverse_properties=inverse_mode)
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    ontology_iri = one_subject(graph, RDF.type, OWL.Ontology)
+    assert_dkgm_vocabulary(graph, ontology_iri, dkgm_mode, bridges=())
+    assert not list(graph.subject_objects(OWL.inverseOf))
+    for subject in set(graph.subjects(OWL.propertyChainAxiom)):
+        assert not str(subject).startswith(str(BASE))
+
+    expected_counts = {
+        'pRelator': (BASE.cRelator, {('exact', 1)}),
+        'pMode': (BASE.cMode, {('max', 1)}),
+        'pCollective': (BASE.cCollective, {('min', 1)}),
+        'pQuantity': (BASE.cQuantity, {('min', 2), ('max', 5)}),
+        'pSubkind': (BASE.cSubkind, {('exact', 1)}),
+        'pSelf': (BASE.cOwner, set()),
+    }
+    for prop_id, (target_iri, counts) in expected_counts.items():
+        prop_iri = BASE[prop_id]
+        _assert_ordinary_class_attribute(graph, prop_iri, BASE.cOwner, target_iri)
+        _counts(graph, BASE.cOwner, prop_iri, counts, target_iri)
+
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    assert not any(d.kind in {'unmapped_relation_stereotype', 'chain_compatibility', 'chain_ambiguity'}
+                   or 'dkgm_chains_absent' in d.facts for d in result.diagnostics)
+
+
+CLASS_ATTR_COUNTS = [
+    pytest.param('1', {('exact', 1)}, True, id='exact_one'),
+    pytest.param('0', {('exact', 0)}, True, id='exact_zero'),
+    pytest.param('0..1', {('max', 1)}, True, id='optional'),
+    pytest.param('2..5', {('min', 2), ('max', 5)}, True, id='bounded'),
+    pytest.param('1..*', {('min', 1)}, True, id='positive_unbounded'),
+    pytest.param('*', set(), True, id='standalone_star'),
+    pytest.param(None, set(), True, id='explicit_null'),
+    pytest.param('absent', set(), True, id='absent_field'),
+    pytest.param('1..n', {('min', 1)}, False, id='invalid_upper_recovers_min'),
+    pytest.param('..3', {('max', 3)}, False, id='empty_lower_recovers_max'),
+    pytest.param('2...*', set(), False, id='ambiguous_recovers_none'),
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('cardinality,expected,valid', CLASS_ATTR_COUNTS)
+def test_class_valued_attribute_preserves_multiplicity_and_partial_recovery(
+        run, source_json, tmp_path, input_policy, cardinality, expected, valid):
+    """Rules: DK-ATT-01, DK-ATT-02, DK-ATT-03, DK-ATT-04, DK-GEN-03, DK-INV-02, DK-DIAG-05, DK-DIAG-09, DK-DIAG-10, DK-DIAG-11."""
+    document = source_json('attributes_datatypes/value_types')
+    source_element(document, 'cOther')['stereotype'] = 'kind'
+    focus = source_element(document, 'pFocus')
+    focus['propertyType'] = {'id': 'cOther', 'type': 'Class'}
+    if cardinality == 'absent':
+        del focus['cardinality']
+    else:
+        focus['cardinality'] = cardinality
+    peer = copy.deepcopy(source_element(document, 'pFocus'))
+    peer.update(id='pPeer', name='peerClassAttr', cardinality='2..5', propertyType={'id': 'cOther', 'type': 'Class'})
+    source_element(document, 'cOwner')['properties'].append(peer)
+
+    expected_issues = frozenset() if (valid or isinstance(cardinality, str)) else {'invalid_cardinality_type'}
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    if valid:
+        assert result.outcome == 'completed'
+        assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+        missing = [d for d in result.diagnostics if d.kind == 'missing_cardinality']
+        if cardinality == 'absent':
+            assert missing and all(d.severity == 'WARNING' for d in missing)
+            assert any('pFocus' in d.identified_sources for d in missing)
+        else:
+            assert not missing
+            assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+    else:
+        assert any(d.kind == 'invalid_cardinality' and d.severity == 'ERROR' for d in result.diagnostics)
+        if input_policy != 'best-effort':
+            assert result.outcome == 'aborted' and result.ontology is None
+            return
+        assert result.outcome == 'completed-with-errors'
+
+    graph = result.ontology
+    _assert_ordinary_class_attribute(graph, BASE.pFocus, BASE.cOwner, BASE.cOther)
+    _counts(graph, BASE.cOwner, BASE.pFocus, expected, BASE.cOther)
+    _assert_ordinary_class_attribute(graph, BASE.pPeer, BASE.cOwner, BASE.cOther)
+    _counts(graph, BASE.cOwner, BASE.pPeer, {('min', 2), ('max', 5)}, BASE.cOther)
+
+
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('prop_stereotype', [None, 'begin', 'end'])
+@pytest.mark.parametrize('omit_identifiers', [False, True], ids=['keep_ids', 'omit_ids'])
+def test_class_valued_attribute_preserves_flags_stereotypes_labels_and_fallback_iris(
+        run, invoke, source_json, tmp_path, iri_strategy, prop_stereotype, omit_identifiers):
+    """Rules: DK-ATT-01, DK-GEN-03, DK-GEN-05, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-LBL-01, DK-LBL-02, DK-IRI-04, DK-IRI-09, DK-DIAG-16, DK-DIAG-18."""
+    document = source_json('attributes_datatypes/value_types')
+    source_element(document, 'cOther')['stereotype'] = 'role'
+    focus = source_element(document, 'pFocus')
+    focus.update(
+        name={'en': 'Primary Target'},
+        description={'en': 'Assigned target.'},
+        stereotype=prop_stereotype,
+        isDerived=True,
+        isReadOnly=True,
+        isOrdered=True,
+        cardinality='1',
+        propertyType={'id': 'cOther', 'type': 'Class'},
+    )
+    unnamed = copy.deepcopy(source_element(document, 'pFocus'))
+    unnamed.update(id='pUnnamed', name=None, description=None, stereotype=None,
+                   isDerived=False, isReadOnly=False, isOrdered=False, cardinality=None)
+    source_element(document, 'cOwner')['properties'].append(unnamed)
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, omit_identifiers=omit_identifiers)
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    if iri_strategy == 'id':
+        owner_iri, target_iri, prop_iri, unnamed_iri = BASE.cOwner, BASE.cOther, BASE.pFocus, BASE.pUnnamed
+    else:
+        owner_iri = one_subject(graph, DCTERMS.identifier, Literal('cOwner')) if not omit_identifiers else BASE.Owner
+        target_iri = one_subject(graph, DCTERMS.identifier, Literal('cOther')) if not omit_identifiers else BASE.Other
+        prop_iri = one_subject(graph, DCTERMS.identifier, Literal('pFocus')) if not omit_identifiers else BASE.Primary_Target
+        unnamed_iri = one_subject(graph, DCTERMS.identifier, Literal('pUnnamed')) if not omit_identifiers else BASE.pUnnamed
+
+    _assert_ordinary_class_attribute(graph, prop_iri, owner_iri, target_iri)
+    _assert_ordinary_class_attribute(graph, unnamed_iri, owner_iri, target_iri)
+    _counts(graph, owner_iri, prop_iri, {('exact', 1)}, target_iri)
+    assert Literal('Primary Target', lang='en') in set(graph.objects(prop_iri, RDFS.label))
+    assert not list(graph.objects(unnamed_iri, RDFS.label))
+    comments = set(graph.objects(prop_iri, RDFS.comment))
+    assert Literal('Assigned target.', lang='en') in comments
+    assert any('isderived' in str(c).casefold() and 'true' in str(c).casefold() for c in comments)
+    assert any('read-only' in str(c).casefold() for c in comments)
+    assert any('ordered' in str(c).casefold() for c in comments)
+    assert not list(graph.subjects(RDF.type, RDF.Seq))
+
+    if iri_strategy == 'name' and not omit_identifiers:
+        assert set(graph.objects(prop_iri, DCTERMS.identifier)) == {Literal('pFocus')}
+        assert set(graph.objects(unnamed_iri, DCTERMS.identifier)) == {Literal('pUnnamed')}
+    else:
+        assert not list(graph.objects(prop_iri, DCTERMS.identifier))
+        assert not list(graph.objects(unnamed_iri, DCTERMS.identifier))
+
+    stereo_comments = [c for c in invoke.read_property_stereotype_comments(result) if c.subject == prop_iri]
+    if prop_stereotype is None:
+        assert not stereo_comments
+    else:
+        assert {(c.field, c.value) for c in stereo_comments} == {('stereotype', prop_stereotype)}
+
+    assert any(d.kind == 'derived_status' and d.severity == 'INFO' and 'pFocus' in d.identified_sources
+               for d in result.diagnostics)
+    assert any(d.kind == 'ordering' and d.severity == 'INFO' and 'pFocus' in d.identified_sources
+               for d in result.diagnostics)
+    if iri_strategy == 'name':
+        assert any(d.kind == 'generic_id_fallback' and d.severity == 'WARNING' and 'pUnnamed' in d.identified_sources
+                   for d in result.diagnostics)
+    else:
+        assert any(d.kind == 'missing_name' and d.severity == 'INFO' and 'pUnnamed' in d.identified_sources
+                   for d in result.diagnostics)
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('scenario,stereotype,policy', [
+    ('null_under_require_known', None, 'require-known'),
+    ('custom_under_allow_missing', 'customDomainClass', 'allow-missing'),
+    ('custom_under_require_known', 'customDomainClass', 'require-known'),
+], ids=['null_require_known', 'custom_allow_missing', 'custom_require_known'])
+def test_class_valued_attribute_rejects_disallowed_target_class_stereotype(
+        run, source_json, tmp_path, input_policy, scenario, stereotype, policy):
+    """Rules: DK-ATT-01, DK-DIAG-05, DK-DIAG-06."""
+    document = source_json('attributes_datatypes/value_types')
+    source_element(document, 'cOther')['stereotype'] = stereotype
+    source_element(document, 'pFocus')['propertyType'] = {'id': 'cOther', 'type': 'Class'}
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, stereotype_policy=policy)
+    assert result.outcome == 'aborted'
+    assert result.ontology is None
+    expected_kind = 'missing_stereotype' if stereotype is None else 'unrecognized_stereotype'
+    assert any(d.severity == 'ERROR' and d.kind == expected_kind and 'cOther' in d.identified_sources
+               for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('failure', ['dangling_target', 'type_mismatch_relation', 'omitted_target_invalid_id'])
+def test_class_valued_attribute_handles_unresolved_or_omitted_target_class_boundary(
+        run, source_json, tmp_path, input_policy, failure):
+    """Rules: DK-ATT-01, DK-GEN-03, DK-DIAG-05; §3.4 opaque source-ID recovery boundary."""
+    document = source_json('attributes_datatypes/value_types')
+    peer_cls = copy.deepcopy(source_element(document, 'cOther'))
+    peer_cls.update(id='cValidPeer', name='ValidPeer', stereotype='kind')
+    document['model']['contents'].append(peer_cls)
+    peer_attr = copy.deepcopy(source_element(document, 'pFocus'))
+    peer_attr.update(id='pPeer', name='peerAttr', cardinality='1', propertyType={'id': 'cValidPeer', 'type': 'Class'})
+    source_element(document, 'cOwner')['properties'].append(peer_attr)
+
+    focus = source_element(document, 'pFocus')
+    other = source_element(document, 'cOther')
+    other['stereotype'] = 'kind'
+    if failure == 'dangling_target':
+        focus['propertyType'] = {'id': 'missingClass', 'type': 'Class'}
+        expected_issues = {'unresolved_reference:missingClass'}
+    elif failure == 'type_mismatch_relation':
+        relation = {
+            'id': 'rOther', 'name': 'rel', 'description': None, 'type': 'Relation',
+            'propertyAssignments': None, 'stereotype': 'material', 'isAbstract': False, 'isDerived': False,
+            'properties': [
+                {'id': 'sOther', 'name': None, 'description': None, 'type': 'Property', 'propertyAssignments': None,
+                 'stereotype': None, 'isDerived': False, 'isReadOnly': False, 'isOrdered': False,
+                 'cardinality': None, 'propertyType': {'id': 'cOwner', 'type': 'Class'},
+                 'subsettedProperties': None, 'redefinedProperties': None, 'aggregationKind': 'NONE'},
+                {'id': 'tOther', 'name': None, 'description': None, 'type': 'Property', 'propertyAssignments': None,
+                 'stereotype': None, 'isDerived': False, 'isReadOnly': False, 'isOrdered': False,
+                 'cardinality': None, 'propertyType': {'id': 'cValidPeer', 'type': 'Class'},
+                 'subsettedProperties': None, 'redefinedProperties': None, 'aggregationKind': 'NONE'},
+            ],
+        }
+        document['model']['contents'].append(relation)
+        focus['propertyType'] = {'id': 'rOther', 'type': 'Class'}
+        expected_issues = {'reference_type_mismatch:rOther'}
+    else:
+        other['id'] = None
+        focus['propertyType'] = {'id': 'cOther', 'type': 'Class'}
+        expected_issues = {'invalid_id', 'unresolved_reference:cOther'}
+
+    assert fixture_issues(document) == expected_issues
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics)
+    assert any(d.severity == 'ERROR' and d.kind == 'unresolved_attribute_type'
+               and 'pFocus' in d.identified_sources and 'unresolved_attribute_type' in d.facts
+               for d in result.diagnostics) or (failure == 'omitted_target_invalid_id' and input_policy != 'best-effort')
+    if failure == 'omitted_target_invalid_id':
+        assert any(d.severity == 'ERROR' and d.kind == 'invalid_id' for d in result.diagnostics)
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert any(d.severity == 'ERROR' and d.kind == 'unresolved_attribute_type'
+               and {'pFocus', 'cOwner'} <= set(d.identified_sources)
+               for d in result.diagnostics)
+    graph = result.ontology
+    assert not any(BASE.pFocus in triple or BASE.missingClass in triple for triple in graph)
+    assert (BASE.cOwner, RDF.type, OWL.Class) in graph
+    assert (BASE.cValidPeer, RDF.type, OWL.Class) in graph
+    _assert_ordinary_class_attribute(graph, BASE.pPeer, BASE.cOwner, BASE.cValidPeer)
+    _counts(graph, BASE.cOwner, BASE.pPeer, {('exact', 1)}, BASE.cValidPeer)
+
+
+def test_unresolved_attribute_type_reader_requires_affirmative_condition():
+    """Harness only: verify affirmative unresolved-attribute-type wording without fixing provisional codes."""
+    accepted = (
+        "Attribute value-type reference {'id': 'missingClass', 'type': 'Class'} cannot be resolved: Unresolved source reference.",
+        "Attribute 'pFocus' propertyType reference is unresolved.",
+        "Attribute target class 'cOther' has no generated local owl:Class.",
+        "Unresolved attribute value-type reference for 'pFocus'.",
+    )
+    rejected = (
+        "Attribute value kinds outside datatype/enumeration mappings remain unspecified.",
+        "Attribute range without a generated local class remains outside the decided baseline.",
+        "Unexpected internal failure while resolving attribute value type.",
+        "Not implemented for class-valued attributes.",
+        "Attribute value-type reference is resolved.",
+        "Attribute target class is not unresolved.",
+        "If an attribute value-type reference is unresolved, conversion aborts.",
+    )
+    for message in accepted:
+        assert unresolved_attribute_type_diagnostic(message), message
+    for message in rejected:
+        assert not unresolved_attribute_type_diagnostic(message), message
+

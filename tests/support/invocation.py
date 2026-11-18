@@ -1122,6 +1122,7 @@ _DIAGNOSTIC_KINDS = {
     "PLACEHOLDER_BASE": "placeholder_base",
     "DERIVED_STATUS_ANNOTATION": "derived_status",
     "DISCARDED_INSTANTIATION_INFORMATION": "discarded_instantiation_data",
+    "UNRESOLVED_ATTRIBUTE_TYPE": "unresolved_attribute_type",
 }
 
 
@@ -1927,6 +1928,49 @@ def inapplicable_relation_categorizer_diagnostic(message: str) -> bool:
     return bool(_inapplicable_relation_categorizer_facts(message))
 
 
+def _unresolved_attribute_type_facts(message: str) -> set[str]:
+    """Read affirmative unresolved/unavailable attribute value-type ERROR wording."""
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+    disqualifiers = (
+        r"\b(?:is|was|can be|could be|has been)\s+resolved\b",
+        r"\bnot\s+(?:unresolved|missing|unavailable|invalid)\b",
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\battribute\b",
+        r"\b(?:may|might|could)\s+(?:be|fail)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    attr_type = r"\battribute(?:\s+(?:<value>|<quoted>))?(?:\s+(?:value[- ]type|propertytype|target(?:\s+class)?))?(?:\s+reference)?(?:\s+(?:<value>|<quoted>))?"
+    patterns = (
+        re.compile(rf"{attr_type}\s+(?:cannot\s+be\s+resolved|could\s+not\s+be\s+resolved|is\s+unresolved|was\s+unresolved)\b"),
+        re.compile(rf"{attr_type}\s+(?:resolves\s+to\s+no|has\s+no|lacks(?:\s+a)?)\s+(?:generated\s+)?(?:local\s+)?(?:owl:)?class\b"),
+        re.compile(rf"\bunresolved\s+attribute\s+(?:value[- ]type|propertytype|target(?:\s+class)?)(?:\s+reference)?\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if any(pattern.search(clause) for pattern in patterns):
+            return {"unresolved_attribute_type"}
+    return set()
+
+
+def unresolved_attribute_type_diagnostic(message: str) -> bool:
+    """Return whether a native ERROR reason asserts an unresolved/unavailable attribute target type."""
+    return bool(_unresolved_attribute_type_facts(message))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -1957,6 +2001,15 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             facts.update(rel_categorizer_facts)
             if kind is None:
                 kind = "inapplicable_relation_categorizer"
+        attr_type_facts = (_unresolved_attribute_type_facts(event.message)
+                           if event.severity == "ERROR" and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
+                           else set())
+        if attr_type_facts:
+            facts.update(attr_type_facts)
+            if kind is None:
+                kind = "unresolved_attribute_type"
+        elif kind == "unresolved_attribute_type":
+            facts.add("unresolved_attribute_type")
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")

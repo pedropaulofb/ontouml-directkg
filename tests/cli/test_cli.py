@@ -1917,3 +1917,150 @@ def test_cli_missing_source_path_is_invalid_in_every_provenance_mode(invoke, tmp
     assert process.stdout or process.stderr
     assert not destination.exists()
     assert not destination.with_name(destination.stem + '.provenance.ttl').exists()
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", ["valid_class_targets", "dangling_target", "omitted_target_invalid_id"])
+def test_class_valued_attribute_cli_parity_and_unresolved_target_recovery(
+        invoke, tmp_path, case, input_policy):
+    """Rules: DK-ATT-01, DK-ATT-02, DK-ATT-03, DK-GEN-03, DK-INV-02, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15.
+
+    RD-23 / RD-02 Alternative A (4f9a9ccfa016a052a9b955afb0f9d863e3df8222):
+    Python/CLI parity across default and all three input policies for valid
+    class-valued attributes and unresolved/omitted target class boundaries.
+    """
+    document = load_json("shared/core_model")
+    document["model"]["contents"] = [
+        item for item in document["model"]["contents"] if item["id"] != "rWorks"
+    ]
+    relator = copy.deepcopy(source_element(document, "cOrg"))
+    relator.update(id="cRelator", name="BondRelator", stereotype="relator")
+    peer_cls = copy.deepcopy(source_element(document, "cOrg"))
+    peer_cls.update(id="cPeer", name="PeerKind", stereotype="kind")
+    document["model"]["contents"].extend([relator, peer_cls])
+
+    base_attr = copy.deepcopy(source_element(document, "aAge"))
+    employer = copy.deepcopy(base_attr)
+    employer.update(id="pEmployer", name="employer", cardinality="1..*",
+                    propertyType={"id": "cOrg", "type": "Class"})
+    bond = copy.deepcopy(base_attr)
+    bond.update(id="pBond", name="bond", cardinality="0..1",
+                propertyType={"id": "cRelator", "type": "Class"})
+    peer_attr = copy.deepcopy(base_attr)
+    peer_attr.update(id="pPeer", name="peerRef", cardinality="1",
+                     propertyType={"id": "cPeer", "type": "Class"})
+
+    expected_issues = frozenset()
+    if case == "valid_class_targets":
+        source_element(document, "cPerson")["properties"] = [employer, bond]
+    elif case == "dangling_target":
+        employer["propertyType"] = {"id": "missingClass", "type": "Class"}
+        source_element(document, "cPerson")["properties"] = [employer, peer_attr]
+        expected_issues = frozenset({"unresolved_reference:missingClass"})
+    else:
+        source_element(document, "cOrg")["id"] = None
+        source_element(document, "cPerson")["properties"] = [employer, peer_attr]
+        expected_issues = frozenset({"invalid_id", "unresolved_reference:cOrg"})
+    assert fixture_issues(document) == expected_issues
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    if case == "valid_class_targets":
+        outcome, expected_code, delivered_expected = "completed", 0, True
+    elif input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        if case == "valid_class_targets":
+            assert not any(event.severity in {"WARNING", "ERROR"} for event in events), events
+        else:
+            if case == "omitted_target_invalid_id":
+                assert any(event.severity == "ERROR" and event.kind == "invalid_id" for event in events), events
+            if case == "dangling_target" or input_policy == "best-effort":
+                assert any(event.severity == "ERROR" and event.kind == "unresolved_attribute_type"
+                           and "pEmployer" in event.identified_sources
+                           and "unresolved_attribute_type" in event.facts for event in events), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        assert not list(delivered_graph.subject_objects(OWL.inverseOf))
+        if case == "valid_class_targets":
+            for prop, target in ((BASE.pEmployer, BASE.cOrg), (BASE.pBond, BASE.cRelator)):
+                assert (prop, RDF.type, OWL.ObjectProperty) in delivered_graph
+                assert set(delivered_graph.objects(prop, RDFS.domain)) == {BASE.cPerson}
+                assert set(delivered_graph.objects(prop, RDFS.range)) == {target}
+                assert (prop, RDF.type, OWL.AsymmetricProperty) not in delivered_graph
+                assert (prop, RDF.type, OWL.IrreflexiveProperty) not in delivered_graph
+        else:
+            assert not any(BASE.pEmployer in triple or BASE.missingClass in triple for triple in delivered_graph)
+            assert (BASE.pPeer, RDF.type, OWL.ObjectProperty) in delivered_graph
+            assert set(delivered_graph.objects(BASE.pPeer, RDFS.domain)) == {BASE.cPerson}
+            assert set(delivered_graph.objects(BASE.pPeer, RDFS.range)) == {BASE.cPeer}
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_class_valued_attribute_unresolved_target_report_failure_takes_precedence(
+        invoke, tmp_path, input_policy):
+    """Rules: DK-ATT-01, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence.
+
+    RD-23 / RD-02 Alternative A (4f9a9ccfa016a052a9b955afb0f9d863e3df8222).
+    """
+    document = load_json("shared/core_model")
+    document["model"]["contents"] = [
+        item for item in document["model"]["contents"] if item["id"] != "rWorks"
+    ]
+    employer = copy.deepcopy(source_element(document, "aAge"))
+    employer.update(id="pEmployer", name="employer", cardinality="1",
+                    propertyType={"id": "missingClass", "type": "Class"})
+    source_element(document, "cPerson")["properties"] = [employer]
+    assert fixture_issues(document) == {"unresolved_reference:missingClass"}
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert any(event.severity == "ERROR" and event.kind == "unresolved_attribute_type"
+               and "pEmployer" in event.identified_sources
+               and "unresolved_attribute_type" in event.facts
+               for event in process.observation.diagnostics)
+

@@ -716,3 +716,72 @@ def test_boundary_preservation_adds_no_diagnostic_and_retains_existing_ordering_
     assert any(d.kind=='ordering' and d.severity=='INFO' and identifier in d.identified_sources for d in result.diagnostics)
     assert diagnostic_signatures(result.diagnostics)==diagnostic_signatures(baseline.diagnostics)
     _boundary_annotations(invoke,result,expected)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+def test_class_valued_attribute_participates_in_owner_qualification_and_collisions(
+        run, source_json, tmp_path, input_policy):
+    """Rules: DK-ATT-01, DK-GEN-03, DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-02."""
+    document = source_json('properties/references')
+    source_element(document, 'cA')['stereotype'] = 'kind'
+    source_element(document, 'cB')['stereotype'] = 'category'
+    attr_owner = source_element(document, 'pBase')
+    attr_owner.update(name='related', propertyType={'id': 'cA', 'type': 'Class'})
+    source_element(document, 't0')['name'] = 'related'
+    attr_other = copy.deepcopy(attr_owner)
+    attr_other.update(id='pOtherRel', name='related', propertyType={'id': 'cB', 'type': 'Class'})
+    source_element(document, 'cA')['properties'] = [attr_other]
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='name', input_policy=input_policy)
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    p_base = one_subject(graph, DCTERMS.identifier, Literal('pBase'))
+    p_other = one_subject(graph, DCTERMS.identifier, Literal('pOtherRel'))
+    t_zero = one_subject(graph, DCTERMS.identifier, Literal('t0'))
+    assert len({p_base, p_other, t_zero}) == 3
+    assert {p_base, t_zero} == {BASE.related_Owner_1, BASE.related_Owner_2}
+    assert p_other == BASE.related_A
+    assert (p_base, RDF.type, OWL.ObjectProperty) in graph
+    assert (p_other, RDF.type, OWL.ObjectProperty) in graph
+    assert set(graph.objects(p_base, RDFS.domain)) == {BASE.Owner}
+    assert set(graph.objects(p_base, RDFS.range)) == {BASE.A}
+    assert set(graph.objects(p_other, RDFS.domain)) == {BASE.A}
+    assert set(graph.objects(p_other, RDFS.range)) == {BASE.B}
+    for attr in (p_base, p_other):
+        assert not any(attr in pair for pair in graph.subject_objects(OWL.inverseOf))
+    assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+def test_class_valued_attribute_property_references_resolve_object_properties_without_merging(
+        run, source_json, tmp_path, field, inverse_mode):
+    """Rules: DK-ATT-01, DK-PROP-01, DK-PROP-03, DK-GEN-02, DK-GEN-03, DK-ATT-03, DK-INV-02."""
+    document = source_json('properties/references')
+    source_element(document, 'cA')['stereotype'] = 'kind'
+    source_element(document, 'cB')['stereotype'] = 'relator'
+    source_element(document, 'pBase').update(
+        cardinality='2..5', propertyType={'id': 'cA', 'type': 'Class'})
+    source_element(document, 'pChild').update(
+        cardinality='0..1', propertyType={'id': 'cB', 'type': 'Class'}, **{field: [_reference('pBase')]})
+    source_element(document, 'pThird').update(
+        cardinality='1', propertyType={'id': 'cA', 'type': 'Class'}, **{field: [_reference('s0')]})
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', inverse_properties=inverse_mode)
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    expected_s0 = BASE.s0 if inverse_mode == 'all' else ('inverse', BASE.t0)
+    assert _hierarchy(graph) == {(BASE.pChild, BASE.pBase), (BASE.pThird, expected_s0)}
+    for prop, target in ((BASE.pBase, BASE.cA), (BASE.pChild, BASE.cB), (BASE.pThird, BASE.cA)):
+        assert (prop, RDF.type, OWL.ObjectProperty) in graph
+        assert set(graph.objects(prop, RDFS.domain)) == {BASE.cOwner}
+        assert set(graph.objects(prop, RDFS.range)) == {target}
+        assert not any(prop in pair for pair in graph.subject_objects(OWL.inverseOf))
+        assert not list(graph.objects(prop, OWL.equivalentProperty))
+    assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.pBase)} == {('min', 2), ('max', 5)}
+    assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.pChild)} == {('max', 1)}
+    assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.pThird)} == {('exact', 1)}
+    assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
+

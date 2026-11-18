@@ -556,9 +556,9 @@ def test_source_backed_iris_remain_stable_across_every_inverse_mode(run, source_
         assert len({_resource(result,identifier,'name') for result in results})==1
 
 
-@pytest.mark.parametrize('pattern',['instantiation','datatype_attribute','custom_attribute','generalization_set','unrepresented_connector','material_relator','material_mode','comparative_quality'])
+@pytest.mark.parametrize('pattern',['instantiation','datatype_attribute','custom_attribute','class_attribute','generalization_set','unrepresented_connector','material_relator','material_mode','comparative_quality'])
 def test_ineligible_constructs_do_not_receive_named_or_anonymous_inverse_properties(run, source_json, tmp_path, pattern):
-    """Rules: DK-INV-02, DK-INV-04, DK-INS-01, DK-REL-08, DK-REL-17, DK-REL-18, DK-GEN-01, DK-DIAG-06.
+    """Rules: DK-INV-02, DK-INV-04, DK-ATT-01, DK-GEN-03, DK-INS-01, DK-REL-08, DK-REL-17, DK-REL-18, DK-GEN-01, DK-DIAG-06.
 
     Dependency-only eligibility assertions; full discarded-information,
     derivation and non-representation diagnostics remain Wave 5.
@@ -567,11 +567,13 @@ def test_ineligible_constructs_do_not_receive_named_or_anonymous_inverse_propert
     forbidden=set()
     if pattern=='instantiation':
         source_element(document,'rFocus')['stereotype']='instantiation';forbidden={BASE.sFocus,BASE.tFocus}
-    elif pattern in {'datatype_attribute','custom_attribute'}:
+    elif pattern in {'datatype_attribute','custom_attribute','class_attribute'}:
         attribute=copy.deepcopy(source_element(document,'sFocus'));attribute.update(id='pAttribute',name='value',propertyType=None,aggregationKind=None)
         source_element(document,'cA')['properties']=[attribute];forbidden={BASE.pAttribute}
-        if pattern=='custom_attribute':
-            custom=copy.deepcopy(source_element(document,'cB'));custom.update(id='cCustom',name='CustomValue',stereotype='datatype')
+        if pattern in {'custom_attribute','class_attribute'}:
+            custom=copy.deepcopy(source_element(document,'cB'))
+            custom.update(id='cCustom',name='CustomValue' if pattern=='custom_attribute' else 'DomainTarget',
+                          stereotype='datatype' if pattern=='custom_attribute' else 'kind')
             document['model']['contents'].append(custom);attribute['propertyType']={'id':'cCustom','type':'Class'}
     elif pattern=='generalization_set':
         gen={'id':'gClass','name':None,'description':None,'type':'Generalization','propertyAssignments':None,'specific':{'id':'cA','type':'Class'},'general':{'id':'cB','type':'Class'}}
@@ -593,8 +595,10 @@ def test_ineligible_constructs_do_not_receive_named_or_anonymous_inverse_propert
                     set() if pattern=='instantiation' else {(BASE.sFocus,BASE.tFocus)})
     assert set(result.ontology.subject_objects(OWL.inverseOf))==expected_edges
     for s,o in result.ontology.subject_objects(OWL.inverseOf):assert s not in forbidden and o not in forbidden
-    if pattern in {'datatype_attribute','custom_attribute'}:
+    if pattern in {'datatype_attribute','custom_attribute','class_attribute'}:
         assert (BASE.pAttribute,RDF.type,OWL.DatatypeProperty if pattern=='datatype_attribute' else OWL.ObjectProperty) in result.ontology
+        if pattern in {'custom_attribute','class_attribute'}:
+            assert set(result.ontology.objects(BASE.pAttribute,RDFS.range))=={BASE.cCustom}
     else:
         for term in forbidden:assert not any(term in triple for triple in result.ontology)
     if pattern not in {'instantiation','unrepresented_connector'}:_inverse(result.ontology,BASE.sFocus,BASE.tFocus)
