@@ -1822,6 +1822,110 @@ def unusable_categorizer_diagnostic(message: str) -> bool:
     return bool(_unusable_categorizer_facts(message))
 
 
+def _inapplicable_relation_categorizer_facts(message):
+    """Read an affirmative inapplicable non-null categorizer condition on a relation set.
+
+    Rejects internal-guard wording, bare expectations, negated or hedged claims,
+    absent/null/valid categorizer statements, and unrelated subjects.
+    """
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"""(?<!\w)(['"])(categorizer|class|relation|null)\1""", r"\2", wording)
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+    cat_noun = (
+        r"\bcategorizer(?:\s+(?:reference|value|field|target|declaration|class))?\b"
+        r"(?!\s+(?:recovery|handling|policy|rule|mapping|assertions?|expansion|extension|treatment)\b)"
+    )
+    val = r"(?:\s+(?:<value>|<quoted>|-?\d+(?:\.\d+)?|true|false))?"
+    rel_gs = r"(?:relation(?:\s+generalization)?[- ]?set(?:\s+(?:<quoted>|<value>))?)"
+    any_gs = r"(?:(?:relation\s+)?generalization[- ]?set(?:\s+(?:<quoted>|<value>))?)"
+    gs_scope = rf"(?:\s+(?:of|for|on|in)\s+(?:the\s+)?{any_gs})?"
+    cat_subj = rf"{cat_noun}{val}{gs_scope}(?:\s+(?:that|which))?"
+    inapplicable_adj = r"(?:inapplicable|disallowed|forbidden|prohibited|unsupported|unusable|invalid)"
+    absent_adj = r"(?:absent|missing|null|omitted)"
+    valid_adj = r"(?:usable|valid|applicable|allowed|permitted|supported)"
+    global_disqualifiers = (
+        rf"{cat_subj}\s+(?:is|was)\s+(?:explicitly\s+)?(?<!non-)(?<!non )(?:null|absent|missing|omitted|not\s+(?:present|provided|supplied))\b",
+        rf"{cat_subj}\s+(?:is|was)\s+(?:not|neither)\s+(?:inapplicable|disallowed|forbidden|prohibited|unsupported|unusable|invalid|non[- ]null)\b",
+        rf"\bnot\s+(?:a|an)\s+(?:{inapplicable_adj}(?:\s+non[- ]null)?|non[- ]null(?:\s+{inapplicable_adj})?)\s+{cat_noun}",
+        rf"\b(?:was|were|is|are)\s+not\s+checked\b",
+    )
+    clause_disqualifiers = (
+        rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bin)\b(?:usable|valid|applicable|allowed|permitted|supported)\s+{cat_noun}",
+        rf"{cat_subj}\s+(?:is|was)\s+(?:usable|valid|applicable|allowed|permitted|supported)\b",
+        rf"(?<!non-)(?<!non )\b(?:no|without(?:\s+(?:a|an))?|absent|missing|null)\s+{cat_noun}",
+        rf"\b{valid_adj}\s+or\s+(?:{inapplicable_adj}|{absent_adj})\b",
+        rf"\b(?:{inapplicable_adj}|{absent_adj})\s+or\s+{valid_adj}\b",
+        rf"(?:{cat_subj}\s+(?:is|was)\s+(?:(?:an?\s+)?{inapplicable_adj}\s+or\s+{absent_adj}|{absent_adj}\s+or\s+{inapplicable_adj})"
+        rf"|\b(?:{inapplicable_adj}\s+or\s+{absent_adj}|{absent_adj}\s+or\s+{inapplicable_adj})\s+{cat_noun})",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b|\b(?:applicable|inapplicable)\s+or\s+not\b",
+        rf"{cat_subj}\s+(?:may|might|could)\s+(?:be|not\s+be|fail)\b",
+        rf"\b(?:not|no|never|without|does\s+not\s+have|did\s+not\s+have|has\s+no)\s+"
+        rf"(?:(?:a|an|the)\s+)?(?:{inapplicable_adj}(?:\s+non[- ]null)?|non[- ]null)\s+{cat_noun}",
+    )
+    guard_prefix = re.compile(
+        r"\b(?:not|no|never|without|neither|cannot|may|might|could|must|should|if|whether|unless|when|whenever)\b[^.!?;]*$"
+    )
+    patterns = (
+        re.compile(
+            rf"\b{any_gs}\s+(?:has|had|contains?|with|uses?|specifies?|declares?|found|encountered)\s+"
+            rf"(?:(?:a|an|the)\s+)?(?:present,?\s+)?(?:{inapplicable_adj}(?:\s+non[- ]null)?|non[- ]null\s+{inapplicable_adj})\s+{cat_noun}"
+        ),
+        re.compile(
+            rf"(?:^|[:,]\s*)\s*(?:(?:a|an|the)\s+)?(?:present,?\s+)?(?:{inapplicable_adj}(?:\s+non[- ]null)?|non[- ]null\s+{inapplicable_adj})\s+{cat_noun}"
+            rf"(?:\s+(?:<value>|<quoted>))?\s+(?:on|for|in)\s+(?:the\s+)?{any_gs}"
+        ),
+        re.compile(
+            rf"\b{rel_gs}\s+(?:has|had|contains?|with|uses?|specifies?|declares?|found|encountered)\s+"
+            rf"(?:(?:a|an|the)\s+)?(?:present,?\s+)?non[- ]null\s+{cat_noun}"
+        ),
+        re.compile(
+            rf"(?:^|[:,]\s*)\s*(?:(?:a|an|the)\s+)?(?:present,?\s+)?non[- ]null\s+{cat_noun}"
+            rf"(?:\s+(?:<value>|<quoted>))?\s+(?:on|for|in)\s+(?:the\s+)?{rel_gs}"
+        ),
+        re.compile(
+            rf"{cat_noun}{val}\s+(?:of|for|on|in)\s+(?:the\s+)?{any_gs}(?:\s+(?:that|which))?\s+"
+            rf"(?:is|was)\s+(?:(?:an?\s+)?{inapplicable_adj}|not\s+(?:applicable|allowed|permitted|supported))"
+        ),
+        re.compile(
+            rf"\b{rel_gs}(?:\s+(?:that|which))?(?:\s+is\s+(?:a\s+)?{rel_gs})?\s+(?:and\s+)?(?:cannot|must\s+not|may\s+not|does\s+not|do\s+not)\s+"
+            rf"(?:have|use|specify|declare|support|allow|accept)\s+(?:(?:a|an)\s+)?(?:non[- ]null\s+)?{cat_noun}"
+        ),
+    )
+    if any(re.search(pattern, wording) for pattern in global_disqualifiers):
+        return set()
+    matched = False
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if any(re.search(pattern, clause) for pattern in clause_disqualifiers):
+            continue
+        for pattern in patterns:
+            for match in pattern.finditer(clause):
+                local_prefix = re.split(r"[:,]|\b(?:and|but|so|yet)\b", clause[:match.start()])[-1]
+                if guard_prefix.search(local_prefix):
+                    continue
+                matched = True
+    return {"inapplicable_relation_categorizer"} if matched else set()
+
+
+def inapplicable_relation_categorizer_diagnostic(message: str) -> bool:
+    """Return whether a native ERROR reason asserts an inapplicable non-null categorizer on a relation set."""
+    return bool(_inapplicable_relation_categorizer_facts(message))
+
 
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
@@ -1846,6 +1950,13 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             facts.update(categorizer_facts)
             if kind is None:
                 kind = "unusable_categorizer"
+        rel_categorizer_facts = (_inapplicable_relation_categorizer_facts(event.message)
+                                 if event.severity == "ERROR" and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
+                                 else set())
+        if rel_categorizer_facts:
+            facts.update(rel_categorizer_facts)
+            if kind is None:
+                kind = "inapplicable_relation_categorizer"
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")

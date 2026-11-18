@@ -900,6 +900,150 @@ def test_unusable_categorizer_report_failure_takes_precedence(invoke, tmp_path, 
                for event in process.observation.diagnostics)
 
 
+def _relation_set_categorizer_document(categorizer_case):
+    document = load_json("shared/binary_relation")
+    r_one = copy.deepcopy(source_element(document, "rFocus"))
+    r_one.update(id="rOne", name="specializesOne")
+    r_one["properties"][0].update(id="sOne", name="workersOne")
+    r_one["properties"][1].update(id="tOne", name="employersOne")
+    r_two = copy.deepcopy(source_element(document, "rFocus"))
+    r_two.update(id="rTwo", name="specializesTwo")
+    r_two["properties"][0].update(id="sTwo", name="workersTwo")
+    r_two["properties"][1].update(id="tTwo", name="employersTwo")
+    g_one = {
+        "id": "gOne", "name": None, "description": None, "type": "Generalization",
+        "propertyAssignments": None, "specific": {"id": "rOne", "type": "Relation"},
+        "general": {"id": "rFocus", "type": "Relation"},
+    }
+    g_two = {
+        "id": "gTwo", "name": None, "description": None, "type": "Generalization",
+        "propertyAssignments": None, "specific": {"id": "rTwo", "type": "Relation"},
+        "general": {"id": "rFocus", "type": "Relation"},
+    }
+    expected_issues = frozenset()
+    if categorizer_case in {"valid_class", "powertype_class"}:
+        rel_type = copy.deepcopy(source_element(document, "cA"))
+        rel_type.update(id="cRelType", name="RelationType", stereotype="type",
+                        isPowertype=(categorizer_case == "powertype_class"))
+        document["model"]["contents"].append(rel_type)
+        categorizer = {"id": "cRelType", "type": "Class"}
+    elif categorizer_case == "dangling_id":
+        categorizer = {"id": "missingCategorizer", "type": "Class"}
+        expected_issues = frozenset({"unresolved_reference:missingCategorizer"})
+    elif categorizer_case == "malformed_reference":
+        categorizer = "cRelType"
+        expected_issues = frozenset({"malformed_reference"})
+    else:
+        raise AssertionError(f"Unlisted CLI relation-set categorizer case: {categorizer_case}")
+    gs_relations = {
+        "id": "gsRelations", "name": "RelationAlternatives", "description": None,
+        "type": "GeneralizationSet", "propertyAssignments": None,
+        "isDisjoint": True, "isComplete": True, "categorizer": categorizer,
+        "generalizations": [{"id": "gOne", "type": "Generalization"},
+                            {"id": "gTwo", "type": "Generalization"}],
+    }
+    document["model"]["contents"].extend([r_one, r_two, g_one, g_two, gs_relations])
+    assert fixture_issues(document) == expected_issues
+    return document
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("categorizer_case", [
+    "valid_class", "powertype_class", "dangling_id", "malformed_reference",
+])
+def test_relation_set_non_null_categorizer_diagnostics_match_python_and_cli(
+        invoke, tmp_path, categorizer_case, input_policy):
+    """Rules: DK-HO-04, DK-REL-14, DK-REL-15, DK-REL-16, DK-INV-12, DK-DIAG-04, DK-DIAG-05; §15 diagnostic access, exit codes and delivery.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713.
+    Assert the condition and locator using native data without fixing a provisional code.
+    """
+    document = _relation_set_categorizer_document(categorizer_case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+    recover = input_policy == "best-effort"
+    outcome = "completed-with-errors" if recover else "aborted"
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == (1 if recover else 3), process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == recover
+    assert (invoke.read_provenance(python) is not None) == recover
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert any(event.severity == "ERROR" and "gsRelations" in event.identified_sources
+                   and "inapplicable_relation_categorizer" in event.facts
+                   and event.code and event.code not in STABLE_DIAGNOSTIC_CODES for event in events), events
+    if recover:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        expected_classes = {BASE.cA, BASE.cB} | (
+            {BASE.cRelType} if categorizer_case in {"valid_class", "powertype_class"} else set())
+        assert {s for s in delivered_graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == expected_classes
+        assert set(delivered_graph.subject_objects(RDFS.subPropertyOf)) == {
+            (BASE.tOne, BASE.tFocus), (BASE.tTwo, BASE.tFocus),
+            (BASE.sOne, BASE.sFocus), (BASE.sTwo, BASE.sFocus),
+        }
+        assert {frozenset(pair) for pair in delivered_graph.subject_objects(OWL.propertyDisjointWith)} == {
+            frozenset((BASE.tOne, BASE.tTwo)),
+            frozenset((BASE.sOne, BASE.sTwo)),
+        }
+        assert not list(delivered_graph.subjects(RDF.type, OWL.NamedIndividual))
+        assert not list(delivered_graph.subjects(RDF.type, BASE.cRelType))
+        assert not any(term in {BASE.gsRelations, BASE.missingCategorizer}
+                       for triple in delivered_graph for term in triple)
+        for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+            assert any(event.kind == "relation_set_completeness" and event.severity == "WARNING"
+                       and "gsRelations" in event.identified_sources
+                       and "coverage_not_represented" in event.facts for event in events)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_relation_set_non_null_categorizer_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-HO-04, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713.
+    """
+    document = _relation_set_categorizer_document("powertype_class")
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert any(event.severity == "ERROR" and "gsRelations" in event.identified_sources
+               and "inapplicable_relation_categorizer" in event.facts
+               and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+               for event in process.observation.diagnostics)
+
+
 @pytest.mark.parametrize("case", ["ontology_serialize", "ontology_encode", "ontology_create", "sidecar_write"])
 def test_stable_delivery_identifiers_match_across_interfaces(invoke, tmp_path, case):
     """Rules: DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 delivery codes and outcome separation.

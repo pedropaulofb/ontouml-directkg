@@ -134,7 +134,12 @@ unusable categorizers (`0f290d3afb830418297af13c30c4c65be1e13ca8`), the
 adapter additionally reads affirmative unusable-categorizer conditions from
 native `ERROR` reasons into `unusable_categorizer` without fixing provisional
 diagnostic codes, rejecting internal-guard wording, bare expectations, negated
-or hedged claims, and valid/absent/null/unrelated statements.
+or hedged claims, and valid/absent/null/unrelated statements. For RD-02
+non-null categorizers on relation generalization sets
+(`cc562c49a8274367e3a52d95c368abb484bfa713`), the adapter likewise reads
+affirmative inapplicable relation-set categorizer conditions from native
+`ERROR` reasons into `inapplicable_relation_categorizer` without fixing
+provisional diagnostic codes, applying the same rejections.
 
 Unmapped diagnostic meanings, fault injection, detailed console normalization,
 existing-destination delivery and other protocol operations remain explicitly

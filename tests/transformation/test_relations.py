@@ -11,13 +11,18 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import DKGM, DKGM_CHAINS, DKGM_STEREOTYPES, assert_dkgm_vocabulary
-from tests.support.invocation import DKGM_CHAIN_WARNING_FACTS, diagnostic_signatures, relation_end_comment_meanings
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, diagnostic_signatures,
+                                      inapplicable_relation_categorizer_diagnostic, relation_end_comment_meanings)
 from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
 BASE = Namespace('https://example.test/model#')
 ONTOLOGY = URIRef('https://example.test/model')
 POLICIES = ['strict', 'tolerant', 'best-effort']
+STABLE_DIAGNOSTIC_CODES = frozenset({
+    'PLACEHOLDER_BASE', 'UNPROCESSABLE_DOCUMENT', 'DUPLICATE_SOURCE_ID', 'UNKNOWN_INFORMATION',
+    'REQUIRED_PROVENANCE', 'INTERNAL_TRANSFORMATION_FAILURE', 'ONTOLOGY_DELIVERY', 'SIDECAR_DELIVERY',
+})
 NAMING_KINDS = {'relation_naming', 'stereotype_naming', 'comparative_naming',
                 'unavailable_grounding_relator', 'relator_naming', 'missing_name',
                 'generic_id_fallback', 'owner_qualification'}
@@ -2934,3 +2939,589 @@ def test_historical_dependence_preserves_explicit_relation_hierarchy(run, invoke
     assert invoke.read_historical_dependence_annotations(result, path) == ()
     assert _other_relation_diagnostics(result) == _other_relation_diagnostics(ordinary)
     _relation_limitation_warning(result)
+
+
+def _apply_relation_set_categorizer(document, defect):
+    """Apply one explicit non-null categorizer condition to gsRelations."""
+    affected = source_element(document, 'gsRelations')
+    affected.update(isComplete=True, isDisjoint=True)
+    expected_issues = frozenset()
+    if defect in {'valid_class_ordinary', 'valid_class_powertype'}:
+        rel_type = copy.deepcopy(source_element(document, 'cA'))
+        rel_type.update(id='cRelType', name='RelationType', stereotype='type',
+                        isPowertype=(defect == 'valid_class_powertype'))
+        document['model']['contents'].append(rel_type)
+        affected['categorizer'] = {'id': 'cRelType', 'type': 'Class'}
+    elif defect == 'omitted_class':
+        rel_type = copy.deepcopy(source_element(document, 'cA'))
+        rel_type.update(id=None, name='RelationType', stereotype='type', isPowertype=True)
+        document['model']['contents'].append(rel_type)
+        affected['categorizer'] = {'id': 'cRelType', 'type': 'Class'}
+        expected_issues = frozenset({'invalid_id', 'unresolved_reference:cRelType'})
+    elif defect == 'primitive_datatype':
+        datatype = copy.deepcopy(source_element(document, 'cA'))
+        datatype.update(id='dString', name='string', stereotype='datatype', isPowertype=True)
+        document['model']['contents'].append(datatype)
+        affected['categorizer'] = {'id': 'dString', 'type': 'Class'}
+    elif defect == 'void_datatype':
+        void_cls = copy.deepcopy(source_element(document, 'cA'))
+        void_cls.update(id='dVoid', name='void', stereotype='datatype', isPowertype=True)
+        document['model']['contents'].append(void_cls)
+        affected['categorizer'] = {'id': 'dVoid', 'type': 'Class'}
+    elif defect == 'dangling_id':
+        affected['categorizer'] = {'id': 'missingCategorizer', 'type': 'Class'}
+        expected_issues = frozenset({'unresolved_reference:missingCategorizer'})
+    elif defect == 'type_mismatch':
+        rel_type = copy.deepcopy(source_element(document, 'cA'))
+        rel_type.update(id='cRelType', name='RelationType', stereotype='type', isPowertype=True)
+        document['model']['contents'].append(rel_type)
+        affected['categorizer'] = {'id': 'cRelType', 'type': 'Relation'}
+        expected_issues = frozenset({'reference_type_mismatch:cRelType'})
+    elif defect == 'non_class_generalization':
+        affected['categorizer'] = {'id': 'gMiddle', 'type': 'Generalization'}
+    elif defect == 'non_class_property':
+        source_element(document, 'cA')['properties'] = [{
+            'id': 'aTag', 'name': 'tag', 'description': None, 'type': 'Property',
+            'propertyAssignments': None, 'stereotype': None, 'isDerived': False,
+            'isReadOnly': False, 'isOrdered': False, 'cardinality': None,
+            'propertyType': None, 'subsettedProperties': None,
+            'redefinedProperties': None, 'aggregationKind': None,
+        }]
+        affected['categorizer'] = {'id': 'aTag', 'type': 'Property'}
+    elif defect == 'non_class_relation':
+        affected['categorizer'] = {'id': 'rMiddle', 'type': 'Relation'}
+    elif defect == 'non_class_package':
+        affected['categorizer'] = {'id': 'hierarchyProjectRoot', 'type': 'Package'}
+        expected_issues = frozenset({'unresolved_reference:hierarchyProjectRoot'})
+    elif defect == 'malformed_string':
+        affected['categorizer'] = 'cRelType'
+        expected_issues = frozenset({'malformed_reference'})
+    elif defect == 'malformed_number':
+        affected['categorizer'] = 1
+        expected_issues = frozenset({'malformed_reference'})
+    elif defect == 'malformed_boolean':
+        affected['categorizer'] = False
+        expected_issues = frozenset({'malformed_reference'})
+    elif defect == 'malformed_array':
+        affected['categorizer'] = [{'id': 'cRelType', 'type': 'Class'}]
+        expected_issues = frozenset({'malformed_reference'})
+    elif defect == 'malformed_missing_id':
+        affected['categorizer'] = {'type': 'Class'}
+        expected_issues = frozenset({'malformed_reference'})
+    elif defect == 'malformed_missing_type':
+        affected['categorizer'] = {'id': 'cRelType'}
+        expected_issues = frozenset({'malformed_reference'})
+    elif defect == 'malformed_empty_id':
+        affected['categorizer'] = {'id': '', 'type': 'Class'}
+        expected_issues = frozenset({'invalid_reference_id'})
+    elif defect == 'malformed_non_utf8_id':
+        affected['categorizer'] = {'id': '\ud800', 'type': 'Class'}
+        expected_issues = frozenset({'invalid_reference_id'})
+    else:
+        raise AssertionError(f'Unlisted relation-set categorizer defect: {defect}')
+    return expected_issues
+
+
+def _assert_inapplicable_relation_categorizer_error(diagnostics, set_id='gsRelations'):
+    assert any(
+        event.severity == 'ERROR'
+        and set_id in event.identified_sources
+        and 'inapplicable_relation_categorizer' in event.facts
+        and event.code
+        and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in diagnostics
+    ), diagnostics
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('categorizer_state', ['absent', 'null'])
+@pytest.mark.parametrize('singleton', [False, True], ids=['multi_member', 'singleton'])
+def test_absent_or_null_categorizer_on_relation_set_remains_uncategorized_without_error(
+        run, source_json, tmp_path, input_policy, categorizer_state, singleton):
+    """Rules: DK-HO-04, DK-REL-14, DK-REL-15, DK-REL-16, DK-REL-20, DK-INV-12, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. Absent and
+    explicit null categorizers on relation sets remain uncategorized with no error.
+    """
+    document = source_json('relations/hierarchy')
+    affected = source_element(document, 'gsRelations')
+    affected.update(isComplete=True, isDisjoint=True)
+    if singleton:
+        affected['generalizations'] = affected['generalizations'][:1]
+    if categorizer_state == 'absent':
+        del affected['categorizer']
+    else:
+        affected['categorizer'] = None
+    assert fixture_issues(document) == frozenset()
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert result.outcome == 'completed'
+    assert not any(event.severity == 'ERROR' or 'inapplicable_relation_categorizer' in event.facts
+                   for event in result.diagnostics)
+    edges = [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')] + (
+        [('General', 'Middle')] if singleton else [])
+    _, _, expected = _hierarchy_expected(result, 'id', {'General', 'Middle', 'Leaf', 'Sibling'}, edges)
+    assert _edges(result.ontology) == expected
+    expected_pairs = set() if singleton else {
+        frozenset((BASE.tMiddle, BASE.tSibling)), frozenset((BASE.sMiddle, BASE.sSibling))}
+    assert _pairs(result.ontology) == expected_pairs
+    assert not list(result.ontology.subjects(RDF.type, OWL.NamedIndividual))
+    assert not any(BASE.gsRelations in triple for triple in result.ontology)
+    if singleton:
+        assert any(event.kind == 'singleton_completeness' and event.severity == 'INFO'
+                   and {'gsRelations', 'rGeneral', 'rMiddle'} <= set(event.identified_sources)
+                   and {'extensional_equivalence', 'distinct_identifiers'} <= event.facts
+                   for event in result.diagnostics)
+    else:
+        assert any(event.kind == 'relation_set_completeness' and event.severity == 'WARNING'
+                   and 'gsRelations' in event.identified_sources
+                   and 'coverage_not_represented' in event.facts
+                   for event in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+@pytest.mark.parametrize('defect', [
+    'valid_class_ordinary', 'valid_class_powertype', 'omitted_class',
+    'primitive_datatype', 'void_datatype',
+    'dangling_id', 'type_mismatch',
+    'non_class_generalization', 'non_class_property', 'non_class_relation', 'non_class_package',
+    'malformed_string', 'malformed_number', 'malformed_boolean', 'malformed_array',
+    'malformed_missing_id', 'malformed_missing_type', 'malformed_empty_id', 'malformed_non_utf8_id',
+])
+def test_non_null_categorizer_on_relation_set_aborts_or_omits_categorizer_while_keeping_disjointness_and_warning(
+        run, source_json, tmp_path, input_policy, inverse_mode, defect):
+    """Rules: DK-HO-02, DK-HO-03, DK-HO-04, DK-REL-14, DK-REL-15, DK-REL-16, DK-INV-12, DK-CLS-01, DK-ATT-01, DK-DAT-01, DK-DIAG-05.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. Exercises
+    valid classes, datatypes without local classes, non-Class declarations,
+    unresolved references, and malformed values on a relation generalization set.
+    """
+    document = source_json('relations/hierarchy')
+    expected_issues = _apply_relation_set_categorizer(document, defect)
+    assert fixture_issues(document) == expected_issues
+    path = write_input(tmp_path, document, ensure_ascii=(defect == 'malformed_non_utf8_id'))
+    if defect == 'malformed_non_utf8_id':
+        assert json.loads(path.read_bytes()) == document
+
+    result = run(path=path, iri_strategy='id', inverse_properties=inverse_mode, input_policy=input_policy)
+    if defect == 'omitted_class':
+        assert any(event.severity == 'ERROR' and event.kind == 'invalid_id' for event in result.diagnostics)
+        if input_policy != 'best-effort':
+            assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+            return
+    _assert_inapplicable_relation_categorizer_error(result.diagnostics)
+    assert not any(event.kind == 'singleton_completeness' for event in result.diagnostics)
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    named = {'General', 'Middle', 'Leaf', 'Sibling'} if inverse_mode == 'all' else set()
+    _, _, expected = _hierarchy_expected(
+        result, 'id', named, [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    assert _edges(graph) == expected
+    expected_pairs = {frozenset((BASE.tMiddle, BASE.tSibling))}
+    if inverse_mode == 'all':
+        expected_pairs.add(frozenset((BASE.sMiddle, BASE.sSibling)))
+    assert _pairs(graph) == expected_pairs
+    assert any(event.kind == 'relation_set_completeness' and event.severity == 'WARNING'
+               and 'gsRelations' in event.identified_sources
+               and 'coverage_not_represented' in event.facts
+               for event in result.diagnostics)
+    expected_classes = {BASE.cA, BASE.cB, BASE.cC, BASE.cD}
+    if defect in {'valid_class_ordinary', 'valid_class_powertype', 'type_mismatch'}:
+        expected_classes.add(BASE.cRelType)
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == expected_classes
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    assert not list(graph.subjects(RDF.type, BASE.cRelType))
+    for prefix in ('t', 's'):
+        for key in ('General', 'Middle', 'Leaf', 'Sibling'):
+            prop = BASE[prefix + key]
+            expected_types = {OWL.ObjectProperty} if (prefix == 't' or inverse_mode == 'all') else set()
+            assert set(graph.objects(prop, RDF.type)) == expected_types
+    for predicate in (OWL.equivalentProperty, OWL.unionOf, OWL.disjointUnionOf):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not any(BASE.gsRelations in triple for triple in graph)
+    if defect == 'dangling_id':
+        assert not any(BASE.missingCategorizer in triple for triple in graph)
+    elif defect == 'non_class_property':
+        assert (BASE.aTag, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.aTag, RDFS.domain, BASE.cA) in graph
+        assert not list(graph.subjects(RDF.type, BASE.aTag))
+    elif defect == 'non_class_package':
+        assert not any(BASE.hierarchyProjectRoot in triple for triple in graph)
+    elif defect == 'primitive_datatype':
+        assert not any(term in {BASE.dString, XSD.string} for triple in graph for term in triple)
+    elif defect == 'void_datatype':
+        assert not any(BASE.dVoid in triple or 'void' in str(term).casefold()
+                       for triple in graph for term in triple)
+    elif defect == 'omitted_class':
+        assert not any(BASE.cRelType in triple for triple in graph)
+
+
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('powertype', [False, True], ids=['ordinary', 'powertype'])
+@pytest.mark.parametrize('is_complete', [True, False], ids=['complete', 'open'])
+def test_non_null_categorizer_on_relation_set_preserves_name_mode_and_independent_class_classifications(
+        run, source_json, tmp_path, iri_strategy, powertype, is_complete):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-REL-14, DK-REL-15, DK-REL-16, DK-INV-12, DK-IRI-02, DK-IRI-09, DK-DIAG-05.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. A separate
+    valid categorized class set using the same Class retains its ordinary or
+    powertype classifications while gsRelations omits only property-typing output.
+    """
+    document = source_json('relations/hierarchy')
+    rel_type = copy.deepcopy(source_element(document, 'cA'))
+    rel_type.update(id='cRelType', name='RelationType', stereotype='type', isPowertype=powertype)
+    cls_base = copy.deepcopy(source_element(document, 'cA'))
+    cls_base.update(id='cClsBase', name='EntityBase')
+    cls_one = copy.deepcopy(source_element(document, 'cA'))
+    cls_one.update(id='cClsOne', name='EntityOne', stereotype='kind')
+    cls_two = copy.deepcopy(source_element(document, 'cA'))
+    cls_two.update(id='cClsTwo', name='EntityTwo', stereotype='kind')
+    g_cls_one = {
+        'id': 'gClsOne', 'name': None, 'description': None, 'type': 'Generalization',
+        'propertyAssignments': None, 'specific': {'id': 'cClsOne', 'type': 'Class'},
+        'general': {'id': 'cClsBase', 'type': 'Class'},
+    }
+    g_cls_two = {
+        'id': 'gClsTwo', 'name': None, 'description': None, 'type': 'Generalization',
+        'propertyAssignments': None, 'specific': {'id': 'cClsTwo', 'type': 'Class'},
+        'general': {'id': 'cClsBase', 'type': 'Class'},
+    }
+    gs_class = {
+        'id': 'gsClass', 'name': 'ClassKinds', 'description': None, 'type': 'GeneralizationSet',
+        'propertyAssignments': None, 'isDisjoint': False, 'isComplete': False,
+        'categorizer': {'id': 'cRelType', 'type': 'Class'},
+        'generalizations': [{'id': 'gClsOne', 'type': 'Generalization'}],
+    }
+    document['model']['contents'].extend([rel_type, cls_base, cls_one, cls_two, g_cls_one, g_cls_two, gs_class])
+    source_element(document, 'gsRelations').update(
+        isComplete=is_complete, isDisjoint=True, categorizer={'id': 'cRelType', 'type': 'Class'})
+    assert fixture_issues(document) == frozenset()
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy='best-effort')
+    assert result.outcome == 'completed-with-errors'
+    _assert_inapplicable_relation_categorizer_error(result.diagnostics)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    iris = {
+        key: BASE[key if iri_strategy == 'id' else name]
+        for key, name in (('cA', 'A'), ('cB', 'B'), ('cC', 'C'), ('cD', 'D'),
+                          ('cRelType', 'RelationType'), ('cClsBase', 'EntityBase'),
+                          ('cClsOne', 'EntityOne'), ('cClsTwo', 'EntityTwo'))
+    }
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == set(iris.values())
+    expected_classified = {iris['cClsBase'], iris['cClsOne'], iris['cClsTwo']} if powertype else {iris['cClsOne']}
+    assert set(graph.subjects(RDF.type, iris['cRelType'])) == expected_classified
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == expected_classified
+    for cls_id in ('cA', 'cB', 'cC', 'cD'):
+        assert set(graph.objects(iris[cls_id], RDF.type)) == {OWL.Class}
+    _, _, expected_edges = _hierarchy_expected(
+        result, iri_strategy, {'General', 'Middle', 'Leaf', 'Sibling'},
+        [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    assert _edges(graph) == expected_edges
+    t_middle, t_sibling = _primary(result, 'tMiddle', iri_strategy), _primary(result, 'tSibling', iri_strategy)
+    s_middle, s_sibling = _primary(result, 'sMiddle', iri_strategy), _primary(result, 'sSibling', iri_strategy)
+    assert _pairs(graph) == {frozenset((t_middle, t_sibling)), frozenset((s_middle, s_sibling))}
+    completeness_warnings = [event for event in result.diagnostics if event.kind == 'relation_set_completeness']
+    if is_complete:
+        assert any(event.severity == 'WARNING' and 'gsRelations' in event.identified_sources
+                   for event in completeness_warnings)
+    else:
+        assert not completeness_warnings
+    assert not any(BASE.gsRelations in triple for triple in graph)
+    if iri_strategy == 'name':
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('gsRelations')))
+
+
+@pytest.mark.parametrize('repeated', [False, True], ids=['single_ref', 'repeated_ref'])
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+@pytest.mark.parametrize('categorizer_kind', [
+    'valid_class_ordinary', 'valid_class_powertype', 'dangling_id', 'primitive_datatype', 'malformed_string',
+])
+def test_non_null_categorizer_on_singleton_relation_set_preserves_completeness_and_info(
+        run, source_json, tmp_path, repeated, inverse_mode, categorizer_kind):
+    """Rules: DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. A non-null
+    categorizer alone must not suppress DK-REL-20 singleton completeness or its
+    DK-DIAG-14 INFO diagnostic when membership is complete.
+    """
+    document = source_json('relations/hierarchy')
+    expected_issues = _apply_relation_set_categorizer(document, categorizer_kind)
+    affected = source_element(document, 'gsRelations')
+    affected['generalizations'] = [{'id': 'gMiddle', 'type': 'Generalization'}] * (2 if repeated else 1)
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=inverse_mode, input_policy='best-effort')
+    assert result.outcome == 'completed-with-errors'
+    _assert_inapplicable_relation_categorizer_error(result.diagnostics)
+    singleton = [event for event in result.diagnostics if event.kind == 'singleton_completeness']
+    assert singleton and all(event.severity == 'INFO' for event in singleton)
+    assert any({'gsRelations', 'rGeneral', 'rMiddle'} <= set(event.identified_sources)
+               and {'extensional_equivalence', 'distinct_identifiers'} <= event.facts
+               for event in singleton)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    named = {'General', 'Middle', 'Leaf', 'Sibling'} if inverse_mode == 'all' else set()
+    _, _, expected = _hierarchy_expected(
+        result, 'id', named,
+        [('Middle', 'General'), ('General', 'Middle'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    assert _edges(graph) == expected
+    assert not _pairs(graph)
+    assert not list(graph.triples((None, OWL.equivalentProperty, None)))
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    assert not list(graph.subjects(RDF.type, BASE.cRelType))
+    if categorizer_kind in {'valid_class_ordinary', 'valid_class_powertype'}:
+        assert (BASE.cRelType, RDF.type, OWL.Class) in graph
+    assert not any(term in {BASE.gsRelations, BASE.dString, XSD.string, BASE.missingCategorizer}
+                   for triple in graph for term in triple)
+
+
+@pytest.mark.parametrize('mode', CHAIN_MODES)
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+def test_non_null_categorizer_on_singleton_relation_set_preserves_chain_propagation(
+        run, source_json, tmp_path, mode, inverse_mode):
+    """Rules: DK-HO-04, DK-REL-07, DK-REL-09, DK-REL-10, DK-REL-11, DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-07, DK-DIAG-14.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. Under
+    best-effort, a non-null categorizer on a singleton complete relation set
+    retains reverse subproperty inclusion and DK-REL-07 non-simplicity propagation.
+    """
+    document = source_json('relations/chain_constraints')
+    rel_type = copy.deepcopy(source_element(document, 'cA'))
+    rel_type.update(id='cRelType', name='RelationType', stereotype='type', isPowertype=True)
+    document['model']['contents'].append(rel_type)
+    source_element(document, 'gsSingleton').update(
+        isComplete=True, isDisjoint=False, categorizer={'id': 'cRelType', 'type': 'Class'})
+    assert fixture_issues(document) == frozenset()
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=inverse_mode, material_property_chains=mode, input_policy='best-effort')
+    assert result.outcome == 'completed-with-errors'
+    _assert_inapplicable_relation_categorizer_error(result.diagnostics, set_id='gsSingleton')
+    assert any(event.kind == 'singleton_completeness' and event.severity == 'INFO'
+               and {'gsSingleton', 'rSuper', 'rPeer'} <= set(event.identified_sources)
+               and {'extensional_equivalence', 'distinct_identifiers'} <= event.facts
+               for event in result.diagnostics)
+    graph = result.ontology
+    assert (BASE.tSuper, RDFS.subPropertyOf, BASE.tPeer) in graph
+    assert (BASE.tPeer, RDFS.subPropertyOf, BASE.tSuper) in graph
+    if inverse_mode == 'all':
+        assert (BASE.sSuper, RDFS.subPropertyOf, BASE.sPeer) in graph
+        assert (BASE.sPeer, RDFS.subPropertyOf, BASE.sSuper) in graph
+    omitted = mode == 'omit-conflicting-constraints'
+    reverse = BASE.sPeer if inverse_mode == 'all' else ('inverse', BASE.tPeer)
+    _counts(graph, BASE.cA, BASE.tPeer, set() if omitted else {('exact', 2)})
+    _counts(graph, BASE.cB, reverse, set() if omitted else {('exact', 1)})
+    prefixes = ('t', 's') if inverse_mode == 'all' else ('t',)
+    keys = ['Material', 'Peer', 'PeerTwo']
+    expected_pairs = set() if omitted else {
+        frozenset((BASE[prefix + left], BASE[prefix + right]))
+        for prefix in prefixes for index, left in enumerate(keys) for right in keys[index + 1:]}
+    assert _pairs(graph) == expected_pairs
+    assert (BASE.cRelType, RDF.type, OWL.Class) in graph
+    assert not list(graph.subjects(RDF.type, BASE.cRelType))
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    _compatibility(result, mode, mode != 'none', {'cardinalities_omitted', 'property_disjointness_omitted'} if omitted else ())
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+@pytest.mark.parametrize('categorizer_kind', ['valid_class_powertype', 'dangling_id'])
+@pytest.mark.parametrize('failure', ['unresolved_member_one_survivor', 'failed_specific_three_members', 'failed_general'])
+def test_non_null_categorizer_with_failed_relation_member_applies_both_rules(
+        run, source_json, tmp_path, input_policy, inverse_mode, categorizer_kind, failure):
+    """Rules: DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-REL-14, DK-REL-15, DK-REL-16, DK-REL-20, DK-INV-12, DK-DIAG-03, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. Combined
+    member failure and non-null categorizer on a relation set retain both
+    structural ERRORs, omit singleton completeness and property typing, and keep
+    surviving specific disjointness and multi-member DK-REL-16 warnings.
+    """
+    document = source_json('relations/hierarchy')
+    expected_issues = set(_apply_relation_set_categorizer(document, categorizer_kind))
+    gs = source_element(document, 'gsRelations')
+    expected_edges = [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')]
+    if failure == 'unresolved_member_one_survivor':
+        gs['generalizations'][1]['id'] = 'gMissing'
+        member_locator = 'gsRelations'
+        expected_issues.add('unresolved_reference:gMissing')
+    elif failure == 'failed_specific_three_members':
+        extra = copy.deepcopy(source_element(document, 'gMiddle'))
+        extra.update(id='gLeafGeneral', specific={'id': 'rLeaf', 'type': 'Relation'})
+        document['model']['contents'].append(extra)
+        gs['generalizations'].append({'id': 'gLeafGeneral', 'type': 'Generalization'})
+        source_element(document, 'tSibling')['propertyType'] = None
+        expected_edges.remove(('Sibling', 'General'))
+        expected_edges.append(('Leaf', 'General'))
+        member_locator = 'tSibling'
+        expected_issues.add('unresolved_endpoint')
+    else:
+        source_element(document, 'tGeneral')['propertyType'] = None
+        expected_edges = [('Leaf', 'Middle')]
+        member_locator = 'tGeneral'
+        expected_issues.add('unresolved_endpoint')
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=inverse_mode, input_policy=input_policy)
+    assert not any(event.kind == 'singleton_completeness' for event in result.diagnostics)
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        assert any(
+            event.severity == 'ERROR'
+            and event.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+            and (member_locator in event.identified_sources
+                 or ('gsRelations' in event.identified_sources and 'inapplicable_relation_categorizer' in event.facts))
+            for event in result.diagnostics
+        ), result.diagnostics
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert any(event.severity == 'ERROR' and member_locator in event.identified_sources
+               and 'inapplicable_relation_categorizer' not in event.facts
+               for event in result.diagnostics), result.diagnostics
+    _assert_inapplicable_relation_categorizer_error(result.diagnostics)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    prefixes = ('t', 's') if inverse_mode == 'all' else ('t',)
+    assert _edges(graph) == {(BASE[prefix + a], BASE[prefix + b]) for prefix in prefixes for a, b in expected_edges}
+    specific_pair = (('Middle', 'Leaf') if failure == 'failed_specific_three_members' else
+                     ('Middle', 'Sibling') if failure == 'failed_general' else None)
+    expected_pairs = {frozenset(BASE[prefix + key] for key in specific_pair)
+                      for prefix in prefixes} if specific_pair else set()
+    assert _pairs(graph) == expected_pairs
+    for predicate in (OWL.equivalentProperty, OWL.unionOf, OWL.disjointUnionOf,
+                      OWL.intersectionOf, OWL.oneOf, OWL.complementOf):
+        assert not list(graph.triples((None, predicate, None)))
+    completeness_warnings = [event for event in result.diagnostics if event.kind == 'relation_set_completeness']
+    if failure == 'unresolved_member_one_survivor':
+        assert not completeness_warnings
+    else:
+        assert any(event.severity == 'WARNING' and 'gsRelations' in event.identified_sources
+                   and 'coverage_not_represented' in event.facts for event in completeness_warnings)
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    assert not list(graph.subjects(RDF.type, BASE.cRelType))
+    if categorizer_kind == 'valid_class_powertype':
+        assert (BASE.cRelType, RDF.type, OWL.Class) in graph
+    assert not any(term in {BASE.gsRelations, BASE.missingCategorizer} for triple in graph for term in triple)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('precedence', [
+    'empty_members', 'null_members', 'absent_members', 'non_array_members', 'duplicate_id',
+])
+def test_non_null_categorizer_on_relation_set_respects_dk_diag_12_and_duplicate_id_precedence(
+        run, source_json, tmp_path, input_policy, precedence):
+    """Rules: DK-HO-04, DK-DIAG-12, DK-DIAG-05, DK-REL-14; §3.4 duplicate declaration IDs.
+
+    RD-02 Alternative A, cc562c49a8274367e3a52d95c368abb484bfa713. DK-DIAG-12
+    governs empty/missing/malformed membership containers and fatal duplicate
+    declaration IDs retain precedence even when categorizer is also non-null.
+    """
+    document = source_json('relations/hierarchy')
+    rel_type = copy.deepcopy(source_element(document, 'cA'))
+    rel_type.update(id='cRelType', name='RelationType', stereotype='type', isPowertype=True)
+    document['model']['contents'].append(rel_type)
+    affected = source_element(document, 'gsRelations')
+    affected.update(isComplete=True, isDisjoint=True, categorizer={'id': 'cRelType', 'type': 'Class'})
+    expected_issues = set()
+    if precedence == 'empty_members':
+        affected['generalizations'] = []
+    elif precedence == 'null_members':
+        affected['generalizations'] = None
+    elif precedence == 'absent_members':
+        del affected['generalizations']
+    elif precedence == 'non_array_members':
+        affected['generalizations'] = {'id': 'gMiddle', 'type': 'Generalization'}
+        expected_issues.add('malformed_membership')
+    elif precedence == 'duplicate_id':
+        dup = copy.deepcopy(source_element(document, 'rMiddle'))
+        dup['properties'][0]['id'] = 'sMiddleDup'
+        dup['properties'][1]['id'] = 'tMiddleDup'
+        document['model']['contents'].append(dup)
+        expected_issues.add('duplicate_id:rMiddle')
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all('inapplicable_relation_categorizer' not in event.facts and 'unusable_categorizer' not in event.facts
+               for event in result.diagnostics), result.diagnostics
+    if precedence == 'duplicate_id':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        assert any(event.severity == 'ERROR' and event.code == 'DUPLICATE_SOURCE_ID'
+                   and 'rMiddle' in event.identified_sources for event in result.diagnostics)
+        return
+    if precedence == 'empty_members':
+        assert any(event.severity == 'ERROR' and event.kind == 'empty_generalization_set'
+                   and 'gsRelations' in event.identified_sources for event in result.diagnostics)
+    else:
+        fact = {'null_members': 'membership_null', 'absent_members': 'membership_absent',
+                'non_array_members': 'membership_non_array'}[precedence]
+        assert any(event.severity == 'ERROR' and 'gsRelations' in event.identified_sources
+                   and fact in event.facts for event in result.diagnostics), result.diagnostics
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    _, _, expected = _hierarchy_expected(
+        result, 'id', {'General', 'Middle', 'Leaf', 'Sibling'},
+        [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')])
+    assert _edges(graph) == expected
+    assert not _pairs(graph)
+    for predicate in (OWL.equivalentProperty, OWL.unionOf, OWL.disjointUnionOf,
+                      OWL.intersectionOf, OWL.oneOf, OWL.complementOf):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not any(event.kind in {'singleton_completeness', 'relation_set_completeness'} for event in result.diagnostics)
+    assert (BASE.cRelType, RDF.type, OWL.Class) in graph
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    assert not list(graph.subjects(RDF.type, BASE.cRelType))
+    assert not any(BASE.gsRelations in triple for triple in graph)
+
+
+def test_inapplicable_relation_categorizer_reader_requires_affirmative_condition():
+    """Harness only: verify affirmative relation-set categorizer wording without fixing provisional codes."""
+    accepted = (
+        "Relation generalization set 'gsRelations' has an inapplicable non-null categorizer {'id': 'cRelType', 'type': 'Class'}.",
+        "Relation generalization set 'gsRelations' has a non-null categorizer {'id': 'cRelType', 'type': 'Class'}, which applies only to class generalization sets.",
+        "Relation generalization set 'gsRelations' cannot have a non-null categorizer.",
+        "Generalization set 'gsRelations' is a relation generalization set and cannot have a categorizer.",
+        "Inapplicable non-null categorizer on relation generalization set 'gsRelations'.",
+        "Categorizer {'id': 'cRelType', 'type': 'Class'} on relation generalization set 'gsRelations' is inapplicable.",
+        "Categorizer on relation generalization set 'gsRelations' is not applicable.",
+        "Relation generalization set 'gsRelations' does not support a non-null categorizer.",
+        "Relation generalization set 'gsRelations' has a disallowed categorizer value.",
+        "Relation generalization set 'gsRelations' has an unusable categorizer {'id': 'cRelType', 'type': 'Class'}: relation sets do not support categorizers.",
+        "Relation generalization set 'gsRelations' has an inapplicable non-null categorizer; relation generalization sets must have a null or absent categorizer.",
+    )
+    rejected = (
+        "Categorizer treatment for relation sets remains unspecified.",
+        "Non-null categorizer on relation generalization set remains outside the decided baseline.",
+        "Unexpected internal failure while inspecting categorizer.",
+        "Relation generalization set 'gsRelations' categorizer is null.",
+        "Relation generalization set 'gsRelations' categorizer is absent.",
+        "Relation generalization set 'gsRelations' has no categorizer.",
+        "Relation generalization set 'gsRelations' has a valid categorizer.",
+        "Relation generalization set 'gsRelations' categorizer is not inapplicable.",
+        "Relation generalization set 'gsRelations' has an inapplicable or absent categorizer.",
+        "Relation generalization set 'gsRelations' has a valid or inapplicable categorizer.",
+        "If a relation generalization set has a non-null categorizer, conversion aborts.",
+        "Relation generalization set 'gsRelations' may have an inapplicable categorizer.",
+        "Categorizers apply only to class generalization sets.",
+        "Relation generalization set 'gsRelations' categorizer must be null or absent.",
+        "Generalization set 'gsFirst': the categorizer is not null, and member 'missingMember' failed.",
+        "Relation generalization set 'gsRelations' member 'gMissing' cannot be resolved; categorizer was not checked.",
+        "Relation generalization set 'gsRelations' has an invalid generalizations container, not an inapplicable categorizer.",
+    )
+    for message in accepted:
+        assert inapplicable_relation_categorizer_diagnostic(message), message
+    for message in rejected:
+        assert not inapplicable_relation_categorizer_diagnostic(message), message
