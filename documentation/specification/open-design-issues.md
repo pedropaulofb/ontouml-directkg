@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-17, covering RD-02 membership resolution and incomplete categorized class-set recovery, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-release prioritization and warning consistency, RD-04's general OWL profile claim, closure of the separate OWL 2 DL construction question, and RD-04 handling of ontology serialization failures and unexpected internal failures during transformation, together with stabilization of its eight-code first-release diagnostic core. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-18, covering RD-02 membership resolution and incomplete categorized class-set recovery, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-release prioritization and warning consistency, RD-04's general OWL profile claim, closure of the separate OWL 2 DL construction question, and RD-04 handling of ontology serialization failures and unexpected internal failures during transformation, together with stabilization of its eight-code first-release diagnostic core and closure of ODI-INSTANCES for the supported first-release input contract. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -102,18 +102,6 @@ DK-DIAG-04 fixes the shared JSON report's minimum structure, required member nam
 
 **Dependencies:** Source evidence precedes a mapping discussion. There is no remaining dependency on the already settled multilingual naming or project-description decisions.
 
-### ODI-INSTANCES — Applicability of general instance-data transformation
-
-**Status:** Blocked on source-scope evidence; no feature expansion accepted.
-
-**Question:** Does VP-plugin 0.5.3 export additional general instance data within the supported JSON-file contract that needs a mapping beyond higher-order classification, enumeration values, and explicit instantiation associations?
-
-**Why it matters and constraints:** A mapping must correspond to an actual in-scope source construct. DK-HO-01–04, DK-CLS-10–11, and DK-INS-01–03 already govern existing cases. DK-INS-01's conditional statement about possible future concrete links establishes no present support obligation. Standalone-schema capability and the ability to represent data in Python do not establish supported exporter behavior or authorize fileless input.
-
-**Evidence gap, alternatives, and next step:** Inspect the actual 0.5.3 exporter path and representative JSON files. If no additional in-scope construct exists, close the evidence check. If one exists, identify its exact source shape before bringing a bounded mapping choice to the Architect. Do not design identity, typing, assertions, or recovery for a general instance subsystem in advance.
-
-**Dependencies:** Establish source scope before any new mapping discussion; coordinate with RD-02 only if an actual construct exposes an unsettled recovery question.
-
 ## Advisory prioritization and dependencies
 
 This is non-normative guidance for choosing future Architect discussions. It does not establish transformation requirements, an implementation plan, or completion claims.
@@ -129,10 +117,10 @@ The owner reports that repeated generalization-set membership does not occur in 
 Apply the remaining dependencies proportionately:
 
 - RD-04's report and failure contract can proceed with the necessary RD-02 recovery boundaries.
-- Establish source evidence before proposing an additional mapping from RD-27 or ODI-INSTANCES. Their blocked evidence checks do not by themselves establish a missing implementation feature.
+- Establish source evidence before proposing any remaining descriptive-field mapping under RD-27. Its blocked evidence check does not by itself establish a missing implementation feature.
 - Investigate ODI-IRI only after identifying its reachable technical condition. Preserve its unresolved status without treating hypothetical collision recovery as an automatic implementation prerequisite.
 
-The source-evidence checks and independent semantic/recovery questions need not block one another. Accepted scope exclusions and registrations awaiting independent review are not unresolved design alternatives.
+The remaining source-evidence check and independent semantic/recovery questions need not block one another. Accepted scope exclusions and registrations awaiting independent review are not unresolved design alternatives.
 
 ## Retained research anchors and continuation
 
@@ -179,6 +167,10 @@ These are research pointers retained from the inspected prior state and session;
 - OWL 2 structural specification, Second Edition, especially property simplicity and global restrictions (§§11.1–11.2): https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/
 - DKGM delivery investigation (2026-11-12). The inspected [DKGM 0.1.1 Turtle](https://github.com/pedropaulofb/ontouml-directkg/blob/49122ec45a38378cf1fac0d6eae82456f4dedd5e/vocabulary/versioned/dkgm-vocabulary-v0.1.1.ttl) and the repository's `vocabulary/latest/dkgm-vocabulary.ttl` shared blob `b8f66ab08a1d33b77efcfa8b0f5b0bd0b274e87c` at `49122ec45a38378cf1fac0d6eae82456f4dedd5e`. The artifact contains four object-property declarations and three generic chains. The OWL 2 structural specification's §§3.4 and 5.8.1 describe import closure and typing. GraphDB 11.2 documents [schema loading](https://graphdb.ontotext.com/documentation/11.2/configuring-a-repository.html) and [ruleset-based inference](https://graphdb.ontotext.com/documentation/11.2/reasoning.html). Stardog documents [configured reasoning schemas](https://docs.stardog.com/inference-engine/) and separate schema loading. This was a repository and documentation inspection. Live versioned W3ID resolution and end-to-end reasoner or triplestore behavior remain unverified.
 - RD-04 bounded selection evidence (2026-11-17): static inspection at DirectKG commit `c3b36bb91b85e4725dd32587a3ee40945521ad95` covered `source.py`, `conversion.py`, `diagnostics.py`, `delivery.py`, `multiplicity.py`, and selected mapping and test paths. Existing missing-ID and unresolved-reference conditions use multiple construct-specific codes; this was not an exhaustive catalogue or runtime conformance test. The owner reported a targeted inspection of ten OntoUML/UFO Catalog models with no duplicate declaration IDs, missing cardinality fields, invalid cardinality syntax, or unrecognized declaration fields. No exact model paths or snapshot accompanied that report; it does not establish Catalog-wide absence or frequency and was not independently rerun here.
+- Bounded ordinary-instance-data inspection for ODI-INSTANCES (2026-11-17):
+  - Supported exporter release 0.5.3 at `9fc02b8162db9910f21b8713549cafce2627dad0`: `JsonImportAndExportController.exportTask` delegates to `Uml2OntoumlTransformer.transformAndSerialize`, which constructs the project through `IProjectTransformer.transform`. The inspected [project extraction selectors and dispatch](https://github.com/OntoUML/ontouml-vp-plugin/blob/9fc02b8162db9910f21b8713549cafce2627dad0/src/main/java/it/unibz/inf/ontouml/vp/model/vp2ontouml/IProjectTransformer.java) select packages/models, classes, generalizations, generalization sets, associations, and association classes, with no ordinary object-instance extraction branch. The inspected `IClassTransformer`, `IPropertyTransformer`, `IEnumerationLiteralTransformer`, and `ClassSerializer` trace classifier properties and enumeration literals; no additional general instance-data representation was identified in those paths.
+  - At Catalog snapshot `9f5caff6c838bf8fdfa7fcc15726998eebc15c88`, the selected [UFO model](https://github.com/OntoUML/ontouml-models/blob/9f5caff6c838bf8fdfa7fcc15726998eebc15c88/models/guizzardi2022ufo/ontology.json) contains `Spouse Type` categorizing `Husband` and `Wife`, the `Flower Color Values` enumeration with explicit literals including `Red`, and `instantiation` associations between Class endpoints. These illustrate the existing DK-HO-01–04, DK-CLS-10–11, and DK-INS-01–03 cases rather than an additional ordinary-instance construct.
+  - Coverage was static exporter-source inspection and one selected Catalog JSON file. The supported input contract was checked rather than inferred from standalone-schema capability. No live Visual Paradigm export or end-to-end conversion was run; the selected model's exporter provenance and complete input compatibility were not established. No Catalog-wide absence or frequency claim is made.
 - Standard provenance/metadata references, if a remaining question requires them: https://www.w3.org/TR/prov-o/ ; https://www.dublincore.org/specifications/dublin-core/dcmi-terms/ ; https://spdx.org/rdf/terms/
 
 At continuation, the Architect retrieves this record and the current consolidated specification directly from GitHub. Registration and independent review status are reported separately from unresolved design state. A substantive integration conflict needs an explicit owner decision in the Architect workflow; it must not be silently resolved during record maintenance or independent review.
