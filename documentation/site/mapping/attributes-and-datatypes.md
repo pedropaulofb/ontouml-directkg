@@ -4,17 +4,59 @@ These are **accepted intended mappings** for supported attributes and datatype c
 
 ## Property kinds and ranges
 
-An attribute's resolved `propertyType` determines its property kind and range; the domain is its owning class.
+An attribute's resolved `propertyType` determines its property kind and range; `rdfs:domain` is always its owning class's generated local `owl:Class`. Primitive normalization (`DK-DAT-02`) and Visual Paradigm `void` recognition (`DK-DAT-04`) apply **only** when the resolved target `Class` has `stereotype == "datatype"`.
 
 | Resolved source type | Property kind | Range |
 | --- | --- | --- |
-| Supported primitive datatype | `owl:DatatypeProperty` | Registered XSD datatype |
-| Custom `datatype` | `owl:ObjectProperty` | Reified custom datatype class |
+| Supported primitive datatype (`stereotype == "datatype"`) | `owl:DatatypeProperty` | Registered XSD datatype |
+| Custom `datatype` (`stereotype == "datatype"`) | `owl:ObjectProperty` | Reified custom datatype class |
 | `enumeration` | `owl:ObjectProperty` | Generated enumeration class |
+| Other `Class` with a generated local `owl:Class` (ordinary OntoUML class stereotypes, `null` stereotype, or unrecognized custom stereotypes accepted under [stereotype policy](../reference/controls.md#established-controls)) | `owl:ObjectProperty` | Target `Class`'s generated local `owl:Class` |
 | Explicit `null` | `owl:DatatypeProperty` | None |
-| Recognized VP `void` | `owl:DatatypeProperty` | None; nonfatal warning |
+| Recognized VP `void` (`stereotype == "datatype"`) | `owl:DatatypeProperty` | None; nonfatal warning |
 
 An enumeration-valued attribute therefore links to enumeration individuals rather than string literals. See [Enumerations and closure](classes.md#enumerations-and-closure). Distinct modeled attributes remain distinct properties even when their names coincide; [identifier disambiguation](../reference/identifiers.md#names-escaping-and-collisions) never changes the property kind.
+
+### Class-valued attributes
+
+Whenever an eligible class attribute's `propertyType` resolves to any `Class` that has a generated local `owl:Class` under `DK-CLS-01`—including custom `datatype`, `enumeration`, ordinary OntoUML class stereotypes (such as `kind`, `subkind`, `role`, `phase`, `category`, `mixin`, `roleMixin`, `phaseMixin`, `relator`, `mode`, `quality`, `event`, `historicalRole`, `situation`, `type`, etc.), a `null` stereotype (accepted under `allow-missing` or `allow-custom`), or an unrecognized custom stereotype (accepted under `allow-custom` with its standard warning under `DK-DIAG-06`)—DirectKG transforms the attribute as an **ordinary `owl:ObjectProperty`** with `rdfs:domain` equal to the owning class's generated local `owl:Class` and `rdfs:range` equal to the target `Class`'s generated local `owl:Class` (aligned with `DK-GEN-03`).
+
+Because primitive normalization and `void` recognition apply only when `stereotype == "datatype"`, a non-`datatype` class named `"string"` or `"void"` (for example with stereotype `kind`) receives its own local `owl:Class`, and an attribute typed by it becomes an `owl:ObjectProperty` targeting that local `owl:Class`.
+
+For attributes transformed as `owl:ObjectProperty` under this rule:
+
+- **No inferred relation stereotypes:** DirectKG generates ordinary `owl:ObjectProperty` declarations and axioms only. It does **not** infer any OntoUML relation stereotype or apply stereotype-specific relation mappings (for example, no `owl:AsymmetricProperty`, `owl:IrreflexiveProperty`, event, dependency, mereological, gUFO, or `dkgm` axioms inferred from attribute `propertyType`, and no derived `Relation` stereotypes).
+- **No attribute flattening:** DirectKG does **not** infer or flatten owned attributes of the target `Class` onto the owning class.
+- **No named inverses or redundant value restrictions:** Attributes remain excluded from named inverse generation under [Inverse properties](inverses.md#generation-and-eligibility) (`DK-INV-01–02`), and no redundant local `owl:allValuesFrom` restriction is generated (`DK-ATT-04`).
+- **All existing attribute rules apply:** Necessary `rdfs:subClassOf` restrictions (`DK-ATT-02`, never `owl:equivalentClass`), preservation of explicit multiplicities (`DK-ATT-03`, with no new multiplicity mapping or configuration option, and subject to `omit-conflicting-constraints` if a property expression becomes non-simple through `subsettedProperties` or `redefinedProperties` hierarchy links beneath an emitted material chain), `isDerived` annotations (`DK-GEN-05`), distinct property identity, owner qualification, `subsettedProperties`/`redefinedProperties`, and `isReadOnly`/`isOrdered`/`begin`/`end` comments (`DK-PROP-01–06`), labels, descriptions, and language resolution (`DK-LBL-01–02`), IRI construction and `dcterms:identifier` annotations (`DK-IRI-02–05, 07, 09–10`), and multiplicity recovery and diagnostics (`DK-DIAG-09–11`) all remain applicable.
+
+Transforming a class attribute whose `propertyType` resolves to a `Class` with a generated local `owl:Class` outside `datatype` and `enumeration` is **non-erroneous under `strict`, `tolerant`, and `best-effort`**: DirectKG emits no extra warning or error solely because the target `Class` is not `datatype` or `enumeration`. Existing structural-error and recovery rules under `DK-DIAG-05` (`UNRESOLVED_ATTRIBUTE_TYPE`) continue to apply for unresolved or invalid `propertyType` references (such as a dangling ID, malformed reference, or non-`Class` reference). A target `Class` without a generated local `owl:Class` (other than handled primitives and `void`, for example a target omitted earlier under `best-effort`) retains its existing unresolved/unavailable-target boundary. `DK-DIAG-04`'s eight-code diagnostic core and established configuration options remain unchanged.
+
+This **specification illustration** assumes `kind` class `Order` has attribute `customer` typed by `kind` class `Person` with explicit multiplicity `1`, and `Person` has its own attribute `fullName` typed by primitive `string`. With name-based identity, no collisions, and entity base `https://example.org/orders#`, the excerpt below omits labels, identifier annotations, ontology header/import, and provenance, and is not captured converter output.
+
+```turtle
+@prefix : <https://example.org/orders#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:Order a owl:Class ;
+    rdfs:subClassOf [ a owl:Restriction ;
+        owl:onProperty :customer ;
+        owl:cardinality "1"^^xsd:nonNegativeInteger ] .
+
+:Person a owl:Class .
+
+:customer a owl:ObjectProperty ;
+    rdfs:domain :Order ;
+    rdfs:range :Person .
+
+:fullName a owl:DatatypeProperty ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string .
+```
+
+**Implementation status.** At the [reviewed registration revision `4f9a9ccfa016a052a9b955afb0f9d863e3df8222`](https://github.com/pedropaulofb/ontouml-directkg/blob/4f9a9ccfa016a052a9b955afb0f9d863e3df8222/src/ontouml_directkg/properties.py#L77-L78), `collect_attributes` in [`properties.py`](https://github.com/pedropaulofb/ontouml-directkg/blob/4f9a9ccfa016a052a9b955afb0f9d863e3df8222/src/ontouml_directkg/properties.py#L26-L82) still raises `NotImplementedError("Attribute value kinds outside datatype/enumeration mappings remain unspecified")` for resolved `Class` targets outside `datatype` and `enumeration`, which [`conversion.py`](https://github.com/pedropaulofb/ontouml-directkg/blob/4f9a9ccfa016a052a9b955afb0f9d863e3df8222/src/ontouml_directkg/conversion.py#L247-L251) catches as `INTERNAL_TRANSFORMATION_FAILURE` and aborts under every input policy. The section above describes the accepted intended behavior.
 
 `isDerived` does not suppress ordinary attribute transformation; its [comment mapping](../reference/text.md#derived-status-comments) is separate. Supported `isReadOnly: true` and `isOrdered: true` declarations also have comment mappings, with INFO for each preserved ordering occurrence. Those comments do not implement read-only enforcement or ordered property values. See [Property features](property-features.md#read-only-and-aggregation-comments) and its [ordering explanation](property-features.md#ordering-without-ordered-values).
 
@@ -38,7 +80,7 @@ The **complete current primitive registry contains nine entries**. VP `void` is 
 
 Here `xsd:` denotes `http://www.w3.org/2001/XMLSchema#`. Mapping `char` to `xsd:string` deliberately loses the one-character constraint. It adds no one-character validation or substitute restriction.
 
-Primitive recognition is exact registry lookup after lexical normalization of classifiers being interpreted as datatypes. The normalization should perform Unicode normalization, surrounding-whitespace trimming and case folding; recognize known XSD prefix/namespace forms before ordinary normalization; and ignore whitespace, hyphen, and underscore separators. Recognition of standard prefixed/full XSD names should be limited to those supported entries. These recommendations do not register additional mappings (DK-DAT-02).
+Primitive recognition is exact registry lookup after lexical normalization and applies only to `datatype` classifiers (`stereotype == "datatype"`). The normalization should perform Unicode normalization, surrounding-whitespace trimming and case folding; recognize known XSD prefix/namespace forms before ordinary normalization; and ignore whitespace, hyphen, and underscore separators. Recognition of standard prefixed/full XSD names should be limited to those supported entries. These recommendations do not register additional mappings (DK-DAT-02).
 
 No fuzzy matching, spelling correction, stemming, plural adjustment, abbreviation expansion, translation, or synonym detection is allowed. `int` and `integer` denote semantically distinct XSD datatypes; the registry registers only `int`. Aliases such as `bool`, `str`, `wholeNumber`, and `integer32` are not activated by resembling registered entries. Additional primitives require a separate accepted decision; an otherwise supported modeled datatype outside the registry receives custom-datatype treatment.
 
@@ -52,7 +94,7 @@ An explicit `propertyType: null` means **unspecified typing**. Keep the datatype
 
 The downloadable [classes-and-attributes example](../examples/index.md#classes-and-untyped-attributes) pairs a checked Catalog adaptation with a labelled Turtle illustration of two distinct untyped attributes and their owner domains.
 
-VP `void` means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). Keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available.
+VP `void` (`stereotype == "datatype"`) means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). Keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available.
 
 !!! warning "The void type does not prohibit values"
 
@@ -109,6 +151,6 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-10–11; DK-DIAG-09–11, 18; DK-IRI-10; baseline consolidated: **2026-10-21**; repository commit: `9e52a66af43e39b374d0a642298b1117d12be4d8`; source: [`documentation/specification/2026-10-21 - specification handoff.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9e52a66af43e39b374d0a642298b1117d12be4d8/documentation/specification/2026-10-21%20-%20specification%20handoff.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01, 04–06, 09–11, 16, 18; §3.4; baseline consolidated: **2026-11-18**; repository commit: `4f9a9ccfa016a052a9b955afb0f9d863e3df8222`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4f9a9ccfa016a052a9b955afb0f9d863e3df8222/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).
