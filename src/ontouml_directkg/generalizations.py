@@ -87,6 +87,46 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
             _emit_set(graph, index, element, resources, edges, children, diagnostics, policy)
 
 
+def _resolve_categorizer(index: SourceIndex, element: SourceElement, resources: dict[str, URIRef],
+                         diagnostics: DiagnosticCollector, policy: str) -> SourceElement | None:
+    """Validate non-null class-set categorizers before emitting set axioms (DK-HO-04)."""
+    data = element.data
+    categorizer = data.get("categorizer")
+    if categorizer is None:
+        return None
+    recovery = (
+        "Categorizer and powertype assertions from this set omitted; "
+        "independent constraints and mappings retained."
+    )
+    try:
+        classifier = index.resolve(categorizer)
+    except KeyError as exc:
+        input_error(
+            diagnostics, policy, "UNUSABLE_CATEGORIZER",
+            f"Generalization set {data['id']!r} has an unusable categorizer reference {categorizer!r}: {exc}.",
+            (element.location,), recovery,
+        )
+        return None
+    cid = classifier.data.get("id")
+    if classifier.data["type"] != "Class":
+        input_error(
+            diagnostics, policy, "UNUSABLE_CATEGORIZER",
+            f"Generalization set {data['id']!r} has an unusable categorizer {cid!r}: "
+            f"resolves to {classifier.data['type']!r}, not a Class.",
+            (element.location, classifier.location), recovery,
+        )
+        return None
+    if cid not in resources:
+        input_error(
+            diagnostics, policy, "UNUSABLE_CATEGORIZER",
+            f"Generalization set {data['id']!r} has an unusable categorizer {cid!r}: "
+            "Class has no generated local OWL class.",
+            (element.location, classifier.location), recovery,
+        )
+        return None
+    return classifier
+
+
 def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resources: dict[str, URIRef],
               edges: dict[str, tuple[SourceElement, SourceElement]], children: dict[str, set[str]],
               diagnostics: DiagnosticCollector, policy: str) -> None:
@@ -130,6 +170,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
             resolved.append(edges[identifier])
     specifics = {specific.data["id"]: specific for specific, _ in resolved}
     general_ids = {general.data["id"] for _, general in resolved}
+    classifier = _resolve_categorizer(index, element, resources, diagnostics, policy)
     if data.get("isDisjoint") is True:
         for left, right in combinations(sorted(specifics), 2):
             graph.add((resources[left], OWL.disjointWith, resources[right]))
@@ -150,16 +191,9 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
             graph.add((expression, RDF.type, OWL.Class))
             graph.add((expression, OWL.unionOf, head))
             graph.add((resources[gid], RDFS.subClassOf, expression))
-    categorizer = data.get("categorizer")
-    if categorizer is None:
+    if classifier is None:
         return
-    try:
-        classifier = index.resolve(categorizer)
-    except KeyError as exc:
-        raise NotImplementedError("Unresolved categorizer recovery remains outside the decided baseline") from exc
-    cid = classifier.data.get("id")
-    if classifier.data["type"] != "Class" or cid not in resources:
-        raise NotImplementedError("Categorizer without a generated local class remains outside the decided baseline")
+    cid = classifier.data["id"]
     extension = set(specifics)
     if complete and classifier.data.get("isPowertype") is True and len(general_ids) == 1:
         pending = list(general_ids)
