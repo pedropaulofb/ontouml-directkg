@@ -279,6 +279,7 @@ DirectKG MUST generate `rdfs:range` whenever the target or value type is unambig
 - Primitive-valued attribute: mapped XSD datatype.
 - Custom-datatype-valued attribute: custom datatype class.
 - Enumeration-valued attribute: enumeration class generated under DK-CLS-10 (RD-09).
+- Class-valued attribute whose `propertyType` resolves to any other `Class` with a generated local `owl:Class` under DK-CLS-01 (including ordinary OntoUML class stereotypes, `null` stereotype, or unrecognized custom stereotypes accepted under DK-DIAG-06): that target `Class`'s generated local `owl:Class`.
 - Primary relation: target-end classifier.
 - Generated inverse: primary property's domain.
 
@@ -945,23 +946,30 @@ DirectKG MUST NOT invent a property-categorizer mapping or emit `rdf:type` asser
 
 ## 8. Attributes and datatypes
 
-### DK-ATT-01 — Attribute property kind
+### DK-ATT-01 — Attribute property kind (RD-02)
 
 Explicit boolean `isDerived` values on source attributes follow DK-GEN-05 (RD-20); the flag does not suppress ordinary attribute transformation.
 
-An attribute is classified by its resolved `propertyType`. For a supported datatype classifier with a localized name, primitive recognition uses DK-IRI-10's selector and the selected original text under DK-DAT-02, independently of the IRI strategy:
+An attribute is classified by its resolved `propertyType`. Primitive normalization (DK-DAT-02) and Visual Paradigm `void` recognition (DK-DAT-04) apply only when the resolved target `Class` has `stereotype == "datatype"`. For such a supported `«datatype»` classifier with a localized name, primitive recognition uses DK-IRI-10's selector and the selected original text under DK-DAT-02, independently of the IRI strategy:
 
 | Source type | Generated property | Range behavior |
 |---|---|---|
-| Supported primitive datatype | `owl:DatatypeProperty` | Registered XSD datatype |
+| Supported primitive datatype (`stereotype == "datatype"`) | `owl:DatatypeProperty` | Registered XSD datatype |
 | Custom `«datatype»` | `owl:ObjectProperty` | Custom datatype class |
 | `«enumeration»` | `owl:ObjectProperty` | Enumeration class generated under DK-CLS-10 |
+| Other `Class` with a generated local `owl:Class` under DK-CLS-01 (ordinary OntoUML class stereotypes, `null` stereotype, or unrecognized custom stereotypes accepted under DK-DIAG-06) | `owl:ObjectProperty` | Target `Class`'s generated local `owl:Class` |
 | `null` | `owl:DatatypeProperty` | No range |
-| Visual Paradigm `void` | `owl:DatatypeProperty` | No range; warning |
+| Visual Paradigm `void` (`stereotype == "datatype"`) | `owl:DatatypeProperty` | No range; warning |
 
-The attribute's domain is always its owning class. Enumeration-typed attributes follow the object-property and range mapping established by RD-09 in DK-CLS-10.
+The attribute's domain is always its owning class's generated local `owl:Class`. Whenever an eligible class attribute's `propertyType` resolves to a `Class` that has a generated local `owl:Class` under DK-CLS-01—including custom `«datatype»`, `«enumeration»`, ordinary OntoUML class stereotypes (such as `«kind»`, `«subkind»`, `«role»`, `«phase»`, `«category»`, `«mixin»`, `«roleMixin»`, `«phaseMixin»`, `«relator»`, `«mode»`, `«quality»`, `«event»`, `«historicalRole»`, `«situation»`, `«type»`, etc.), `null` stereotype, or unrecognized custom stereotypes accepted under DK-DIAG-06—DirectKG MUST transform the attribute as an ordinary `owl:ObjectProperty` with `rdfs:domain` equal to the owning class's generated local `owl:Class` and `rdfs:range` equal to the target `Class`'s generated local `owl:Class` (aligned with DK-GEN-03). Enumeration-typed attributes follow the object-property and range mapping established by RD-09 in DK-CLS-10. Supported primitive datatypes (DK-DAT-01–02), Visual Paradigm `void` (DK-DAT-04), and explicit `propertyType: null` (DK-DAT-03) retain their existing mappings unchanged.
+
+For attributes transformed as `owl:ObjectProperty` under this rule, DirectKG MUST generate ordinary `owl:ObjectProperty` declarations and axioms without inferring any OntoUML relation stereotype and without applying stereotype-specific relation mappings (for example, no asymmetric, irreflexive, event, dependency, mereological, gUFO, or `dkgm` axioms inferred from attribute `propertyType`, and no derived `Relation` stereotypes). DirectKG MUST NOT infer or flatten owned attributes of the target class onto the owning class.
+
+All existing attribute transformation rules remain applicable, including: necessary `rdfs:subClassOf` restrictions under DK-ATT-02 (not `owl:equivalentClass`); preservation of explicit attribute multiplicities under DK-ATT-03 (with no redundant `owl:allValuesFrom` under DK-ATT-04, and no new multiplicity mapping or configuration option); `isDerived` annotations under DK-GEN-05; distinct property identity, owner qualification, `subsettedProperties`/`redefinedProperties`, and `isReadOnly`/`isOrdered`/`begin`/`end` comments under DK-PROP-01–06; labels, descriptions, and language resolution under DK-LBL-01–02; exclusion from named inverse generation under DK-INV-01–02; and attribute multiplicity recovery and diagnostics under DK-DIAG-09–11.
 
 For a supported attribute that generates a property, `isReadOnly: true` is preserved as a comment on that property under DK-PROP-04 (RD-24). Ordering declarations with `isOrdered: true` follow DK-PROP-05 (RD-23), including per-occurrence INFO reporting under DK-DIAG-18. An explicitly supplied, recognized `begin` or `end` property stereotype follows the English-comment preservation mapping under DK-PROP-06 (RD-18).
+
+Transforming a class attribute whose `propertyType` resolves to a `Class` with a generated local `owl:Class` outside `«datatype»` and `«enumeration»` is non-erroneous under `strict`, `tolerant`, and `best-effort`; DirectKG MUST NOT emit an extra warning or error solely because the target `Class` is not `«datatype»` or `«enumeration»`. Existing structural-error and recovery rules under DK-DIAG-05 continue to apply for unresolved or invalid references; a target `Class` without a generated local `owl:Class` (other than handled primitives and `void`, for example a target omitted earlier under `best-effort`) retains its existing unresolved/unavailable-target boundary. This rule preserves DK-DIAG-04's eight-code diagnostic core unchanged and adds no new configuration option.
 
 ### DK-ATT-02 — Necessary conditions
 
@@ -1026,7 +1034,7 @@ The `char → xsd:string` mapping deliberately loses the one-character constrain
 
 ### DK-DAT-02 — Primitive normalization and registry
 
-Primitive resolution uses aggressive lexical normalization followed by exact lookup in a controlled registry. Normalization does not itself determine semantics and applies only to classifiers being interpreted as datatypes.
+Primitive resolution uses aggressive lexical normalization followed by exact lookup in a controlled registry. Normalization does not itself determine semantics and applies only to `«datatype»` classifiers (`stereotype == "datatype"`).
 
 The normalization SHOULD:
 
@@ -2175,7 +2183,7 @@ The following are not eligible:
 - material–relator and material–mode `«derivation»` connectors covered by DK-REL-08;
 - comparative–quality `«derivation»` connectors covered by DK-REL-18;
 - other resolved binary relations with relation-valued endpoints lacking an accepted mapping under DK-REL-17 (RD-16);
-- attributes represented as `owl:DatatypeProperty`;
+- attributes, whether represented as `owl:DatatypeProperty` or `owl:ObjectProperty`;
 - generalizations and generalization sets;
 - unsupported n-ary relations;
 - constructs mapped as assertions, annotations, or reified structures instead of object properties.
@@ -2708,6 +2716,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Ordinary designated source-ID use in ID mode in a case governed by DK-IRI-04's generic policy | No diagnostic solely for using that ID | No solely for using that ID |
 | Owner/source qualification using the classifier's DK-IRI-04 fallback candidate under DK-PROP-02 | No additional diagnostic solely because this qualification rule is used; existing missing-name, fallback, and input diagnostics remain applicable | No additional fatality solely for qualification |
 | Attribute typed by `void` | Warning; omit datatype mapping/range | No |
+| Class attribute whose `propertyType` resolves to a `Class` with a generated local `owl:Class` outside `«datatype»` and `«enumeration»` | Transform as an ordinary `owl:ObjectProperty` under DK-ATT-01 and DK-GEN-03 without inferring relation stereotypes or stereotype-specific relation mappings; no warning or error solely because the target `Class` is not `«datatype»` or `«enumeration»` | No under every input policy |
 | Unnamed ordinary relation using target-role or source-target fallback, including DK-REL-04's fallback for insufficient semantic-role evidence | Warning under the existing naming-diagnostic conditions; no additional naming diagnostic solely for a generated fallback label | No |
 | Successful ordinary stereotype-derived name | No diagnostic solely for successful naming; other applicable diagnostics retain their established conditions | No solely for successful naming |
 | Absence of an RDF origin marker for primary-relation fallback labels | No diagnostic or configuration control solely for that absence under DK-LBL-01 (RD-26, option A); existing naming and other applicable diagnostics remain unchanged | No solely for this condition |
@@ -3067,6 +3076,7 @@ These rules establish policy-dependent continuation, subject to the duplicate-ID
 - Diagnostic severity describes the problem; the selected policy determines whether conversion stops.
 - A relation with a null end `propertyType` remains untransformable. In `best-effort`, its omission can permit delivery of the usable remainder.
 - An attribute with `propertyType: null` is explicitly supported by DK-ATT-01 and is not automatically invalid.
+- An attribute whose `propertyType` resolves to a `Class` with a generated local `owl:Class` outside `«datatype»` and `«enumeration»` is non-erroneous under every input policy and transforms as an ordinary `owl:ObjectProperty` under DK-ATT-01.
 - Malformed JSON that cannot be parsed prevents transformation in every policy.
 
 ### DK-DIAG-06 — Stereotype acceptance policy (RD-03)
