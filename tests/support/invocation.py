@@ -1632,6 +1632,122 @@ def _generalization_membership_facts(message):
     return facts if len(facts) == 1 else set()
 
 
+def _unusable_categorizer_facts(message):
+    """Read an affirmative unusable-categorizer condition from the native reason.
+
+    Rejects internal-guard wording, bare expectations, negated or hedged claims,
+    valid/absent/null categorizer statements, and unrelated subjects.
+    """
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    # Mask literal container payloads so embedded punctuation or ID text cannot spoof prose.
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"""(?<!\w)(['"])(categorizer|class|owl[:\s]+class|null)\1""", r"\2", wording)
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+    cat_noun = (
+        r"\bcategorizer(?:\s+(?:reference|value|field|target|declaration|class))?\b"
+        r"(?!\s+(?:recovery|handling|policy|rule|mapping|assertions?|expansion|extension)\b)"
+    )
+    val = r"(?:\s+(?:<value>|<quoted>|-?\d+(?:\.\d+)?|true|false))?"
+    gs_scope = r"(?:\s+(?:of|for|on|in)\s+(?:the\s+)?(?:class\s+)?generalization[- ]?set(?:\s+(?:<quoted>|<value>))?)?"
+    cat_subj = rf"{cat_noun}{val}{gs_scope}(?:\s+(?:that|which))?"
+    owl_class = r"(?:generated\s+)?(?:local\s+)?(?:owl[:\s]+)?class(?:\s+(?:declaration|resource|element))?"
+    ref_noun = r"(?:(?:valid\s+)?(?:class\s+)?reference(?:\s+object)?|(?:json\s+)?object)"
+    unusable_adj = r"(?:unusable|invalid|malformed|unresolved|unresolvable|dangling|broken|non[- ]class)"
+    absent_adj = r"(?:absent|missing|null|omitted)"
+    valid_adj = r"(?:usable|valid|resolved|resolvable|preserved|present)"
+    non_class_decl = r"(?:generalization|generalizationset|relation|property|package|literal)"
+    non_class_type = rf"(?:string|str|number|integer|int|float|boolean|bool|array|list|{non_class_decl}|datatype|primitive)"
+    disqualifiers = (
+        rf"(?<!\bnot\s)(?<!\bno\s)\b(?:usable|valid|resolved|preserved)\s+{cat_noun}",
+        rf"{cat_subj}\s+(?:is|was)\s+(?:usable|valid|resolved|preserved)\b",
+        rf"{cat_subj}\s+(?:is|was)\s+(?:explicitly\s+)?(?<!non-)(?<!non )(?:null|absent|missing|omitted|not\s+(?:present|provided|supplied))\b",
+        rf"(?<!non-)(?<!non )\b(?:no|without(?:\s+(?:a|an))?|absent|missing|null)\s+{cat_noun}",
+        rf"\b{valid_adj}\s+or\s+(?:{unusable_adj}|{absent_adj})\b",
+        rf"\b(?:{unusable_adj}|{absent_adj})\s+or\s+{valid_adj}\b",
+        rf"(?:{cat_subj}\s+(?:is|was)\s+(?:(?:an?\s+)?{unusable_adj}\s+or\s+{absent_adj}|{absent_adj}\s+or\s+{unusable_adj})"
+        rf"|\b(?:{unusable_adj}\s+or\s+{absent_adj}|{absent_adj}\s+or\s+{unusable_adj})\s+{cat_noun})",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b|\busable\s+or\s+not\b",
+        rf"{cat_subj}\s+(?:may|might|could)\s+(?:be|not\s+be|fail)\b",
+        rf"\b(?:not|no|never|without|does\s+not\s+have|did\s+not\s+have|has\s+no)\s+"
+        rf"(?:(?:a|an|the)\s+)?{unusable_adj}\s+{cat_noun}",
+        rf"{cat_subj}\s+(?:is|was)\s+(?:not|neither)\s+(?:unusable|invalid|malformed|unresolved|unresolvable|dangling|broken|a\s+non[- ]class)\b",
+    )
+    guard_prefix = re.compile(
+        r"\b(?:not|no|never|without|neither|cannot|may|might|could|must|should|if|whether|unless|when|whenever)\b[^.!?;]*$"
+    )
+    active_guard = re.compile(
+        r"\b(?:did\s+not|does\s+not|not|never|if|whether|unless|when|whenever|may|might)\b[^.!?;]*$"
+    )
+    attributive = re.compile(
+        rf"(?:^|[:,]\s*|\b(?:has|had|contains?|with|uses?|specifies?|declares?|found|encountered)\s+)"
+        rf"(?:(?:a|an|the)\s+)?"
+        rf"{unusable_adj}(?:\s+or\s+(?:{unusable_adj}|non[- ]local))?\s+{cat_noun}"
+    )
+    predicative = re.compile(
+        rf"{cat_subj}\s*(?:"
+        rf"\s+(?:is|was)\s+(?:(?:an?\s+)?(?:unusable|invalid|malformed|unresolved|unresolvable|dangling|broken"
+        rf"|non[- ]class|non[- ]object|(?:supported\s+)?primitive\s+datatype|(?:visual\s+paradigm\s+)?void\b"
+        rf"|(?:string|str|number|integer|int|float|boolean|bool|array|list|{non_class_decl})\b)"
+        rf"|not\s+(?:usable|valid|resolved|resolvable|(?:a|an)\s+(?:usable\s+)?(?:{ref_noun}|{owl_class}))"
+        rf"|(?:a|an)\s+{non_class_type}\b[^.!?;]*\b(?:not|instead\s+of|rather\s+than)\s+(?:a|an)\s+(?:{ref_noun}|{owl_class}))"
+        rf"|\s+(?:is|was)\s+not\s+null\s*[,;:]\s*(?:but\s+)?it\s+(?:is|was)\s+(?:an?\s+)?{non_class_type}\b"
+        rf"|\s+(?:cannot|could\s+not|does\s+not|did\s+not|fails?\s+to|failed\s+to)\s+"
+        rf"(?:be\s+(?:resolved|used)|resolve(?:\s+to\s+(?:a|an)\s+{owl_class})?"
+        rf"|(?:supply|provide|produce|yield|generate|map\s+to|identify)\s+(?:a|an)\s+(?:{ref_noun}|{owl_class})"
+        rf"|(?:refer|point)\s+to\s+(?:a|an)\s+(?:{ref_noun}|{owl_class})|reference\s+(?:a|an)\s+(?:{ref_noun}|{owl_class}))"
+        rf"|\s+(?:has|had)\s+(?:(?:a|an)\s+)?(?:(?:{unusable_adj}(?:\s+or\s+(?:{unusable_adj}|missing))?\s+"
+        rf"(?:reference|id|identifier|value|target))|(?:missing(?:\s+or\s+{unusable_adj})?\s+(?:id|identifier))"
+        rf"|(?:reference[- ])?type\s+mismatch)\b"
+        rf"|\s+(?:reference\s+)?type\s+(?:does|did)\s+not\s+match(?:\s+(?:its|the)\s+(?:declaration|declared\s+type|class))?\b"
+        rf"|:\s*reference\s+type\s+does\s+not\s+match\b"
+        rf"|\s+(?:resolves?|resolved|points?|pointed|refers?|referred)\s+to\s+"
+        rf"(?:(?:a|an)\s+(?:non[- ]class|(?:supported\s+)?primitive\s+datatype|(?:class|datatype)\s+(?:without|lacking)\s+(?:a\s+)?{owl_class}"
+        rf"|{non_class_decl})\b|(?:visual\s+paradigm\s+)?void\b"
+        rf"|<quoted>(?:,\s*|\s+)not\s+(?:a|an)\s+(?:{ref_noun}|{owl_class}))"
+        rf"|\s+(?:has\s+no|lacks|is\s+without|without)\s+(?:a\s+)?{owl_class}"
+        rf"|\s+(?:(?:(?:is|was)\s+)?expected\s+(?:to\s+(?:be|resolve\s+to)\s+)?|(?:must|should)\s+(?:be|resolve\s+to|supply)\s+)"
+        rf"(?:a|an)\s+(?:{owl_class}|{ref_noun})\s*[,;:]\s*(?:but\s+)?(?:got|found|received|resolved\s+to|is|was)\s+"
+        rf"(?!null\b|absent\b|missing\b|omitted\b)\S+"
+        rf")"
+    )
+    active_failure = re.compile(
+        rf"\b(?:cannot|could\s+not|unable\s+to|failed\s+to|fails\s+to)\s+(?:resolve|use)\s+(?:the\s+)?{cat_noun}"
+    )
+    matched = False
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if any(re.search(pattern, clause) for pattern in disqualifiers):
+            return set()
+        for pattern in (attributive, predicative, active_failure):
+            for match in pattern.finditer(clause):
+                local_prefix = re.split(r"[:,]|\b(?:and|but|so|yet)\b", clause[:match.start()])[-1]
+                guard = active_guard if pattern is active_failure else guard_prefix
+                if guard.search(local_prefix):
+                    continue
+                matched = True
+    return {"unusable_categorizer"} if matched else set()
+
+
+def unusable_categorizer_diagnostic(message: str) -> bool:
+    """Return whether a native ERROR reason asserts an unusable-categorizer condition."""
+    return bool(_unusable_categorizer_facts(message))
+
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -1648,6 +1764,13 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             facts.update(membership_facts)
             if kind is None:
                 kind = "unusable_generalization_membership"
+        categorizer_facts = (_unusable_categorizer_facts(event.message)
+                             if event.severity == "ERROR" and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
+                             else set())
+        if categorizer_facts:
+            facts.update(categorizer_facts)
+            if kind is None:
+                kind = "unusable_categorizer"
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")

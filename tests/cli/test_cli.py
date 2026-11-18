@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
-from rdflib import Graph, Literal, Namespace, URIRef
-from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS
+from rdflib import BNode, Graph, Literal, Namespace, URIRef
+from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
@@ -20,7 +20,7 @@ from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, console_c
                                       diagnostics_report_write_error, dkgm_chain_facts, ontology_serialization_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained,
                                       transformation_failure_diagnostic)
-from tests.support.rdf import assert_graph_equal, property_chains, rooted_graph
+from tests.support.rdf import assert_graph_equal, load_graph, one_object, property_chains, rdf_list, rooted_graph
 
 BASE=Namespace('https://example.test/model#')
 ONTOLOGY=URIRef('https://example.test/model')
@@ -782,6 +782,121 @@ def test_unusable_membership_container_report_failure_takes_precedence(invoke, t
     assert destination.is_file() == recover
     assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
                and "membership_null" in event.facts for event in process.observation.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("defect", [
+    "malformed_reference", "dangling_id", "non_class_declaration", "primitive_datatype",
+])
+def test_unusable_categorizer_diagnostics_match_python_and_cli(invoke, tmp_path, defect, input_policy):
+    """Rules: DK-HO-04, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-DIAG-04, DK-DIAG-05; §15 diagnostic access, exit codes and delivery.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8.
+    Assert the condition and locator using native data without fixing a provisional code.
+    """
+    document = load_json("shared/categorizers")
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True)
+    expected_issues = frozenset()
+    if defect == "malformed_reference":
+        affected["categorizer"] = "cCategorizer"
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "dangling_id":
+        affected["categorizer"] = {"id": "missingCategorizer", "type": "Class"}
+        expected_issues = frozenset({"unresolved_reference:missingCategorizer"})
+    elif defect == "non_class_declaration":
+        affected["categorizer"] = {"id": "gOne", "type": "Generalization"}
+    elif defect == "primitive_datatype":
+        datatype = copy.deepcopy(source_element(document, "cBase"))
+        datatype.update(id="dString", name="string", stereotype="datatype", isPowertype=True)
+        document["model"]["contents"].append(datatype)
+        affected["categorizer"] = {"id": "dString", "type": "Class"}
+    assert fixture_issues(document) == expected_issues
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+    recover = input_policy == "best-effort"
+    outcome = "completed-with-errors" if recover else "aborted"
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == (1 if recover else 3), process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == recover
+    assert (invoke.read_provenance(python) is not None) == recover
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
+                   and "unusable_categorizer" in event.facts
+                   and event.code and event.code not in STABLE_DIAGNOSTIC_CODES for event in events), events
+    if recover:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        assert {s for s in delivered_graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == {
+            BASE.cBase, BASE.cOne, BASE.cTwo, BASE.cOutside, BASE.cDeep,
+            BASE.cCategorizer, BASE.cOtherCategorizer,
+        }
+        assert {frozenset(pair) for pair in delivered_graph.subject_objects(OWL.disjointWith)} == {
+            frozenset((BASE.cOne, BASE.cTwo)),
+            frozenset((BASE.cCategorizer, BASE.cOtherCategorizer)),
+        }
+        unions = [o for o in delivered_graph.objects(BASE.cBase, RDFS.subClassOf) if isinstance(o, BNode)]
+        assert len(unions) == 1
+        assert set(rdf_list(delivered_graph, one_object(delivered_graph, unions[0], OWL.unionOf))) == {BASE.cOne, BASE.cTwo}
+        assert set(delivered_graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+        assert not list(delivered_graph.subjects(RDF.type, BASE.cCategorizer))
+        assert not any(term in {BASE.gsFirst, BASE.dString, XSD.string, BASE.missingCategorizer, BASE.gOne}
+                       for triple in delivered_graph for term in triple)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_unusable_categorizer_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-HO-04, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8.
+    """
+    document = load_json("shared/categorizers")
+    source_element(document, "gsFirst").update(
+        isComplete=True, isDisjoint=True,
+        categorizer={"id": "missingCategorizer", "type": "Class"},
+    )
+    assert fixture_issues(document) == {"unresolved_reference:missingCategorizer"}
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
+               and "unusable_categorizer" in event.facts
+               and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+               for event in process.observation.diagnostics)
 
 
 @pytest.mark.parametrize("case", ["ontology_serialize", "ontology_encode", "ontology_create", "sidecar_write"])

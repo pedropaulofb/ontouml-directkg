@@ -1,20 +1,25 @@
 """Punned class/individual identity, categorizers, and powertype extension."""
 
 import copy
+import json
 
 import pytest
-from rdflib import Graph, Literal, Namespace
-from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
+from rdflib import BNode, Graph, Literal, Namespace, URIRef
+from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import source_element, write_input, fixture_issues
-from tests.support.invocation import diagnostic_signatures
-from tests.support.rdf import assert_contains, assert_selected_equal, load_graph
+from tests.support.invocation import diagnostic_signatures, unusable_categorizer_diagnostic
+from tests.support.rdf import assert_contains, assert_selected_equal, load_graph, one_object, rdf_list
 
 
 BASE = Namespace("https://example.test/model#")
 POLICIES = ["strict", "tolerant", "best-effort"]
 MODELED = {BASE.cBase, BASE.cOne, BASE.cTwo, BASE.cOutside, BASE.cDeep,
            BASE.cCategorizer, BASE.cOtherCategorizer}
+STABLE_DIAGNOSTIC_CODES = frozenset({
+    "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+    "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+})
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
@@ -272,6 +277,646 @@ def test_incomplete_categorized_set_keeps_independent_classifications(run, sourc
     assert set(graph.subjects(RDF.type, OWL.Class)) == MODELED
     assert not list(graph.objects(BASE.cBase, RDFS.subClassOf))
     assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+
+
+def _apply_unusable_categorizer(document, defect):
+    """Apply one explicit unusable-categorizer condition to gsFirst."""
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True)
+    expected_issues = frozenset()
+    if defect == "malformed_string":
+        affected["categorizer"] = "cCategorizer"
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "malformed_number":
+        affected["categorizer"] = 1
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "malformed_boolean":
+        affected["categorizer"] = False
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "malformed_array":
+        affected["categorizer"] = [{"id": "cCategorizer", "type": "Class"}]
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "malformed_missing_id":
+        affected["categorizer"] = {"type": "Class"}
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "malformed_missing_type":
+        affected["categorizer"] = {"id": "cCategorizer"}
+        expected_issues = frozenset({"malformed_reference"})
+    elif defect == "malformed_empty_id":
+        affected["categorizer"] = {"id": "", "type": "Class"}
+        expected_issues = frozenset({"invalid_reference_id"})
+    elif defect == "malformed_non_utf8_id":
+        affected["categorizer"] = {"id": "\ud800", "type": "Class"}
+        expected_issues = frozenset({"invalid_reference_id"})
+    elif defect == "dangling_id":
+        affected["categorizer"] = {"id": "missingCategorizer", "type": "Class"}
+        expected_issues = frozenset({"unresolved_reference:missingCategorizer"})
+    elif defect == "type_mismatch":
+        source_element(document, "cCategorizer")["isPowertype"] = True
+        affected["categorizer"] = {"id": "cCategorizer", "type": "Relation"}
+        expected_issues = frozenset({"reference_type_mismatch:cCategorizer"})
+    elif defect == "non_class_generalization":
+        affected["categorizer"] = {"id": "gOne", "type": "Generalization"}
+    elif defect == "non_class_property":
+        source_element(document, "cBase")["properties"] = [{
+            "id": "aTag", "name": "tag", "description": None, "type": "Property",
+            "propertyAssignments": None, "stereotype": None, "isDerived": False,
+            "isReadOnly": False, "isOrdered": False, "cardinality": None,
+            "propertyType": None, "subsettedProperties": None,
+            "redefinedProperties": None, "aggregationKind": None,
+        }]
+        affected["categorizer"] = {"id": "aTag", "type": "Property"}
+    elif defect == "non_class_relation":
+        document["model"]["contents"].append({
+            "id": "rLink", "name": "links", "description": None, "type": "Relation",
+            "propertyAssignments": None, "stereotype": "material", "isAbstract": False,
+            "isDerived": False,
+            "properties": [
+                {
+                    "id": "eLinkSrc", "name": "linkSource", "description": None, "type": "Property",
+                    "propertyAssignments": None, "stereotype": None, "isDerived": False,
+                    "isReadOnly": False, "isOrdered": False, "cardinality": None,
+                    "propertyType": {"id": "cBase", "type": "Class"},
+                    "subsettedProperties": None, "redefinedProperties": None, "aggregationKind": "NONE",
+                },
+                {
+                    "id": "eLinkTgt", "name": "linkTarget", "description": None, "type": "Property",
+                    "propertyAssignments": None, "stereotype": None, "isDerived": False,
+                    "isReadOnly": False, "isOrdered": False, "cardinality": None,
+                    "propertyType": {"id": "cOutside", "type": "Class"},
+                    "subsettedProperties": None, "redefinedProperties": None, "aggregationKind": "NONE",
+                },
+            ],
+        })
+        affected["categorizer"] = {"id": "rLink", "type": "Relation"}
+    elif defect == "non_class_package":
+        affected["categorizer"] = {"id": "higherProject_root", "type": "Package"}
+        expected_issues = frozenset({"unresolved_reference:higherProject_root"})
+    elif defect == "primitive_datatype":
+        datatype = copy.deepcopy(source_element(document, "cBase"))
+        datatype.update(id="dString", name="string", stereotype="datatype", isPowertype=True)
+        document["model"]["contents"].append(datatype)
+        affected["categorizer"] = {"id": "dString", "type": "Class"}
+    elif defect == "void_datatype":
+        void_cls = copy.deepcopy(source_element(document, "cBase"))
+        void_cls.update(id="dVoid", name="void", stereotype="datatype", isPowertype=True)
+        document["model"]["contents"].append(void_cls)
+        affected["categorizer"] = {"id": "dVoid", "type": "Class"}
+    else:
+        raise AssertionError(f"Unlisted unusable-categorizer defect: {defect}")
+    return expected_issues
+
+
+def _assert_unusable_categorizer_error(diagnostics):
+    assert any(
+        event.severity == "ERROR"
+        and "gsFirst" in event.identified_sources
+        and "unusable_categorizer" in event.facts
+        and event.code
+        and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in diagnostics
+    ), diagnostics
+
+
+def _assert_complete_multi_member_graph_without_gsfirst_categorizer(graph, *, modeled, disjoint_pairs):
+    assert isinstance(graph, Graph)
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == modeled
+    named_subclasses = {(s, o) for s, o in graph.subject_objects(RDFS.subClassOf) if not isinstance(o, BNode)}
+    assert named_subclasses == {
+        (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+        (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside),
+    }
+    bnode_subclasses = [(s, o) for s, o in graph.subject_objects(RDFS.subClassOf) if isinstance(o, BNode)]
+    assert len(bnode_subclasses) == 1 and bnode_subclasses[0][0] == BASE.cBase
+    union_node = bnode_subclasses[0][1]
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, BNode)} == {union_node}
+    union_members = rdf_list(graph, one_object(graph, union_node, OWL.unionOf))
+    assert len(union_members) == 2 and set(union_members) == {BASE.cOne, BASE.cTwo}
+    for predicate in (OWL.disjointUnionOf, OWL.equivalentClass):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == disjoint_pairs
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+    for cls in modeled:
+        expected_types = ({OWL.Class, OWL.NamedIndividual, BASE.cOtherCategorizer}
+                          if cls == BASE.cOne else {OWL.Class})
+        assert set(graph.objects(cls, RDF.type)) == expected_types
+    assert not any(BASE.gsFirst in triple for triple in graph)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("categorizer_state", ["absent", "null"])
+def test_absent_or_null_categorizer_remains_uncategorized_without_error(
+        run, source_json, tmp_path, categorizer_state, input_policy):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-DIAG-05.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. Absent and
+    explicit null categorizers remain uncategorized sets with no error.
+    """
+    document = source_json("shared/categorizers")
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True)
+    if categorizer_state == "absent":
+        del affected["categorizer"]
+    else:
+        affected["categorizer"] = None
+    assert fixture_issues(document) == frozenset()
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "completed"
+    assert not any(event.severity in {"WARNING", "ERROR"} or "unusable_categorizer" in event.facts
+                   or event.kind == "singleton_completeness" for event in result.diagnostics)
+    _assert_complete_multi_member_graph_without_gsfirst_categorizer(
+        result.ontology, modeled=MODELED,
+        disjoint_pairs={frozenset((BASE.cOne, BASE.cTwo)), frozenset((BASE.cCategorizer, BASE.cOtherCategorizer))},
+    )
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("defect", [
+    "malformed_string", "malformed_number", "malformed_boolean", "malformed_array",
+    "malformed_missing_id", "malformed_missing_type", "malformed_empty_id", "malformed_non_utf8_id",
+    "dangling_id", "type_mismatch",
+    "non_class_generalization", "non_class_property", "non_class_relation", "non_class_package",
+    "primitive_datatype", "void_datatype",
+])
+def test_unusable_categorizer_aborts_or_preserves_complete_membership_constraints(
+        run, source_json, tmp_path, defect, input_policy):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-01, DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-ATT-01, DK-DAT-01, DK-REL-01, DK-DIAG-05.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. Exercises
+    malformed references, unresolved references, non-Class declarations, and
+    Classes without a generated local owl:Class without inventing a substitute.
+    """
+    document = source_json("shared/categorizers")
+    expected_issues = _apply_unusable_categorizer(document, defect)
+    assert fixture_issues(document) == expected_issues
+    path = write_input(tmp_path, document, ensure_ascii=(defect == "malformed_non_utf8_id"))
+    if defect == "malformed_non_utf8_id":
+        assert json.loads(path.read_bytes()) == document
+
+    result = run(path=path, iri_strategy="id", input_policy=input_policy)
+    _assert_unusable_categorizer_error(result.diagnostics)
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    _assert_complete_multi_member_graph_without_gsfirst_categorizer(
+        graph, modeled=MODELED,
+        disjoint_pairs={frozenset((BASE.cOne, BASE.cTwo)), frozenset((BASE.cCategorizer, BASE.cOtherCategorizer))},
+    )
+    if defect == "dangling_id":
+        assert not any(BASE.missingCategorizer in triple for triple in graph)
+    elif defect == "non_class_generalization":
+        assert not any(BASE.gOne in triple for triple in graph)
+    elif defect == "non_class_property":
+        assert (BASE.aTag, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.aTag, RDFS.domain, BASE.cBase) in graph
+        assert not list(graph.subjects(RDF.type, BASE.aTag))
+    elif defect == "non_class_relation":
+        assert (BASE.eLinkTgt, RDF.type, OWL.ObjectProperty) in graph
+        assert (BASE.eLinkSrc, RDF.type, OWL.ObjectProperty) in graph
+        assert not any(BASE.rLink in triple for triple in graph)
+        assert not list(graph.subjects(RDF.type, BASE.eLinkTgt))
+        assert not list(graph.subjects(RDF.type, BASE.eLinkSrc))
+    elif defect == "non_class_package":
+        assert not any(BASE.higherProject_root in triple for triple in graph)
+    elif defect == "primitive_datatype":
+        assert not any(term in {BASE.dString, XSD.string} for triple in graph for term in triple)
+    elif defect == "void_datatype":
+        assert not any(BASE.dVoid in triple or "void" in str(term).casefold()
+                       for triple in graph for term in triple)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+def test_categorizer_omitted_earlier_under_best_effort_preserves_set_constraints(
+        run, source_json, tmp_path, powertype, input_policy):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-IRI-04, DK-DIAG-05; §3.4.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. A target
+    class omitted earlier under best-effort makes the categorizer unresolved.
+    """
+    document = source_json("shared/categorizers")
+    source_element(document, "cCategorizer").update(id=None, isPowertype=powertype)
+    source_element(document, "gsFirst").update(isComplete=True, isDisjoint=True)
+    assert fixture_issues(document) == {"invalid_id", "unresolved_reference:cCategorizer"}
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert any(event.severity == "ERROR" and event.kind == "invalid_id" for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    _assert_unusable_categorizer_error(result.diagnostics)
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+    graph = result.ontology
+    _assert_complete_multi_member_graph_without_gsfirst_categorizer(
+        graph, modeled=MODELED - {BASE.cCategorizer},
+        disjoint_pairs={frozenset((BASE.cOne, BASE.cTwo))},
+    )
+    assert not any(BASE.cCategorizer in triple for triple in graph)
+
+
+@pytest.mark.parametrize("repeated", [False, True], ids=["single_ref", "repeated_ref"])
+@pytest.mark.parametrize("defect", ["dangling_id", "primitive_datatype", "non_class_generalization", "malformed_string"])
+def test_unusable_categorizer_preserves_singleton_completeness_and_info(
+        run, source_json, tmp_path, defect, repeated):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-08, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. An unusable
+    categorizer alone must not suppress DK-CLS-08 singleton completeness or its
+    DK-DIAG-14 INFO diagnostic when membership is complete.
+    """
+    document = source_json("shared/categorizers")
+    expected_issues = _apply_unusable_categorizer(document, defect)
+    affected = source_element(document, "gsFirst")
+    affected["generalizations"] = [{"id": "gOne", "type": "Generalization"}] * (2 if repeated else 1)
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    _assert_unusable_categorizer_error(result.diagnostics)
+    singleton = [event for event in result.diagnostics if event.kind == "singleton_completeness"]
+    assert singleton and all(event.severity == "INFO" for event in singleton)
+    assert any({"gsFirst", "cBase", "cOne"} <= set(event.identified_sources)
+               and {"extensional_equivalence", "distinct_identifiers"} <= event.facts
+               for event in singleton)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == MODELED
+    assert not any(isinstance(s, BNode) for s in graph.subjects(RDF.type, OWL.Class))
+    assert set(graph.subject_objects(RDFS.subClassOf)) == {
+        (BASE.cOne, BASE.cBase), (BASE.cBase, BASE.cOne),
+        (BASE.cTwo, BASE.cBase), (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside),
+    }
+    for predicate in (OWL.unionOf, OWL.disjointUnionOf, OWL.equivalentClass):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == {
+        frozenset((BASE.cCategorizer, BASE.cOtherCategorizer)),
+    }
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+    for cls in MODELED:
+        expected_types = ({OWL.Class, OWL.NamedIndividual, BASE.cOtherCategorizer}
+                          if cls == BASE.cOne else {OWL.Class})
+        assert set(graph.objects(cls, RDF.type)) == expected_types
+    assert not any(term in {BASE.gsFirst, BASE.dString, XSD.string, BASE.missingCategorizer, BASE.gOne}
+                   for triple in graph for term in triple)
+
+
+@pytest.mark.parametrize("defect", ["dangling_id", "primitive_datatype"])
+@pytest.mark.parametrize("failure", ["unresolved_member", "failed_member"])
+@pytest.mark.parametrize("survivors", [0, 1, 2], ids=["no_survivors", "one_survivor", "two_survivors"])
+def test_unusable_categorizer_with_failed_member_best_effort_applies_both_rules(
+        run, source_json, tmp_path, defect, failure, survivors):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-GEN-12, DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. Combined
+    member failure and unusable categorizer omit coverage and all categorizer
+    or powertype assertions from gsFirst while keeping surviving disjointness.
+    """
+    document = source_json("shared/categorizers")
+    member_locator = _incomplete_categorized_set(document, powertype=False, survivors=survivors, failure=failure)
+    member_issues = set(fixture_issues(document))
+    categorizer_issues = set(_apply_unusable_categorizer(document, defect))
+    assert fixture_issues(document) == member_issues | categorizer_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    assert any(event.severity == "ERROR" and member_locator in event.identified_sources
+               and "unusable_categorizer" not in event.facts for event in result.diagnostics), result.diagnostics
+    _assert_unusable_categorizer_error(result.diagnostics)
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == MODELED
+    assert not any(isinstance(s, BNode) for s in graph.subjects(RDF.type, OWL.Class))
+    assert set(graph.subject_objects(RDFS.subClassOf)) == {
+        (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+        (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside),
+    }
+    for predicate in (OWL.unionOf, OWL.disjointUnionOf, OWL.equivalentClass):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
+    expected_disjoint = {frozenset((BASE.cCategorizer, BASE.cOtherCategorizer))}
+    if survivors == 2:
+        expected_disjoint.add(frozenset((BASE.cOne, BASE.cTwo)))
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == expected_disjoint
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+    for cls in MODELED:
+        expected_types = ({OWL.Class, OWL.NamedIndividual, BASE.cOtherCategorizer}
+                          if cls == BASE.cOne else {OWL.Class})
+        assert set(graph.objects(cls, RDF.type)) == expected_types
+    assert not any(term in {BASE.gsFirst, BASE.gFailed, BASE.dString, XSD.string, BASE.missingCategorizer}
+                   for triple in graph for term in triple)
+
+
+@pytest.mark.parametrize("defect", ["dangling_id", "primitive_datatype"])
+@pytest.mark.parametrize("failure", ["unresolved_member", "failed_member"])
+@pytest.mark.parametrize("input_policy", ["strict", "tolerant"])
+def test_unusable_categorizer_with_failed_member_aborts_under_strict_and_tolerant(
+        run, source_json, tmp_path, defect, failure, input_policy):
+    """Rules: DK-HO-04, DK-CLS-09, DK-DIAG-04, DK-DIAG-05.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. Either the
+    member failure or unusable categorizer may abort first under strict/tolerant.
+    """
+    document = source_json("shared/categorizers")
+    member_locator = _incomplete_categorized_set(document, powertype=False, survivors=1, failure=failure)
+    member_issues = set(fixture_issues(document))
+    categorizer_issues = set(_apply_unusable_categorizer(document, defect))
+    assert fixture_issues(document) == member_issues | categorizer_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+    assert any(
+        event.severity == "ERROR"
+        and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
+        and (member_locator in event.identified_sources
+             or ("gsFirst" in event.identified_sources and "unusable_categorizer" in event.facts))
+        for event in result.diagnostics
+    ), result.diagnostics
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+
+
+@pytest.mark.parametrize("iri_strategy", ["id", "name"])
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+@pytest.mark.parametrize("defect", ["dangling_id", "primitive_datatype"])
+def test_unusable_categorizer_keeps_independent_higher_order_classifications(
+        run, source_json, tmp_path, iri_strategy, powertype, defect):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-IRI-02, DK-IRI-09, DK-DIAG-05.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. A separate
+    valid categorized set over gDeep (general cOutside) retains its ordinary or
+    powertype classifications while gsFirst omits only its own categorizer facts.
+    """
+    document = source_json("shared/categorizers")
+    expected_issues = _apply_unusable_categorizer(document, defect)
+    source_element(document, "cCategorizer")["isPowertype"] = powertype
+    independent = copy.deepcopy(source_element(document, "gsSecond"))
+    independent.update(id="gsIndependent", name="Independent",
+                       categorizer={"id": "cCategorizer", "type": "Class"},
+                       generalizations=[{"id": "gDeep", "type": "Generalization"}])
+    document["model"]["contents"].append(independent)
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    _assert_unusable_categorizer_error(result.diagnostics)
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    iris = {
+        key: BASE[key if iri_strategy == "id" else name]
+        for key, name in (("cBase", "Base"), ("cOne", "One"), ("cTwo", "Two"),
+                          ("cOutside", "Outside"), ("cDeep", "Deep"),
+                          ("cCategorizer", "Categorizer"), ("cOtherCategorizer", "OtherCategorizer"))
+    }
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == set(iris.values())
+    expected_cat = {iris["cOutside"], iris["cDeep"]} if powertype else {iris["cDeep"]}
+    assert set(graph.subjects(RDF.type, iris["cCategorizer"])) == expected_cat
+    assert set(graph.subjects(RDF.type, iris["cOtherCategorizer"])) == {iris["cOne"]}
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == expected_cat | {iris["cOne"]}
+    assert set(graph.objects(iris["cBase"], RDF.type)) == {OWL.Class}
+    assert set(graph.objects(iris["cTwo"], RDF.type)) == {OWL.Class}
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == {
+        frozenset((iris["cOne"], iris["cTwo"])),
+        frozenset((iris["cCategorizer"], iris["cOtherCategorizer"])),
+    }
+    bnode_subclasses = [o for o in graph.objects(iris["cBase"], RDFS.subClassOf) if isinstance(o, BNode)]
+    assert len(bnode_subclasses) == 1
+    assert set(rdf_list(graph, one_object(graph, bnode_subclasses[0], OWL.unionOf))) == {iris["cOne"], iris["cTwo"]}
+    assert not any(term in {BASE.dString, BASE.string, XSD.string, BASE.missingCategorizer}
+                   for triple in graph for term in triple)
+    if iri_strategy == "name":
+        assert not list(graph.subjects(DCTERMS.identifier, Literal("dString")))
+        assert not list(graph.subjects(DCTERMS.identifier, Literal("missingCategorizer")))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("precedence", [
+    "empty_members", "null_members", "absent_members", "non_array_members", "duplicate_id",
+])
+def test_unusable_categorizer_respects_dk_diag_12_and_duplicate_id_precedence(
+        run, source_json, tmp_path, precedence, input_policy):
+    """Rules: DK-HO-04, DK-DIAG-12, DK-DIAG-05, DK-CLS-02, DK-CLS-03; §3.4 duplicate declaration IDs.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. DK-DIAG-12
+    governs empty/missing/malformed membership containers and fatal duplicate
+    declaration IDs retain precedence even when categorizer is also unusable.
+    """
+    document = source_json("shared/categorizers")
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True,
+                    categorizer={"id": "missingCategorizer", "type": "Class"})
+    expected_issues = {"unresolved_reference:missingCategorizer"}
+    if precedence == "empty_members":
+        affected["generalizations"] = []
+    elif precedence == "null_members":
+        affected["generalizations"] = None
+    elif precedence == "absent_members":
+        del affected["generalizations"]
+    elif precedence == "non_array_members":
+        affected["generalizations"] = {"id": "gOne", "type": "Generalization"}
+        expected_issues.add("malformed_membership")
+    elif precedence == "duplicate_id":
+        document["model"]["contents"].append(copy.deepcopy(source_element(document, "cOne")))
+        expected_issues.add("duplicate_id:cOne")
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all("unusable_categorizer" not in event.facts for event in result.diagnostics), result.diagnostics
+    if precedence == "duplicate_id":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        assert any(event.severity == "ERROR" and event.code == "DUPLICATE_SOURCE_ID"
+                   and "cOne" in event.identified_sources for event in result.diagnostics)
+        return
+    if precedence == "empty_members":
+        assert any(event.severity == "ERROR" and event.kind == "empty_generalization_set"
+                   and "gsFirst" in event.identified_sources for event in result.diagnostics)
+    else:
+        fact = {"null_members": "membership_null", "absent_members": "membership_absent",
+                "non_array_members": "membership_non_array"}[precedence]
+        assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources
+                   and fact in event.facts for event in result.diagnostics), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    assert set(graph.subjects(RDF.type, OWL.Class)) == MODELED
+    assert set(graph.subject_objects(RDFS.subClassOf)) == {
+        (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+        (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside),
+    }
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == {
+        frozenset((BASE.cCategorizer, BASE.cOtherCategorizer)),
+    }
+    assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert not list(graph.subjects(RDF.type, BASE.cCategorizer))
+    for predicate in (OWL.unionOf, OWL.disjointUnionOf, OWL.equivalentClass):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not any(term in {BASE.gsFirst, BASE.missingCategorizer} for triple in graph for term in triple)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+@pytest.mark.parametrize("scenario", ["primitive_with_attribute", "void_with_attribute", "enumeration_literal"])
+def test_unusable_categorizer_preserves_independent_target_mappings(
+        run, source_json, tmp_path, scenario, input_policy):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-01, DK-CLS-02, DK-CLS-03, DK-CLS-04, DK-CLS-06, DK-CLS-07, DK-CLS-10, DK-ATT-01, DK-DAT-01, DK-DIAG-05.
+
+    RD-02 Alternative A, 0f290d3afb830418297af13c30c4c65be1e13ca8. An unusable
+    categorizer target that independently participates in attribute typing or
+    enumeration-literal generation retains its valid mapping without acting as
+    a categorizer class or XSD rdf:type target.
+    """
+    document = source_json("shared/categorizers")
+    source_element(document, "gsFirst").update(isComplete=True, isDisjoint=True)
+    if scenario in {"primitive_with_attribute", "void_with_attribute"}:
+        target_id = "dString" if scenario == "primitive_with_attribute" else "dVoid"
+        attr_id = "aLabel" if scenario == "primitive_with_attribute" else "aGap"
+        datatype = copy.deepcopy(source_element(document, "cBase"))
+        datatype.update(id=target_id, name="string" if scenario == "primitive_with_attribute" else "void",
+                        stereotype="datatype", isPowertype=True)
+        document["model"]["contents"].append(datatype)
+        source_element(document, "cBase")["properties"] = [{
+            "id": attr_id, "name": attr_id[1:].lower(), "description": None, "type": "Property",
+            "propertyAssignments": None, "stereotype": None, "isDerived": False,
+            "isReadOnly": False, "isOrdered": False, "cardinality": None,
+            "propertyType": {"id": target_id, "type": "Class"}, "subsettedProperties": None,
+            "redefinedProperties": None, "aggregationKind": None,
+        }]
+        source_element(document, "gsFirst")["categorizer"] = {"id": target_id, "type": "Class"}
+    else:
+        enumeration = copy.deepcopy(source_element(document, "cBase"))
+        enumeration.update(
+            id="eStatus", name="Status", stereotype="enumeration",
+            literals=[{"id": "vPending", "name": "Pending", "description": None,
+                       "type": "Literal", "propertyAssignments": None}],
+        )
+        document["model"]["contents"].append(enumeration)
+        source_element(document, "gsFirst")["categorizer"] = {"id": "vPending", "type": "Literal"}
+    assert fixture_issues(document) == frozenset()
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    _assert_unusable_categorizer_error(result.diagnostics)
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert isinstance(graph, Graph)
+    expected_modeled = MODELED | ({BASE.eStatus} if scenario == "enumeration_literal" else set())
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == expected_modeled
+    assert {(s, o) for s, o in graph.subject_objects(RDFS.subClassOf) if not isinstance(o, BNode)} == {
+        (BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase),
+        (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside),
+    }
+    bnode_subclasses = [(s, o) for s, o in graph.subject_objects(RDFS.subClassOf) if isinstance(o, BNode)]
+    assert len(bnode_subclasses) == 1 and bnode_subclasses[0][0] == BASE.cBase
+    assert set(rdf_list(graph, one_object(graph, bnode_subclasses[0][1], OWL.unionOf))) == {BASE.cOne, BASE.cTwo}
+    actual_disjoint = {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)}
+    base_disjoint = {
+        frozenset((BASE.cOne, BASE.cTwo)),
+        frozenset((BASE.cCategorizer, BASE.cOtherCategorizer)),
+    }
+    if scenario == "enumeration_literal":
+        required_disjoint = base_disjoint | {
+            frozenset((BASE.eStatus, cls)) for cls in (BASE.cBase, BASE.cCategorizer, BASE.cOtherCategorizer)
+        }
+        optional_inherited = {
+            frozenset((BASE.eStatus, cls)) for cls in (BASE.cOne, BASE.cTwo, BASE.cOutside, BASE.cDeep)
+        }
+        assert required_disjoint <= actual_disjoint <= required_disjoint | optional_inherited
+    else:
+        assert actual_disjoint == base_disjoint
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert not list(graph.subjects(RDF.type, BASE.cCategorizer))
+    assert not any(BASE.gsFirst in triple for triple in graph)
+    if scenario == "primitive_with_attribute":
+        assert (BASE.aLabel, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.aLabel, RDFS.domain, BASE.cBase) in graph
+        assert (BASE.aLabel, RDFS.range, XSD.string) in graph
+        assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+        assert not list(graph.subjects(RDF.type, XSD.string))
+        assert not any(BASE.dString in triple for triple in graph)
+    elif scenario == "void_with_attribute":
+        assert any(event.kind == "void_datatype" and event.severity == "WARNING"
+                   and "aGap" in event.identified_sources for event in result.diagnostics)
+        assert (BASE.aGap, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.aGap, RDFS.domain, BASE.cBase) in graph
+        assert not list(graph.objects(BASE.aGap, RDFS.range))
+        assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne}
+        assert not any(BASE.dVoid in triple or "void" in str(term).casefold() for triple in graph for term in triple)
+    else:
+        assert set(graph.subjects(RDF.type, OWL.NamedIndividual)) == {BASE.cOne, BASE.vPending}
+        assert set(graph.objects(BASE.vPending, RDF.type)) == {OWL.NamedIndividual, BASE.eStatus}
+        closures = [
+            rdf_list(graph, head)
+            for expr in ({BASE.eStatus}
+                         | set(graph.objects(BASE.eStatus, OWL.equivalentClass))
+                         | set(graph.subjects(OWL.equivalentClass, BASE.eStatus)))
+            for head in graph.objects(expr, OWL.oneOf)
+        ]
+        assert closures == [(BASE.vPending,)]
+        assert not list(graph.subjects(RDF.type, OWL.AllDifferent))
+        assert not list(graph.subjects(RDF.type, BASE.vPending))
+
+
+def test_unusable_categorizer_reader_requires_affirmative_condition():
+    """Harness only: verify affirmative unusable-categorizer wording without fixing provisional codes."""
+    accepted = (
+        "Generalization set 'gsFirst' has an unusable categorizer reference {'id': 'dString', 'type': 'Class'}.",
+        "Generalization set 'gsFirst' has an invalid or unresolved categorizer reference: 'Unresolved source reference'.",
+        "Generalization set 'gsFirst' categorizer {'id': 'dString', 'type': 'Class'} has no generated local OWL class.",
+        "Generalization set 'gsFirst' categorizer 'dString' resolves to a Class without a generated local OWL class.",
+        "Generalization set 'gsFirst' categorizer 'dString' resolves to a datatype without a generated local OWL class.",
+        "Generalization set 'gsFirst' categorizer 'dVoid' is Visual Paradigm void.",
+        "Generalization set 'gsFirst' categorizer 'dString' is a supported primitive datatype.",
+        "Generalization set 'gsFirst' categorizer 'gOne' is a Generalization, not a Class.",
+        "Generalization set 'gsFirst' categorizer 'gOne' resolves to a non-Class declaration.",
+        "Generalization set 'gsFirst' categorizer 'gOne' resolves to 'Generalization', not a Class.",
+        "Categorizer 'dString' on generalization set 'gsFirst' has no generated local OWL class.",
+        "Generalization set 'gsFirst' categorizer {'id': 'cCategorizer', 'type': 'Relation'} has a reference-type mismatch.",
+        "Generalization set 'gsFirst': categorizer reference type does not match its declaration.",
+        "Categorizer of generalization set 'gsFirst' cannot be resolved.",
+        "Generalization set 'gsFirst' has a non-null categorizer that does not identify a generated local OWL class.",
+    )
+    rejected = (
+        "Categorizer without a generated local class remains outside the decided baseline.",
+        "Unresolved categorizer recovery remains outside the decided baseline.",
+        "Unexpected internal failure while inspecting categorizer.",
+        "Categorizer must resolve to a local OWL class.",
+        "Categorizer 'cCategorizer' is expected to be a Class.",
+        "Categorizer is expected to be a Class, got null.",
+        "Generalization set 'gsFirst' categorizer is null.",
+        "Generalization set 'gsFirst' categorizer is absent.",
+        "Generalization set 'gsFirst' has no categorizer.",
+        "Generalization set 'gsFirst' categorizer is valid.",
+        "Generalization set 'gsFirst' categorizer is not unusable.",
+        "Generalization set 'gsFirst' categorizer is neither invalid nor unresolved.",
+        "Generalization set 'gsFirst' categorizer is malformed or missing.",
+        "Generalization set 'gsFirst' has a usable or invalid categorizer.",
+        "If the categorizer is unusable, conversion aborts.",
+        "Generalization set 'gsFirst' member 'gOne' cannot be resolved; categorizer was not checked.",
+        "Generalization set 'gsFirst' has an invalid generalizations container, not an unusable categorizer.",
+        "Generalization set 'gsFirst': the categorizer is not null, and member 'missingMember' failed.",
+        "Categorizer 'cCategorizer' on generalization set 'gsFirst' is valid.",
+        "Generalization set 'gsFirst' categorizer 'dString' may resolve to a datatype without a local OWL class.",
+    )
+    for message in accepted:
+        assert unusable_categorizer_diagnostic(message), message
+    for message in rejected:
+        assert not unusable_categorizer_diagnostic(message), message
+
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

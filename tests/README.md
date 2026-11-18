@@ -129,7 +129,12 @@ stderr records, recognizing the inspected bracket headers and colon headers
 (such as ERROR:). Each event retains its raw bytes and originating stream.
 No event or severity is inferred from JSON reports, exit status or source inputs.
 Only severity, message and raw evidence are bound on console events; accessing
-category/source/fact details raises ImplementationUnavailable.
+category/source/fact details raises ImplementationUnavailable. For RD-02
+unusable categorizers (`0f290d3afb830418297af13c30c4c65be1e13ca8`), the
+adapter additionally reads affirmative unusable-categorizer conditions from
+native `ERROR` reasons into `unusable_categorizer` without fixing provisional
+diagnostic codes, rejecting internal-guard wording, bare expectations, negated
+or hedged claims, and valid/absent/null/unrelated statements.
 
 Unmapped diagnostic meanings, fault injection, detailed console normalization,
 existing-destination delivery and other protocol operations remain explicitly
@@ -1859,3 +1864,26 @@ and no previously passing case regressed. Collection retains all 3,627 base
 node IDs and adds 38, for 3,665 total. Full-suite execution was unperformed.
 Identifier assertions beyond the internal-failure exception remain test-first.
 This TEST CHANGE awaits independent Test Reviewer review.
+
+## RD-02 unusable categorizers in class generalization sets
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK, no findings** for `0f290d3afb830418297af13c30c4c65be1e13ca8`.
+The [scoped inventory](coverage.md#rd-02-unusable-categorizer-in-class-generalization-sets--alternative-a)
+records the exact 135 behavioral nodes, 1 independent diagnostic-reader check,
+accepted clauses, runtime mutations over `shared/categorizers/input.json`, and
+validation evidence at publication base `12bd6c9e63cf1a02fa7e664deddcb637d52b055c`.
+
+They use the existing public `convert()` and real subprocess CLI bindings plus
+an affirmative `unusable_categorizer` condition reader in
+`tests/support/invocation.py` without freezing a provisional diagnostic code.
+At `12bd6c9e63cf1a02fa7e664deddcb637d52b055c`, pytest collection yields 3,854
+nodes (3,718 baseline, 0 removed, 136 added). The 136 targeted nodes yield **25
+passes** and **111 test-first failures** at the native `emit_generalizations`
+`NotImplementedError` guard (`INTERNAL_TRANSFORMATION_FAILURE` / exit 3).
+Ephemeral in-memory spec probes confirmed all 118 `test_higher_order.py` cases
+and all 4 CLI recovered-graph defect variants pass against conforming behavior.
+Selected regressions match the base identically (`171` passed, `75` pre-existing
+failures; `110/110` passing in `test_classes.py` and `test_input_diagnostics.py`).
+Full-suite execution was unperformed. This submission awaits independent Test
+Reviewer review; no production-correctness claim is made.
