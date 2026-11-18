@@ -1,11 +1,12 @@
 """Allocate named inverses after source-backed claims and final IRIs (DK-INV)."""
 
 from collections import Counter, defaultdict
+from itertools import chain
 
 from rdflib import URIRef
 
 from .annotations import source_text
-from .identity import class_name_candidate, escape_id, naming_text, normalize_name
+from .identity import check_id_candidate_collisions, class_name_candidate, escape_id, naming_text, normalize_name
 from .relations import Relation
 
 
@@ -25,8 +26,7 @@ def allocate_inverses(relations: tuple[Relation, ...], resources: dict[str, URIR
         selected[end.data["id"]] = relation
     if strategy == "id":
         result = {identifier: URIRef(base + escape_id(identifier)) for identifier in selected}
-        if len(set(result.values()) | set(resources.values())) != len(result) + len(resources):
-            raise NotImplementedError("Exceptional escaped-ID collision disposition requires an Architect decision")
+        check_id_candidate_collisions(chain(resources.items(), result.items()))
         return result
 
     claims = claimed_names | {str(resource).removeprefix(base) for resource in resources.values()}

@@ -84,7 +84,8 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
 
 def property_candidates(attributes: tuple[Attribute, ...], strategy: str,
                         additional: dict[str, tuple[str, SourceElement]] | None = None,
-                        claimed_names: set[str] | None = None) -> dict[str, str]:
+                        claimed_names: set[str] | None = None, *,
+                        id_fallbacks: dict[str, str] | None = None) -> dict[str, str]:
     """Qualify attributes and ordinary primaries together, before shared collisions."""
     entries = dict(additional or {})
     groups = defaultdict(list)
@@ -92,6 +93,8 @@ def property_candidates(attributes: tuple[Attribute, ...], strategy: str,
         data = attribute.source.data
         selected = naming_text(data.get("name")) if strategy == "name" else None
         candidate = normalize_name(selected) if selected is not None else escape_id(data["id"])
+        if strategy == "name" and selected is None and id_fallbacks is not None:
+            id_fallbacks[data["id"]] = candidate
         entries[data["id"]] = (candidate, attribute.owner)
     candidates = {identifier: candidate for identifier, (candidate, _) in entries.items()}
     if claimed_names is not None:

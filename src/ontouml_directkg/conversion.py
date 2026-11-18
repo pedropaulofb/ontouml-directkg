@@ -156,13 +156,14 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         names, lexical = relation_names(relations, groundings, iri_strategy, relation_labels,
                                        no_stereotype_relation_naming, diagnostics)
         claims: set[str] = set()
+        property_id_fallbacks: dict[str, str] = {}
         stage = "property_candidates"
         candidates = property_candidates(attributes, iri_strategy,
             {relation.target_end.data["id"]: (names[relation.target_end.data["id"]], relation.domain)
-             for relation in relations}, claims)
+             for relation in relations}, claims, id_fallbacks=property_id_fallbacks)
         stage = "allocate_resources"
         resources = allocate_resources(classes, enumerations, base, iri_strategy,
-                                       candidates, claims)
+                                       candidates, claims, property_id_fallbacks=property_id_fallbacks)
         stage = "allocate_inverses"
         inverses = allocate_inverses(relations, resources, base, iri_strategy, inverse_properties, claims)
         resources.update(inverses)

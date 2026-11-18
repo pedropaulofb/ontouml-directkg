@@ -9,7 +9,8 @@ from .annotations import TextAnnotations
 from .datatypes import datatype_key
 from .diagnostics import DiagnosticCollector
 from .enumerations import Enumeration
-from .identity import class_name_candidate, escape_id, missing_name, naming_text, normalize_name, resolve_name_collisions
+from .identity import (check_id_candidate_collisions, class_name_candidate, escape_id,
+                       missing_name, naming_text, normalize_name, resolve_name_collisions)
 from .source import SourceElement, SourceIndex
 
 _ULTIMATE = frozenset({"collective", "kind", "mode", "quality", "quantity", "relator", "type"})
@@ -60,7 +61,8 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
 
 def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[Enumeration, ...],
                        base: str, strategy: str, property_candidates: dict[str, str] | None = None,
-                       claimed_names: set[str] | None = None) -> dict[str, URIRef]:
+                       claimed_names: set[str] | None = None, *,
+                       property_id_fallbacks: dict[str, str] | None = None) -> dict[str, URIRef]:
     """Resolve classes first, then value prefixes and shared source collisions.
 
     A value can collide with a class. If that suffixes an enumeration class,
@@ -68,18 +70,28 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
     finishing. Names only acquire collision suffixes; source order is irrelevant.
     """
     candidates = {}
+    class_id_fallbacks = {}
     for element in classes:
         identifier = element.data["id"]
         if strategy == "id":
             candidates[identifier] = escape_id(identifier)
         else:
-            candidates[identifier] = class_name_candidate(identifier, element.data.get("name"))
+            name = element.data.get("name")
+            candidate = class_name_candidate(identifier, name)
+            candidates[identifier] = candidate
+            if naming_text(name) is None:
+                class_id_fallbacks[identifier] = candidate
     if strategy == "name":
+        check_id_candidate_collisions(class_id_fallbacks.items())
+        whole_id_fallbacks = dict(property_id_fallbacks or {})
         candidates.update(property_candidates or {})
         for enumeration in enumerations:
             for element in enumeration.values:
                 if naming_text(element.data.get("name")) is None:
-                    candidates[element.data["id"]] = escape_id(element.data["id"])
+                    identifier = element.data["id"]
+                    candidate = escape_id(identifier)
+                    whole_id_fallbacks[identifier] = candidates[identifier] = candidate
+        check_id_candidate_collisions(whole_id_fallbacks.items())
         if claimed_names is not None:
             claimed_names.update(candidates.values())
         candidates = resolve_name_collisions(candidates)
@@ -112,8 +124,7 @@ def allocate_resources(classes: tuple[SourceElement, ...], enumerations: tuple[E
         for enumeration in enumerations:
             for element in enumeration.values:
                 candidates[element.data["id"]] = escape_id(element.data["id"])
-    if len(set(candidates.values())) != len(candidates):
-        raise NotImplementedError("Exceptional escaped-ID collision disposition requires an Architect decision")
+        check_id_candidate_collisions(candidates.items())
     if claimed_names is not None:
         claimed_names.update(candidates.values())
     return {identifier: URIRef(base + candidate) for identifier, candidate in candidates.items()}

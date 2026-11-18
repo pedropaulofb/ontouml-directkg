@@ -1,6 +1,7 @@
 """Separate IRI syntax, lexical names and source-ID identity (DK-IRI)."""
 
 from collections import defaultdict
+from collections.abc import Iterable
 from ipaddress import IPv6Address
 import re
 import string
@@ -109,6 +110,18 @@ def escape_id(identifier: str, *, whole_local_name: bool = True) -> str:
     result = "".join(chr(byte) if 65 <= byte <= 90 or 97 <= byte <= 122 or 48 <= byte <= 57
                      else f"_x{byte:02X}" for byte in identifier.encode("utf-8"))
     return "id_" + result if whole_local_name and result[:1].isdigit() else result
+
+
+def check_id_candidate_collisions(candidates: Iterable[tuple[str, str]]) -> None:
+    """Require unique candidates within one DK-IRI-05 construction."""
+    claims: dict[str, str] = {}
+    for identifier, candidate in candidates:
+        if candidate in claims:
+            raise RuntimeError(
+                f"Distinct source IDs {claims[candidate]!r} and {identifier!r} "
+                f"produced the same IRI candidate {str(candidate)!r} under DK-IRI-05"
+            )
+        claims[candidate] = identifier
 
 
 def naming_text(value: object) -> str | None:
