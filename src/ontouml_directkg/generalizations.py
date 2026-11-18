@@ -263,11 +263,20 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
         if data["type"] != "GeneralizationSet" or not _relation_set(index, element):
             continue
         members = data["generalizations"]
-        if data.get("categorizer") is not None:
-            raise NotImplementedError("Categorizer treatment for relation sets remains unspecified")
         for flag in ("isComplete", "isDisjoint"):
             if data.get(flag) is not None and type(data[flag]) is not bool:
                 raise NotImplementedError("Malformed generalization-set flag recovery remains unspecified")
+        categorizer = data.get("categorizer")
+        if categorizer is not None:
+            input_error(
+                diagnostics,
+                policy,
+                "INAPPLICABLE_RELATION_CATEGORIZER",
+                f"Relation generalization set {data['id']!r} has an inapplicable non-null categorizer {categorizer!r}.",
+                (element.location,),
+                "Categorizer and property-typing assertions from this set omitted; "
+                "independent relation-set constraints and mappings retained.",
+            )
         seen, specific_ids = set(), set()
         specifics, resolved = {}, []
         complete = True
