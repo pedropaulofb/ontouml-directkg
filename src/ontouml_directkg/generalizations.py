@@ -133,7 +133,16 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
     data = element.data
     members = data.get("generalizations")
     if not isinstance(members, list):
-        raise NotImplementedError("Missing/malformed generalization-set membership handling remains unspecified")
+        if "generalizations" not in data:
+            condition = "is absent"
+        elif members is None:
+            condition = "is explicitly null"
+        else:
+            condition = "is not a JSON array"
+        input_error(diagnostics, policy, "UNUSABLE_GENERALIZATION_SET_MEMBERSHIP",
+                    f"The generalizations field {condition}.", (element.location,),
+                    "Affected set contributes no axioms or classifications. Independently applicable mappings are retained.")
+        return
     if not members:
         input_error(diagnostics, policy, "EMPTY_GENERALIZATION_SET",
                     "Generalization set has an explicitly empty generalizations array.", (element.location,),
@@ -253,9 +262,7 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
         data = element.data
         if data["type"] != "GeneralizationSet" or not _relation_set(index, element):
             continue
-        members = data.get("generalizations")
-        if not isinstance(members, list):
-            raise NotImplementedError("Malformed generalization-set membership remains unspecified")
+        members = data["generalizations"]
         if data.get("categorizer") is not None:
             raise NotImplementedError("Categorizer treatment for relation sets remains unspecified")
         for flag in ("isComplete", "isDisjoint"):
