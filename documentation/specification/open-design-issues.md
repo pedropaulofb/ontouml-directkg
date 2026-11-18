@@ -4,7 +4,7 @@
 
 This is a **non-normative state document** for the next OntoUML DirectKG Architect conversation. It records unresolved design questions, not requirements or an implementation backlog. Use it together with the current Architect-maintained specification retrieved from GitHub. It is not a specification. The Architect maintains unresolved state alongside accepted specification registration; an independent Architect Reviewer verifies both documents.
 
-**Targeted maintenance:** 2026-11-18, covering RD-02 membership resolution, incomplete categorized class-set recovery, missing or malformed membership-container recovery, and unusable-categorizer recovery in class generalization sets, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-release prioritization and warning consistency, RD-04's general OWL profile claim, closure of the separate OWL 2 DL construction question, and RD-04 handling of ontology serialization failures and unexpected internal failures during transformation, together with stabilization of its eight-code first-release diagnostic core and closure of ODI-INSTANCES for the supported first-release input contract. The dated reconciliation and historical source limitations below remain unchanged.
+**Targeted maintenance:** 2026-11-18, covering RD-02 membership resolution, incomplete categorized class-set recovery, missing or malformed membership-container recovery, and unusable-categorizer recovery in class generalization sets, RD-04's shared JSON diagnostics contract, RD-17's partial mappings and residual-semantics warning treatment through closure of its final graph-treatment question, owner-directed first-release prioritization and warning consistency, RD-04's general OWL profile claim, closure of the separate OWL 2 DL construction question, and RD-04 handling of ontology serialization failures and unexpected internal failures during transformation, together with stabilization of its eight-code first-release diagnostic core and closure of ODI-INSTANCES for the supported first-release input contract. This maintenance also covers the ODI-IRI closure. The dated reconciliation and historical source limitations below remain unchanged.
 
 **Reconciled:** 2026-10-29. The actual sources inspected were:
 
@@ -30,8 +30,6 @@ Alternatives and the advisory prioritization below are non-normative. No new map
 - Bound the affected contributions and dependent output that may safely be omitted after a missing/invalid identifier or unresolved reference, where no explicit local recovery rule already settles the case.
 - Classify any still-unsettled structural condition that prevents meaningful document-level processing even under `best-effort`, rather than assuming that every failure permits local omission.
 
-The exceptional escaped-ID collision question is retained once, under ODI-IRI below.
-
 **Why it matters and accepted boundaries:** Recovery must not invent missing information, merge source elements, attach axioms to the wrong resource, or deliver invalid RDF. Source-ID validity is already fixed by §3.4's minimal opaque identifier definitions; duplicate declaration IDs already abort under every input policy. Those questions are not open. Unparseable JSON already prevents transformation in every policy.
 
 DK-DIAG-03, DK-DIAG-05, DK-DIAG-09–13, DK-CLS-09, and DK-REL-20 settle substantial local behavior. In particular, a failed larger class set must not be covered using survivors or acquire singleton completeness merely because one member survives. Membership identity is governed by DK-GEN-12 and is not an open question. DK-HO-04 settles recovery when a nonempty class-set membership array has a failed member and the categorizer is usable, as well as recovery when a class generalization set with a nonempty membership array has a present, non-null unusable categorizer (leaving non-null categorizers on relation generalization sets outside its scope). DK-DIAG-12 governs missing or malformed membership containers. Metadata and provenance failures retain their separate DK-GEN-09–10 rules. The file-only source-input boundary in §3.2 and §15 remains applicable.
@@ -40,21 +38,7 @@ DK-DIAG-03, DK-DIAG-05, DK-DIAG-09–13, DK-CLS-09, and DK-REL-20 settle substan
 
 **Evidence, blockers, and next step:** Investigate a residual boundary when a demonstrated failure in supported input, a significant correctness risk, or a genuine implementation blocker establishes its relevance. Non-null categorizers on relation generalization sets remain outside DK-HO-04's settled class-set rule.
 
-**Dependencies:** Coordinate exceptional identity failures with ODI-IRI and externally observable recovery/reporting with RD-04.
-
-### ODI-IRI — Exceptional collisions between distinct escaped source IDs
-
-**Status:** Blocked on identifying the technical condition; its disposition remains unresolved.
-
-**Decision still needed:** Specify what happens if distinct source identifiers produce the exceptional escaped-ID collision referred to in DK-IRI-07.
-
-**Why it matters and accepted boundaries:** DK-IRI-05 requires injective technical escaping, DK-IRI-07 excludes silent repair as an ordinary name collision, and DK-CONF-02 prohibits merging distinct resources. First establish what reachable condition the exceptional clause represents despite the injectivity requirement. No observed occurrence or defect in the escaping algorithm is established by the available state.
-
-Generic source-ID naming fallback, owner/source qualification, supplied-base validation, ordinary name collisions, and source-ID validity already have rules in DK-IRI-01, DK-IRI-04–08, DK-PROP-02, and §3.4. Duplicate declaration IDs are separately resolved by RD-02. None is reopened here.
-
-**Alternatives — non-normative:** Abort, or omit affected contributions only if their identities and dependent references can still be bounded unambiguously. No exceptional repair, replacement-ID scheme, or ordinary collision suffixing is accepted for this case.
-
-**Next investigation and dependency:** Identify the exact failing construction stage and a concrete case before designing recovery. Distinguish an escaping-rule implementation violation from a genuine unresolved construction boundary. Then discuss the smallest deterministic disposition with RD-02. Do not introduce elaborate collision recovery without evidence.
+**Dependencies:** Coordinate externally observable structural recovery and reporting with RD-04.
 
 ## Public output and diagnostics
 
@@ -81,7 +65,7 @@ DK-DIAG-04 fixes the shared JSON report's minimum structure, required member nam
 |---|---|
 | Uncovered failures | Shared or distinct public failure treatment, preserving the already established separation of transformation outcomes and delivery status. No additional status or exit-code mapping is selected. |
 
-**Dependencies and next step.** Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02, and with ODI-IRI only if that technical condition is established. Discuss a concrete bounded failure or reporting question.
+**Dependencies and next step.** Coordinate the remaining diagnostic identifiers and residual failure contract with RD-02. Discuss a concrete bounded failure or reporting question.
 
 ## Source-scope evidence checks
 
@@ -117,13 +101,14 @@ Apply the remaining dependencies proportionately:
 
 - RD-04's report and failure contract can proceed with the necessary RD-02 recovery boundaries.
 - Establish source evidence before proposing any remaining descriptive-field mapping under RD-27. Its blocked evidence check does not by itself establish a missing implementation feature.
-- Investigate ODI-IRI only after identifying its reachable technical condition. Preserve its unresolved status without treating hypothetical collision recovery as an automatic implementation prerequisite.
 
 The remaining source-evidence check and independent semantic/recovery questions need not block one another. Accepted scope exclusions and registrations awaiting independent review are not unresolved design alternatives.
 
 ## Retained research anchors and continuation
 
 These are research pointers retained from the inspected prior state and session; this handoff is not a fresh execution or exhaustive review of those repositories.
+
+- ODI-IRI investigation (2026-11-18). In DK-IRI-05, each underscore in the escaped body begins an `_xHH` token because source underscores are themselves escaped. The leading-digit prefix is distinguishable: protected names begin with `id_` plus a digit, while an unprefixed escaped body beginning with `id_` has `x` after the underscore. This accounts for injectivity over arbitrary valid source IDs under the same construction. At DirectKG commit [`eacf1a6a7b4dca52033d76ca2955cb1a950d1916`](https://github.com/pedropaulofb/ontouml-directkg/commit/eacf1a6a7b4dca52033d76ca2955cb1a950d1916), the isolated `escape_id` function produced distinct outputs for 1,119,441 distinct inputs in each mode, with and without leading-digit protection. Static inspection covered the source-resource and inverse allocation guards and the conversion error handler. The experiment covered the escaping function alone. It did not exercise allocation or end-to-end conversion.
 
 - Supported exporter release: https://github.com/OntoUML/ontouml-vp-plugin/releases/tag/0.5.3
 - Exporter repository: https://github.com/OntoUML/ontouml-vp-plugin

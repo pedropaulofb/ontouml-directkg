@@ -191,7 +191,7 @@ Within this section's existing identity/reference scope—source declarations pa
 
 Every other identifier string MUST be accepted unchanged, including whitespace-only strings. DirectKG MUST NOT trim, normalize, case-fold, coerce, or invent replacement identifiers.
 
-These definitions establish the valid/usable source-ID prerequisite in the applicable rules. Missing and invalid identifiers MUST follow the existing structural-error policies under DK-DIAG-05. The mandatory-abortion rule for duplicate declaration IDs remains unchanged. No additional dependent-output recovery or exceptional escaped-ID collision disposition is established.
+These definitions establish the valid/usable source-ID prerequisite in the applicable rules. Missing and invalid identifiers MUST follow the existing structural-error policies under DK-DIAG-05. The mandatory-abortion rule for duplicate declaration IDs remains unchanged. No additional dependent-output recovery is established here. DK-IRI-07 governs detected collisions between distinct valid escaped source IDs.
 
 **Rationale (non-normative):** Identifiers are opaque identity keys. These minimum requirements establish technical processability without imposing descriptive-name, UUID, or exporter-specific lexical conventions.
 
@@ -2287,7 +2287,7 @@ An inverse retained at `Q_1` also reserves that name before allocation for a gro
 
 Under `--iri-strategy id`, the generated inverse property MUST use the source association-end ID as its source identifier. It MUST NOT ordinarily use the association ID, target-end ID, a synthetic modification of the association ID, or the name-strategy `inverseOf<PrimaryPropertyLocalName>` construction.
 
-The end ID is processed by the established ID-escaping and exceptional collision rules.
+The end ID is processed under DK-IRI-05, with the collision disposition in DK-IRI-07.
 
 ### DK-INV-10 — Stability and diagnostics
 
@@ -2573,7 +2573,13 @@ Generated inverse allocation MUST follow the more specific source-backed precede
 
 Suffix allocation MUST be deterministic and stable for an unchanged source model. Stable source information, preferably element IDs or deterministic source order, SHOULD assign suffixes.
 
-Distinct source elements MUST NOT be merged. A collision between distinct escaped source IDs is exceptional and MUST NOT be silently repaired as an ordinary name collision; this specification does not define its exact disposition.
+Distinct source elements MUST NOT be merged.
+
+#### Detected collision between distinct escaped source IDs (ODI-IRI, Alternative A)
+
+If allocation detects that distinct valid source IDs produce the same local name under the same ID-based construction in DK-IRI-05, DirectKG MUST treat this as an internal transformation failure under DK-DIAG-05. DirectKG MUST NOT merge the resources, repair the collision through ordinary name suffixing, or continue with partial output. The existing reportable internal-failure contract applies under every input policy.
+
+Collisions in name mode between a source-ID fallback and a name-derived candidate follow the ordinary name-collision rules. Duplicate declaration IDs follow §3.4 and DK-DIAG-05.
 
 ### DK-IRI-08 — Enumeration value identity, IRIs, and labels (RD-09)
 
@@ -2762,7 +2768,7 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Unexpected internal failure during transformation that DirectKG can report | ERROR identifies the internal failure, with stage and cause when available. Preserve previous diagnostics and apply the `aborted` outcome under DK-DIAG-05. CLI code `3`, subject to diagnostics-file code `4`. | Yes under every input policy, including `best-effort` |
 | Turtle serialization or encoding fails for a requested ontology file after transformation | ERROR identifies the serialization stage, destination, and available cause under DK-DIAG-04. Preserve existing ontology and provenance-sidecar files. CLI code `6`, subject to diagnostics-file code `4`. | No transformation abort; established outcome unchanged under every input policy |
 | Requested ontology file cannot be created or written after successful ontology serialization and construction of any required provenance | ERROR identifies destination, available failure reason, and failed delivery under DK-DIAG-04; CLI code `6`, subject to diagnostics-file code `4`; retain diagnostic access and attempt requested CLI JSON export | No transformation abort; established outcome unchanged under every input policy |
-| Collision after injective ID escaping | Exceptional; do not merge | Exact behavior not specified |
+| Detected collision between distinct valid source IDs under the same ID-based local-name construction | Internal transformation failure under DK-IRI-07 and DK-DIAG-05; report `INTERNAL_TRANSFORMATION_FAILURE` and apply the existing `aborted` outcome and delivery contract | Yes under every input policy, including `best-effort` |
 
 ### DK-DIAG-02 — Semantically questionable input
 
@@ -3002,6 +3008,8 @@ If an unexpected internal error stops transformation after conversion has starte
 The Python interface MUST expose the `aborted` outcome and diagnostics through DK-DIAG-04. DirectKG MUST NOT make an accumulated ontology graph available through Python or deliver an ontology file or provenance sidecar for the aborted conversion. The CLI MUST attempt any requested JSON diagnostics export after recording the ERROR. Under §15 the CLI MUST exit with code `3`, overridden by `4` if that export fails. Both failures MUST remain visible on the console in that case.
 
 The established rules for input handling, required-provenance generation, and artifact delivery retain their own scope. Diagnostics produced for this condition MUST use `INTERNAL_TRANSFORMATION_FAILURE` from DK-DIAG-04's stable first-release core. Identifier selection does not establish implementation or test completion; the existing failure-reporting requirements remain applicable.
+
+A detected collision covered by DK-IRI-07 MUST follow this internal-failure contract.
 
 **Example (non-normative):** If a placeholder-base WARNING has already been produced when an unexpected internal error stops relation mapping, a successfully written diagnostics report records `aborted`, the earlier WARNING, and the internal-failure ERROR. No ontology or provenance sidecar is delivered.
 
@@ -3393,7 +3401,7 @@ The serialized-presentation boundary in §3.3 (RD-04, option A — serialized pr
 
 Distinct source-backed elements and distinct generated inverses MUST never be merged due to candidate collisions.
 
-Duplicate source-element IDs within §3.4's scope follow DK-DIAG-05's abort rule independently of these IRI-collision rules.
+Detected collisions between distinct valid escaped source IDs follow DK-IRI-07. Duplicate source-element IDs within §3.4's scope follow DK-DIAG-05's duplicate-ID abort rule.
 
 Changing inverse mode MAY change generated inverse IRIs but MUST NOT change source-backed IRIs. Inverse candidates are resolved only after all source-backed candidate claims and final IRIs.
 
