@@ -8363,3 +8363,35 @@ base and candidate, covering valid ID escaping, inverse IDs, duplicate IDs,
 ordinary name collisions, the stable diagnostic core, existing internal-failure
 reporting and fixture contracts. No full-suite execution. Pending independent
 Test Reviewer review.
+
+### F1–F3 correction after independent review of `da738693f52dacf548de0c3dcaa218840af3fe33`
+
+- **F1.** The Python JSON mirror compares complete diagnostic record multisets,
+  including the native message, effect and source locators. A probe changing
+  the exported ERROR to an unrelated message passed the submitted assertion
+  and was rejected by the correction.
+- **F2.** Name mode now exercises the whole-local ID construction shared by two
+  unnamed enum literals, `vPending` and `vApproved`. The observer confirms
+  both real escape calls and forces only the latter local to equal the former.
+  Unforced controls completed with distinct IRIs. Forced public conversions
+  completed with both suffixed IRIs under all three policies on the reviewed
+  production code. The new tests require the registered abort, so those three
+  cases remain test-first failures pending production support.
+- **F3.** The reason reader checks the observed allocator stage and nonempty
+  native cause in the reported error. The harness covers a matching reason
+  without a required keyword and rejects an unrelated cause, a wrong stage,
+  and missing cause evidence.
+
+| Exact pytest node added | Authority | Case key and input | Assertion exercised |
+| --- | --- | --- | --- |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[name_fallbacks-strict]` | DK-IRI-04, DK-IRI-05, DK-IRI-07, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/source_text` / `tests/fixtures/shared/source_text/input.json`. Both enum-literal names set to `null` in memory. | Two distinct literal IDs using the same whole-local fallback must abort without an ontology or sidecar. Prior diagnostics and the observed failure reason must survive explicit Python JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[name_fallbacks-tolerant]` | DK-IRI-04, DK-IRI-05, DK-IRI-07, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/source_text` / `tests/fixtures/shared/source_text/input.json`. Both enum-literal names set to `null` in memory. | Two distinct literal IDs using the same whole-local fallback must abort without an ontology or sidecar. Prior diagnostics and the observed failure reason must survive explicit Python JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[name_fallbacks-best-effort]` | DK-IRI-04, DK-IRI-05, DK-IRI-07, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/source_text` / `tests/fixtures/shared/source_text/input.json`. Both enum-literal names set to `null` in memory. | Two distinct literal IDs using the same whole-local fallback must abort without an ontology or sidecar. Prior diagnostics and the observed failure reason must survive explicit Python JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_cause_reader_matches_observed_reason` | DK-IRI-07, DK-DIAG-05 | Inline diagnostic records. No stored fixture. | The reported stage and native cause match the observed evidence. |
+
+Collection yielded 3,877 nodes, preserving all 3,873 reviewed IDs. The selected
+collision run yielded 19 passes and the three production failures described
+above. All 168 selected existing regressions passed on both base and
+correction. The intervening documentation commit
+`ba66f79b26566bd09122cc4ecd9507da76496086` is included in the publish base.
+Pending independent Test Reviewer review.

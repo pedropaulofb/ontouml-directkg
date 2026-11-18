@@ -6,9 +6,10 @@ import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.data import fixture_issues, write_input
+from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.invocation import (
-    Fault, diagnostic_record_counts, diagnostic_signatures, escaped_id_collision_diagnostic,
+    Fault, _native_diagnostic_fields, diagnostic_record_counts, diagnostic_signatures,
+    escaped_id_collision_diagnostic,
 )
 from tests.support.rdf import assert_selected_equal, one_subject
 
@@ -124,26 +125,37 @@ def test_ids_use_injective_byte_escaping(run, identifier, local):
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
-@pytest.mark.parametrize("allocation,changed_id", [
-    ("allocate_resources", "cB"), ("allocate_inverses", "sFocus"),
-], ids=["source_resource", "generated_inverse"])
-def test_escaped_id_collision_aborts_python_conversion(invoke, source_path, tmp_path, allocation, changed_id, input_policy):
-    """Rules: DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02.
+@pytest.mark.parametrize("allocation,existing_id,changed_id", [
+    ("allocate_resources", "cA", "cB"),
+    ("allocate_inverses", "cA", "sFocus"),
+    ("allocate_name_fallbacks", "vPending", "vApproved"),
+], ids=["source_resource", "generated_inverse", "name_fallbacks"])
+def test_escaped_id_collision_aborts_python_conversion(
+        invoke, source_path, source_json, tmp_path, allocation, existing_id, changed_id, input_policy):
+    """Rules: DK-IRI-04, DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02.
 
     ODI-IRI Alternative A, a919e64df8555227270d1f8b3b82ac4ef8c4edc5.
     The real allocation guard receives equal locals for two distinct IDs.
     """
-    result = invoke.convert(
-        source_path("shared/binary_relation"),
-        options={"iri_strategy": "id", "input_policy": input_policy,
-                 "inverse_properties": "all", "provenance": "sidecar"},
-        workdir=tmp_path, faults=(Fault("transformation", allocation),),
-    )
+    source = source_path("shared/binary_relation")
+    options = {"iri_strategy": "id", "input_policy": input_policy,
+               "inverse_properties": "all", "provenance": "sidecar"}
+    if allocation == "allocate_name_fallbacks":
+        document = source_json("shared/source_text")
+        for identifier in (existing_id, changed_id):
+            source_element(document, identifier)["name"] = None
+        assert not fixture_issues(document)
+        source = write_input(tmp_path, document)
+        options["iri_strategy"] = "name"
+    result = invoke.convert(source, options=options, workdir=tmp_path,
+                            faults=(Fault("transformation", allocation),))
     collision = result.execution_trace["allocation_collision"]
     candidates = collision["original_candidates"]
-    assert set(candidates) == {"cA", changed_id}
-    assert collision["forced_candidate"] == candidates["cA"] == collision["existing_candidate"]
+    assert set(candidates) == {existing_id, changed_id}
+    assert collision["forced_candidate"] == candidates[existing_id] == collision["existing_candidate"]
     assert collision["forced_candidate"] != candidates[changed_id]
+    if allocation == "allocate_name_fallbacks":
+        assert collision["existing_whole_local_name"] is collision["forced_whole_local_name"] is True
     assert invoke.read_outcome(result) == "aborted"
     assert invoke.read_ontology(result) is None
     assert invoke.read_provenance(result) is None
@@ -167,7 +179,26 @@ def test_escaped_id_collision_aborts_python_conversion(invoke, source_path, tmp_
     assert invoke.export_diagnostics(result, report_path).failure is None
     report = invoke.read_report(report_path)
     assert report.outcomes == ("aborted",)
-    assert diagnostic_signatures(report.diagnostics) == diagnostic_signatures(diagnostics)
+    exported = _native_diagnostic_fields(event.raw for event in report.diagnostics)
+    assert diagnostic_record_counts(exported) == records
+
+
+def test_escaped_id_collision_cause_reader_matches_observed_reason():
+    """Rules: DK-IRI-07, DK-DIAG-05. Harness only: check reason evidence without a keyword requirement."""
+    stage = "allocate_resources"
+    reason = "Distinct valid source IDs cA and cB resolve to the same local name cA"
+    evidence = {"stage": stage, "cause": reason}
+    code = "INTERNAL_TRANSFORMATION_FAILURE"
+    messages = {
+        f"Failure at {stage}: {reason}.": True,
+        f"Failure at {stage}: An unrelated conversion problem occurred.": False,
+        f"Failure at allocate_inverses: {reason}.": False,
+    }
+    for message, expected in messages.items():
+        record = ("ERROR", code, message, "", (), None)
+        assert escaped_id_collision_diagnostic(record, evidence) is expected
+    complete = ("ERROR", code, f"Failure at {stage}: {reason}.", "", (), None)
+    assert not escaped_id_collision_diagnostic(complete, {**evidence, "cause": " "})
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

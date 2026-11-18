@@ -226,7 +226,7 @@ class Fault:
 
     kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics, transformation.
     operation: read, construct, serialize, encode, create, write, enrich, emit_relations,
-    allocate_resources, allocate_inverses. Bind to an
+    allocate_resources, allocate_inverses, allocate_name_fallbacks. Bind to an
     observed implementation operation or standard I/O, including child-process
     I/O for CLI cases. Do not implement a replacement transformation, pre-return
     expected outcomes, or add production fault hooks to satisfy this protocol.
@@ -826,7 +826,7 @@ def _fail_relation_emission(trace):
 
 
 def _transformation_fault(faults):
-    for operation in ("emit_relations", "allocate_resources", "allocate_inverses"):
+    for operation in ("emit_relations", "allocate_resources", "allocate_inverses", "allocate_name_fallbacks"):
         if faults == (Fault("transformation", operation),):
             return operation
     return None
@@ -838,12 +838,12 @@ def _force_escaped_id_collision(operation, trace):
     from unittest.mock import patch
     from ontouml_directkg import classifiers, conversion, inverses
 
-    module, changed_id = {
-        "allocate_resources": (classifiers, "cB"),
-        "allocate_inverses": (inverses, "sFocus"),
+    module, allocator_name, existing_id, changed_id = {
+        "allocate_resources": (classifiers, "allocate_resources", "cA", "cB"),
+        "allocate_inverses": (inverses, "allocate_inverses", "cA", "sFocus"),
+        "allocate_name_fallbacks": (classifiers, "allocate_resources", "vPending", "vApproved"),
     }[operation]
-    existing_id = "cA"
-    allocate = getattr(conversion, operation)
+    allocate = getattr(conversion, allocator_name)
     escape = module.escape_id
 
     def collision(identifier, *, whole_local_name=True):
@@ -851,12 +851,14 @@ def _force_escaped_id_collision(operation, trace):
         evidence = trace["allocation_collision"]
         if identifier == existing_id:
             evidence["existing_candidate"] = original
+            evidence["existing_whole_local_name"] = whole_local_name
         if identifier != changed_id:
             return original
         existing = escape(existing_id, whole_local_name=whole_local_name)
         evidence.update(
             original_candidates={existing_id: existing, identifier: original},
             forced_candidate=existing,
+            forced_whole_local_name=whole_local_name,
         )
         return existing
 
@@ -876,15 +878,17 @@ def _force_escaped_id_collision(operation, trace):
                 evidence["cause"] = str(error)
                 raise
 
-    return patch.object(conversion, operation, observed_allocation)
+    return patch.object(conversion, allocator_name, observed_allocation)
 
 
 def escaped_id_collision_diagnostic(record, evidence):
     """Tie the reported error to the observed allocator and its native cause."""
     severity, code, message, _, _, _ = record
+    stage = (evidence.get("stage") or "").strip()
+    cause = " ".join((evidence.get("cause") or "").split())
     return (severity == "ERROR" and code == "INTERNAL_TRANSFORMATION_FAILURE"
-            and evidence["stage"] in message
-            and evidence["cause"] in message and "collision" in evidence["cause"].casefold())
+            and bool(stage) and stage in message
+            and bool(cause) and cause in " ".join(message.split()))
 
 
 def _fail_required_provenance(trace):
