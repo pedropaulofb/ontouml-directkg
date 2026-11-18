@@ -225,7 +225,8 @@ class Fault:
     """Test-only instruction to fail a REAL boundary, never a public option.
 
     kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics, transformation.
-    operation: read, construct, serialize, encode, create, write, enrich, emit_relations. Bind to an
+    operation: read, construct, serialize, encode, create, write, enrich, emit_relations,
+    allocate_resources, allocate_inverses. Bind to an
     observed implementation operation or standard I/O, including child-process
     I/O for CLI cases. Do not implement a replacement transformation, pre-return
     expected outcomes, or add production fault hooks to satisfy this protocol.
@@ -824,6 +825,68 @@ def _fail_relation_emission(trace):
     return patch.object(conversion, "emit_relations", fail)
 
 
+def _transformation_fault(faults):
+    for operation in ("emit_relations", "allocate_resources", "allocate_inverses"):
+        if faults == (Fault("transformation", operation),):
+            return operation
+    return None
+
+
+def _force_escaped_id_collision(operation, trace):
+    """Change one escape result in the real allocator, then observe its response."""
+    import sys
+    from unittest.mock import patch
+    from ontouml_directkg import classifiers, conversion, inverses
+
+    module, changed_id = {
+        "allocate_resources": (classifiers, "cB"),
+        "allocate_inverses": (inverses, "sFocus"),
+    }[operation]
+    existing_id = "cA"
+    allocate = getattr(conversion, operation)
+    escape = module.escape_id
+
+    def collision(identifier, *, whole_local_name=True):
+        original = escape(identifier, whole_local_name=whole_local_name)
+        evidence = trace["allocation_collision"]
+        if identifier == existing_id:
+            evidence["existing_candidate"] = original
+        if identifier != changed_id:
+            return original
+        existing = escape(existing_id, whole_local_name=whole_local_name)
+        evidence.update(
+            original_candidates={existing_id: existing, identifier: original},
+            forced_candidate=existing,
+        )
+        return existing
+
+    def observed_allocation(*args, **kwargs):
+        native = sys._getframe(1).f_locals
+        evidence = {
+            "stage": native["stage"],
+            "earlier_events": _native_diagnostic_fields(native["diagnostics"].events),
+        }
+        if operation == "allocate_inverses":
+            evidence["existing_candidate"] = str(native["resources"][existing_id]).removeprefix(native["base"])
+        trace["allocation_collision"] = evidence
+        with patch.object(module, "escape_id", collision):
+            try:
+                return allocate(*args, **kwargs)
+            except Exception as error:
+                evidence["cause"] = str(error)
+                raise
+
+    return patch.object(conversion, operation, observed_allocation)
+
+
+def escaped_id_collision_diagnostic(record, evidence):
+    """Tie the reported error to the observed allocator and its native cause."""
+    severity, code, message, _, _, _ = record
+    return (severity == "ERROR" and code == "INTERNAL_TRANSFORMATION_FAILURE"
+            and evidence["stage"] in message
+            and evidence["cause"] in message and "collision" in evidence["cause"].casefold())
+
+
 def _fail_required_provenance(trace):
     """Inject a failure at the real required-provenance construction boundary."""
     import inspect
@@ -863,10 +926,12 @@ metadata = _MetadataCapture()
 native_result = None
 ontology_fault = os.environ.get("DIRECTKG_TEST_ONTOLOGY_FAULT")
 probe = _OntologySerializationProbe(ontology_fault) if ontology_fault is not None else None
-transformation_fault = os.environ.get("DIRECTKG_TEST_TRANSFORMATION_FAULT") == "emit_relations"
+transformation_fault = os.environ.get("DIRECTKG_TEST_TRANSFORMATION_FAULT")
 provenance_fault = os.environ.get("DIRECTKG_TEST_PROVENANCE_FAULT") == "construct"
-if transformation_fault:
+if transformation_fault == "emit_relations":
     _fail_relation_emission(trace).start()
+elif transformation_fault:
+    _force_escaped_id_collision(transformation_fault, trace).start()
 if provenance_fault:
     _fail_required_provenance(trace).start()
 if probe is not None:
@@ -982,7 +1047,7 @@ def _observe_python_input():
             raise ImplementationUnavailable("Incomplete Python input-processing evidence")
 
 
-def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=False, provenance_fault=False):
+def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=None, provenance_fault=False):
     """Observe the real -m CLI without replacing conversion or parser behavior.
 
     The inspected converter finishes configuration validation before calling
@@ -994,7 +1059,7 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_f
     with TemporaryDirectory(prefix="directkg-cli-observer-", dir=workdir) as directory:
         directory = Path(directory)
         observers = tuple(map(inspect.getsource, (_MetadataCapture, _OntologySerializationProbe,
-                                                   _native_diagnostic_fields, _fail_relation_emission,
+                                                   _native_diagnostic_fields, _fail_relation_emission, _force_escaped_id_collision,
                                                    _fail_required_provenance)))
         (directory / "sitecustomize.py").write_text("\n".join((*observers, _CLI_OBSERVER)), encoding="utf-8")
         trace_path = directory / "execution.json"
@@ -1006,7 +1071,7 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_f
         if ontology_fault is not None:
             environment["DIRECTKG_TEST_ONTOLOGY_FAULT"] = ontology_fault
         if transformation_fault:
-            environment["DIRECTKG_TEST_TRANSFORMATION_FAULT"] = "emit_relations"
+            environment["DIRECTKG_TEST_TRANSFORMATION_FAULT"] = transformation_fault
         if provenance_fault:
             environment["DIRECTKG_TEST_PROVENANCE_FAULT"] = "construct"
         environment["PYTHONPATH"] = str(directory) + (
@@ -1910,7 +1975,7 @@ class _DirectKGInvocation(_UnboundInvocation):
     """Bind native calls and observations; no transformation rules live here."""
 
     def convert(self, source, *, options, workdir, faults=()):
-        transformation_fault = faults == (Fault("transformation", "emit_relations"),)
+        transformation_fault = _transformation_fault(faults)
         provenance_fault = faults == (Fault("provenance", "construct"),)
         if faults and not (transformation_fault or provenance_fault):
             self._unavailable()
@@ -1929,7 +1994,8 @@ class _DirectKGInvocation(_UnboundInvocation):
         # Observe real input/report-writer calls for explicit persistence checks;
         # no input option is used to infer that a report was or was not written.
         with _observe_metadata_output() as metadata, _observe_python_input() as trace:
-            injection = (_fail_relation_emission(trace) if transformation_fault else
+            injection = (_fail_relation_emission(trace) if transformation_fault == "emit_relations" else
+                         _force_escaped_id_collision(transformation_fault, trace) if transformation_fault else
                          _fail_required_provenance(trace) if provenance_fault else nullcontext())
             try:
                 with injection:
@@ -1939,7 +2005,7 @@ class _DirectKGInvocation(_UnboundInvocation):
             else:
                 observed = _MetadataPythonObservation(
                     result.ontology, result.outcome, _observed_diagnostics(
-                        result.diagnostics, retain_unclassified=transformation_fault),
+                        result.diagnostics, retain_unclassified=bool(transformation_fault)),
                     native=result, provenance=result.provenance,
                     external_metadata_output=_captured_metadata(metadata, result.ontology))
         if trace is not None:
@@ -2441,7 +2507,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         serialization_fault = (faults[0] if len(faults) == 1 and faults[0].kind == "ontology"
                                and faults[0].operation in {"serialize", "encode"}
                                and (faults[0].path is None or faults[0].path == output_path) else None)
-        transformation_fault = faults == (Fault("transformation", "emit_relations"),)
+        transformation_fault = _transformation_fault(faults)
         provenance_fault = faults == (Fault("provenance", "construct"),)
         if ((faults and not (serialization_fault or transformation_fault or provenance_fault)) or extra_args or output_path is None
                 or (serialization_fault is None and Path(output_path).exists())

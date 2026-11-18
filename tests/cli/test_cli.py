@@ -17,7 +17,8 @@ from tests.support.data import fixture_path, fixture_issues, load_json, source_e
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, console_covers_diagnostic_records,
                                       diagnostic_record_counts, diagnostic_signatures,
-                                      diagnostics_report_write_error, dkgm_chain_facts, ontology_serialization_error,
+                                      diagnostics_report_write_error, dkgm_chain_facts, escaped_id_collision_diagnostic,
+                                      ontology_serialization_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained,
                                       transformation_failure_diagnostic)
 from tests.support.rdf import assert_graph_equal, load_graph, one_object, property_chains, rdf_list, rooted_graph
@@ -1366,6 +1367,62 @@ def test_diagnostics_failure_after_duplicate_abort_retains_both_failures_and_cod
     assert process.observation.ontology is None and not destination.exists()
     assert any(d.kind=='duplicate_id' and d.severity=='ERROR' for d in process.observation.diagnostics)
     assert any(d.kind=='diagnostics_delivery' and d.severity=='ERROR' for d in process.console)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("allocation", ["allocate_resources", "allocate_inverses"],
+                         ids=["source_resource", "generated_inverse"])
+@pytest.mark.parametrize("report_failure", [False, True], ids=["report_written", "report_failure"])
+def test_cli_escaped_id_collision_reports_abort_and_delivery_precedence(
+        invoke, tmp_path, allocation, input_policy, report_failure):
+    """Rules: DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15.
+
+    ODI-IRI Alternative A, a919e64df8555227270d1f8b3b82ac4ef8c4edc5.
+    Force a shared local name inside the real allocator and use actual report I/O.
+    """
+    report = tmp_path / "report.json"
+    if report_failure:
+        blocker = tmp_path / "regular-file"
+        blocker.write_bytes(b"Not a directory")
+        report = blocker / report.name
+    destination = tmp_path / "out.ttl"
+    process = invoke.cli(
+        fixture_path("shared/binary_relation"),
+        options={"iri_strategy": "id", "input_policy": input_policy,
+                 "inverse_properties": "all", "provenance": "sidecar"},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report,
+        faults=(Fault("transformation", allocation),),
+    )
+    _assert_process(process)
+    assert process.returncode == (4 if report_failure else 3), process.stderr
+    assert not destination.exists() and not (tmp_path / "out.provenance.ttl").exists()
+
+    trace = process.execution_trace
+    collision = trace["allocation_collision"]
+    candidates = collision["original_candidates"]
+    assert len(set(candidates.values())) == 2
+    assert collision["forced_candidate"] == candidates["cA"] == collision["existing_candidate"]
+    earlier = diagnostic_record_counts(collision["earlier_events"])
+    assert any(severity == "WARNING" and code == "PLACEHOLDER_BASE" for severity, code, *_ in earlier)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome == "aborted"
+    converted_records = diagnostic_record_counts(converted.events)
+    assert earlier <= converted_records <= diagnostic_record_counts(delivered.events)
+    assert any(escaped_id_collision_diagnostic(record, collision) for record in converted_records - earlier)
+    assert console_covers_diagnostic_records(process.console, delivered.events)
+    assert set(trace["diagnostics_exports"]) == {str(report)}
+    assert trace["report_at_export"]
+    for attempt in trace["report_at_export"]:
+        assert attempt["outcome"] == "aborted"
+        assert converted_records <= diagnostic_record_counts(attempt["events"])
+
+    if report_failure:
+        assert not report.exists()
+        assert any(diagnostics_report_write_error(event, report, error)
+                   for error in trace["report_io_errors"] for event in process.console)
+    else:
+        assert not trace["report_io_errors"]
+        _assert_cli_json_and_console(invoke, process, report)
 
 
 @pytest.mark.parametrize("reporting", ["report-written", "report-omitted", "report-failure"])

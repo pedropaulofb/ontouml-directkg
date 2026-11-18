@@ -7,7 +7,9 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, write_input
-from tests.support.invocation import diagnostic_signatures
+from tests.support.invocation import (
+    Fault, diagnostic_record_counts, diagnostic_signatures, escaped_id_collision_diagnostic,
+)
 from tests.support.rdf import assert_selected_equal, one_subject
 
 
@@ -119,6 +121,53 @@ def test_ids_use_injective_byte_escaping(run, identifier, local):
     expected = {BASE[candidate] for _, candidate in ESCAPED_IDS}
     assert set(result.ontology.subjects(RDF.type, OWL.Class)) == expected
     assert len(expected) == len(ESCAPED_IDS)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("allocation,changed_id", [
+    ("allocate_resources", "cB"), ("allocate_inverses", "sFocus"),
+], ids=["source_resource", "generated_inverse"])
+def test_escaped_id_collision_aborts_python_conversion(invoke, source_path, tmp_path, allocation, changed_id, input_policy):
+    """Rules: DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02.
+
+    ODI-IRI Alternative A, a919e64df8555227270d1f8b3b82ac4ef8c4edc5.
+    The real allocation guard receives equal locals for two distinct IDs.
+    """
+    result = invoke.convert(
+        source_path("shared/binary_relation"),
+        options={"iri_strategy": "id", "input_policy": input_policy,
+                 "inverse_properties": "all", "provenance": "sidecar"},
+        workdir=tmp_path, faults=(Fault("transformation", allocation),),
+    )
+    collision = result.execution_trace["allocation_collision"]
+    candidates = collision["original_candidates"]
+    assert set(candidates) == {"cA", changed_id}
+    assert collision["forced_candidate"] == candidates["cA"] == collision["existing_candidate"]
+    assert collision["forced_candidate"] != candidates[changed_id]
+    assert invoke.read_outcome(result) == "aborted"
+    assert invoke.read_ontology(result) is None
+    assert invoke.read_provenance(result) is None
+
+    earlier = diagnostic_record_counts(collision["earlier_events"])
+    assert any(severity == "WARNING" and code == "PLACEHOLDER_BASE" for severity, code, *_ in earlier)
+    native = invoke.report_content(result)
+    records = diagnostic_record_counts(native.events)
+    assert earlier <= records
+    assert any(escaped_id_collision_diagnostic(record, collision) for record in records - earlier)
+    diagnostics = invoke.read_diagnostics(result)
+    assert any(
+        diagnostic.code == "INTERNAL_TRANSFORMATION_FAILURE"
+        and diagnostic.severity == "ERROR"
+        and collision["stage"] in diagnostic.message
+        and collision["cause"] in diagnostic.message
+        for diagnostic in diagnostics
+    )
+    assert result.diagnostics_exports == ()
+    report_path = tmp_path / "report.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    report = invoke.read_report(report_path)
+    assert report.outcomes == ("aborted",)
+    assert diagnostic_signatures(report.diagnostics) == diagnostic_signatures(diagnostics)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

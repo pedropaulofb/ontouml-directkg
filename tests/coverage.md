@@ -1,6 +1,14 @@
 # Requirement-to-test inventory
 
-**Current assignment authority:** RD-02 unusable categorizer in class
+**Current assignment authority:** ODI-IRI Alternative A, registered at
+`a919e64df8555227270d1f8b3b82ac4ef8c4edc5`. The owner forwarded the unified
+handoff and independent Architect Reviewer **OK, no findings** for that scope.
+The governing specification blob is `b89acb090a607a09f6885eccbaa5ab4dea1dff91`.
+The test-suite structure blob is `ae7a5f3b392a90db8baacf938460314c87de9698`.
+Exact nodes, test-only bindings and results appear in the ODI-IRI section below.
+This TEST CHANGE is pending independent Test Reviewer review.
+
+**Historical assignment authority:** RD-02 unusable categorizer in class
 generalization sets, Alternative A, registered at
 `0f290d3afb830418297af13c30c4c65be1e13ca8`. The owner forwarded the unified
 downstream handoff and independent Architect Reviewer **OK, no findings** for
@@ -8300,3 +8308,58 @@ selection. Stored `shared/categorizers/input.json` and
 `higher_order/categorizers/expected.ttl` parsed cleanly; `py_compile` and
 `git diff --check` passed. Full-suite execution was unperformed. Pending
 independent Test Reviewer review.
+
+## ODI-IRI escaped-ID allocation collisions — Alternative A
+
+The owner accepted Alternative A at
+[`a919e64df8555227270d1f8b3b82ac4ef8c4edc5`](https://github.com/pedropaulofb/ontouml-directkg/commit/a919e64df8555227270d1f8b3b82ac4ef8c4edc5),
+and forwarded independent Architect Reviewer **OK, no findings** for that
+registration. DK-IRI-07 applies the DK-DIAG-05 internal-failure contract to a
+detected collision between distinct valid IDs under the same DK-IRI-05
+construction. This supersedes the previously unspecified disposition.
+Duplicate-declaration IDs and ordinary name-mode collisions retain their
+respective rules.
+
+The test-only observer supplies a single conflicting escape result inside the
+real allocation call. For the source-resource guard, `cB` receives the local
+already calculated for `cA`. For the inverse guard, the source-end ID `sFocus`
+receives the local of the already allocated `cA` resource. The observer retains
+the actual prior diagnostic records, allocation stage and exception cause from
+the native converter. The conversion handler, public result, CLI process,
+console and JSON report writer remain native. The fixture bytes and all three
+source IDs remain valid. The output assertions are inline.
+
+| Exact pytest node | Authority | Case key and input | Assertion exercised |
+| --- | --- | --- | --- |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_written-source_resource-strict]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 3, preserve the conversion diagnostics through console and JSON delivery, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_written-source_resource-tolerant]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 3, preserve the conversion diagnostics through console and JSON delivery, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_written-source_resource-best-effort]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 3, preserve the conversion diagnostics through console and JSON delivery, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_written-generated_inverse-strict]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 3, preserve the conversion diagnostics through console and JSON delivery, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_written-generated_inverse-tolerant]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 3, preserve the conversion diagnostics through console and JSON delivery, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_written-generated_inverse-best-effort]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 3, preserve the conversion diagnostics through console and JSON delivery, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_failure-source_resource-strict]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 4 after the observed write failure, retain the conversion diagnostics and report-write error on the console, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_failure-source_resource-tolerant]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 4 after the observed write failure, retain the conversion diagnostics and report-write error on the console, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_failure-source_resource-best-effort]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 4 after the observed write failure, retain the conversion diagnostics and report-write error on the console, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_failure-generated_inverse-strict]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 4 after the observed write failure, retain the conversion diagnostics and report-write error on the console, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_failure-generated_inverse-tolerant]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 4 after the observed write failure, retain the conversion diagnostics and report-write error on the console, and deliver no ontology or sidecar. |
+| `tests/cli/test_cli.py::test_cli_escaped_id_collision_reports_abort_and_delivery_precedence[report_failure-generated_inverse-best-effort]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Exit 4 after the observed write failure, retain the conversion diagnostics and report-write error on the console, and deliver no ontology or sidecar. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[source_resource-strict]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Abort with no graph or provenance, retain earlier diagnostics, expose stage and cause, and mirror the outcome and records in the explicit JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[source_resource-tolerant]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Abort with no graph or provenance, retain earlier diagnostics, expose stage and cause, and mirror the outcome and records in the explicit JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[source_resource-best-effort]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Abort with no graph or provenance, retain earlier diagnostics, expose stage and cause, and mirror the outcome and records in the explicit JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[generated_inverse-strict]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Abort with no graph or provenance, retain earlier diagnostics, expose stage and cause, and mirror the outcome and records in the explicit JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[generated_inverse-tolerant]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Abort with no graph or provenance, retain earlier diagnostics, expose stage and cause, and mirror the outcome and records in the explicit JSON export. |
+| `tests/transformation/test_iris.py::test_escaped_id_collision_aborts_python_conversion[generated_inverse-best-effort]` | DK-IRI-05, DK-IRI-07, DK-INV-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-CONF-02 | `shared/binary_relation` / `tests/fixtures/shared/binary_relation/input.json`. No stored expectation. | Abort with no graph or provenance, retain earlier diagnostics, expose stage and cause, and mirror the outcome and records in the explicit JSON export. |
+
+The existing valid-ID injectivity, directional inverse-ID, duplicate-ID, and
+name-fallback collision cases remain applicable. The current native guards
+report the detected collision and stage through the established handler.
+They still refer to an Architect decision in their exception text. The tests
+compare the reported cause with the actual native exception instead of fixing
+that wording.
+
+Collection yielded 3,873 nodes with all 3,855 existing IDs preserved. All 18
+new nodes passed. The focused regression selection passed all 168 nodes on both
+base and candidate, covering valid ID escaping, inverse IDs, duplicate IDs,
+ordinary name collisions, the stable diagnostic core, existing internal-failure
+reporting and fixture contracts. No full-suite execution. Pending independent
+Test Reviewer review.
