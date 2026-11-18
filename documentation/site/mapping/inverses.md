@@ -117,4 +117,4 @@ This required mirroring is specific to relation generalizations. UML `subsets` a
 
 Governing rules: DK-INV-01–12; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01; baseline consolidated: **2026-11-18**; repository commit: `a919e64df8555227270d1f8b3b82ac4ef8c4edc5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/documentation/specification/transformation-specification.md). The A1.1, A1.2 and revised A1.3 inverse-naming resolutions are recorded in the [2 November 2026 specification](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization supplied after this baseline).
+Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
