@@ -648,8 +648,10 @@ def _assert_native_json_mirror(invoke, observation, path):
 def _assert_cli_json_and_console(invoke, process, path):
     converted, delivered = invoke.cli_report_content(process)
     assert converted.outcome == delivered.outcome
+    delivered_records = diagnostic_record_counts(delivered.events)
+    assert diagnostic_record_counts(converted.events) <= delivered_records
     assert _cli_json_report_contract(json.loads(path.read_bytes())) == (
-        delivered.outcome, diagnostic_record_counts(delivered.events))
+        delivered.outcome, delivered_records)
     # Code equality is checked only when the observed console record displays it.
     assert console_covers_diagnostic_records(process.console, delivered.events)
     return delivered
@@ -715,7 +717,7 @@ def test_unusable_membership_container_diagnostics_match_python_and_cli(
     RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
     Assert the condition and locator using native data, without fixing its provisional code.
     """
-    document = load_json("higher_order/categorizers")
+    document = load_json("shared/categorizers")
     affected = source_element(document, "gsFirst")
     if condition == "absent":
         del affected["generalizations"]
@@ -757,7 +759,7 @@ def test_unusable_membership_container_report_failure_takes_precedence(invoke, t
 
     RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
     """
-    document = load_json("higher_order/categorizers")
+    document = load_json("shared/categorizers")
     source_element(document, "gsFirst")["generalizations"] = None
     assert not fixture_issues(document)
     source = write_input(tmp_path, document)
@@ -772,6 +774,10 @@ def test_unusable_membership_container_report_failure_takes_precedence(invoke, t
     assert not report.exists()
     assert any(diagnostics_report_write_error(event, report, error)
                for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
     assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
     assert destination.is_file() == recover
     assert any(event.severity == "ERROR" and "gsFirst" in event.identified_sources

@@ -26,7 +26,7 @@ def test_categorizers_pun_same_iris_and_materialize_only_applicable_extension(ru
     disjointness. These assertions inspect explicit class and individual facts;
     no reasoner is used to manufacture powertype membership from subclasses.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     source_element(document, "cCategorizer")["isPowertype"] = powertype
     result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
     assert result.outcome == "completed"
@@ -59,7 +59,7 @@ def test_repeated_membership_preserves_categorizer_and_powertype_extensions(run,
     RD-02 at 2b427908a7e29d546486a616a22495ea0424f294. Both sets explicitly
     reference gOne; counting is per set and must preserve both classifications.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     source_element(document, "cCategorizer")["isPowertype"] = powertype
     first = source_element(document, "gsFirst")
     first["generalizations"] = first["generalizations"][:size]
@@ -98,13 +98,13 @@ def test_repeated_membership_preserves_categorizer_and_powertype_extensions(run,
 ], ids=["absent", "null", "object", "string", "number", "boolean"])
 def test_unusable_membership_container_omits_only_the_affected_set(
         run, source_json, tmp_path, condition, value, powertype, input_policy):
-    """Rules: DK-DIAG-12, DK-DIAG-05, DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-07, DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04.
+    """Rules: DK-DIAG-12, DK-DIAG-05, DK-GEN-12, DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04.
 
     RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
     Only gsFirst is unusable. The independently supported subclass edges and
     gsSecond's classification must survive when the input policy permits recovery.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     assert not fixture_issues(document)
     source_element(document, "cCategorizer")["isPowertype"] = powertype
     affected = source_element(document, "gsFirst")
@@ -138,8 +138,10 @@ def test_unusable_membership_container_omits_only_the_affected_set(
     assert not any(BASE.gsFirst in triple for triple in graph)
     for predicate in (OWL.unionOf, OWL.disjointUnionOf, OWL.equivalentClass):
         assert not list(graph.triples((None, predicate, None)))
-    for left, right in ((BASE.cOne, BASE.cTwo), (BASE.cTwo, BASE.cOne)):
-        assert (left, OWL.disjointWith, right) not in graph
+    # The only independently required pair relates the two «type» classifiers.
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == {
+        frozenset((BASE.cCategorizer, BASE.cOtherCategorizer)),
+    }
     assert not list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
 
 
@@ -149,7 +151,7 @@ def test_duplicate_declaration_is_fatal_with_unusable_membership(run, source_jso
 
     RD-02 Alternative A, 5f8de1888f307c42b55c40bfac82ea07f60836a7.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     source_element(document, "gsFirst")["generalizations"] = None
     document["model"]["contents"].append(copy.deepcopy(source_element(document, "cOne")))
     assert fixture_issues(document) == {"duplicate_id:cOne"}
@@ -196,7 +198,7 @@ def test_incomplete_categorized_set_preserves_explicit_classifications(run, sour
     RD-02 recovery, c1d6ab323f0980e835fa018e0f2d05e05a400a07. Expected
     classifications come from surviving explicit members, never subclass closure.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     locator = _incomplete_categorized_set(document, powertype=powertype, survivors=survivors, failure=failure)
     result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
     assert result.outcome == "completed-with-errors"
@@ -229,7 +231,7 @@ def test_incomplete_categorized_set_aborts_without_recoverable_output(run, sourc
     RD-02 recovery, c1d6ab323f0980e835fa018e0f2d05e05a400a07. Recovery is
     limited to best-effort; the existing member ERROR and abort remain observable.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     locator = _incomplete_categorized_set(document, powertype=powertype, survivors=1, failure=failure)
     result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
     assert result.outcome == "aborted"
@@ -248,7 +250,7 @@ def test_incomplete_categorized_set_keeps_independent_classifications(run, sourc
     fully resolved set establishes ordinary or powertype facts for the SAME C.
     Omitting expansion for the incomplete set must not erase those facts.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     locator = _incomplete_categorized_set(document, powertype=powertype, survivors=survivors,
                                          failure="unresolved_member")
     independent = copy.deepcopy(source_element(document, "gsSecond"))
@@ -280,7 +282,7 @@ def test_restricted_to_order_and_stereotype_do_not_validate_higher_order_asserti
     Event as categorizer and a lower numeric order are intentionally not checked
     for semantic appropriateness. No malformed structural input is introduced.
     """
-    document = source_json("higher_order/categorizers")
+    document = source_json("shared/categorizers")
     categorizer = source_element(document, "cCategorizer")
     categorizer.update(stereotype="event", isPowertype=powertype, order="0")
     source_element(document, "cBase")["order"] = "12"
@@ -310,7 +312,7 @@ def test_restricted_to_order_and_stereotype_do_not_validate_higher_order_asserti
 @pytest.mark.parametrize("iri_strategy", ["name", "id"])
 def test_punning_identity_is_the_same_under_both_iri_strategies(run, iri_strategy):
     """Rules: DK-HO-01, DK-HO-02, DK-IRI-02, DK-IRI-09."""
-    result = run("higher_order/categorizers", iri_strategy=iri_strategy)
+    result = run("shared/categorizers", iri_strategy=iri_strategy)
     assert result.outcome == "completed"
     one = BASE.cOne if iri_strategy == "id" else BASE.One
     categorizer = BASE.cCategorizer if iri_strategy == "id" else BASE.Categorizer

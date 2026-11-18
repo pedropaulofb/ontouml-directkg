@@ -1819,8 +1819,10 @@ records the exact nodes, accepted clauses, fixture mutations, and validation.
 The governing transformation and structure blobs match that reviewed registration
 at base `c3b36bb91b85e4725dd32587a3ee40945521ad95`.
 
-Thirty new cases reuse `higher_order/categorizers/input.json` with explicit
-runtime defects. They use the existing public `convert()` binding and real
+Thirty new cases reuse `shared/categorizers/input.json` with explicit
+runtime defects. The higher-order expectation remains at
+`higher_order/categorizers/expected.ttl` and is paired with the shared input
+only by the fully resolved cases. They use the existing public `convert()` binding and real
 ontology, outcome, and diagnostic fields. No new reader or simulated conversion
 is needed. The targeted run has **8 passes** for strict/tolerant aborts and
 **22 test-first failures** at the converter's incomplete-categorizer

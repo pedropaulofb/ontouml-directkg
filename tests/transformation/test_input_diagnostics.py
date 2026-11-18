@@ -31,7 +31,7 @@ VALID_BUNDLES = [
     ("input_diagnostics/id_comparison", "input.json"),
     ("classes/disjointness", "input.json"), ("classes/generalization_sets", "input.json"),
     ("classes/enumerations", "input.json"), ("classes/flags", "input.json"),
-    ("higher_order/categorizers", "input.json"), ("shared/source_text", "input.json"),
+    ("shared/categorizers", "input.json"), ("shared/source_text", "input.json"),
     ("attributes_datatypes/value_types", "input.json"), ("attributes_datatypes/structured", "input.json"),
     ("properties/references", "input.json"), ("properties/source_flags", "input.json"),
     ("shared/omitted_connector", "input.json"),
@@ -41,7 +41,7 @@ VALID_BUNDLES = [
     ("shared/instantiation", "input.json"),
 ]
 # Preserve existing harness node IDs when their canonical fixture paths move.
-VALID_BUNDLE_IDS = {"shared/instantiation": "higher_order_instantiation", "shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions", "shared/omitted_connector": "properties_omitted_connector"}
+VALID_BUNDLE_IDS = {"shared/categorizers": "higher_order_categorizers", "shared/instantiation": "higher_order_instantiation", "shared/base_iri": "iris_base_iri", "shared/property_collisions": "properties_collisions", "shared/omitted_connector": "properties_omitted_connector"}
 NEGATIVE_BUNDLES = [
     ("input_diagnostics/unknown_information", "input.json", {"unknown_field:waveOneUnknownField"}),
     ("input_diagnostics/unknown_information", "unknown_element.json", {"unknown_element"}),
@@ -143,7 +143,7 @@ def test_fixture_contract_new_declarations_and_references_are_not_confused():
     assert source_element(enum, "vPending")["type"] == "Literal"
     source_element(enum, "vPending")["id"] = "vApproved"
     assert fixture_issues(enum) == {"duplicate_id:vApproved"}
-    higher = load_json("higher_order/categorizers")
+    higher = load_json("shared/categorizers")
     assert not fixture_issues(higher)  # gOne is legitimately referenced twice.
     source_element(higher, "gsFirst")["generalizations"][0]["id"] = "missingGen"
     assert fixture_issues(higher) == {"unresolved_reference:missingGen"}
@@ -159,7 +159,7 @@ def test_fixture_contract_new_declarations_and_references_are_not_confused():
 ], ids=["null_literal_id", "malformed_literal_collection", "failed_class_generalization", "unresolved_categorizer_audit_only", "invalid_localized_value_audit_only", "invalid_project_languages_audit_only", "exporter_order_is_string"])
 def test_fixture_contract_runtime_mutations_have_only_declared_defects(defect, expected):
     """Harness only: invalid carriers/categorizer recovery have no behavior claim."""
-    document = load_json("higher_order/categorizers" if defect in {"generalization_endpoint", "categorizer_reference"} else "classes/enumerations")
+    document = load_json("shared/categorizers" if defect in {"generalization_endpoint", "categorizer_reference"} else "classes/enumerations")
     if defect == "literal_id":
         source_element(document, "vPending")["id"] = None
     elif defect == "literal_collection":

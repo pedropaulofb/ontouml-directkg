@@ -1598,22 +1598,38 @@ def diagnostics_report_write_error(event, destination, observed_error):
     return False
 
 
-def _generalization_membership_facts(wording):
-    """Read the reported condition of the membership field independently of the code."""
-    if not re.search(r"\b(?:generalizations|membership (?:field|container|array|list))\b", wording):
-        return set()
+def _generalization_membership_facts(message):
+    """Read a condition asserted about the field in the native diagnostic reason."""
+    wording = message.casefold().translate(str.maketrans("", "", "`'\""))
+    field = r"(?:\bgeneralizations(?: field| container)?|\bmembership (?:field|container|array|list))\b"
+    value_type = r"(?:non[- ](?:array|list)(?: value)?|object|dict(?:ionary)?|string|str|number|integer|int|float|boolean|bool)"
+    assertion = r"(?:^|[.!?;:]\s*|\b(?:has|contains|is|was)\s+(?:(?:a|an|the)\s+)?)"
+    # A predicate must be tied to the field, or report the actual value in
+    # contrast to an expected array. A bare expectation supplies no evidence.
+    actual = (
+        rf"{field}(?:\s*:\s*|\s+)(?:(?:(?:is|was) )?expected (?:to be )?|(?:must|should) be )"
+        r"(?:an? )?(?:json )?(?:array|list)\s*[,;:]\s*(?:but )?(?:got|found|received)\s+"
+    )
     patterns = {
-        "membership_absent": r"\b(?:absent|missing|omitted|not (?:present|provided|supplied))\b",
-        "membership_null": r"\bnull\b",
+        "membership_absent": (
+            rf"{assertion}(?:missing|absent|no)\s+(?:the\s+)?{field}"
+            rf"|{field}\s+(?:is|was)\s+(?:absent|missing|omitted|not (?:present|provided|supplied))\b"
+        ),
+        "membership_null": (
+            rf"{field}\s*(?:(?:is|was|has value)\s+|[:=]\s*)(?:explicitly\s+)?null\b"
+            rf"|{assertion}(?:explicitly\s+)?null\s+{field}|{actual}null\b"
+        ),
         "membership_non_array": (
-            r"\b(?:non[- ](?:array|list)|not (?:an? )?(?:json )?(?:array|list)|wrong type|"
-            r"(?:must be|expected|requires?) (?:an? )?(?:json )?(?:array|list))\b"
+            rf"{field}\s+(?:is|was|has)\s+(?:an?\s+)?(?:{value_type}|not (?:an? )?(?:json )?(?:array|list))\b"
+            rf"|{assertion}non[- ](?:array|list)\s+{field}"
+            rf"|{actual}(?:an?\s+)?{value_type}\b"
+            rf"|{field}\s+(?:is|was) not null\s*[,;:]\s*(?:but\s+)?it (?:is|was) (?:an?\s+)?{value_type}\b"
         ),
     }
-    for fact, pattern in patterns.items():
-        if re.search(pattern, wording):
-            return {fact}
-    return set()
+    if re.search(r"\b(?:absent|missing|null|non[- ]array) or (?:absent|missing|null|non[- ]array)\b", wording):
+        return set()
+    facts = {fact for fact, pattern in patterns.items() if re.search(pattern, wording)}
+    return facts if len(facts) == 1 else set()
 
 
 def _observed_diagnostics(events, *, retain_unclassified=False):
@@ -1627,7 +1643,7 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
         wording = (event.message + " " + event.effect).casefold()
         facts = dkgm_chain_facts(event.message, event.effect)
         kind = _DIAGNOSTIC_KINDS.get(event.code)
-        membership_facts = _generalization_membership_facts(wording) if event.severity == "ERROR" else set()
+        membership_facts = _generalization_membership_facts(event.message) if event.severity == "ERROR" else set()
         if membership_facts:
             facts.update(membership_facts)
             if kind is None:
