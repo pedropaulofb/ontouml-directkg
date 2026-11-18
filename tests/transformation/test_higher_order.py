@@ -2,13 +2,14 @@
 
 import copy
 import json
+from types import SimpleNamespace
 
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import source_element, write_input, fixture_issues
-from tests.support.invocation import diagnostic_signatures, unusable_categorizer_diagnostic
+from tests.support.invocation import _observed_diagnostics, diagnostic_signatures, unusable_categorizer_diagnostic
 from tests.support.rdf import assert_contains, assert_selected_equal, load_graph, one_object, rdf_list
 
 
@@ -166,6 +167,46 @@ def test_duplicate_declaration_is_fatal_with_unusable_membership(run, source_jso
                and "cOne" in event.identified_sources for event in result.diagnostics)
     assert all(not ({"membership_absent", "membership_null", "membership_non_array"} & event.facts)
                for event in result.diagnostics)
+
+
+def test_membership_condition_reader_requires_affirmative_unambiguous_claim():
+    """Rules: DK-DIAG-12. Harness only: classify native reasons independently of the code."""
+    accepted = {
+        "Missing 'generalizations' field.": "membership_absent",
+        "Generalization set 'gsFirst' has no `generalizations` field.": "membership_absent",
+        "The membership container is not supplied.": "membership_absent",
+        "The `generalizations` field is explicitly null.": "membership_null",
+        "Generalizations is null, not missing.": "membership_null",
+        "GeneralizationSet 'gsFirst': generalizations field: expected an array, got null.": "membership_null",
+        "Generalizations is not null; it is an object.": "membership_non_array",
+        "The generalizations field is a boolean.": "membership_non_array",
+        "Generalizations must be a JSON array; received an integer.": "membership_non_array",
+        "The membership container is not a JSON array.": "membership_non_array",
+        "Element gsFirst has a non-array 'generalizations' value.": "membership_non_array",
+    }
+    rejected = (
+        "Generalizations is null or an object.",
+        "Generalizations is missing or not an array.",
+        "It is not true that generalizations is null.",
+        "Generalizations is null, or it is a string.",
+        "Generalizations is not null.",
+        "It is not true that: generalizations is absent.",
+        "Generalizations is expected to be an array.",
+        "Possibly generalizations is absent.",
+        "Generalizations is null?",
+        "Generalizations is missing; generalizations is null.",
+        "Review example: 'Generalizations is null'.",
+    )
+    # A real locator and ERROR severity are insufficient without affirmative
+    # evidence in the reason. The unrelated effect cannot supply that evidence.
+    source = SimpleNamespace(identifier="gsFirst", element_type="GeneralizationSet")
+    for message, expected in (accepted | dict.fromkeys(rejected)).items():
+        native = SimpleNamespace(severity="ERROR", code="PROVISIONAL_TEST_CODE",
+                                 message=message, effect="Generalizations is null.",
+                                 sources=(source,), generated_iri=None)
+        observed, = _observed_diagnostics((native,), retain_unclassified=True)
+        assert observed.identified_sources == ("gsFirst",)
+        assert observed.facts == ({expected} if expected else set()), message
 
 
 def _incomplete_categorized_set(document, *, powertype, survivors, failure):

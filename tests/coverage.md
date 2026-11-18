@@ -8073,6 +8073,29 @@ probes exercise the corrected observations and assertions; later RD-02
 runtime assertions still require the production behavior. Pending the current
 independent Test Reviewer disposition.
 
+
+### F1 correction after independent review of `067f384bf1f636c0dc1c42395b7c3e99c0966eb8`
+
+The reviewer verified F2–F4 and reopened only the membership-condition reader
+under DK-DIAG-12. The reader now matches complete affirmative claims about the
+actual field condition. It rejects claims framed as alternatives, negations,
+questions, hedges, or examples. The provisional identifier remains unrestricted.
+This is a second correction for the membership-container assignment, based on
+`bbbc5d6d9f6fe274e7502900d3797decf7992110`. It preserves the intervening
+unusable-categorizer work and the existing 53 assignment nodes and pairings.
+
+| Exact pytest node | Authority | Case key and input | Assertion exercised |
+| --- | --- | --- | --- |
+| `tests/transformation/test_higher_order.py::test_membership_condition_reader_requires_affirmative_unambiguous_claim` | DK-DIAG-12 | No stored fixture. Inline diagnostic controls. | A source-located native-shaped ERROR selects the actual absence, null, or non-array condition only when supported by the reason. All three new reviewer counterexamples and eight additional controls are rejected. |
+
+Collection yielded 3,855 nodes, preserving all 3,854 base IDs and adding one
+adapter regression node. The targeted selection yielded 4 passed and 50
+test-first failures at the existing membership-container production guard.
+The focused existing regression selection yielded 437 passed and 79 failed on
+both base and candidate, with identical failing IDs. Direct adapter probes
+reproduced all three reviewer counterexamples on the base and rejected them
+on the correction. Pending the current independent Test Reviewer disposition.
+
 ## RD-02 unusable categorizer in class generalization sets — Alternative A
 
 **Decision and scope.** The exact owner-accepted, Architect-reviewed revision is

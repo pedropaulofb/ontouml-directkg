@@ -1599,37 +1599,43 @@ def diagnostics_report_write_error(event, destination, observed_error):
 
 
 def _generalization_membership_facts(message):
-    """Read a condition asserted about the field in the native diagnostic reason."""
-    wording = message.casefold().translate(str.maketrans("", "", "`'\""))
-    field = r"(?:\bgeneralizations(?: field| container)?|\bmembership (?:field|container|array|list))\b"
-    value_type = r"(?:non[- ](?:array|list)(?: value)?|object|dict(?:ionary)?|string|str|number|integer|int|float|boolean|bool)"
-    assertion = r"(?:^|[.!?;:]\s*|\b(?:has|contains|is|was)\s+(?:(?:a|an|the)\s+)?)"
-    # A predicate must be tied to the field, or report the actual value in
-    # contrast to an expected array. A bare expectation supplies no evidence.
+    """Interpret a complete affirmative claim about the membership field."""
+    # Keep the quoted field name, but treat quoted IDs and payloads as opaque.
+    quoted = r"""(?:`[^`]*`|'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")"""
+    wording = re.sub(quoted, lambda match: (
+        "generalizations" if match[0][1:-1].casefold() == "generalizations" else "<quoted>"
+    ), message.casefold())
+    wording = " ".join(wording.split()).removesuffix(".")
+    field = r"(?:the )?(?:field )?(?:generalizations(?: field| container| value)?|membership (?:field|container|array|list))"
+    locator = r"(?:<quoted>|[a-z0-9_.-]+)"
+    declaration = rf"(?:the )?(?:generalization[- ]?set(?: {locator})?|element {locator})"
+    prefix = rf"(?:{declaration}(?:[:,] ?| ))?"
+    predicate = rf"{prefix}{field}(?: (?:is|was|has value|is set to) | *[:=] *)"
     actual = (
-        rf"{field}(?:\s*:\s*|\s+)(?:(?:(?:is|was) )?expected (?:to be )?|(?:must|should) be )"
-        r"(?:an? )?(?:json )?(?:array|list)\s*[,;:]\s*(?:but )?(?:got|found|received)\s+"
+        rf"{prefix}{field}(?: *: *| )(?:(?:(?:is|was) )?expected (?:to be )?|(?:must|should) be )"
+        r"(?:an? )?(?:json )?(?:array|list) *[,;:] *(?:but )?(?:got|found|received) "
     )
-    patterns = {
+    field_description = rf"(?:{declaration} (?:has|contains|is|was) )?(?:an? |the )?"
+    non_array = r"(?:non[- ](?:array|list)(?: value)?|object|dict(?:ionary)?|string|str|number|integer|int|float|boolean|bool)"
+    claims = {
         "membership_absent": (
-            rf"{assertion}(?:missing|absent|no)\s+(?:the\s+)?{field}"
-            rf"|{field}\s+(?:is|was)\s+(?:absent|missing|omitted|not (?:present|provided|supplied))\b"
+            rf"{predicate}(?:absent|missing|omitted|not (?:present|provided|supplied))"
+            rf"|{field_description}(?:missing|absent|no) {field}"
         ),
         "membership_null": (
-            rf"{field}\s*(?:(?:is|was|has value)\s+|[:=]\s*)(?:explicitly\s+)?null\b"
-            rf"|{assertion}(?:explicitly\s+)?null\s+{field}|{actual}null\b"
+            rf"{predicate}(?:explicitly )?null(?:,? not (?:absent|missing))?"
+            rf"|{field_description}(?:explicitly )?null {field}|{actual}null"
         ),
         "membership_non_array": (
-            rf"{field}\s+(?:is|was|has)\s+(?:an?\s+)?(?:{value_type}|not (?:an? )?(?:json )?(?:array|list))\b"
-            rf"|{assertion}non[- ](?:array|list)\s+{field}"
-            rf"|{actual}(?:an?\s+)?{value_type}\b"
-            rf"|{field}\s+(?:is|was) not null\s*[,;:]\s*(?:but\s+)?it (?:is|was) (?:an?\s+)?{value_type}\b"
+            rf"{predicate}(?:an? )?(?:{non_array}|not (?:an? )?(?:json )?(?:array|list))"
+            rf"|{field_description}non[- ](?:array|list) {field}"
+            rf"|{actual}(?:an? )?{non_array}"
+            rf"|{predicate}not null *[,;:] *(?:but )?it (?:is|was) (?:an? )?{non_array}"
         ),
     }
-    if re.search(r"\b(?:absent|missing|null|non[- ]array) or (?:absent|missing|null|non[- ]array)\b", wording):
-        return set()
-    facts = {fact for fact, pattern in patterns.items() if re.search(pattern, wording)}
-    return facts if len(facts) == 1 else set()
+    # Full-claim matching rejects hedges, wider negation, and alternative
+    # conditions even when one fragment resembles a supported assertion.
+    return {fact for fact, pattern in claims.items() if re.fullmatch(pattern, wording)}
 
 
 def _unusable_categorizer_facts(message):
