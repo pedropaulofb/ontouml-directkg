@@ -74,8 +74,6 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
             if key == "void":
                 attributes.append(Attribute(element, owner, OWL.DatatypeProperty, void_source=value_type))
                 continue
-        elif stereotype != "enumeration":
-            raise NotImplementedError("Attribute value kinds outside datatype/enumeration mappings remain unspecified")
         if value_type.data["id"] not in generated_classes:
             raise NotImplementedError("Attribute range without a generated local class remains outside the decided baseline")
         attributes.append(Attribute(element, owner, OWL.ObjectProperty, value_type))
