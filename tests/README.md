@@ -1901,7 +1901,7 @@ Reviewer review; no production-correctness claim is made.
 ## RD-02 datatype-valued ordinary binary relations and global DK-PROP-03 mixed-kind rejection
 
 The owner forwarded the Architect's unified handoff and independent Architect
-Reviewer **OK, no findings** for `f2ed3929668245e31d52f1d8290856862140219c`.
+Reviewer **OK, no findings** for `283f9b01361830c2dfb1e96b08111e1f8f849b31`.
 The [scoped inventory](coverage.md#rd-02-datatype-valued-ordinary-binary-relations-and-global-dk-prop-03-mixed-kind-rejection)
 records the 731 new nodes, the 20 revised same-kind `DK-PROP-03` nodes
 replacing the 16 superseded mixed-kind nodes, updated homogeneous reference

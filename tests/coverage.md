@@ -1,6 +1,22 @@
 # Requirement-to-test inventory
 
-**Current assignment authority:** RD-23 / RD-02 class-valued attributes,
+**Current assignment authority:** RD-02 Datatype-Valued Ordinary Binary Relations
+(`Alternative B + Q1–Q7 + Conflicts A–I`) and Global `DK-PROP-03` Mixed-Kind
+Rejection, registered on `main` at
+`283f9b01361830c2dfb1e96b08111e1f8f849b31`. The owner forwarded the Architect's
+unified handoff and independent Architect Reviewer **OK** (`no findings`) for
+that decision and scope. The governing specification blob is
+`documentation/specification/transformation-specification.md`, blob
+`6920b9000faaabbc4f633895744f33dfe5cb9c6c`; the test-suite structure blob is
+`documentation/specification/test-suite-structure.md`, blob
+`ae7a5f3b392a90db8baacf938460314c87de9698`. Exact nodes, updated homogeneous
+`DK-PROP-03` rows, test-only diagnostic reader bindings, and validation results
+appear in the RD-02 datatype-valued relations section below. This resubmission
+resolves findings F1 and F2 from the Test Reviewer **NOT OK** verdict on prior
+SHA `b691e9dd2d928615984654ec391d82cb30463025` and is pending independent Test
+Reviewer review.
+
+**Historical assignment authority:** RD-23 / RD-02 class-valued attributes,
 Alternative A, registered on `main` at
 `4f9a9ccfa016a052a9b955afb0f9d863e3df8222` (unified handoff reference
 `6465f83e0e5d1781a4be08a8239ed03bb5e4e2a8`). The owner forwarded the unified
@@ -11,10 +27,7 @@ decision and scope. The governing specification blob is
 `documentation/specification/test-suite-structure.md`, blob
 `ae7a5f3b392a90db8baacf938460314c87de9698`. Exact nodes, test-only binding
 changes, and validation results appear in the RD-23 / RD-02 class-valued
-attributes section below. This submission resolves findings F1 and F2 (and the
-optional `tests/README.md` documentation note) from the Test Reviewer **NOT OK**
-verdict on prior SHA `16e5074e096f02a2a192edef84440e0b438c4806` and is pending
-independent Test Reviewer review.
+attributes section below.
 
 **Historical assignment authority:** RD-02 non-null categorizer on relation
 generalization sets, Alternative A, registered at
@@ -8942,8 +8955,8 @@ Pending independent Test Reviewer review.
 
 ## RD-02 Datatype-Valued Ordinary Binary Relations and Global DK-PROP-03 Mixed-Kind Rejection
 
-Registered by the Architect at `f2ed3929668245e31d52f1d8290856862140219c` with
-independent Architect Reviewer **OK** (`no findings`, `f2ed3929668245e31d52f1d8290856862140219c`).
+Registered by the Architect on `main` at `283f9b01361830c2dfb1e96b08111e1f8f849b31`
+with independent Architect Reviewer **OK** (`no findings`, `283f9b01361830c2dfb1e96b08111e1f8f849b31`).
 Implements `Alternative B + Q1–Q7 + Conflicts A–I` for datatype-valued ordinary
 binary relations (`DK-REL-01`, `DK-PROP-03`, `DK-REL-14`, `DK-REL-15`,
 `DK-REL-16`, `DK-REL-20`, `DK-REL-07`, `DK-REL-18`, `DK-REL-19`, `DK-INV-01`,

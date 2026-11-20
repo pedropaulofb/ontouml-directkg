@@ -3728,7 +3728,7 @@ def test_datatype_valued_relation_naming_labels_identifiers_and_dkgm_modes(
     expected_candidate = {
         'relation': 'Assigned_Count',
         'target_role': 'target_count',
-        'relator_grounding': 'employmentContract',
+        'relator_grounding': 'employment',
         'endpoints': 'hTTPServer_int',
     }[branch]
     if strategy == 'name':
