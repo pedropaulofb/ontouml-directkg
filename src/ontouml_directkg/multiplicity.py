@@ -21,27 +21,23 @@ def _number(text: str) -> int | None:
     return int(text) if re.fullmatch(r"[0-9]+", text) else None
 
 
-def _parse_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
-                        policy: str, context: str) -> Multiplicity:
-    """Normalize only accepted lexical forms and retain valid independent bounds."""
+def _parse_multiplicity_raw(source: SourceElement) -> tuple[Multiplicity, bool, bool]:
+    """Return (parsed_bounds, missing_field, invalid_syntax)."""
     if "cardinality" not in source.data:
-        diagnostics.add("WARNING", "MISSING_CARDINALITY",
-                        f"{context} cardinality field is absent; no explicit multiplicity is available.",
-                        "Property retained without a default cardinality restriction.", (source.location,))
-        return Multiplicity()
+        return Multiplicity(), True, False
     value = source.data["cardinality"]
     if value is None:
-        return Multiplicity()
+        return Multiplicity(), False, False
     parsed = Multiplicity()
     valid = False
     if isinstance(value, str):
         text = value.strip()
         if text == "*":
-            return Multiplicity(standalone_star=True)
+            return Multiplicity(standalone_star=True), False, False
         if ".." not in text:
             number = _number(text)
             if number is not None:
-                return Multiplicity(number, number)
+                return Multiplicity(number, number), False, False
         elif text.count("..") == 1:
             lower, upper = (part.strip() for part in text.split(".."))
             # An extra dot adjoining the delimiter is ambiguous notation,
@@ -50,11 +46,38 @@ def _parse_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
                 low, high = _number(lower), _number(upper)
                 parsed = Multiplicity(low, high)
                 valid = low is not None and (high is not None or upper == "*")
-    if not valid:
-        input_error(diagnostics, policy, "INVALID_CARDINALITY",
-                    f"{context} cardinality {value!r} is not wholly translatable under the accepted syntax.",
-                    (source.location,),
-                    "Property retained; only independently valid numeric bounds are preserved, without guessed bounds.")
+    return parsed, False, not valid
+
+
+def report_missing_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector, context: str) -> None:
+    diagnostics.add("WARNING", "MISSING_CARDINALITY",
+                    f"{context} cardinality field is absent; no explicit multiplicity is available.",
+                    "Property retained without a default cardinality restriction.", (source.location,))
+
+
+def report_invalid_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
+                                policy: str, context: str, *, defer_abort: bool = False) -> None:
+    value = source.data["cardinality"]
+    message = f"{context} cardinality {value!r} is not wholly translatable under the accepted syntax."
+    recovery = "Property retained; only independently valid numeric bounds are preserved, without guessed bounds."
+    if defer_abort:
+        abort = policy != "best-effort"
+        diagnostics.add("ERROR", "INVALID_CARDINALITY", message,
+                        "Conversion aborted; no ontology is delivered." if abort else recovery,
+                        (source.location,))
+    else:
+        input_error(diagnostics, policy, "INVALID_CARDINALITY", message, (source.location,), recovery)
+
+
+def _parse_multiplicity(source: SourceElement, diagnostics: DiagnosticCollector,
+                        policy: str, context: str) -> Multiplicity:
+    """Normalize only accepted lexical forms and retain valid independent bounds."""
+    parsed, missing, invalid = _parse_multiplicity_raw(source)
+    if missing:
+        report_missing_multiplicity(source, diagnostics, context)
+        return Multiplicity()
+    if invalid:
+        report_invalid_multiplicity(source, diagnostics, policy, context)
     return parsed
 
 
@@ -67,6 +90,11 @@ def parse_relation_multiplicity(source: SourceElement, diagnostics: DiagnosticCo
                                 policy: str) -> Multiplicity:
     result = _parse_multiplicity(source, diagnostics, policy, "Relation end")
     return Multiplicity() if result.standalone_star else result
+
+
+def parse_relation_multiplicity_raw(source: SourceElement) -> tuple[Multiplicity, bool, bool]:
+    parsed, missing, invalid = _parse_multiplicity_raw(source)
+    return (Multiplicity() if parsed.standalone_star else parsed), missing, invalid
 
 
 def emit_attribute_multiplicity(graph: Graph, owner: URIRef, property_iri: URIRef | BNode,

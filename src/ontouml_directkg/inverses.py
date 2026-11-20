@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from itertools import chain
 
 from rdflib import URIRef
+from rdflib.namespace import OWL
 
 from .annotations import source_text
 from .identity import check_id_candidate_collisions, class_name_candidate, escape_id, naming_text, normalize_name
@@ -18,6 +19,8 @@ def allocate_inverses(relations: tuple[Relation, ...], resources: dict[str, URIR
                        base: str, strategy: str, mode: str, claimed_names: set[str]) -> dict[str, URIRef]:
     selected = {}
     for relation in relations:
+        if relation.kind != OWL.ObjectProperty:
+            continue
         end = relation.source_end
         present = role_present(end.data.get("name"))
         if (mode == "none" or (mode == "named" and not present)

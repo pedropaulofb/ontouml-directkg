@@ -164,11 +164,39 @@ class PropertyExpressions:
 
     def __init__(self, graph: Graph, attributes: tuple[Attribute, ...],
                  resources: dict[str, URIRef], ends: dict[str, tuple[str, bool]],
-                 inverses: dict[str, URIRef], omitted_relations: set[str]) -> None:
+                 inverses: dict[str, URIRef], omitted_relations: set[str],
+                 end_kinds: dict[str, URIRef] | None = None) -> None:
         self.graph, self.resources = graph, resources
-        self.attributes = {attribute.source.data["id"] for attribute in attributes}
+        self.attributes = {attribute.source.data["id"]: attribute.kind for attribute in attributes}
         self.ends, self.inverses, self.omitted = ends, inverses, omitted_relations
+        self.end_kinds = end_kinds or {}
         self.anonymous: dict[URIRef, BNode] = {}
+
+    def is_omitted(self, element: SourceElement) -> bool:
+        return element.data["id"] not in self.attributes and element.owner in self.omitted
+
+    def unavailable_datatype_inverse_primary(self, element: SourceElement) -> str | None:
+        identifier = element.data["id"]
+        if identifier in self.attributes or element.owner in self.omitted or identifier not in self.ends:
+            return None
+        primary_id, reverse = self.ends[identifier]
+        if reverse and self.end_kinds.get(identifier, OWL.ObjectProperty) == OWL.DatatypeProperty:
+            return primary_id
+        return None
+
+    def property_kind(self, element: SourceElement) -> URIRef | None:
+        identifier = element.data["id"]
+        if identifier in self.attributes:
+            return self.attributes[identifier]
+        if element.owner in self.omitted:
+            return None
+        if identifier not in self.ends:
+            raise KeyError("Required underlying property transformation did not generate an expression")
+        _, reverse = self.ends[identifier]
+        kind = self.end_kinds.get(identifier, OWL.ObjectProperty)
+        if reverse and kind == OWL.DatatypeProperty:
+            return None
+        return kind
 
     def anonymous_inverse(self, primary: URIRef, *, emit_inverse: bool = True) -> BNode:
         """Use the primary backwards without allocating or selecting a named inverse."""
@@ -187,6 +215,8 @@ class PropertyExpressions:
         if identifier not in self.ends:
             raise KeyError("Required underlying property transformation did not generate an expression")
         primary_id, reverse = self.ends[identifier]
+        if reverse and self.end_kinds.get(identifier, OWL.ObjectProperty) == OWL.DatatypeProperty:
+            return None
         primary = self.resources[primary_id]
         if not reverse:
             return primary
@@ -196,20 +226,27 @@ class PropertyExpressions:
 
 
 def emit_property_references(graph: Graph, index: SourceIndex, expressions: PropertyExpressions,
-                              diagnostics: DiagnosticCollector, policy: str) -> None:
+                             diagnostics: DiagnosticCollector, policy: str) -> None:
     for element in index.elements:
         if element.data["type"] != "Property":
             continue
         if all(element.data.get(field) is None or element.data[field] == []
                for field in ("subsettedProperties", "redefinedProperties")):
             continue
-        try:
-            subject = expressions.resolve(element, emit_inverse=False)
-        except KeyError:
-            # Its underlying transformation already reported the failure.
+        if expressions.is_omitted(element):
             continue
-        if subject is None:
-            continue
+        element_datatype_inv = expressions.unavailable_datatype_inverse_primary(element)
+        if element_datatype_inv is None:
+            try:
+                subject = expressions.resolve(element, emit_inverse=False)
+                subject_kind = expressions.property_kind(element)
+            except KeyError:
+                # Its underlying transformation already reported the failure.
+                continue
+            if subject is None or subject_kind is None:
+                continue
+        else:
+            subject = subject_kind = None
         for field in ("subsettedProperties", "redefinedProperties"):
             references = element.data.get(field)
             if references is None:
@@ -224,13 +261,38 @@ def emit_property_references(graph: Graph, index: SourceIndex, expressions: Prop
                     target = index.resolve(reference)
                     if target.data["type"] != "Property":
                         raise KeyError("Reference does not identify a UML Property")
-                    superproperty = expressions.resolve(target, emit_inverse=False)
+                    if expressions.is_omitted(target):
+                        continue
+                    target_datatype_inv = expressions.unavailable_datatype_inverse_primary(target)
+                    if target_datatype_inv is None:
+                        superproperty = expressions.resolve(target, emit_inverse=False)
+                        target_kind = expressions.property_kind(target)
+                    else:
+                        superproperty = target_kind = None
                 except KeyError as exc:
                     input_error(diagnostics, policy, "UNRESOLVED_PROPERTY_REFERENCE",
                                 f"Property {field} reference {reference!r} cannot supply a property expression: {exc}.",
                                 (element.location,), "Affected inclusion omitted; other explicit references and property mappings retained.")
                     continue
-                if superproperty is not None:
-                    expressions.resolve(element)
-                    expressions.resolve(target)
-                    graph.add((subject, RDFS.subPropertyOf, superproperty))
+                unavailable_primary = element_datatype_inv or target_datatype_inv
+                if unavailable_primary is not None:
+                    input_error(
+                        diagnostics, policy, "INCOMPATIBLE_PROPERTY_INCLUSION",
+                        f"Property {field} reference on {element.data['id']!r} requires an unavailable inverse of datatype property {unavailable_primary!r}; an owl:DatatypeProperty has no named or anonymous inverse expression.",
+                        (element.location, target.location),
+                        "Affected property-inclusion axiom omitted; primary relation and independently valid references retained.",
+                    )
+                    continue
+                if superproperty is None or target_kind is None:
+                    continue
+                if subject_kind != target_kind:
+                    input_error(
+                        diagnostics, policy, "INCOMPATIBLE_PROPERTY_INCLUSION",
+                        f"Property inclusion in {field} on {element.data['id']!r} mixes owl:ObjectProperty and owl:DatatypeProperty kinds.",
+                        (element.location, target.location),
+                        "Incompatible property-inclusion axiom omitted; independently valid properties and homogeneous inclusions retained.",
+                    )
+                    continue
+                expressions.resolve(element)
+                expressions.resolve(target)
+                graph.add((subject, RDFS.subPropertyOf, superproperty))

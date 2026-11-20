@@ -35,6 +35,8 @@ def emit_relation_axioms(graph: Graph, relations: tuple[Relation, ...],
 
     characterizations, external_dependencies = defaultdict(list), defaultdict(list)
     for relation in relations:
+        if relation.kind != OWL.ObjectProperty:
+            continue
         stereotype = relation.source.data.get("stereotype")
         primary = expressions.resources[relation.target_end.data["id"]]
         characteristic = _CHARACTERISTICS.get(stereotype)

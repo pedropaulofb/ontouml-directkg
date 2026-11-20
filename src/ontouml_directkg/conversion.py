@@ -193,7 +193,9 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         stage = "PropertyExpressions"
         ends = {end.data["id"]: (relation.target_end.data["id"], reverse)
                 for relation in relations for end, reverse in ((relation.source_end, True), (relation.target_end, False))}
-        expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted)
+        end_kinds = {end.data["id"]: relation.kind
+                     for relation in relations for end in (relation.source_end, relation.target_end)}
+        expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted, end_kinds)
         stage = "emit_relations"
         bridges = emit_relations(graph, relations, resources, inverses, lexical, relation_labels, text,
                                  diagnostics, input_policy, expressions)
@@ -201,7 +203,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         emit_relation_generalizations(graph, index,
             {relation.source.data["id"]: resources[relation.target_end.data["id"]] for relation in relations},
             {relation.source.data["id"]: inverses[relation.source_end.data["id"]]
-             for relation in relations if relation.source_end.data["id"] in inverses}, diagnostics, input_policy)
+             for relation in relations if relation.source_end.data["id"] in inverses}, diagnostics, input_policy,
+            {relation.source.data["id"]: relation.kind for relation in relations})
         stage = "emit_property_references"
         emit_property_references(graph, index, expressions, diagnostics, input_policy)
         stage = "emit_material_chains"

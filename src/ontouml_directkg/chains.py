@@ -98,13 +98,15 @@ def emit_material_chains(graph: Graph, relations: tuple[Relation, ...],
         return
     matches = defaultdict(list)
     for relation in relations:
+        if relation.kind != OWL.ObjectProperty:
+            continue
         key = (relation.source.data.get("stereotype"),
                frozenset((relation.domain.data["id"], relation.range.data["id"])))
         matches[key].append(relation)
 
     conclusions = set()
     for material in relations:
-        if material.source.data.get("stereotype") != "material":
+        if material.source.data.get("stereotype") != "material" or material.kind != OWL.ObjectProperty:
             continue
         grounds = groundings.get(material.source.data["id"], ())
         if not grounds:

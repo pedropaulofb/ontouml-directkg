@@ -221,11 +221,26 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
 
 
 def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: dict[str, URIRef],
-                                   inverses: dict[str, URIRef], diagnostics: DiagnosticCollector,
-                                   policy: str) -> None:
+                                  inverses: dict[str, URIRef], diagnostics: DiagnosticCollector,
+                                  policy: str, kinds: dict[str, URIRef] | None = None) -> None:
     """Keep surviving specifics for disjointness even when their general fails."""
+    from .diagnostics import _AbortConversion
+
     declared = {}
     mapped = set()
+    abort_pending = False
+
+    def deferred_error(code: str, message: str, sources: tuple, recovery: str) -> None:
+        nonlocal abort_pending
+        abort = policy != "best-effort"
+        diagnostics.add(
+            "ERROR", code, message,
+            "Conversion aborted; no ontology is delivered." if abort else recovery,
+            sources,
+        )
+        if abort:
+            abort_pending = True
+
     for element in index.elements:
         if element.data["type"] != "Generalization" or not _relation_generalization(index, element):
             continue
@@ -253,6 +268,14 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                         "Affected hierarchy edge omitted; independent properties, edges and specific-set disjointness retained.")
             continue
         sid, gid = specific.data["id"], general.data["id"]
+        if kinds is not None and kinds.get(sid) != kinds.get(gid):
+            deferred_error(
+                "INCOMPATIBLE_RELATION_GENERALIZATION",
+                f"Relation generalization {identifier!r} has mixed owl:ObjectProperty and owl:DatatypeProperty kinds.",
+                (element.location, specific.location, general.location),
+                "Incompatible hierarchy edge omitted; independent properties and valid homogeneous mappings retained.",
+            )
+            continue
         graph.add((primaries[sid], RDFS.subPropertyOf, primaries[gid]))
         if sid in inverses and gid in inverses:
             graph.add((inverses[sid], RDFS.subPropertyOf, inverses[gid]))
@@ -310,6 +333,14 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                 resolved.append((specific, general))
         if data.get("isDisjoint") is True:
             for sid, other in combinations(sorted(specifics), 2):
+                if kinds is not None and kinds.get(sid) != kinds.get(other):
+                    deferred_error(
+                        "INCOMPATIBLE_RELATION_DISJOINTNESS",
+                        f"Disjoint relation generalization set {data['id']!r} contains a cross-kind pair of owl:ObjectProperty and owl:DatatypeProperty ({sid!r}, {other!r}).",
+                        (element.location, specifics[sid].location, specifics[other].location),
+                        "Cross-kind disjointness pair omitted; valid homogeneous disjointness pairs and independent properties retained.",
+                    )
+                    continue
                 graph.add((primaries[sid], OWL.propertyDisjointWith, primaries[other]))
                 if sid in inverses and other in inverses:
                     graph.add((inverses[sid], OWL.propertyDisjointWith, inverses[other]))
@@ -331,3 +362,6 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                             "Multi-member relation-set coverage is not represented by this mapping.",
                             "No completeness axiom or substitute validation constraint emitted; other mappings retained.",
                             (element.location,))
+
+    if abort_pending:
+        raise _AbortConversion

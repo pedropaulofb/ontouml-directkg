@@ -7,12 +7,20 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 from .annotations import TextAnnotations, source_text
-from .diagnostics import DiagnosticCollector, SourceLocation
+from .datatypes import PRIMITIVES, datatype_key
+from .diagnostics import DiagnosticCollector, SourceLocation, _AbortConversion
 from .dkgm import DKGM_PROPERTIES
 from .identity import class_name_candidate, escape_id, missing_name, naming_text, normalize_name
-from .multiplicity import emit_attribute_multiplicity, parse_relation_multiplicity
+from .multiplicity import (emit_attribute_multiplicity, parse_relation_multiplicity,
+                           parse_relation_multiplicity_raw, report_invalid_multiplicity,
+                           report_missing_multiplicity)
 from .properties import PropertyExpressions
 from .source import SourceElement, SourceIndex, input_error
+
+_REJECTED_DATATYPE_STEREOTYPES = frozenset({
+    "componentOf", "memberOf", "subCollectionOf", "subQuantityOf",
+    "characterization", "mediation", "participational", "externalDependence",
+})
 
 
 @dataclass(frozen=True)
@@ -22,6 +30,8 @@ class Relation:
     target_end: SourceElement
     domain: SourceElement
     range: SourceElement
+    kind: URIRef = OWL.ObjectProperty
+    datatype: URIRef | None = None
 
 
 def _discard_instantiation(element: SourceElement, diagnostics: DiagnosticCollector) -> None:
@@ -57,6 +67,7 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
     generated = {element.data["id"] for element in classes}
     relations = []
     groundings: dict[str, dict[str, SourceElement]] = defaultdict(dict)
+    comparative_derivations: dict[str, list[tuple[SourceElement, SourceElement]]] = defaultdict(list)
     omitted = set()
     for element in index.elements:
         data = element.data
@@ -104,6 +115,7 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
                         groundings[relation.data["id"]][classifier.data["id"]] = classifier
                     elif pattern == ("comparative", "quality"):
                         recognized = True
+                        comparative_derivations[relation.data["id"]].append((element, classifier))
                         diagnostics.add("WARNING", "UNSUPPORTED_COMPARATIVE_DERIVATION",
                                         "Comparative-quality derivation semantics are not represented: the supported "
                                         "source supplies no comparison rule.",
@@ -116,14 +128,96 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
                                 "independent endpoint transformations retained.", (element.location,))
             omitted.add(identifier)
             continue
-        if any(endpoint.data["id"] not in generated for endpoint in endpoints):
-            raise NotImplementedError("Ordinary relation endpoints without local class representations remain unspecified")
         for source in (element,) + declarations:
             for flag in ("isAbstract", "isDerived", "isReadOnly", "isOrdered"):
                 if source.data.get(flag) is not None and type(source.data[flag]) is not bool:
                     raise NotImplementedError("Malformed relation/end flag recovery remains unspecified")
+        source_cls, target_cls = endpoints
+        if source_cls.data["id"] not in generated:
+            input_error(
+                diagnostics, policy, "FAILED_RELATION",
+                f"Relation {identifier!r} source {source_cls.data['id']!r} has no generated local owl:Class.",
+                (element.location, declarations[0].location, source_cls.location),
+                "Affected relation omitted without reversing direction or inventing a local OWL class; independent mappings retained.",
+            )
+            omitted.add(identifier)
+            continue
+        if target_cls.data["id"] not in generated:
+            key = datatype_key(target_cls.data.get("name")) if target_cls.data.get("stereotype") == "datatype" else None
+            if key == "void":
+                input_error(
+                    diagnostics, policy, "INCOMPATIBLE_DATATYPE_RELATION",
+                    f"Ordinary binary relation {identifier!r} targets Visual Paradigm 'void', which has no registered datatype mapping.",
+                    (element.location, declarations[1].location, target_cls.location),
+                    "Affected relation omitted without generating a rangeless datatype property; independent mappings retained.",
+                )
+                omitted.add(identifier)
+                continue
+            if key not in PRIMITIVES:
+                input_error(
+                    diagnostics, policy, "FAILED_RELATION",
+                    f"Relation {identifier!r} target {target_cls.data['id']!r} has no generated local owl:Class.",
+                    (element.location, declarations[1].location, target_cls.location),
+                    "Affected relation omitted; independent mappings retained.",
+                )
+                omitted.add(identifier)
+                continue
+            stereotype = data.get("stereotype")
+            if stereotype in _REJECTED_DATATYPE_STEREOTYPES:
+                input_error(
+                    diagnostics, policy, "INCOMPATIBLE_DATATYPE_RELATION",
+                    f"Datatype-valued relation {identifier!r} cannot use stereotype {stereotype!r}, which requires an owl:ObjectProperty.",
+                    (element.location,),
+                    "Affected datatype-valued relation omitted without bridge, characteristic, or cardinality output; independent mappings retained.",
+                )
+                omitted.add(identifier)
+                continue
+            source_end = declarations[0]
+            bounds, missing, invalid = parse_relation_multiplicity_raw(source_end)
+            requires_inverse = (bounds.lower is not None and bounds.lower > 0) or bounds.upper is not None
+            if missing:
+                report_missing_multiplicity(source_end, diagnostics, "Relation end")
+            elif invalid:
+                report_invalid_multiplicity(source_end, diagnostics, policy, "Relation end", defer_abort=True)
+                if requires_inverse:
+                    input_error(
+                        diagnostics, policy, "INCOMPATIBLE_DATATYPE_RELATION",
+                        f"Datatype-valued relation {identifier!r} source-end multiplicity {source_end.data['cardinality']!r} requires an unavailable inverse datatype property.",
+                        (element.location, source_end.location),
+                        "Affected datatype-valued relation omitted; inverse unavailability takes precedence over recoverable source-end bounds.",
+                    )
+                    omitted.add(identifier)
+                    continue
+                if policy != "best-effort":
+                    raise _AbortConversion
+            elif requires_inverse:
+                input_error(
+                    diagnostics, policy, "INCOMPATIBLE_DATATYPE_RELATION",
+                    f"Datatype-valued relation {identifier!r} source-end multiplicity {source_end.data['cardinality']!r} requires an unavailable inverse datatype property.",
+                    (element.location, source_end.location),
+                    "Affected datatype-valued relation omitted without generating an inverse or discarding constraints; independent mappings retained.",
+                )
+                omitted.add(identifier)
+                continue
+            relations.append(Relation(element, *declarations, *endpoints, kind=OWL.DatatypeProperty, datatype=PRIMITIVES[key]))
+            continue
         relations.append(Relation(element, *declarations, *endpoints))
-    return tuple(relations), {key: tuple(values.values()) for key, values in groundings.items()}, omitted
+
+    filtered: list[Relation] = []
+    for relation in relations:
+        rid = relation.source.data["id"]
+        if relation.kind == OWL.DatatypeProperty and rid in comparative_derivations:
+            for derivation, quality in comparative_derivations[rid]:
+                input_error(
+                    diagnostics, policy, "INCOMPATIBLE_DATATYPE_RELATION",
+                    f"Datatype-valued relation {rid!r} conflicts with recognized comparative-quality derivation {derivation.data['id']!r}, which requires an owl:ObjectProperty.",
+                    (relation.source.location, derivation.location, quality.location),
+                    "Affected comparative relation and dependent output omitted; quality class and independent mappings retained.",
+                )
+            omitted.add(rid)
+            continue
+        filtered.append(relation)
+    return tuple(filtered), {key: tuple(values.values()) for key, values in groundings.items()}, omitted
 
 
 def _semantic_name(relation: Relation) -> str | None:
@@ -253,8 +347,9 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
     for relation in relations:
         source, start, end = relation.source, relation.source_end, relation.target_end
         primary = resources[end.data["id"]]
-        domain, range_ = resources[relation.domain.data["id"]], resources[relation.range.data["id"]]
-        graph.add((primary, RDF.type, OWL.ObjectProperty))
+        domain = resources[relation.domain.data["id"]]
+        range_ = relation.datatype if relation.kind == OWL.DatatypeProperty else resources[relation.range.data["id"]]
+        graph.add((primary, RDF.type, relation.kind))
         graph.add((primary, RDFS.domain, domain))
         graph.add((primary, RDFS.range, range_))
         if source_text(source.data.get("name")):
@@ -274,6 +369,13 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
             if any(value.strip() for _, value in source_text(start.data.get("name"))):
                 text.add(graph, inverse, RDFS.label, start.data.get("name"))
             text.add(graph, inverse, RDFS.comment, start.data.get("description"))
+        elif relation.kind == OWL.DatatypeProperty and any(value.strip() for _, value in source_text(start.data.get("name"))):
+            diagnostics.add(
+                "WARNING", "UNREPRESENTABLE_SOURCE_ROLE",
+                "Source-end role name on datatype-valued relation cannot be represented because no inverse property exists.",
+                "Primary datatype property retained; source-end role name and source-end description omitted without generating an inverse.",
+                (source.location, start.location), str(primary),
+            )
         for occurrence, context in ((source, "relation"), (start, "source association end"),
                                      (end, "target association end")):
             derived = occurrence.data.get("isDerived")
@@ -310,6 +412,8 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
                                 "Ordering is documented, but value order is not represented by the generated property mapping.",
                                 "Primary property and comment retained without sequence structures or added logical semantics.",
                                 (occurrence.location,))
+            if occurrence is start and relation.kind == OWL.DatatypeProperty:
+                continue
             bounds = parse_relation_multiplicity(occurrence, diagnostics, policy)
             if (bounds.lower is not None and bounds.lower > 0) or bounds.upper is not None:
                 expression = expressions.resolve(occurrence)
