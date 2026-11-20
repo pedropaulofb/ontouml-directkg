@@ -18,7 +18,7 @@ For material–relator and material–mode connectors, intentional non-represent
 
 For comparative–quality derivations, emit a **nonfatal unsupported-semantics diagnostic**, including under `strict`, identifying the connector, comparative relation, and available quality. It should explain that the source supplies no comparison rule to preserve. Do not derive a chain, equivalence, comparison function, cardinality, special property name, or transitivity/symmetry/asymmetry/reflexivity/irreflexivity/functionality/inverse-functionality characteristic solely from that grounding. Ordinary comparative naming and other independently applicable diagnostics remain. When a `comparative` relation `C` targets a supported primitive `datatype` (requiring `owl:DatatypeProperty` under `DK-REL-01`) while this recognized comparative–quality derivation activates `DK-REL-18`'s requirement for an ordinary `owl:ObjectProperty`, DirectKG reports a structural compatibility **ERROR** (`strict`/`tolerant` abort; `best-effort` retains **ERROR** severity, omits `C` and dependent output, and preserves `Q` and independent mappings). Other `comparative` relations without a recognized comparative–quality derivation retain datatype-property eligibility under [Datatype-valued relations](relations.md#datatype-valued-relations-and-compatibility).
 
-These specific mappings replace the generic [unsupported resolved connector](relations.md#relation-valued-endpoints) warning for their patterns. Do not infer a missing stereotype or reinterpret endpoints to manufacture a match. Malformed or unresolved endpoints remain structural errors.
+These specific mappings replace the generic [unsupported resolved connector](relations.md#relation-valued-endpoints) warning for their patterns. Do not infer a missing stereotype or reinterpret endpoints to manufacture a match. Malformed or unresolved endpoints remain structural errors. Because `«derivation»` relations are non-`«instantiation»` `Relation` elements, they also require a valid 2-element `Property` array in `properties`: absent, `null`, non-array, malformed, or non-binary containers trigger a structural **ERROR** under `DK-DIAG-03` (`strict` and `tolerant` abort; `best-effort` omits the relation and any grounding/derivation recognition and continues; see [Non-binary and malformed relation properties containers](../reference/diagnostics.md#non-binary-and-malformed-relation-properties-containers)).
 
 An `isDerived` flag alone supplies no connector, calculation, or chain. Its [derived-status comment](../reference/text.md#derived-status-comments) remains a separate mapping.
 
@@ -123,7 +123,9 @@ No emitted material chain means no notice triggered solely by this rule. The not
 
 ---
 
-Governing rules: DK-REL-01, 07–08, 15, 18; DK-DIAG-05, 07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-11-20**; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01, 07–08, 15, 18; DK-DIAG-03, 05, 07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-11-20**; repository commit: `08abccac8a6923c587cf351a5137f1e140e44a17`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Non-binary (`len != 2`) and absent/null/malformed `Relation.properties` association-end containers (Alternative A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`)** (project-owner formalization included in the cited consolidation).
 

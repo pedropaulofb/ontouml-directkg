@@ -56,6 +56,8 @@ See [Labels, comments, and language](text.md) for the text targets and exclusion
 
 Accepted mappings require source elements and their necessary references to be structurally resolvable. For an ordinary relation undergoing directional-property generation, both classifier endpoints and the required association-end IDs must be valid before either primary or inverse property is generated. A resolved relation-valued endpoint has a different mapping boundary from a null, malformed, or unresolved endpoint.
 
+Non-`«instantiation»` `Relation` elements (including ordinary relations and `«derivation»` relations) require a 2-element `properties` JSON array of `Property` objects (`DK-DIAG-03`, `§3.2`). If `properties` is absent, explicitly `null`, not a JSON array, contains non-object or non-`Property` entries, or has length other than `2` (empty, unary, or unsupported n-ary with `>= 3` ends), DirectKG reports a structural **ERROR** (`strict` and `tolerant` abort; `best-effort` omits the relation and all dependent output and continues, without adding n-ary relation support). For `«instantiation»` relations, absent `properties`, explicit `properties: null`, and valid `Property`-object arrays (regardless of length) retain `DK-INS-01–02` discard behavior, whereas non-array or malformed containers trigger the structural **ERROR**. See [Non-binary and malformed relation properties containers](diagnostics.md#non-binary-and-malformed-relation-properties-containers) for policy outcomes, diagnostic precedence, downstream `best-effort` handling, and current implementation status.
+
 Within the existing scope of accepted mappings and required reference resolution, source IDs are opaque strings. An `id` field is **missing** when absent. A supplied ID is **invalid** when null, not a JSON string, empty (`""`), or not encodable as UTF-8. Accept every other string unchanged, including whitespace-only strings. Do not trim, normalize, case-fold, coerce, or invent replacement IDs.
 
 Missing and invalid IDs follow the existing [structural-error policies](diagnostics.md#policies-and-precedence). The duplicate-ID abort rule below remains unchanged.
@@ -104,7 +106,9 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07, 12; DK-CLS-08–09; DK-HO-04; DK-REL-15–16, 20; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 12, 14, 19; baseline consolidated: **2026-11-18**; repository commit: `cc562c49a8274367e3a52d95c368abb484bfa713`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/cc562c49a8274367e3a52d95c368abb484bfa713/documentation/specification/transformation-specification.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07, 12; DK-CLS-08–09; DK-HO-04; DK-REL-15–16, 20; DK-INS-01–02; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 12, 14, 19; baseline consolidated: **2026-11-20**; repository commit: `08abccac8a6923c587cf351a5137f1e140e44a17`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Non-binary (`len != 2`) and absent/null/malformed `Relation.properties` association-end containers (Alternative A)** (project-owner formalization included in the cited consolidation).
 
 Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization included in the cited consolidation).
 
