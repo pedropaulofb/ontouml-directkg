@@ -1123,6 +1123,8 @@ _DIAGNOSTIC_KINDS = {
     "DERIVED_STATUS_ANNOTATION": "derived_status",
     "DISCARDED_INSTANTIATION_INFORMATION": "discarded_instantiation_data",
     "UNRESOLVED_ATTRIBUTE_TYPE": "unresolved_attribute_type",
+    "UNRESOLVED_PROPERTY_REFERENCE": "unresolved_property_reference",
+    "INVALID_PROPERTY_REFERENCES": "invalid_property_references",
 }
 
 
@@ -1971,6 +1973,60 @@ def unresolved_attribute_type_diagnostic(message: str) -> bool:
     return bool(_unresolved_attribute_type_facts(message))
 
 
+def _attribute_owner_without_local_class_facts(message: str, effect: str = "") -> set[str]:
+    """Read affirmative ERROR wording for an attribute owned by a Class without a local owl:Class."""
+    combined = f"{message} {effect}".strip()
+    wording = combined.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:attribute|owner|owning|class|primitive|void)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|lack|fail)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    owl_class = r"(?:generated\s+)?(?:local\s+)?(?:owl[:\s]+)?class(?:\s+(?:declaration|resource|element|representation))?"
+    owner_noun = r"(?:owning\s+(?:class|classifier|datatype)|owner(?:\s+(?:class|classifier|datatype))?)"
+    clause_disqualifiers = (
+        r"\b(?:value[- ]type|propertytype|target(?:\s+class)?|categorizer|generalization)\b",
+        r"\brelation\b[^.!?;]*\b(?:source|target)\b",
+        r"\b(?:is|was|can be|could be|has been)\s+(?:valid|usable|resolved|supported)\b",
+        r"\bnot\s+(?:without|lacking|missing|invalid|unusable|incompatible)\b",
+        r"\bdoes\s+not\s+lack\b",
+        rf"(?<!not )(?<!cannot )\b(?:has|generates?|supplies?|provides?)\s+(?:a|an)\s+{owl_class}\b",
+    )
+    missing_class = rf"(?:has\s+no|lacks(?:\s+a)?|is\s+without|without|missing(?:\s+a)?|does\s+not\s+(?:have|generate)|cannot\s+(?:supply|provide|generate))\s+(?:a\s+)?{owl_class}"
+    patterns = (
+        re.compile(rf"\battribute\b[^.!?;]*\b{owner_noun}\b[^.!?;]*\b{missing_class}\b"),
+        re.compile(rf"\b{owner_noun}\b[^.!?;]*\battribute\b[^.!?;]*\b{missing_class}\b"),
+        re.compile(rf"\battribute\b[^.!?;]*\bowned\s+by\b[^.!?;]*\b{missing_class}\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if any(re.search(pattern, clause) for pattern in clause_disqualifiers):
+            continue
+        if any(pattern.search(clause) for pattern in patterns):
+            return {"attribute_owner_without_local_class"}
+    return set()
+
+
+def attribute_owner_without_local_class_diagnostic(message: str, effect: str = "") -> bool:
+    """Return whether a native ERROR asserts an attribute owner lacks a generated local owl:Class."""
+    return bool(_attribute_owner_without_local_class_facts(message, effect))
+
+
 def _normalize_diagnostic_clauses(message: str) -> tuple[str, list[str]]:
     """Normalize prose into lowercase clauses, rejecting internal/deferred guard wording."""
     wording = message.casefold().replace("`", "").replace("’", "'")
@@ -2164,6 +2220,13 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 kind = "unresolved_attribute_type"
         elif kind == "unresolved_attribute_type":
             facts.add("unresolved_attribute_type")
+        owner_missing_facts = (_attribute_owner_without_local_class_facts(event.message, event.effect)
+                               if event.severity == "ERROR" and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
+                               else set())
+        if owner_missing_facts:
+            facts.update(owner_missing_facts)
+            if kind is None:
+                kind = "attribute_owner_without_local_class"
         if event.code != "INTERNAL_TRANSFORMATION_FAILURE":
             rel_kind, rel_facts = _rd02_datatype_relation_facts(event.severity, event.message, event.effect)
             if rel_facts:

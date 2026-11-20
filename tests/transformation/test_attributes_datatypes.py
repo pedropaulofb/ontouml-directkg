@@ -7,7 +7,9 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import assert_dkgm_vocabulary
-from tests.support.invocation import diagnostic_signatures, unresolved_attribute_type_diagnostic
+from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
+                                      diagnostic_signatures,
+                                      unresolved_attribute_type_diagnostic)
 from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_object, one_subject, rooted_graph)
 
@@ -913,3 +915,188 @@ def test_unresolved_attribute_type_reader_requires_affirmative_condition():
     for message in rejected:
         assert not unresolved_attribute_type_diagnostic(message), message
 
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('owner_kind,owner_name', [
+    ('plain_primitive', 'string'),
+    ('localized_primitive', {'en': 'int'}),
+    ('void', 'void'),
+], ids=['plain_primitive', 'localized_primitive', 'void'])
+def test_attribute_owned_by_primitive_or_void_reports_error_and_omits_cleanly(
+        run, source_json, tmp_path, input_policy, iri_strategy, owner_kind, owner_name):
+    """Rules: DK-ATT-01, DK-CLS-01, DK-DAT-02, DK-DAT-04, DK-GEN-03, DK-IRI-10, DK-PROP-02, DK-DIAG-01, DK-DIAG-02, DK-DIAG-05; RD-02 Alternative A."""
+    document = source_json('attributes_datatypes/value_types')
+    d_int = copy.deepcopy(source_element(document, 'dValue'))
+    d_int.update(id='dInt', name='int', stereotype='datatype')
+    document['model']['contents'].append(d_int)
+    source_element(document, 'pFocus').update(cardinality='1', propertyType={'id': 'dInt', 'type': 'Class'})
+
+    owner_dt = source_element(document, 'dValue')
+    owner_dt['name'] = owner_name
+    owned = copy.deepcopy(source_element(document, 'pFocus'))
+    owned.update(
+        id='pOwned', name='focus', description='Omitted owned description.',
+        stereotype='begin', isDerived=True, isReadOnly=True, isOrdered=True,
+        cardinality='2..5', propertyType={'id': 'dValue', 'type': 'Class'},
+    )
+    owner_dt['properties'] = [owned]
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics)
+    assert any(
+        d.severity == 'ERROR'
+        and d.kind == 'attribute_owner_without_local_class'
+        and 'attribute_owner_without_local_class' in d.facts
+        and {'pOwned', 'dValue'} <= set(d.identified_sources)
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    owner_iri = BASE.cOwner if iri_strategy == 'id' else BASE.Owner
+    other_iri = BASE.cOther if iri_strategy == 'id' else BASE.Other
+    prop_iri = BASE.pFocus if iri_strategy == 'id' else BASE.focus
+    assert set(graph.subjects(RDF.type, OWL.Class)) == {owner_iri, other_iri}
+    assert (owner_iri, RDF.type, OWL.Class) in graph
+    assert (other_iri, RDF.type, OWL.Class) in graph
+    _focus(graph, OWL.DatatypeProperty, XSD.int, owner_iri, prop_iri)
+    _counts(graph, owner_iri, prop_iri, {('exact', 1)}, XSD.int)
+    local_props = {
+        s for kind in (OWL.ObjectProperty, OWL.DatatypeProperty)
+        for s in graph.subjects(RDF.type, kind)
+        if str(s).startswith(str(BASE))
+    }
+    assert local_props == {prop_iri}
+    assert all(list(graph.objects(p, RDFS.domain)) for p in local_props)
+    assert not any(BASE.dValue in triple or BASE.pOwned in triple for triple in graph)
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('pOwned')))
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('dValue')))
+    assert not any('Omitted owned description.' in str(o) for o in graph.objects(None, RDFS.comment))
+    assert not any('pOwned' in d.identified_sources and d.kind != 'attribute_owner_without_local_class'
+                   for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('scenario', [
+    'missing_card_and_name_and_unresolved_type',
+    'invalid_card_and_void_type_and_flags',
+])
+def test_omitted_primitive_or_void_owned_attribute_suppresses_attribute_level_diagnostics(
+        run, source_json, tmp_path, iri_strategy, scenario):
+    """Rules: DK-ATT-01, DK-DIAG-01, DK-DIAG-05; RD-02 Alternative A."""
+    document = source_json('attributes_datatypes/value_types')
+    d_int = copy.deepcopy(source_element(document, 'dValue'))
+    d_int.update(id='dInt', name='int', stereotype='datatype')
+    d_void = copy.deepcopy(source_element(document, 'dValue'))
+    d_void.update(id='dVoid', name='void', stereotype='datatype')
+    document['model']['contents'].extend([d_int, d_void])
+    source_element(document, 'pFocus').update(cardinality='1', propertyType={'id': 'dInt', 'type': 'Class'})
+
+    owner_dt = source_element(document, 'dValue')
+    owner_dt['name'] = 'string' if scenario == 'missing_card_and_name_and_unresolved_type' else 'void'
+    owned = copy.deepcopy(source_element(document, 'pFocus'))
+    if scenario == 'missing_card_and_name_and_unresolved_type':
+        owned.update(id='pOwned', name=None, propertyType={'id': 'missingType', 'type': 'Class'})
+        del owned['cardinality']
+        expected_issues = {'unresolved_reference:missingType'}
+    else:
+        owned.update(id='pOwned', name='badOwned', isDerived=True, isReadOnly=True, isOrdered=True,
+                     cardinality='bad..bounds', propertyType={'id': 'dVoid', 'type': 'Class'})
+        expected_issues = frozenset()
+    owner_dt['properties'] = [owned]
+    assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy='best-effort')
+    assert result.outcome == 'completed-with-errors'
+    owned_events = [d for d in result.diagnostics if 'pOwned' in d.identified_sources]
+    assert owned_events and all(
+        d.severity == 'ERROR' and d.kind == 'attribute_owner_without_local_class' for d in owned_events
+    ), owned_events
+    suppressed_kinds = {
+        'void_datatype', 'unresolved_attribute_type', 'missing_cardinality',
+        'invalid_cardinality', 'generic_id_fallback', 'missing_name',
+        'derived_status', 'ordering',
+    }
+    assert not any(d.kind in suppressed_kinds for d in result.diagnostics), result.diagnostics
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('case', [
+    'custom_datatype_name',
+    'custom_localized_datatype',
+    'kind_owned_primitive_typed',
+    'kind_owned_void_typed',
+])
+def test_custom_datatype_owned_attribute_and_primitive_or_void_typed_attribute_remain_preserved(
+        run, source_json, tmp_path, input_policy, case):
+    """Rules: DK-ATT-01, DK-CLS-01, DK-DAT-02, DK-DAT-04, DK-DAT-05, DK-GEN-03, DK-IRI-10, DK-DIAG-05."""
+    document = source_json('attributes_datatypes/value_types')
+    if case in {'custom_datatype_name', 'custom_localized_datatype'}:
+        d_custom = source_element(document, 'dValue')
+        d_custom['name'] = 'TimeInterval' if case == 'custom_datatype_name' else {'de': 'Ganzzahl', 'en': 'int'}
+        d_prim = copy.deepcopy(d_custom)
+        d_prim.update(id='dPrim', name='int', stereotype='datatype')
+        document['model']['contents'].append(d_prim)
+        owned = copy.deepcopy(source_element(document, 'pFocus'))
+        owned.update(id='pCustomOwned', name='seconds', cardinality='1', propertyType={'id': 'dPrim', 'type': 'Class'})
+        d_custom['properties'] = [owned]
+        source_element(document, 'pFocus')['cardinality'] = '1'
+    elif case == 'kind_owned_primitive_typed':
+        source_element(document, 'cOwner')['stereotype'] = 'kind'
+        source_element(document, 'dValue')['name'] = 'string'
+        source_element(document, 'pFocus')['cardinality'] = '1'
+    else:
+        source_element(document, 'cOwner')['stereotype'] = 'kind'
+        source_element(document, 'dValue')['name'] = 'void'
+        source_element(document, 'pFocus')['cardinality'] = '1'
+
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' or d.kind == 'attribute_owner_without_local_class'
+                   for d in result.diagnostics)
+    graph = result.ontology
+    if case in {'custom_datatype_name', 'custom_localized_datatype'}:
+        assert (BASE.dValue, RDF.type, OWL.Class) in graph
+        _focus(graph, OWL.ObjectProperty, BASE.dValue, BASE.cOwner, BASE.pFocus)
+        _focus(graph, OWL.DatatypeProperty, XSD.int, BASE.dValue, BASE.pCustomOwned)
+        _counts(graph, BASE.dValue, BASE.pCustomOwned, {('exact', 1)}, XSD.int)
+    elif case == 'kind_owned_primitive_typed':
+        _focus(graph, OWL.DatatypeProperty, XSD.string, BASE.cOwner, BASE.pFocus)
+        _counts(graph, BASE.cOwner, BASE.pFocus, {('exact', 1)}, XSD.string)
+    else:
+        _focus(graph, OWL.DatatypeProperty, None, BASE.cOwner, BASE.pFocus)
+        _counts(graph, BASE.cOwner, BASE.pFocus, {('exact', 1)}, None)
+        assert any(d.kind == 'void_datatype' and d.severity == 'WARNING' for d in result.diagnostics)
+
+
+def test_attribute_owner_without_local_class_reader_requires_affirmative_conditions():
+    """Harness only: verify affirmative owner-lacks-local-class wording without fixing provisional codes."""
+    accepted = (
+        "Attribute 'pOwned' owner 'dValue' has no generated local owl:Class.",
+        "Attribute 'pOwned' is owned by Class 'dValue' without a generated local owl:Class representation.",
+        "Owning Class 'dValue' of attribute 'pOwned' lacks a generated local OWL class.",
+        "Attribute 'pOwned' cannot be transformed because its owning datatype 'dValue' does not generate a local owl:Class.",
+    )
+    rejected = (
+        "Attribute ownership without a generated local class is outside the decided baseline.",
+        "Unexpected internal failure while collecting attributes: NotImplementedError.",
+        "Not implemented for primitive-owned attributes.",
+        "Attribute 'pOwned' owner 'dCustom' has a generated local owl:Class.",
+        "Attribute 'pOwned' owner 'dCustom' does not lack a local owl:Class.",
+        "If an attribute owner lacks a local owl:Class, conversion aborts.",
+        "Attribute target class 'cOther' has no generated local owl:Class.",
+        "Attribute 'pFocus' value-type reference 'dValue' has no local owl:Class.",
+        "Relation 'r0' source 'dValue' has no generated local owl:Class.",
+        "Generalization set categorizer 'dValue' has no generated local owl:Class.",
+    )
+    for message in accepted:
+        assert attribute_owner_without_local_class_diagnostic(message), message
+    for message in rejected:
+        assert not attribute_owner_without_local_class_diagnostic(message), message

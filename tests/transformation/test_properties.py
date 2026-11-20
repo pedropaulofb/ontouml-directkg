@@ -1004,3 +1004,131 @@ def test_datatype_valued_relation_source_flags_and_boundary_stereotypes_stay_on_
                    for d in result.diagnostics)
 
 
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('owner_kind', ['primitive', 'void'])
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('scenario', [
+    'surviving_attr_to_omitted',
+    'surviving_end_to_omitted',
+    'surviving_inverse_to_omitted',
+    'omitted_to_surviving',
+    'omitted_to_dangling',
+    'omitted_malformed_container',
+])
+def test_best_effort_cleanly_omits_property_references_involving_primitive_or_void_owned_attributes(
+        run, source_json, tmp_path, input_policy, owner_kind, field, scenario):
+    """Rules: DK-PROP-03, DK-ATT-01, DK-CLS-01, DK-DAT-02, DK-DAT-04, DK-DIAG-01, DK-DIAG-05; RD-02 Alternative A."""
+    document = source_json('properties/references')
+    owner_dt = source_element(document, 'dInt')
+    if owner_kind == 'void':
+        owner_dt['name'] = 'void'
+    owned = copy.deepcopy(source_element(document, 'pChild'))
+    owned.update(id='pOwned', name='ownedAttr', propertyType={'id': 'dCustom', 'type': 'Class'})
+    owner_dt['properties'] = [owned]
+
+    expected_issues = set()
+    if scenario == 'surviving_attr_to_omitted':
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('pOwned')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'surviving_end_to_omitted':
+        source_element(document, 't0')[field] = [_reference('t1'), _reference('pOwned')]
+        expected_hierarchy = {(BASE.t0, BASE.t1)}
+    elif scenario == 'surviving_inverse_to_omitted':
+        source_element(document, 's0')[field] = [_reference('s1'), _reference('pOwned')]
+        expected_hierarchy = {(BASE.s0, BASE.s1)}
+    elif scenario == 'omitted_to_surviving':
+        owned[field] = [_reference('pChild')]
+        expected_hierarchy = set()
+    elif scenario == 'omitted_to_dangling':
+        owned[field] = [_reference('missingProp')]
+        expected_issues = {'unresolved_reference:missingProp'}
+        expected_hierarchy = set()
+    else:
+        owned[field] = 'not-a-list'
+        expected_issues = {'malformed_reference'}
+        expected_hierarchy = set()
+
+    assert fixture_issues(document) == expected_issues
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics)
+    assert any(
+        d.severity == 'ERROR'
+        and d.kind == 'attribute_owner_without_local_class'
+        and 'attribute_owner_without_local_class' in d.facts
+        and {'pOwned', 'dInt'} <= set(d.identified_sources)
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in {'unresolved_property_reference', 'invalid_property_references', 'property_inclusion_incompatibility'}
+        or d.code in {'UNRESOLVED_PROPERTY_REFERENCE', 'INVALID_PROPERTY_REFERENCES', 'INCOMPATIBLE_PROPERTY_INCLUSION'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == expected_hierarchy
+    assert not any(BASE.pOwned in triple or BASE.dInt in triple for triple in graph)
+    for prop in (BASE.pBase, BASE.pChild, BASE.t0, BASE.t1):
+        assert any((prop, RDF.type, kind) in graph for kind in (OWL.ObjectProperty, OWL.DatatypeProperty))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('boundary', [
+    'target_omitted_by_unresolved_attribute_type',
+    'surviving_dangling_with_omitted_owner_attr',
+    'surviving_non_property_with_omitted_owner_attr',
+    'surviving_malformed_container_with_omitted_owner_attr',
+])
+def test_best_effort_retains_property_reference_errors_outside_owner_omission_scope(
+        run, source_json, tmp_path, input_policy, field, boundary):
+    """Rules: DK-PROP-03, DK-ATT-01, DK-DIAG-01, DK-DIAG-05; RD-02 Alternative A."""
+    document = source_json('properties/references')
+    if boundary == 'target_omitted_by_unresolved_attribute_type':
+        source_element(document, 'pBase')['propertyType'] = {'id': 'missingType', 'type': 'Class'}
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('pBase')]
+        expected_issues = {'unresolved_reference:missingType'}
+    else:
+        owned = copy.deepcopy(source_element(document, 'pChild'))
+        owned.update(id='pOwned', name='ownedAttr', propertyType={'id': 'dCustom', 'type': 'Class'})
+        source_element(document, 'dInt')['properties'] = [owned]
+        if boundary == 'surviving_dangling_with_omitted_owner_attr':
+            source_element(document, 'pChild')[field] = [_reference('t0'), _reference('missingProp')]
+            expected_issues = {'unresolved_reference:missingProp'}
+        elif boundary == 'surviving_non_property_with_omitted_owner_attr':
+            source_element(document, 'pChild')[field] = [_reference('t0'), _reference('cA')]
+            expected_issues = {'reference_type_mismatch:cA'}
+        else:
+            source_element(document, 'pChild')[field] = 'not-a-list'
+            expected_issues = {'malformed_reference'}
+
+    assert fixture_issues(document) == expected_issues
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics)
+
+    if boundary == 'target_omitted_by_unresolved_attribute_type':
+        assert any(d.severity == 'ERROR' and d.kind == 'unresolved_attribute_type'
+                   and 'pBase' in d.identified_sources for d in result.diagnostics)
+    else:
+        assert any(d.severity == 'ERROR' and d.kind == 'attribute_owner_without_local_class'
+                   and {'pOwned', 'dInt'} <= set(d.identified_sources) for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    expected_ref_kind = ('invalid_property_references'
+                         if boundary == 'surviving_malformed_container_with_omitted_owner_attr'
+                         else 'unresolved_property_reference')
+    assert any(
+        d.severity == 'ERROR' and d.kind == expected_ref_kind and 'pChild' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    expected_hierarchy = (set() if boundary == 'surviving_malformed_container_with_omitted_owner_attr'
+                          else {(BASE.pChild, BASE.t0)})
+    assert _hierarchy(result.ontology) == expected_hierarchy

@@ -10,7 +10,8 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
                                source_element, source_elements, write_input)
-from tests.support.invocation import diagnostic_signatures
+from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
+                                      diagnostic_signatures)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
 
@@ -879,3 +880,128 @@ def test_fixture_contract_external_metadata_expectation_is_valid_rdf():
     graph=load_graph(fixture_path('ontology/external_metadata','expected.ttl'))
     assert len(graph)==11
     assert all(s==URIRef('https://example.test/model') for s,_,_ in graph)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_id",
+    "rejected_class_stereotype",
+    "rejected_attribute_stereotype",
+    "invalid_owner_id",
+    "invalid_attribute_id",
+])
+def test_attribute_owner_without_local_class_respects_diagnostic_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-ATT-01, DK-DIAG-05, DK-DIAG-06; §3.4 opaque source IDs and duplicate IDs. RD-02 Alternative A."""
+    document = source_json("attributes_datatypes/value_types")
+    d_int = copy.deepcopy(source_element(document, "dValue"))
+    d_int.update(id="dInt", name="int", stereotype="datatype")
+    document["model"]["contents"].append(d_int)
+    source_element(document, "pFocus").update(cardinality="1", propertyType={"id": "dInt", "type": "Class"})
+
+    owner_dt = source_element(document, "dValue")
+    owner_dt["name"] = "string"
+    owned = copy.deepcopy(source_element(document, "pFocus"))
+    owned.update(id="pOwned", name="ownedAttr", propertyType={"id": "dInt", "type": "Class"})
+    owner_dt["properties"] = [owned]
+
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    if condition == "duplicate_id":
+        owned["id"] = "cOwner"
+        expected_issues = {"duplicate_id:cOwner"}
+        expected_kind = "duplicate_id"
+        always_abort = True
+    elif condition == "rejected_class_stereotype":
+        source_element(document, "cOther")["stereotype"] = None
+        options["stereotype_policy"] = "require-known"
+        expected_issues = frozenset()
+        expected_kind = "missing_stereotype"
+        always_abort = True
+    elif condition == "rejected_attribute_stereotype":
+        owned["stereotype"] = "customProp"
+        options["stereotype_policy"] = "allow-missing"
+        expected_issues = frozenset()
+        expected_kind = "unrecognized_stereotype"
+        always_abort = True
+    elif condition == "invalid_owner_id":
+        owner_dt["id"] = None
+        expected_issues = {"invalid_id"}
+        expected_kind = "invalid_id"
+        always_abort = False
+    else:
+        owned["id"] = ""
+        expected_issues = {"invalid_id"}
+        expected_kind = "invalid_id"
+        always_abort = False
+
+    assert fixture_issues(document) == expected_issues
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics)
+    assert any(d.severity == "ERROR" and d.kind == expected_kind for d in result.diagnostics), result.diagnostics
+    assert not any(d.kind == "attribute_owner_without_local_class" for d in result.diagnostics), result.diagnostics
+    if always_abort or input_policy != "best-effort":
+        assert result.outcome == "aborted"
+        assert result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        assert (BASE.cOwner, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.pFocus, RDF.type, OWL.DatatypeProperty) in result.ontology
+        assert not any(BASE.pOwned in triple for triple in result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("owner_kind,owner_name", [("primitive", "string"), ("void", "void")], ids=["primitive", "void"])
+def test_attribute_owner_without_local_class_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy, owner_kind, owner_name):
+    """Rules: DK-ATT-01, DK-DIAG-04, DK-DIAG-05; §15 Python JSON export. RD-02 Alternative A."""
+    document = source_json("attributes_datatypes/value_types")
+    d_int = copy.deepcopy(source_element(document, "dValue"))
+    d_int.update(id="dInt", name="int", stereotype="datatype")
+    document["model"]["contents"].append(d_int)
+    source_element(document, "pFocus").update(cardinality="1", propertyType={"id": "dInt", "type": "Class"})
+
+    owner_dt = source_element(document, "dValue")
+    owner_dt["name"] = owner_name
+    owned = copy.deepcopy(source_element(document, "pFocus"))
+    owned.update(id="pOwned", name="ownedAttr", propertyType={"id": "dInt", "type": "Class"})
+    owner_dt["properties"] = [owned]
+    assert not fixture_issues(document)
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "owner_without_local_class.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] != "INTERNAL_TRANSFORMATION_FAILURE"
+        and event["message"]
+        and event["effect"]
+        and attribute_owner_without_local_class_diagnostic(event["message"], event["effect"])
+    ]
+    assert matching, payload["diagnostics"]
+    reported_sources = {
+        (source_loc["element_type"], source_loc["identifier"])
+        for event in matching for source_loc in event["sources"]
+    }
+    assert {("Property", "pOwned"), ("Class", "dValue")} <= reported_sources
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+        assert (BASE.cOwner, RDF.type, OWL.Class) in observed_graph
+        assert (BASE.pFocus, RDF.type, OWL.DatatypeProperty) in observed_graph
+        assert not any(BASE.pOwned in triple or BASE.dValue in triple for triple in observed_graph)

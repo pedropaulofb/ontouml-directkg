@@ -144,7 +144,14 @@ class-valued attributes (`4f9a9ccfa016a052a9b955afb0f9d863e3df8222`), the
 adapter maps `UNRESOLVED_ATTRIBUTE_TYPE` and affirmative unresolved
 attribute-type `ERROR` reasons into `unresolved_attribute_type` without fixing
 provisional diagnostic codes, rejecting internal-guard, negated, hedged, and
-unrelated statements.
+unrelated statements. For RD-02 attributes owned by a `Class` without a
+generated local `owl:Class` (`ddca486133edb1b27a26c8995d612c4579afd838`), the
+adapter binds existing native `UNRESOLVED_PROPERTY_REFERENCE` and
+`INVALID_PROPERTY_REFERENCES` codes into `unresolved_property_reference` and
+`invalid_property_references`, and reads affirmative missing-local-owner-class
+`ERROR` reasons into `attribute_owner_without_local_class` without fixing
+provisional diagnostic codes, applying the same rejections plus excluding
+target-type, relation-source, and categorizer statements.
 
 Unmapped diagnostic meanings, fault injection, detailed console normalization,
 existing-destination delivery and other protocol operations remain explicitly
@@ -1915,3 +1922,22 @@ subprocess CLI bindings plus affirmative semantic diagnostic readers
 provisional diagnostic codes, rejecting internal/deferred guard wording,
 negations, hedges, and unrelated diagnostics. This TEST CHANGE awaits
 independent Test Reviewer review; no production-correctness claim is made.
+
+## RD-02 attributes owned by a Class without a generated local owl:Class
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** (`no findings`) for `ddca486133edb1b27a26c8995d612c4579afd838`.
+The [scoped inventory](coverage.md#rd-02-attributes-owned-by-a-class-without-a-generated-local-owlclass-and-dependent-dk-prop-03-handling--alternative-a)
+records the 151 new behavioral nodes and 1 harness reader check across
+`tests/transformation/test_attributes_datatypes.py`,
+`tests/transformation/test_properties.py`, and
+`tests/transformation/test_input_diagnostics.py`, reusing
+`attributes_datatypes/value_types` and `properties/references` with explicit
+runtime mutations and inline assertions.
+
+`tests/support/invocation.py` binds existing `UNRESOLVED_PROPERTY_REFERENCE` and
+`INVALID_PROPERTY_REFERENCES` codes and adds the affirmative semantic reader
+`_attribute_owner_without_local_class_facts` /
+`attribute_owner_without_local_class_diagnostic` without fixing provisional
+diagnostic codes. This TEST CHANGE awaits independent Test Reviewer review; no
+production-correctness claim is made.
