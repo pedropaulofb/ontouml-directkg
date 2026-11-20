@@ -151,7 +151,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         stage = "collect_relations"
         relations, groundings, omitted = collect_relations(index, classes, diagnostics, input_policy)
         stage = "collect_attributes"
-        attributes = collect_attributes(index, classes, diagnostics, input_policy)
+        attributes, omitted_attributes = collect_attributes(index, classes, diagnostics, input_policy)
         stage = "relation_names"
         names, lexical = relation_names(relations, groundings, iri_strategy, relation_labels,
                                        no_stereotype_relation_naming, diagnostics)
@@ -195,7 +195,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
                 for relation in relations for end, reverse in ((relation.source_end, True), (relation.target_end, False))}
         end_kinds = {end.data["id"]: relation.kind
                      for relation in relations for end in (relation.source_end, relation.target_end)}
-        expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted, end_kinds)
+        expressions = PropertyExpressions(graph, attributes, resources, ends, inverses, omitted, end_kinds, omitted_attributes)
         stage = "emit_relations"
         bridges = emit_relations(graph, relations, resources, inverses, lexical, relation_labels, text,
                                  diagnostics, input_policy, expressions)

@@ -24,10 +24,12 @@ class Attribute:
 
 
 def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
-                       diagnostics: DiagnosticCollector, policy: str) -> tuple[Attribute, ...]:
+                       diagnostics: DiagnosticCollector, policy: str
+                       ) -> tuple[tuple[Attribute, ...], set[str]]:
     """Resolve source types before allocating property identity; never guess kinds."""
     generated_classes = {element.data["id"] for element in classes}
     attributes = []
+    omitted_attributes: set[str] = set()
     for element in index.elements:
         data = element.data
         if data["type"] != "Property":
@@ -38,7 +40,25 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
         if owner is None or owner.data["type"] != "Class":
             raise NotImplementedError("Attribute ownership cannot be resolved under the decided baseline")
         if element.owner not in generated_classes:
-            raise NotImplementedError("Attribute ownership without a generated local class is outside the decided baseline")
+            owner_key = datatype_key(owner.data.get("name")) if owner.data.get("stereotype") == "datatype" else None
+            owner_kind = (
+                "Visual Paradigm 'void'"
+                if owner_key == "void"
+                else f"registered primitive datatype {owner_key!r}"
+                if owner_key in PRIMITIVES
+                else "classifier"
+            )
+            input_error(
+                diagnostics,
+                policy,
+                "ATTRIBUTE_OWNER_WITHOUT_LOCAL_CLASS",
+                f"Attribute {data.get('id')!r} owner {owner.data.get('id')!r} ({owner_kind}) has no generated local owl:Class.",
+                (element.location, owner.location),
+                "Affected attribute and dependent output omitted without generating a local owl:Class or domainless property; independent mappings retained.",
+            )
+            if isinstance(data.get("id"), str):
+                omitted_attributes.add(data["id"])
+            continue
         identifier = data.get("id")
         if not isinstance(identifier, str) or not identifier:
             raise NotImplementedError("Invalid attribute-ID recovery requires the deferred Architect decision")
@@ -77,7 +97,7 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
         if value_type.data["id"] not in generated_classes:
             raise NotImplementedError("Attribute range without a generated local class remains outside the decided baseline")
         attributes.append(Attribute(element, owner, OWL.ObjectProperty, value_type))
-    return tuple(attributes)
+    return tuple(attributes), omitted_attributes
 
 
 def property_candidates(attributes: tuple[Attribute, ...], strategy: str,
@@ -165,19 +185,24 @@ class PropertyExpressions:
     def __init__(self, graph: Graph, attributes: tuple[Attribute, ...],
                  resources: dict[str, URIRef], ends: dict[str, tuple[str, bool]],
                  inverses: dict[str, URIRef], omitted_relations: set[str],
-                 end_kinds: dict[str, URIRef] | None = None) -> None:
+                 end_kinds: dict[str, URIRef] | None = None,
+                 omitted_attributes: set[str] | None = None) -> None:
         self.graph, self.resources = graph, resources
         self.attributes = {attribute.source.data["id"]: attribute.kind for attribute in attributes}
         self.ends, self.inverses, self.omitted = ends, inverses, omitted_relations
         self.end_kinds = end_kinds or {}
+        self.omitted_attributes = omitted_attributes or set()
         self.anonymous: dict[URIRef, BNode] = {}
 
     def is_omitted(self, element: SourceElement) -> bool:
-        return element.data["id"] not in self.attributes and element.owner in self.omitted
+        identifier = element.data["id"]
+        return (identifier in self.omitted_attributes
+                or (identifier not in self.attributes and element.owner in self.omitted))
 
     def unavailable_datatype_inverse_primary(self, element: SourceElement) -> str | None:
         identifier = element.data["id"]
-        if identifier in self.attributes or element.owner in self.omitted or identifier not in self.ends:
+        if (identifier in self.attributes or identifier in self.omitted_attributes
+                or element.owner in self.omitted or identifier not in self.ends):
             return None
         primary_id, reverse = self.ends[identifier]
         if reverse and self.end_kinds.get(identifier, OWL.ObjectProperty) == OWL.DatatypeProperty:
@@ -188,7 +213,7 @@ class PropertyExpressions:
         identifier = element.data["id"]
         if identifier in self.attributes:
             return self.attributes[identifier]
-        if element.owner in self.omitted:
+        if identifier in self.omitted_attributes or element.owner in self.omitted:
             return None
         if identifier not in self.ends:
             raise KeyError("Required underlying property transformation did not generate an expression")
@@ -210,7 +235,7 @@ class PropertyExpressions:
         identifier = element.data["id"]
         if identifier in self.attributes:
             return self.resources[identifier]
-        if element.owner in self.omitted:
+        if identifier in self.omitted_attributes or element.owner in self.omitted:
             return None
         if identifier not in self.ends:
             raise KeyError("Required underlying property transformation did not generate an expression")
