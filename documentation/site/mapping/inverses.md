@@ -4,11 +4,13 @@ These are **specified mappings**. The A1 role/domain fallbacks and numeric alloc
 
 ## Generation and eligibility
 
-The [canonical control catalog](../reference/controls.md#established-controls) owns `--inverse-properties`, its four values, and default `all`. `all` generates every eligible named inverse; `informed` needs an inverse-facing role or non-null multiplicity; `named` needs that role; `none` generates no named inverses. This control does not disable accepted anonymous inverse expressions.
+The [canonical control catalog](../reference/controls.md#established-controls) owns `--inverse-properties`, its four values, and default `all`. `all` generates every eligible named inverse; `informed` needs an inverse-facing role or non-null multiplicity; `named` needs that role; `none` generates no named inverses. Selecting `all`, `informed`, `named`, or `none` never independently causes a compatibility **ERROR** on datatype-valued relations, which are not inverse-eligible. This control does not disable accepted anonymous inverse expressions for `owl:ObjectProperty` relations.
 
-A relation is eligible exactly when its supported binary primary transformation successfully produces an IRI-identified `owl:ObjectProperty` with two resolved classifier endpoints suitable as domain/range. Self-relations, supported stereotypes, and unnamed relations receiving generated IRIs remain eligible.
+A relation is eligible exactly when its supported binary primary transformation successfully produces an IRI-identified `owl:ObjectProperty` with two resolved classifier endpoints suitable as domain/range. Self-relations, supported stereotypes (when producing `owl:ObjectProperty`), and unnamed `owl:ObjectProperty` relations receiving generated IRIs remain eligible.
 
-Instantiation declarations, covered derivation connectors, unsupported resolved relation-valued connectors, generalizations/sets, unsupported n-ary relations, and constructs represented only as assertions, annotations, or reified structures do not qualify. Classifier-owned attributes do not qualify, whether represented as `owl:DatatypeProperty` or `owl:ObjectProperty`. Malformed relations must be diagnosed for their underlying structural problem, rather than silently called ineligible. Independently generated material/comparative relation properties retain their ordinary eligibility.
+**Datatype-valued ordinary binary relations (`owl:DatatypeProperty` under `DK-REL-01`) are not inverse-eligible:** neither named nor anonymous inverse datatype properties may be generated. On an otherwise compatible datatype-valued relation, an explicit, nonempty source-end role name (non-whitespace under `DK-INV-05`) triggers a **nonfatal WARNING under every input policy, including `strict`**, rather than generating an inverse or causing a structural conflict; source-end descriptions are omitted without an extra diagnostic per `DK-LBL-02`.
+
+Instantiation declarations, covered derivation connectors, unsupported resolved relation-valued connectors, generalizations/sets, unsupported n-ary relations, and constructs represented only as assertions, annotations, or reified structures do not qualify. Classifier-owned attributes do not qualify, whether represented as `owl:DatatypeProperty` or `owl:ObjectProperty`. Malformed relations must be diagnosed for their underlying structural problem, rather than silently called ineligible. Independently generated material/comparative object-property relations retain their ordinary eligibility.
 
 The inverse-facing end is the **source association end**: for primary `A → B`, its classifier `A` is the inverse's range. Under `informed`, `*` and `0..*` qualify as non-null multiplicities even though no numeric restriction results. Explicit null and an absent cardinality field do not qualify; a role can independently trigger generation. Field absence retains its own warning.
 
@@ -37,14 +39,14 @@ This **specification illustration** assumes a named `worksFor` relation from `Pe
 
 The example's untagged source label assumes no explicit override, local language, or single applicable project language.
 
-| Use of an inverse direction | Required expression |
+| Use of an inverse direction (`owl:ObjectProperty` relations only) | Required expression |
 | --- | --- |
 | Reverse-side ordinary relation cardinality | Corresponding named inverse when generated; anonymous inverse of the primary otherwise |
 | Source association end in explicit UML subsetting/redefinition | Corresponding named inverse when generated; anonymous inverse of the primary otherwise |
 | Feature-facing expression in characterization–external-dependence disjointness | Primary when already aligned; otherwise its generated named inverse, or an anonymous inverse of the primary when none is generated |
 | Backward material-chain step | **Always an anonymous inverse of the primary**, even when a named inverse exists |
 
-These uses do not force named inverse generation, and do not establish anonymous-inverse mappings for other transformations. An unsupported connector cannot gain an inverse through this permission. See [Relation cardinalities](relations.md#relation-cardinalities), [Subsetting](property-features.md#subsetting), [Characterization and external dependence](relations.md#characterization-and-external-dependence), and [Material-chain modes](derivations-and-chains.md#material-chain-modes).
+These uses apply only to `owl:ObjectProperty` relations; datatype-valued relations have neither named nor anonymous inverses (referencing a datatype-valued relation's source end under `DK-PROP-03` or specifying a meaningful source-end multiplicity produces a structural **ERROR**). These uses do not force named inverse generation, and do not establish anonymous-inverse mappings for other transformations. An unsupported connector cannot gain an inverse through this permission. See [Datatype-valued relations](relations.md#datatype-valued-relations-and-compatibility), [Relation cardinalities](relations.md#relation-cardinalities), [Subsetting](property-features.md#subsetting), [Characterization and external dependence](relations.md#characterization-and-external-dependence), and [Material-chain modes](derivations-and-chains.md#material-chain-modes).
 
 ## Inverse naming
 
@@ -107,14 +109,16 @@ The VP-plugin export path supplies at most one role name per end; the bounded la
 
 ## Explicit inverse specialization
 
-For every successfully mapped **explicit relation generalization**, emit `SpecificInverse rdfs:subPropertyOf GeneralInverse` when both named inverses exist. If either is absent, omit this additional edge without a warning; do not create a named or anonymous inverse solely for it. Mirror explicit edges, not their transitive closure, and do not add semantic endpoint/domain/range compatibility checks.
+For every successfully mapped **explicit `owl:ObjectProperty` relation generalization**, emit `SpecificInverse rdfs:subPropertyOf GeneralInverse` when both named inverses exist. If either is absent (or when both relations are homogeneous `owl:DatatypeProperty` relations, which have no inverses), omit this additional edge without a warning; do not create a named or anonymous inverse solely for it. Mirror explicit edges, not their transitive closure, and do not add semantic endpoint/domain/range compatibility checks.
 
-[Complete singleton relation sets](relations.md#fully-resolved-singleton) also require the reverse general-inverse-to-specific-inverse inclusion when both inverses exist. Their added hierarchy participates in material-chain non-simplicity propagation.
+[Complete singleton relation sets](relations.md#fully-resolved-singleton) also require the reverse general-inverse-to-specific-inverse inclusion when both relations are `owl:ObjectProperty` relations and both inverses exist. Their added hierarchy participates in material-chain non-simplicity propagation.
 
 This required mirroring is specific to relation generalizations. UML `subsets` and `redefines` produce their independently selected inclusion axioms, without additionally materializing inverse counterparts. Named-inverse disjointness pairs follow [Generalization and disjointness](relations.md#generalization-and-disjointness).
 
 ---
 
-Governing rules: DK-INV-01–12; DK-ATT-01; DK-REL-09, 14–15, 20; DK-PROP-03; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01; baseline consolidated: **2026-11-18**; repository commit: `4f9a9ccfa016a052a9b955afb0f9d863e3df8222`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4f9a9ccfa016a052a9b955afb0f9d863e3df8222/documentation/specification/transformation-specification.md). The A1.1, A1.2 and revised A1.3 inverse-naming resolutions are recorded in the [2 November 2026 specification](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
+Governing rules: DK-INV-01–12; DK-ATT-01; DK-REL-01, 09, 14–15, 20; DK-PROP-03; DK-LBL-02; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01; baseline consolidated: **2026-11-20**; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md). The A1.1, A1.2 and revised A1.3 inverse-naming resolutions are recorded in the [2 November 2026 specification](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).

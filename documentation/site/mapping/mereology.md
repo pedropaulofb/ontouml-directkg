@@ -60,7 +60,7 @@ In every vocabulary mode, an eligible ordinary class-to-class relation carrying 
 | `subQuantityOf` | `dkgm:subQuantityOf` |
 | `componentOf` | `dkgm:componentOf` |
 
-Here `dkgm:` is the **`U#` namespace**, `https://w3id.org/directkg/vocab/dkgm#`. The bridge is `Primary rdfs:subPropertyOf Generic`, not replacement or merging of source relations. Each covered primary property is also explicitly an `owl:AsymmetricProperty`. Asymmetry entails irreflexivity, so no separate irreflexivity declaration is required. Do not additionally declare its generated named inverse asymmetric solely from this stereotype; the inverse relationship already entails the corresponding consequence.
+Here `dkgm:` is the **`U#` namespace**, `https://w3id.org/directkg/vocab/dkgm#`. The bridge is `Primary rdfs:subPropertyOf Generic`, not replacement or merging of source relations. Each covered primary property is also explicitly an `owl:AsymmetricProperty`. Asymmetry entails irreflexivity, so no separate irreflexivity declaration is required. Do not additionally declare its generated named inverse asymmetric solely from this stereotype; the inverse relationship already entails the corresponding consequence. Under `DK-REL-01`, an ordinary relation carrying `memberOf`, `subCollectionOf`, `subQuantityOf`, or `componentOf` whose target resolves to a supported primitive `datatype` is rejected with a structural **ERROR** because this object-property-only mapping cannot be satisfied by an `owl:DatatypeProperty` ([Datatype-valued relations](relations.md#datatype-valued-relations-and-compatibility)).
 
 !!! warning "Source orientation is retained even when unintended"
 
@@ -92,6 +92,8 @@ The vocabulary mode and `--material-property-chains` are independent controls. S
 
 ---
 
-Governing rules: §3.3; DK-GEN-04; DK-REL-01, 04, 07, 19; DK-CLS-01; DK-PROP-04; DK-DIAG-01, 04; §15; baseline consolidated: **2026-11-13**, including the **2026-10-24** accepted DKGM identity correction; repository commit: `b1ddc8f00ba027d144115bace1d6bcfd12a394a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/b1ddc8f00ba027d144115bace1d6bcfd12a394a5/documentation/specification/transformation-specification.md).
+Governing rules: §3.3; DK-GEN-04; DK-REL-01, 04, 07, 19; DK-CLS-01; DK-PROP-04; DK-DIAG-01, 04; §15; baseline consolidated: **2026-11-20**, including the **2026-10-24** accepted DKGM identity correction; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).

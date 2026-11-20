@@ -28,7 +28,7 @@ For attributes transformed as `owl:ObjectProperty` under this rule:
 - **No inferred relation stereotypes:** DirectKG generates ordinary `owl:ObjectProperty` declarations and axioms only. It does **not** infer any OntoUML relation stereotype or apply stereotype-specific relation mappings (for example, no `owl:AsymmetricProperty`, `owl:IrreflexiveProperty`, event, dependency, mereological, gUFO, or `dkgm` axioms inferred from attribute `propertyType`, and no derived `Relation` stereotypes).
 - **No attribute flattening:** DirectKG does **not** infer or flatten owned attributes of the target `Class` onto the owning class.
 - **No named inverses or redundant value restrictions:** Attributes remain excluded from named inverse generation under [Inverse properties](inverses.md#generation-and-eligibility) (`DK-INV-01–02`), and no redundant local `owl:allValuesFrom` restriction is generated (`DK-ATT-04`).
-- **All existing attribute rules apply:** Necessary `rdfs:subClassOf` restrictions (`DK-ATT-02`, never `owl:equivalentClass`), preservation of explicit multiplicities (`DK-ATT-03`, with no new multiplicity mapping or configuration option, and subject to `omit-conflicting-constraints` if a property expression becomes non-simple through `subsettedProperties` or `redefinedProperties` hierarchy links beneath an emitted material chain), `isDerived` annotations (`DK-GEN-05`), distinct property identity, owner qualification, `subsettedProperties`/`redefinedProperties`, and `isReadOnly`/`isOrdered`/`begin`/`end` comments (`DK-PROP-01–06`), labels, descriptions, and language resolution (`DK-LBL-01–02`), IRI construction and `dcterms:identifier` annotations (`DK-IRI-02–05, 07, 09–10`), and multiplicity recovery and diagnostics (`DK-DIAG-09–11`) all remain applicable.
+- **All existing attribute rules apply:** Necessary `rdfs:subClassOf` restrictions (`DK-ATT-02`, never `owl:equivalentClass`), preservation of explicit multiplicities (`DK-ATT-03`, with no new multiplicity mapping or configuration option, and subject to `omit-conflicting-constraints` if a property expression becomes non-simple through `subsettedProperties` or `redefinedProperties` hierarchy links beneath an emitted material chain), `isDerived` annotations (`DK-GEN-05`), distinct property identity, owner qualification, `subsettedProperties`/`redefinedProperties` (now subject to `DK-PROP-03`'s global rejection of mixed `owl:ObjectProperty`/`owl:DatatypeProperty` inclusions; see [Subsetting](property-features.md#subsetting)), and `isReadOnly`/`isOrdered`/`begin`/`end` comments (`DK-PROP-01–06`), labels, descriptions, and language resolution (`DK-LBL-01–02`), IRI construction and `dcterms:identifier` annotations (`DK-IRI-02–05, 07, 09–10`), and multiplicity recovery and diagnostics (`DK-DIAG-09–11`) all remain applicable.
 
 Transforming a class attribute whose `propertyType` resolves to a `Class` with a generated local `owl:Class` outside `datatype` and `enumeration` is **non-erroneous under `strict`, `tolerant`, and `best-effort`**: DirectKG emits no extra warning or error solely because the target `Class` is not `datatype` or `enumeration`. Existing structural-error and recovery rules under `DK-DIAG-05` (`UNRESOLVED_ATTRIBUTE_TYPE`) continue to apply for unresolved or invalid `propertyType` references (such as a dangling ID, malformed reference, or non-`Class` reference). A target `Class` without a generated local `owl:Class` (other than handled primitives and `void`, for example a target omitted earlier under `best-effort`) retains its existing unresolved/unavailable-target boundary. `DK-DIAG-04`'s eight-code diagnostic core and established configuration options remain unchanged.
 
@@ -64,7 +64,7 @@ Explicit recognized `begin` and `end` stereotypes have [boundary stereotype comm
 
 ## Primitive registry
 
-The **complete current primitive registry contains nine entries**. VP `void` is recognized separately and is not a tenth primitive mapping.
+The **complete current primitive registry contains nine entries** (reused for both primitive-valued attributes and compatible [datatype-valued ordinary relations](relations.md#datatype-valued-relations-and-compatibility)). VP `void` is recognized separately and is not a tenth primitive mapping.
 
 | Normalized key | RDF range |
 | --- | --- |
@@ -94,11 +94,11 @@ An explicit `propertyType: null` means **unspecified typing**. Keep the datatype
 
 The downloadable [classes-and-attributes example](../examples/index.md#classes-and-untyped-attributes) pairs a checked Catalog adaptation with a labelled Turtle illustration of two distinct untyped attributes and their owner domains.
 
-VP `void` (`stereotype == "datatype"`) means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). Keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available.
+VP `void` (`stereotype == "datatype"`) means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). This rangeless `owl:DatatypeProperty` and warning handling applies to **`void`-typed attributes only**: keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available. By contrast, an ordinary binary relation whose target resolves to `void` (`Class → void`) is a structural **ERROR** under [Datatype-valued relations](relations.md#datatype-valued-relations-and-compatibility) (`DK-REL-01`) and must not generate a rangeless datatype property.
 
 !!! warning "The void type does not prohibit values"
 
-    Do not substitute an XSD datatype, `rdfs:Literal`, `owl:Nothing`, `owl:bottomDataProperty`, `xsd:anySimpleType`, `xsd:anyAtomicType`, or an invented empty datatype for `void`. In particular, `void` does not mean that the attribute must have no values. Its warning and unsupported status distinguish it from null typing; both preserve the property's otherwise applicable mappings.
+    Do not substitute an XSD datatype, `rdfs:Literal`, `owl:Nothing`, `owl:bottomDataProperty`, `xsd:anySimpleType`, `xsd:anyAtomicType`, or an invented empty datatype for `void`. In particular, `void` does not mean that an attribute must have no values. Its warning and unsupported status distinguish it from null typing; both preserve an attribute's otherwise applicable mappings.
 
 ## Cardinalities and structured datatypes
 
@@ -151,6 +151,8 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01, 04–06, 09–11, 16, 18; §3.4; baseline consolidated: **2026-11-18**; repository commit: `4f9a9ccfa016a052a9b955afb0f9d863e3df8222`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4f9a9ccfa016a052a9b955afb0f9d863e3df8222/documentation/specification/transformation-specification.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01, 04–06, 09–11, 16, 18; DK-REL-01; §3.4; baseline consolidated: **2026-11-20**; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`) & global `DK-PROP-03` mixed-kind rejection** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-18 — Comment preservation of `begin` and `end` property stereotypes** (project-owner formalization included in the cited consolidation).

@@ -41,7 +41,7 @@ Preserve nonempty supported descriptions as `rdfs:comment`, without translation,
 | Target association end | Primary relation property |
 | Source association end | Corresponding named inverse property, if generated |
 
-Relation and target-end descriptions are separate comments on the primary property; do not concatenate them. Do not automatically copy the relation description to its inverse. A source-end description does not itself cause inverse generation; if no named inverse exists, omit it without an extra diagnostic solely for that omission.
+Relation and target-end descriptions are separate comments on the primary property; do not concatenate them. Do not automatically copy the relation description to its inverse. A source-end description does not itself cause inverse generation; if no named inverse exists—including for compatible [datatype-valued relations](../mapping/relations.md#datatype-valued-relations-and-compatibility) under `DK-REL-01`—omit it without an extra diagnostic solely for that omission. (An explicit, nonempty source-end role name on a compatible datatype-valued relation still triggers `DK-REL-01`'s nonfatal warning.)
 
 Do not create a resource solely to host a description or attach primitive-datatype descriptions to shared external datatype IRIs. Package descriptions and custom `propertyAssignments` retain their recognized-omission rules. `Project.description` accepts the supported plain/localized forms within the [bounded input contract](input.md#language-enrichment); that does not establish additional metadata mappings.
 
@@ -99,4 +99,6 @@ Produced INFO and warnings remain accessible/exportable under the diagnostic con
 
 ---
 
-Governing rules: DK-LBL-01–02; DK-REL-02–06; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-01, 04, 16, 19; baseline consolidated: **2026-11-03**; repository commit: `4fdef7bbaf8b73bf1ed0ff47fc793494493083dc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/4fdef7bbaf8b73bf1ed0ff47fc793494493083dc/documentation/specification/transformation-specification.md).
+Governing rules: DK-LBL-01–02; DK-REL-01–06; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-01, 04, 16, 19; baseline consolidated: **2026-11-20**; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`)** (project-owner formalization included in the cited consolidation).

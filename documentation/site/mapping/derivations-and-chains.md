@@ -16,7 +16,7 @@ None of these derivation connectors receives its own resource, ordinary/inverse 
 
 For material–relator and material–mode connectors, intentional non-representation alone adds no warning or error under any input policy. Existing naming, ambiguity, and structural diagnostics remain applicable. If no chain is generated, there is no separate formal grounding link; a relator-derived name does not establish one.
 
-For comparative–quality derivations, emit a **nonfatal unsupported-semantics diagnostic**, including under `strict`, identifying the connector, comparative relation, and available quality. It should explain that the source supplies no comparison rule to preserve. Do not derive a chain, equivalence, comparison function, cardinality, special property name, or transitivity/symmetry/asymmetry/reflexivity/irreflexivity/functionality/inverse-functionality characteristic solely from that grounding. Ordinary comparative naming and other independently applicable diagnostics remain.
+For comparative–quality derivations, emit a **nonfatal unsupported-semantics diagnostic**, including under `strict`, identifying the connector, comparative relation, and available quality. It should explain that the source supplies no comparison rule to preserve. Do not derive a chain, equivalence, comparison function, cardinality, special property name, or transitivity/symmetry/asymmetry/reflexivity/irreflexivity/functionality/inverse-functionality characteristic solely from that grounding. Ordinary comparative naming and other independently applicable diagnostics remain. When a `comparative` relation `C` targets a supported primitive `datatype` (requiring `owl:DatatypeProperty` under `DK-REL-01`) while this recognized comparative–quality derivation activates `DK-REL-18`'s requirement for an ordinary `owl:ObjectProperty`, DirectKG reports a structural compatibility **ERROR** (`strict`/`tolerant` abort; `best-effort` retains **ERROR** severity, omits `C` and dependent output, and preserves `Q` and independent mappings). Other `comparative` relations without a recognized comparative–quality derivation retain datatype-property eligibility under [Datatype-valued relations](relations.md#datatype-valued-relations-and-compatibility).
 
 These specific mappings replace the generic [unsupported resolved connector](relations.md#relation-valued-endpoints) warning for their patterns. Do not infer a missing stereotype or reinterpret endpoints to manufacture a match. Malformed or unresolved endpoints remain structural errors.
 
@@ -49,6 +49,8 @@ The [canonical controls](../reference/controls.md#established-controls) define `
 The five [additional relation axioms](relations.md#compatibility-of-each-addition) have a separate per-axiom compatibility gate in every material-chain mode. Preservation mode does not override that gate, and emitting material chains alone does not suppress the additions. The gate accounts for the selected vocabulary output. Existing cardinality and relation-set disjointness policies and source-specific mereology retain their established behavior.
 
 Preservation mode does not promise full OntoUML semantics or complete source-model preservation. Omission mode does not guarantee OWL 2 DL conformance. Pattern eligibility, source-element transformation, direction, and ambiguity rules remain the same for both generating modes.
+
+For a datatype-valued `material` relation (`owl:DatatypeProperty` under `DK-REL-01`), enabling `--material-property-chains` (`omit-conflicting-constraints` or `preserve-conflicting-constraints`) alone is **not** a conflict. DirectKG reports a structural compatibility **ERROR** only when an applicable, unambiguous property-chain mapping under `DK-REL-07` actually requires an incompatible `owl:ObjectProperty` conclusion (`strict`/`tolerant` abort; `best-effort` omits the affected `material` relation and all dependent output with zero orphaned references). Under `best-effort`, when a required `mediation` or `characterization` grounding relation fails (or an incomplete or ambiguous grounding pattern prevents chain emission), DirectKG preserves the independently valid datatype-valued `material` relation rather than propagating that grounding failure.
 
 ### Eligible direct patterns
 
@@ -121,6 +123,8 @@ No emitted material chain means no notice triggered solely by this rule. The not
 
 ---
 
-Governing rules: DK-REL-01, 07–08, 15, 18; DK-DIAG-07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-11-12**; repository commit: `31ee95dbc43cd411987862a81b80f6f8383e2761`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/31ee95dbc43cd411987862a81b80f6f8383e2761/documentation/specification/transformation-specification.md).
+Governing rules: DK-REL-01, 07–08, 15, 18; DK-DIAG-05, 07–08; DK-GEN-04–05; DK-INV-04; baseline consolidated: **2026-11-20**; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-17 — Five relation-axiom additions with per-axiom OWL 2 DL compatibility** (project-owner formalization included in the cited consolidation).
