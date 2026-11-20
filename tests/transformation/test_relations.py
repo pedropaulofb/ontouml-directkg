@@ -12,7 +12,8 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import DKGM, DKGM_CHAINS, DKGM_STEREOTYPES, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, diagnostic_signatures,
-                                      inapplicable_relation_categorizer_diagnostic, relation_end_comment_meanings)
+                                      inapplicable_relation_categorizer_diagnostic,
+                                      rd02_relation_diagnostic, relation_end_comment_meanings)
 from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
@@ -3525,3 +3526,1011 @@ def test_inapplicable_relation_categorizer_reader_requires_affirmative_condition
         assert inapplicable_relation_categorizer_diagnostic(message), message
     for message in rejected:
         assert not inapplicable_relation_categorizer_diagnostic(message), message
+
+
+_RD02_PRIMITIVES = [
+    ('boolean', XSD.boolean),
+    ('byte', XSD.byte),
+    ('char', XSD.string),
+    ('double', XSD.double),
+    ('float', XSD.float),
+    ('int', XSD.int),
+    ('long', XSD.long),
+    ('short', XSD.short),
+    ('string', XSD.string),
+]
+
+
+def _datatype_class(document, identifier='dValue', name='int'):
+    cls = copy.deepcopy(source_element(document, 'cB'))
+    cls.update(id=identifier, name=name, stereotype='datatype')
+    return cls
+
+
+def _assert_no_relation_triples(graph, *identifiers):
+    for identifier in identifiers:
+        assert not any(BASE[identifier] in triple for triple in graph), identifier
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('tFocus')))
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('sFocus')))
+
+
+@pytest.mark.parametrize('iri_strategy', ['name', 'id'])
+@pytest.mark.parametrize('case,name,expected_target', [
+    *(pytest.param('primitive', prim_name, xsd_iri, id=prim_name) for prim_name, xsd_iri in _RD02_PRIMITIVES),
+    pytest.param('localized_primitive', {'en': 'int', 'nl': 'float'}, XSD.int, id='localized_int'),
+    pytest.param('localized_custom', {'de': 'Ganzzahl', 'en': 'int'}, None, id='localized_custom'),
+    pytest.param('custom_unregistered', 'integer', None, id='unregistered_integer_remains_custom'),
+])
+def test_datatype_valued_relations_map_all_nine_primitives_and_retain_custom_datatypes(
+        run, source_json, tmp_path, iri_strategy, case, name, expected_target):
+    """Rules: DK-REL-01, DK-DAT-02, DK-DAT-05, DK-GEN-03, DK-IRI-06, DK-IRI-09, DK-IRI-10, DK-INV-01, DK-INV-02, DK-LBL-01, DK-LBL-02, DK-REL-10, DK-REL-11.
+
+    RD-02 Alternative B: Class -> Primitive ordinary binary relations map to
+    owl:DatatypeProperty with DK-DAT-02 XSD ranges and no inverses, while
+    unregistered/localized-custom datatypes retain custom owl:Class + owl:ObjectProperty.
+    """
+    document = source_json('shared/binary_relation')
+    document['languages'] = ['nl']
+    source_element(document, 'cB').update(name=copy.deepcopy(name), stereotype='datatype')
+    source_element(document, 'rFocus').update(name='hasValue', description='Relation description.')
+    source_element(document, 'sFocus').update(name=None, cardinality=None, description='Omitted source description.')
+    source_element(document, 'tFocus').update(name='valueRole', cardinality='1', description='Target description.')
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, inverse_properties='all')
+    assert result.outcome == 'completed'
+    assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics), result.diagnostics
+    graph = result.ontology
+    primary = _primary(result, 'tFocus', iri_strategy)
+    domain = BASE.cA if iri_strategy == 'id' else BASE.HTTPServer
+
+    if expected_target is not None:
+        assert (primary, RDF.type, OWL.DatatypeProperty) in graph
+        assert (primary, RDF.type, OWL.ObjectProperty) not in graph
+        assert set(graph.objects(primary, RDFS.domain)) == {domain}
+        assert set(graph.objects(primary, RDFS.range)) == {expected_target}
+        assert not any(BASE.cB in triple for triple in graph)
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('cB')))
+        assert not any(primary in pair for pair in graph.subject_objects(OWL.inverseOf))
+        assert not any(BASE.sFocus in triple for triple in graph)
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('sFocus')))
+        if case == 'primitive' and name == 'char':
+            assert not list(graph.triples((None, OWL.withRestrictions, None)))
+    else:
+        custom = BASE.cB if iri_strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('cB'))
+        assert (custom, RDF.type, OWL.Class) in graph
+        assert (primary, RDF.type, OWL.ObjectProperty) in graph
+        assert (primary, RDF.type, OWL.DatatypeProperty) not in graph
+        assert set(graph.objects(primary, RDFS.domain)) == {domain}
+        assert set(graph.objects(primary, RDFS.range)) == {custom}
+        inverse = _primary(result, 'sFocus', iri_strategy)
+        assert (inverse, OWL.inverseOf, primary) in graph
+
+    assert set(graph.objects(primary, RDFS.label)) == {Literal('hasValue', lang='nl')}
+    assert (primary, RDFS.comment, Literal('Relation description.', lang='nl')) in graph
+    assert (primary, RDFS.comment, Literal('Target description.', lang='nl')) in graph
+    if expected_target is not None:
+        assert not list(graph.triples((None, RDFS.comment, Literal('Omitted source description.', lang='nl'))))
+    assert not any(d.kind == 'omitted_description' for d in result.diagnostics)
+    _counts(graph, domain, primary, {('exact', 1)})
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('source_card,target_card,expected_counts,valid', [
+    ('*', '0', {('exact', 0)}, True),
+    ('0..*', '1', {('exact', 1)}, True),
+    (' \t* ', '0..1', {('max', 1)}, True),
+    (' 00 .. * ', '2..5', {('min', 2), ('max', 5)}, True),
+    (None, '5..2', {('min', 5), ('max', 2)}, True),
+    (None, '1..*', {('min', 1)}, True),
+    ('*', '0..*', set(), True),
+    ('0..*', '*', set(), True),
+    (None, None, set(), True),
+    ('absent', 'absent', set(), True),
+    ('*', '1..n', {('min', 1)}, False),
+    ('0..*', '..3', {('max', 3)}, False),
+    (None, '2...*', set(), False),
+], ids=[
+    'star_to_zero', 'zero_unbounded_to_one', 'padded_star_to_optional',
+    'padded_zero_unbounded_to_bounded', 'null_to_contradictory', 'null_to_pos_unbounded',
+    'star_to_zero_unbounded', 'zero_unbounded_to_star', 'both_null', 'both_absent',
+    'target_invalid_upper_recovers_min', 'target_empty_lower_recovers_max', 'target_ambiguous_recovers_none',
+])
+def test_datatype_valued_relation_compatible_counts_and_target_recovery(
+        run, source_json, tmp_path, input_policy, source_card, target_card, expected_counts, valid):
+    """Rules: DK-REL-01, DK-REL-10, DK-REL-11, DK-REL-12, DK-REL-13, DK-DIAG-05, DK-DIAG-09, DK-DIAG-10, DK-DIAG-11; §3.4.
+
+    RD-02 Q3a/Q3b: compatible source multiplicities (*, 0..*, null, absent)
+    keep target-end unqualified necessary counts and target-end DK-DIAG-10 recovery.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_end = source_element(document, 'sFocus')
+    target_end = source_element(document, 'tFocus')
+    source_end['name'] = None
+    if source_card == 'absent':
+        del source_end['cardinality']
+    else:
+        source_end['cardinality'] = source_card
+    if target_card == 'absent':
+        del target_end['cardinality']
+    else:
+        target_end['cardinality'] = target_card
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties='all', input_policy=input_policy)
+    if valid:
+        assert result.outcome == 'completed'
+        assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+        missing = [d for d in result.diagnostics if d.kind == 'missing_cardinality']
+        if source_card == 'absent':
+            assert any(d.severity == 'WARNING' and 'sFocus' in d.identified_sources for d in missing)
+            assert any(d.severity == 'WARNING' and 'tFocus' in d.identified_sources for d in missing)
+        else:
+            assert not missing
+            assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+    else:
+        assert any(d.kind == 'invalid_cardinality' and d.severity == 'ERROR'
+                   and 'tFocus' in d.identified_sources for d in result.diagnostics)
+        if input_policy != 'best-effort':
+            assert result.outcome == 'aborted' and result.ontology is None
+            return
+        assert result.outcome == 'completed-with-errors'
+
+    graph = result.ontology
+    assert (BASE.tFocus, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tFocus, RDFS.range)) == {XSD.int}
+    assert not any(BASE.sFocus in triple for triple in graph)
+    _counts(graph, BASE.cA, BASE.tFocus, expected_counts)
+
+
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('label_mode', ['source-only', 'generated'])
+@pytest.mark.parametrize('branch', ['relation', 'target_role', 'relator_grounding', 'endpoints'])
+@pytest.mark.parametrize('dkgm_mode', ['import', 'none'])
+def test_datatype_valued_relation_naming_labels_identifiers_and_dkgm_modes(
+        run, source_json, tmp_path, strategy, label_mode, branch, dkgm_mode):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-05, DK-REL-06, DK-REL-08, DK-LBL-01, DK-LBL-02, DK-IRI-06, DK-IRI-09, DK-GEN-04.
+
+    RD-02 Q1/Q7: compatible datatype-valued relations follow relation-naming
+    precedence, primary-relation label modes, omit-identifiers, and DKGM modes.
+    """
+    document = source_json('relations/material_naming' if branch == 'relator_grounding' else 'shared/binary_relation')
+    document['languages'] = ['nl']
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'sFocus')['name'] = None
+    if branch == 'relation':
+        source_element(document, 'rFocus')['name'] = ' Assigned, Count '
+        source_element(document, 'tFocus')['name'] = 'target count'
+    elif branch == 'target_role':
+        source_element(document, 'rFocus')['name'] = None
+        source_element(document, 'tFocus')['name'] = 'target count'
+    elif branch == 'endpoints':
+        source_element(document, 'rFocus')['name'] = None
+        source_element(document, 'tFocus')['name'] = None
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 relation_labels=label_mode, dkgm_vocabulary=dkgm_mode, language='pt-BR')
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    assert not any(DKGM_CHAIN_WARNING_FACTS & d.facts for d in result.diagnostics)
+    graph = result.ontology
+    primary = _primary(result, 'tFocus', strategy)
+    domain = BASE.cA if strategy == 'id' else BASE.HTTPServer
+    assert (primary, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(primary, RDFS.domain)) == {domain}
+    assert set(graph.objects(primary, RDFS.range)) == {XSD.int}
+    assert not list(graph.objects(primary, RDFS.subPropertyOf))
+
+    expected_candidate = {
+        'relation': 'Assigned_Count',
+        'target_role': 'target_count',
+        'relator_grounding': 'employmentContract',
+        'endpoints': 'hTTPServer_int',
+    }[branch]
+    if strategy == 'name':
+        assert primary == BASE[expected_candidate]
+        assert set(graph.objects(primary, DCTERMS.identifier)) == {Literal('tFocus')}
+    else:
+        assert not list(graph.objects(primary, DCTERMS.identifier))
+
+    if branch == 'relation':
+        assert set(graph.objects(primary, RDFS.label)) == {Literal(' Assigned, Count ', lang='pt-BR')}
+    elif branch == 'target_role':
+        assert set(graph.objects(primary, RDFS.label)) == {Literal('target count', lang='pt-BR')}
+    else:
+        assert set(graph.objects(primary, RDFS.label)) == (
+            {Literal(expected_candidate)} if label_mode == 'generated' else set())
+    if branch == 'endpoints' and strategy == 'name':
+        _source_target_naming_warning(result, 'rFocus')
+    elif branch == 'target_role' and strategy == 'name':
+        assert any(d.kind == 'relation_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+    if strategy == 'name':
+        omitted = run(path=write_input(tmp_path, document, 'omit.json'), iri_strategy='name',
+                      relation_labels=label_mode, dkgm_vocabulary=dkgm_mode, omit_identifiers=True)
+        assert omitted.outcome == 'completed'
+        assert not list(omitted.ontology.triples((None, DCTERMS.identifier, None)))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('endpoint_case', [
+    'class_to_void',
+    'primitive_to_class',
+    'void_to_class',
+    'primitive_to_primitive',
+    'primitive_to_void',
+    'void_to_void',
+])
+def test_datatype_valued_relation_endpoint_rejections_and_pre_naming_omission(
+        run, source_json, tmp_path, input_policy, strategy, endpoint_case):
+    """Rules: DK-REL-01, DK-DAT-04, DK-DAT-05, DK-DIAG-03, DK-DIAG-04, DK-DIAG-05.
+
+    RD-02 Q1a/Q1b & Conflict H: Class -> void and relations whose source lacks
+    a generated local owl:Class fail with structural ERROR before naming/IRI
+    allocation; best-effort omits only the failed relation without reversing
+    direction or inventing a local class, while void attributes keep DK-DAT-04.
+    """
+    document = source_json('shared/binary_relation')
+    d_int = _datatype_class(document, 'dInt', 'int')
+    d_void = _datatype_class(document, 'dVoid', 'void')
+    c_peer = copy.deepcopy(source_element(document, 'cA'))
+    c_peer.update(id='cPeer', name='PeerClass')
+    document['model']['contents'].extend([d_int, d_void, c_peer])
+
+    # Include an independent void-typed attribute on cA to confirm DK-DAT-04 remains separate.
+    void_attr = {
+        'id': 'pVoidAttr', 'name': 'voidAttr', 'description': None, 'type': 'Property',
+        'propertyAssignments': None, 'stereotype': None, 'isDerived': False,
+        'isReadOnly': False, 'isOrdered': False, 'cardinality': '1',
+        'propertyType': {'id': 'dVoid', 'type': 'Class'},
+        'subsettedProperties': None, 'redefinedProperties': None, 'aggregationKind': None,
+    }
+    source_element(document, 'cA')['properties'] = [void_attr]
+
+    # Add a peer same-named relation cA -> cPeer to verify failed rFocus claims no IRI.
+    peer_rel = copy.deepcopy(source_element(document, 'rFocus'))
+    peer_rel.update(id='rPeer', name='sharedName')
+    peer_rel['properties'][0].update(id='sPeer', name=None, propertyType={'id': 'cA', 'type': 'Class'})
+    peer_rel['properties'][1].update(id='tPeer', name=None, propertyType={'id': 'cPeer', 'type': 'Class'})
+    document['model']['contents'].append(peer_rel)
+
+    source_map = {
+        'class_to_void': ('cA', 'dVoid', 'void_relation_target'),
+        'primitive_to_class': ('dInt', 'cB', 'non_class_relation_source'),
+        'void_to_class': ('dVoid', 'cB', 'non_class_relation_source'),
+        'primitive_to_primitive': ('dInt', 'dInt', 'non_class_relation_source'),
+        'primitive_to_void': ('dInt', 'dVoid', 'non_class_relation_source'),
+        'void_to_void': ('dVoid', 'dVoid', 'non_class_relation_source'),
+    }
+    src_id, tgt_id, expected_fact = source_map[endpoint_case]
+    source_element(document, 'rFocus')['name'] = None
+    source_element(document, 'sFocus').update(name=None, cardinality='1', propertyType={'id': src_id, 'type': 'Class'})
+    source_element(document, 'tFocus').update(name=None, cardinality='2', propertyType={'id': tgt_id, 'type': 'Class'})
+    # Clear sharedName from rFocus so if naming ran it would warn; verify no naming diagnostic fires for rFocus.
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 input_policy=input_policy, inverse_properties='none')
+    assert any(
+        d.severity == 'ERROR'
+        and expected_fact in d.facts
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        and d.code not in STABLE_DIAGNOSTIC_CODES
+        and {'rFocus', 'sFocus', 'tFocus'} & set(d.identified_sources)
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in NAMING_KINDS and {'rFocus', 'sFocus', 'tFocus'} & set(d.identified_sources)
+        for d in result.diagnostics
+    )
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus', 'dInt', 'dVoid')
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('dInt')))
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('dVoid')))
+    c_a = BASE.cA if strategy == 'id' else BASE.HTTPServer
+    c_peer_iri = BASE.cPeer if strategy == 'id' else BASE.PeerClass
+    assert (c_a, RDF.type, OWL.Class) in graph
+    assert (c_peer_iri, RDF.type, OWL.Class) in graph
+    # Peer relation keeps its uncollided name/IRI without suffix from failed rFocus.
+    t_peer = _primary(result, 'tPeer', strategy)
+    assert (t_peer, RDF.type, OWL.ObjectProperty) in graph
+    if strategy == 'name':
+        assert t_peer == BASE.sharedName
+    # DK-DAT-04 void-typed attribute still retains rangeless owl:DatatypeProperty + VOID_DATATYPE warning.
+    p_void = BASE.pVoidAttr if strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('pVoidAttr'))
+    assert (p_void, RDF.type, OWL.DatatypeProperty) in graph
+    assert not list(graph.objects(p_void, RDFS.range))
+    assert any(d.kind == 'void_datatype' and d.severity == 'WARNING'
+               and 'pVoidAttr' in d.identified_sources for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('target_kind', ['class', 'primitive'])
+def test_custom_datatype_source_retains_local_class_for_object_and_datatype_relations(
+        run, source_json, tmp_path, target_kind):
+    """Rules: DK-REL-01, DK-DAT-05, DK-GEN-03.
+
+    RD-02 Q1b: custom <<datatype>> classifiers already receive a local
+    owl:Class and remain valid sources for both object and datatype relations.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cA').update(name='CustomSource', stereotype='datatype')
+    if target_kind == 'primitive':
+        source_element(document, 'cB').update(name='int', stereotype='datatype')
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', inverse_properties='all')
+    assert result.outcome == 'completed'
+    graph = result.ontology
+    assert (BASE.cA, RDF.type, OWL.Class) in graph
+    expected_kind = OWL.DatatypeProperty if target_kind == 'primitive' else OWL.ObjectProperty
+    expected_range = XSD.int if target_kind == 'primitive' else BASE.cB
+    assert (BASE.tFocus, RDF.type, expected_kind) in graph
+    assert set(graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tFocus, RDFS.range)) == {expected_range}
+    assert ((BASE.sFocus, RDF.type, OWL.ObjectProperty) in graph) == (target_kind == 'class')
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('stereotype', [
+    'componentOf', 'memberOf', 'subCollectionOf', 'subQuantityOf',
+    'characterization', 'mediation', 'participational', 'externalDependence',
+])
+def test_datatype_valued_relation_rejects_eight_incompatible_stereotypes_before_naming(
+        run, source_json, tmp_path, input_policy, strategy, stereotype):
+    """Rules: DK-REL-01, DK-REL-19, DK-GEN-04, DK-DIAG-04, DK-DIAG-05.
+
+    RD-02 Q2 & Conflict H: the eight object-property-only stereotypes fail with
+    structural ERROR before IRI/naming; best-effort omits only the relation
+    with no DKGM bridge, asymmetry/irreflexivity, cardinality, or annotations.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'rFocus').update(name=None, stereotype=stereotype, description='Should be omitted.')
+    source_element(document, 'sFocus').update(name=None, cardinality=None, isReadOnly=True)
+    source_element(document, 'tFocus').update(name=None, cardinality='2', aggregationKind='COMPOSITE')
+    c_peer = copy.deepcopy(source_element(document, 'cA'))
+    c_peer.update(id='cPeer', name='PeerClass')
+    peer_rel = copy.deepcopy(source_element(document, 'rFocus'))
+    peer_rel.update(id='rPeer', name='peerLink', stereotype='material', description=None)
+    peer_rel['properties'][0].update(id='sPeer', name=None, cardinality=None, isReadOnly=False,
+                                     propertyType={'id': 'cA', 'type': 'Class'})
+    peer_rel['properties'][1].update(id='tPeer', name=None, cardinality='1', aggregationKind='NONE',
+                                     propertyType={'id': 'cPeer', 'type': 'Class'})
+    document['model']['contents'].extend([c_peer, peer_rel])
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 input_policy=input_policy, inverse_properties='none')
+    assert any(
+        d.severity == 'ERROR'
+        and 'incompatible_datatype_relation_stereotype' in d.facts
+        and 'rFocus' in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in NAMING_KINDS and {'rFocus', 'sFocus', 'tFocus'} & set(d.identified_sources)
+        for d in result.diagnostics
+    )
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus', 'cB')
+    assert not list(graph.subjects(RDFS.subPropertyOf, None))
+    assert not list(graph.subjects(RDF.type, OWL.AsymmetricProperty))
+    assert not list(graph.subjects(RDF.type, OWL.IrreflexiveProperty))
+    assert not list(graph.triples((None, RDFS.comment, Literal('Should be omitted.'))))
+    t_peer = _primary(result, 'tPeer', strategy)
+    assert (t_peer, RDF.type, OWL.ObjectProperty) in graph
+    _counts(graph, BASE.cA if strategy == 'id' else BASE.HTTPServer, t_peer, {('exact', 1)})
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('stereotype,expected_kind', [
+    ('historicalDependence', 'unmapped_relation_stereotype'),
+    ('participation', 'unmapped_relation_stereotype'),
+    ('creation', 'unmapped_relation_stereotype'),
+    ('termination', 'unmapped_relation_stereotype'),
+    ('manifestation', 'unmapped_relation_stereotype'),
+    ('bringsAbout', 'unmapped_relation_stereotype'),
+    ('triggers', 'unmapped_relation_stereotype'),
+    (None, None),
+    ('customDatatypeRel', 'unrecognized_stereotype'),
+])
+def test_datatype_valued_relation_allows_compatible_stereotypes_with_warnings(
+        run, source_json, tmp_path, input_policy, strategy, stereotype, expected_kind):
+    """Rules: DK-REL-01, DK-DIAG-01, DK-DIAG-05, DK-DIAG-06, DK-REL-10, DK-REL-11.
+
+    RD-02 Q2: compatible recognized stereotypes, missing stereotypes, and custom
+    stereotypes retain owl:DatatypeProperty mapping and nonfatal warnings.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'rFocus').update(name='relLink', stereotype=stereotype)
+    source_element(document, 'sFocus').update(name=None, cardinality=None)
+    source_element(document, 'tFocus').update(name=None, cardinality='1')
+    assert not fixture_issues(document)
+
+    stereotype_policy = 'allow-missing' if stereotype is None else 'allow-custom' if expected_kind == 'unrecognized_stereotype' else 'require-known'
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 input_policy=input_policy, stereotype_policy=stereotype_policy, inverse_properties='all')
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    graph = result.ontology
+    primary = _primary(result, 'tFocus', strategy)
+    domain = BASE.cA if strategy == 'id' else BASE.HTTPServer
+    assert (primary, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(primary, RDFS.domain)) == {domain}
+    assert set(graph.objects(primary, RDFS.range)) == {XSD.int}
+    _counts(graph, domain, primary, {('exact', 1)})
+    assert not any(primary in pair for pair in graph.subject_objects(OWL.inverseOf))
+    if expected_kind is not None:
+        assert any(d.kind == expected_kind and d.severity == 'WARNING' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('mode', CHAIN_MODES)
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('case', [
+    'standalone_material',
+    'incomplete_grounding',
+    'failed_grounding_mediation',
+    'failed_grounding_characterization',
+])
+def test_datatype_valued_material_relation_with_chain_modes_preserves_compatible_property(
+        run, source_json, tmp_path, mode, input_policy, case):
+    """Rules: DK-REL-01, DK-REL-07, DK-REL-08, DK-DIAG-05, DK-DIAG-07.
+
+    RD-02 Q2 & Conflict F: enabling --material-property-chains alone does not
+    conflict with a datatype-valued material relation; under best-effort, failed
+    grounding mediation/characterization does not reject the material property.
+    """
+    document = source_json('shared/material_pattern')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'sMaterial').update(name=None, cardinality=None)
+    source_element(document, 'sLeft')['name'] = None
+    source_element(document, 'sRight')['name'] = None
+    if case in {'standalone_material', 'incomplete_grounding', 'failed_grounding_mediation'}:
+        _grounding(document, 'relator')
+    else:
+        _grounding(document, 'mode')
+    contents = document['model']['contents']
+    if case == 'standalone_material':
+        for key in ('rLeft', 'rRight', 'rDerivation'):
+            contents.remove(source_element(document, key))
+    elif case == 'incomplete_grounding':
+        contents.remove(source_element(document, 'rRight'))
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, material_property_chains=mode)
+    grounding_fails = case in {'failed_grounding_mediation', 'failed_grounding_characterization'}
+    if grounding_fails and input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        assert any(d.severity == 'ERROR' and 'incompatible_datatype_relation_stereotype' in d.facts
+                   and 'rRight' in d.identified_sources for d in result.diagnostics)
+        return
+
+    assert result.outcome == ('completed-with-errors' if grounding_fails else 'completed')
+    graph = result.ontology
+    assert (BASE.tMaterial, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(BASE.tMaterial, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tMaterial, RDFS.range)) == {XSD.int}
+    _counts(graph, BASE.cA, BASE.tMaterial, {('min', 2), ('max', 5)})
+    assert not list(graph.triples((None, OWL.propertyChainAxiom, None)))
+    assert not any(d.kind == 'chain_compatibility' for d in result.diagnostics)
+    assert not any('incompatible_material_chain' in d.facts for d in result.diagnostics)
+    if grounding_fails:
+        assert any(d.severity == 'ERROR' and 'rRight' in d.identified_sources for d in result.diagnostics)
+        _assert_no_relation_triples(graph, 'rRight', 'sRight', 'tRight')
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('case', ['without_derivation', 'comparative_first', 'quality_first'])
+def test_datatype_valued_comparative_relation_conflicts_only_with_quality_derivation(
+        run, source_json, tmp_path, input_policy, case):
+    """Rules: DK-REL-01, DK-REL-18, DK-REL-06, DK-DIAG-05.
+
+    RD-02 Q2 & Conflict E: standalone comparative Class -> Primitive stays an
+    owl:DatatypeProperty, while pairing with a recognized DK-REL-18 derivation
+    to a quality class reports a structural compatibility ERROR.
+    """
+    document = source_json('shared/material_pattern')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'rMaterial').update(name=None, stereotype='comparative')
+    source_element(document, 'sMaterial').update(name=None, cardinality=None)
+    source_element(document, 'tMaterial')['name'] = None
+    source_element(document, 'cGround')['stereotype'] = 'quality'
+    for key in ('rLeft', 'rRight'):
+        document['model']['contents'].remove(source_element(document, key))
+    if case == 'without_derivation':
+        document['model']['contents'].remove(source_element(document, 'rDerivation'))
+    elif case == 'quality_first':
+        source_element(document, 'rDerivation')['properties'].reverse()
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='name', input_policy=input_policy)
+    if case == 'without_derivation':
+        assert result.outcome == 'completed'
+        assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+        prop = _primary(result, 'tMaterial', 'name')
+        assert (prop, RDF.type, OWL.DatatypeProperty) in result.ontology
+        assert set(result.ontology.objects(prop, RDFS.range)) == {XSD.int}
+        assert any(d.kind == 'comparative_naming' and d.severity == 'WARNING' for d in result.diagnostics)
+        return
+
+    assert any(
+        d.severity == 'ERROR'
+        and 'incompatible_comparative_derivation' in d.facts
+        and 'rMaterial' in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('tMaterial')))
+    assert not any(BASE.tMaterial in triple or BASE.sMaterial in triple for triple in graph)
+    assert not any(BASE.cB in triple for triple in graph)
+    assert (BASE.Ground, RDF.type, OWL.Class) in graph
+    assert (BASE.ParticipantA, RDF.type, OWL.Class) in graph
+    unrelated = _primary(result, 'tUnrelated', 'name')
+    assert (unrelated, RDF.type, OWL.ObjectProperty) in graph
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('cardinality', ['0', '0..0', '1', '0..1', '2..5', '1..*', '5..2', '1..0'])
+def test_datatype_valued_relation_meaningful_source_multiplicities_fail_before_naming(
+        run, source_json, tmp_path, input_policy, strategy, cardinality):
+    """Rules: DK-REL-01, DK-REL-11, DK-REL-12, DK-INV-02, DK-DIAG-04, DK-DIAG-05.
+
+    RD-02 Q3a & Conflict H: valid meaningful source-end multiplicities on a
+    datatype-valued relation require an unavailable inverse and fail with a
+    structural ERROR before naming/IRI allocation.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'rFocus')['name'] = None
+    source_element(document, 'sFocus').update(name=None, cardinality=cardinality)
+    source_element(document, 'tFocus').update(name=None, cardinality='1')
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 input_policy=input_policy, inverse_properties='none')
+    assert any(
+        d.severity == 'ERROR'
+        and 'incompatible_source_multiplicity' in d.facts
+        and {'rFocus', 'sFocus'} & set(d.identified_sources)
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in NAMING_KINDS and {'rFocus', 'sFocus', 'tFocus'} & set(d.identified_sources)
+        for d in result.diagnostics
+    )
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus', 'cB')
+    assert (BASE.cA if strategy == 'id' else BASE.HTTPServer, RDF.type, OWL.Class) in graph
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('cardinality,recoverable_reverse', [
+    pytest.param('1..n', True, id='recoverable_lower_positive'),
+    pytest.param('..3', True, id='recoverable_upper_finite'),
+    pytest.param('n..0', True, id='recoverable_upper_zero'),
+    pytest.param('-1..3', True, id='recoverable_signed_lower_finite_upper'),
+    pytest.param('2..+3', True, id='recoverable_positive_lower_signed_upper'),
+    pytest.param('1..', True, id='recoverable_open_upper'),
+    pytest.param('1.5..3', True, id='recoverable_decimal_lower_finite_upper'),
+    pytest.param('2..3e1', True, id='recoverable_exponent_upper'),
+    pytest.param('２..3', True, id='recoverable_non_ascii_lower_finite_upper'),
+    pytest.param('n', False, id='unrecoverable_symbolic_single'),
+    pytest.param('0..n', False, id='unrecoverable_zero_lower'),
+    pytest.param('n..*', False, id='unrecoverable_unbounded_upper'),
+    pytest.param('..', False, id='unrecoverable_both_empty'),
+    pytest.param('n..m', False, id='unrecoverable_both_symbolic'),
+    pytest.param('2...*', False, id='unrecoverable_ambiguous_dots'),
+    pytest.param('1..2..3', False, id='unrecoverable_repeated_delimiter'),
+    pytest.param('2,,3', False, id='unrecoverable_comma'),
+    pytest.param('2:3', False, id='unrecoverable_colon'),
+    pytest.param('', False, id='unrecoverable_empty_string'),
+    pytest.param(' \t ', False, id='unrecoverable_blank_string'),
+    pytest.param(1, False, id='unrecoverable_json_number'),
+    pytest.param(True, False, id='unrecoverable_json_boolean'),
+    pytest.param([], False, id='unrecoverable_json_array'),
+    pytest.param({}, False, id='unrecoverable_json_object'),
+])
+def test_datatype_valued_relation_invalid_source_multiplicity_dk_diag_10_precedence(
+        run, source_json, tmp_path, input_policy, cardinality, recoverable_reverse):
+    """Rules: DK-REL-01, DK-DIAG-10, DK-DIAG-11, DK-DIAG-05, DK-INV-02.
+
+    RD-02 Q3a + Conflict A: invalid source-end bounds retain INVALID_CARDINALITY;
+    under best-effort, inverse unavailability takes precedence when a meaningful
+    recoverable reverse bound exists (omitting the relation), whereas cases
+    without recoverable reverse constraints preserve the compatible datatype property.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'sFocus').update(name=None, cardinality=cardinality)
+    source_element(document, 'tFocus')['cardinality'] = '2..5'
+    assert fixture_issues(document) == (frozenset() if isinstance(cardinality, str) else {'invalid_cardinality_type'})
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='none')
+    assert any(d.kind == 'invalid_cardinality' and d.severity == 'ERROR'
+               and 'sFocus' in d.identified_sources for d in result.diagnostics)
+    if recoverable_reverse:
+        assert any(
+            d.severity == 'ERROR'
+            and 'incompatible_source_multiplicity' in d.facts
+            and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+            for d in result.diagnostics
+        ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert (BASE.cA, RDF.type, OWL.Class) in graph
+    assert not any(BASE.sFocus in triple or BASE.cB in triple for triple in graph)
+    if recoverable_reverse:
+        _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus', 'cB')
+    else:
+        assert (BASE.tFocus, RDF.type, OWL.DatatypeProperty) in graph
+        assert set(graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+        assert set(graph.objects(BASE.tFocus, RDFS.range)) == {XSD.int}
+        _counts(graph, BASE.cA, BASE.tFocus, {('min', 2), ('max', 5)})
+
+
+@pytest.mark.parametrize('inverse_mode', ['all', 'informed', 'named', 'none'])
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('role_value,expect_warning', [
+    pytest.param('workers', True, id='plain_nonempty'),
+    pytest.param({'en': '  ', 'nl': '東京'}, True, id='localized_any_nonwhitespace'),
+    pytest.param('___', True, id='unusable_ascii_nonempty'),
+    pytest.param('', False, id='empty_string'),
+    pytest.param(' \t ', False, id='whitespace_only'),
+    pytest.param({'en': '  ', 'nl': '\t'}, False, id='localized_all_whitespace'),
+    pytest.param(None, False, id='explicit_null'),
+    pytest.param('absent', False, id='absent_field'),
+])
+def test_datatype_valued_relation_inverse_modes_and_source_role_warning(
+        run, source_json, tmp_path, inverse_mode, input_policy, role_value, expect_warning):
+    """Rules: DK-REL-01, DK-INV-01, DK-INV-02, DK-INV-05, DK-LBL-02, DK-DIAG-05.
+
+    RD-02 Q4a/Q4b: --inverse-properties never errors or generates an inverse on
+    a datatype-valued relation; an explicit nonempty source-end role name emits
+    a nonfatal WARNING under every policy including strict while omitting source
+    descriptions without extra diagnostics.
+    """
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_end = source_element(document, 'sFocus')
+    source_end.update(cardinality='*', description='Omitted source description.')
+    if role_value == 'absent':
+        source_end.pop('name', None)
+    else:
+        source_end['name'] = copy.deepcopy(role_value)
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=inverse_mode, input_policy=input_policy)
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    graph = result.ontology
+    assert (BASE.tFocus, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tFocus, RDFS.range)) == {XSD.int}
+    assert not any(BASE.sFocus in triple for triple in graph)
+    assert not list(graph.subject_objects(OWL.inverseOf))
+    assert not list(graph.triples((None, RDFS.comment, Literal('Omitted source description.'))))
+    assert not any(d.kind == 'omitted_description' for d in result.diagnostics)
+
+    role_warnings = [d for d in result.diagnostics if 'unrepresentable_source_role' in d.facts]
+    if expect_warning:
+        assert role_warnings and all(
+            d.severity == 'WARNING' and {'rFocus', 'sFocus'} & set(d.identified_sources)
+            for d in role_warnings
+        ), result.diagnostics
+    else:
+        assert not role_warnings
+        assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+@pytest.mark.parametrize('set_case', ['open', 'disjoint', 'singleton_complete', 'multi_complete'])
+def test_homogeneous_datatype_relation_hierarchies_and_generalization_sets(
+        run, source_json, tmp_path, input_policy, inverse_mode, set_case):
+    """Rules: DK-REL-01, DK-REL-14, DK-REL-15, DK-REL-16, DK-REL-20, DK-INV-12, DK-DIAG-14, DK-DIAG-05.
+
+    RD-02 Q6a/Q6b: homogeneous owl:DatatypeProperty relation generalizations,
+    disjoint sets, singleton completeness (+ INFO), and multi-member completeness
+    warnings apply without inverse axioms or absent-inverse warnings.
+    """
+    document = source_json('relations/hierarchy')
+    d_int = _datatype_class(document, 'dInt', 'int')
+    d_str = _datatype_class(document, 'dString', 'string')
+    document['model']['contents'].extend([d_int, d_str])
+    for key, target_dt in (('General', 'dInt'), ('Middle', 'dString'), ('Leaf', 'dString'), ('Sibling', 'dInt')):
+        source_element(document, 's' + key)['name'] = None
+        source_element(document, 't' + key)['propertyType'] = {'id': target_dt, 'type': 'Class'}
+    gs = source_element(document, 'gsRelations')
+    if set_case == 'open':
+        gs.update(isComplete=False, isDisjoint=False)
+    elif set_case == 'disjoint':
+        gs.update(isComplete=False, isDisjoint=True)
+    elif set_case == 'singleton_complete':
+        gs.update(isComplete=True, isDisjoint=False, generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}])
+    else:
+        gs.update(isComplete=True, isDisjoint=True)
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=inverse_mode, input_policy=input_policy)
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+    graph = result.ontology
+
+    expected_edges = {(BASE.tMiddle, BASE.tGeneral), (BASE.tLeaf, BASE.tMiddle), (BASE.tSibling, BASE.tGeneral)}
+    if set_case == 'singleton_complete':
+        expected_edges.add((BASE.tGeneral, BASE.tMiddle))
+    assert _edges(graph) == expected_edges
+    for key, dt_iri in (('General', XSD.int), ('Middle', XSD.string), ('Leaf', XSD.string), ('Sibling', XSD.int)):
+        prop = BASE['t' + key]
+        assert (prop, RDF.type, OWL.DatatypeProperty) in graph
+        assert set(graph.objects(prop, RDFS.range)) == {dt_iri}
+        assert not any(BASE['s' + key] in triple for triple in graph)
+    assert not list(graph.subject_objects(OWL.inverseOf))
+    assert not list(graph.triples((None, OWL.equivalentProperty, None)))
+
+    expected_pairs = ({frozenset((BASE.tMiddle, BASE.tSibling))}
+                      if set_case in {'disjoint', 'multi_complete'} else set())
+    assert _pairs(graph) == expected_pairs
+
+    if set_case == 'singleton_complete':
+        assert any(d.kind == 'singleton_completeness' and d.severity == 'INFO'
+                   and {'gsRelations', 'rGeneral', 'rMiddle'} <= set(d.identified_sources)
+                   and {'extensional_equivalence', 'distinct_identifiers'} <= d.facts
+                   for d in result.diagnostics)
+        assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+    elif set_case == 'multi_complete':
+        assert any(d.kind == 'relation_set_completeness' and d.severity == 'WARNING'
+                   and 'gsRelations' in d.identified_sources
+                   and 'coverage_not_represented' in d.facts
+                   for d in result.diagnostics)
+    else:
+        assert not any(d.severity == 'WARNING' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('direction', ['obj_sub_data_super', 'data_sub_obj_super'])
+@pytest.mark.parametrize('singleton_complete', [False, True], ids=['open', 'singleton_complete'])
+def test_mixed_kind_relation_generalization_reports_error_and_never_activates_singleton(
+        run, source_json, tmp_path, input_policy, direction, singleton_complete):
+    """Rules: DK-REL-01, DK-REL-14, DK-REL-20, DK-DIAG-14, DK-DIAG-05.
+
+    RD-02 Q6b & Conflict I: mixed object/data relation generalizations report
+    a structural ERROR; best-effort omits only the incompatible hierarchy edge
+    without activating singleton completeness or DK-DIAG-14 INFO.
+    """
+    document = source_json('relations/hierarchy')
+    document['model']['contents'].append(_datatype_class(document, 'dInt', 'int'))
+    if direction == 'obj_sub_data_super':
+        source_element(document, 'sGeneral')['name'] = None
+        source_element(document, 'tGeneral')['propertyType'] = {'id': 'dInt', 'type': 'Class'}
+    else:
+        source_element(document, 'sMiddle')['name'] = None
+        source_element(document, 'tMiddle')['propertyType'] = {'id': 'dInt', 'type': 'Class'}
+    source_element(document, 'gsRelations').update(
+        isComplete=singleton_complete, isDisjoint=False,
+        generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}])
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties='all', input_policy=input_policy)
+    assert any(
+        d.severity == 'ERROR'
+        and 'mixed_property_kind_generalization' in d.facts
+        and 'gMiddle' in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(d.kind == 'singleton_completeness' for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    expected_edges = set()
+    if direction == 'obj_sub_data_super':
+        # rMiddle/rLeaf/rSibling are all ObjectProperties; rGeneral is DatatypeProperty.
+        expected_edges |= {(BASE.tLeaf, BASE.tMiddle), (BASE.sLeaf, BASE.sMiddle)}
+        assert (BASE.tGeneral, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.tMiddle, RDF.type, OWL.ObjectProperty) in graph
+    else:
+        # rMiddle is DatatypeProperty; rGeneral/rLeaf/rSibling are ObjectProperties.
+        expected_edges |= {(BASE.tSibling, BASE.tGeneral), (BASE.sSibling, BASE.sGeneral)}
+        assert (BASE.tMiddle, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.tGeneral, RDF.type, OWL.ObjectProperty) in graph
+    assert _edges(graph) == expected_edges
+    assert (BASE.tMiddle, RDFS.subPropertyOf, BASE.tGeneral) not in graph
+    assert (BASE.tGeneral, RDFS.subPropertyOf, BASE.tMiddle) not in graph
+    assert (BASE.sGeneral, RDFS.subPropertyOf, BASE.sMiddle) not in graph
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('inverse_mode', ['all', 'none'])
+@pytest.mark.parametrize('case', ['multi_disjoint_mixed', 'two_member_mixed_complete_no_singleton'])
+def test_cross_kind_disjoint_relation_generalization_set_retains_only_homogeneous_pairs(
+        run, source_json, tmp_path, input_policy, inverse_mode, case):
+    """Rules: DK-REL-01, DK-REL-14, DK-REL-15, DK-REL-16, DK-REL-20, DK-INV-12, DK-DIAG-14, DK-DIAG-05.
+
+    RD-02 Q6b & Conflict I: cross-kind disjointness pairs report structural
+    ERROR; best-effort omits only cross-kind pairs and mixed edges while keeping
+    homogeneous disjointness pairs (and inverses) and never promoting a sole
+    surviving member to singleton completeness.
+    """
+    document = source_json('relations/hierarchy')
+    document['model']['contents'].append(_datatype_class(document, 'dInt', 'int'))
+    source_element(document, 'sSibling')['name'] = None
+    source_element(document, 'tSibling')['propertyType'] = {'id': 'dInt', 'type': 'Class'}
+
+    if case == 'multi_disjoint_mixed':
+        peer = copy.deepcopy(source_element(document, 'rMiddle'))
+        peer.update(id='rPeer', name='peer')
+        peer['properties'][0]['id'] = 'sPeer'
+        peer['properties'][1]['id'] = 'tPeer'
+        g_peer = copy.deepcopy(source_element(document, 'gMiddle'))
+        g_peer.update(id='gPeer', specific={'id': 'rPeer', 'type': 'Relation'})
+        document['model']['contents'].extend([peer, g_peer])
+        source_element(document, 'gsRelations').update(
+            isDisjoint=True, isComplete=True,
+            generalizations=[{'id': i, 'type': 'Generalization'} for i in ('gMiddle', 'gPeer', 'gSibling')])
+    else:
+        # 2-member set where gSibling is mixed-kind leaving only gMiddle surviving: must NOT become singleton.
+        source_element(document, 'gsRelations').update(
+            isDisjoint=True, isComplete=True,
+            generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}, {'id': 'gSibling', 'type': 'Generalization'}])
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=inverse_mode, input_policy=input_policy)
+    assert any(
+        d.severity == 'ERROR'
+        and 'mixed_property_kind_disjointness' in d.facts
+        and 'gsRelations' in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'mixed_property_kind_generalization' in d.facts
+        and 'gSibling' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(d.kind == 'singleton_completeness' for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert (BASE.tSibling, RDF.type, OWL.DatatypeProperty) in graph
+    assert (BASE.tSibling, RDFS.subPropertyOf, BASE.tGeneral) not in graph
+    assert (BASE.tGeneral, RDFS.subPropertyOf, BASE.tMiddle) not in graph
+    assert (BASE.sGeneral, RDFS.subPropertyOf, BASE.sMiddle) not in graph
+
+    edges = {(BASE.tMiddle, BASE.tGeneral), (BASE.tLeaf, BASE.tMiddle)}
+    if case == 'multi_disjoint_mixed':
+        edges.add((BASE.tPeer, BASE.tGeneral))
+    if inverse_mode == 'all':
+        edges |= {(BASE.sMiddle, BASE.sGeneral), (BASE.sLeaf, BASE.sMiddle)}
+        if case == 'multi_disjoint_mixed':
+            edges.add((BASE.sPeer, BASE.sGeneral))
+    assert _edges(graph) == edges
+
+    expected_pairs = set()
+    if case == 'multi_disjoint_mixed':
+        expected_pairs.add(frozenset((BASE.tMiddle, BASE.tPeer)))
+        if inverse_mode == 'all':
+            expected_pairs.add(frozenset((BASE.sMiddle, BASE.sPeer)))
+    assert _pairs(graph) == expected_pairs
+
+
+def test_rd02_relation_diagnostic_reader_requires_affirmative_conditions():
+    """Harness only: verify affirmative RD-02 datatype-relation and mixed-kind wording without fixing provisional codes."""
+    accepted = {
+        'void_relation_target': (
+            "Relation 'rFocus' target resolves to Visual Paradigm 'void', which has no registered datatype mapping.",
+            "Ordinary binary relation 'rFocus' targets void (no datatype mapping exists).",
+        ),
+        'non_class_relation_source': (
+            "Relation 'rFocus' source resolves to primitive datatype 'dInt', which lacks a generated local owl:Class.",
+            "Primitive source 'dInt' has no local OWL class for relation 'rFocus'.",
+        ),
+        'incompatible_datatype_relation_stereotype': (
+            "Datatype-valued relation 'rFocus' cannot use stereotype 'mediation', which requires an owl:ObjectProperty.",
+            "Stereotype 'componentOf' is incompatible with owl:DatatypeProperty mapping on relation 'rFocus'.",
+        ),
+        'incompatible_material_chain': (
+            "Material property chain on 'rMaterial' requires an owl:ObjectProperty and is incompatible with a datatype-valued relation.",
+            "Datatype-valued relation 'rMaterial' conflicts with eligible material-property chain.",
+        ),
+        'incompatible_comparative_derivation': (
+            "Comparative-quality derivation on 'rDerivation' requires an owl:ObjectProperty and is incompatible with datatype-valued relation 'rMaterial'.",
+            "Datatype-valued relation 'rMaterial' conflicts with recognized comparative-quality derivation.",
+        ),
+        'incompatible_source_multiplicity': (
+            "Datatype-valued relation 'rFocus' source-end multiplicity '1' requires an unavailable inverse datatype property.",
+            "Source-end cardinality on datatype-valued relation 'rFocus' cannot be represented without an inverse.",
+        ),
+        'unrepresentable_source_role': (
+            "Source-end role name 'workers' on datatype-valued relation 'rFocus' cannot be represented because no inverse property exists.",
+            "Unrepresentable source-end role name on datatype relation 'rFocus': omitted without an inverse.",
+        ),
+        'unavailable_datatype_inverse_reference': (
+            "Property subsettedProperties reference on 'sData' requires an unavailable inverse of datatype property 'tData'.",
+            "Source association end 'sData' of datatype-valued relation has no inverse for subsetting.",
+        ),
+        'mixed_property_kind_inclusion': (
+            "Property inclusion in subsettedProperties mixes owl:ObjectProperty 'pChild' and owl:DatatypeProperty 'pBase'.",
+            "Mixed object/data property-kind incompatibility in redefinedProperties on 'pChild'.",
+        ),
+        'mixed_property_kind_generalization': (
+            "Relation generalization 'gMiddle' has mixed owl:ObjectProperty and owl:DatatypeProperty kinds.",
+            "Subproperty generalization 'gMiddle' cannot connect owl:ObjectProperty and owl:DatatypeProperty.",
+        ),
+        'mixed_property_kind_disjointness': (
+            "Disjoint relation generalization set 'gsRelations' contains a cross-kind pair of owl:ObjectProperty and owl:DatatypeProperty.",
+            "Mixed property-kind incompatibility for disjointness pair in generalization set 'gsRelations'.",
+        ),
+    }
+    for expected_fact, messages in accepted.items():
+        severity = 'WARNING' if expected_fact == 'unrepresentable_source_role' else 'ERROR'
+        for message in messages:
+            assert expected_fact in rd02_relation_diagnostic(severity, message), (expected_fact, message)
+
+    rejected = (
+        ('ERROR', "Ordinary relation endpoints without local class representations remain unspecified."),
+        ('ERROR', "Unexpected internal failure while transforming relation."),
+        ('ERROR', "Attribute explicitly uses recognized unsupported Visual Paradigm void; no mapping or range is supplied."),
+        ('ERROR', "Relation end cardinality 'n..m' is not wholly translatable under the accepted syntax."),
+        ('ERROR', "If a datatype-valued relation has stereotype 'mediation', conversion aborts."),
+        ('ERROR', "Property inclusion is not mixed and has no property-kind incompatibility."),
+        ('WARNING', "Source-end role name is represented on the inverse property."),
+        ('ERROR', "Relation 'rFocus' stereotype 'mediation' is not incompatible with owl:ObjectProperty."),
+    )
+    for severity, message in rejected:
+        assert not rd02_relation_diagnostic(severity, message), (severity, message)
+

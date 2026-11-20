@@ -2064,3 +2064,155 @@ def test_class_valued_attribute_unresolved_target_report_failure_takes_precedenc
                and "unresolved_attribute_type" in event.facts
                for event in process.observation.diagnostics)
 
+
+def _rd02_cli_document(case):
+    document = load_json("shared/binary_relation")
+    d_int = copy.deepcopy(source_element(document, "cB"))
+    d_int.update(id="dInt", name="int", stereotype="datatype")
+    c_peer = copy.deepcopy(source_element(document, "cB"))
+    c_peer.update(id="cPeer", name="PeerClass", stereotype="kind")
+    document["model"]["contents"].extend([d_int, c_peer])
+
+    source_element(document, "cB").update(name="int", stereotype="datatype")
+    if case == "compatible_with_source_role_warning":
+        source_element(document, "sFocus").update(name="workers", cardinality="*")
+        source_element(document, "tFocus").update(name="score", cardinality="1..*")
+        peer = copy.deepcopy(source_element(document, "rFocus"))
+        peer.update(id="rPeer", name="peerRel")
+        peer["properties"][0].update(id="sPeer", name=None, cardinality=None, propertyType={"id": "cA", "type": "Class"})
+        peer["properties"][1].update(id="tPeer", name=None, cardinality=None, propertyType={"id": "cPeer", "type": "Class"})
+        document["model"]["contents"].append(peer)
+    elif case == "incompatible_source_multiplicity":
+        source_element(document, "sFocus").update(name=None, cardinality="1")
+        source_element(document, "tFocus").update(name="score", cardinality="2")
+        peer = copy.deepcopy(source_element(document, "rFocus"))
+        peer.update(id="rPeer", name="peerRel")
+        peer["properties"][0].update(id="sPeer", name=None, cardinality=None, propertyType={"id": "cA", "type": "Class"})
+        peer["properties"][1].update(id="tPeer", name=None, cardinality="1", propertyType={"id": "cPeer", "type": "Class"})
+        document["model"]["contents"].append(peer)
+    else:
+        document = load_json("properties/references")
+        source_element(document, "pThird").update(
+            propertyType={"id": "dInt", "type": "Class"},
+            subsettedProperties=[{"id": "pBase", "type": "Property"}],
+        )
+        source_element(document, "pChild")["subsettedProperties"] = [{"id": "pBase", "type": "Property"}]
+    assert fixture_issues(document) == frozenset()
+    return document
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", [
+    "compatible_with_source_role_warning",
+    "incompatible_source_multiplicity",
+    "mixed_kind_property_reference",
+])
+def test_datatype_valued_relation_and_mixed_kind_cli_parity(invoke, tmp_path, case, input_policy):
+    """Rules: DK-REL-01, DK-PROP-03, DK-INV-01, DK-INV-02, DK-INV-05, DK-LBL-02, DK-DIAG-04, DK-DIAG-05; §15.
+
+    RD-02 Alternative B + Q1-Q7 / Conflicts A-I: Python/CLI parity across
+    default and all three input policies for compatible datatype relations with
+    source-role warning, incompatible source multiplicity, and mixed-kind
+    DK-PROP-03 inclusions.
+    """
+    document = _rd02_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    if case == "compatible_with_source_role_warning":
+        outcome, expected_code, delivered_expected = "completed", 0, True
+    elif input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    expected_fact, expected_severity, expected_source = {
+        "compatible_with_source_role_warning": ("unrepresentable_source_role", "WARNING", "sFocus"),
+        "incompatible_source_multiplicity": ("incompatible_source_multiplicity", "ERROR", "rFocus"),
+        "mixed_kind_property_reference": ("mixed_property_kind_inclusion", "ERROR", "pChild"),
+    }[case]
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        assert any(
+            event.severity == expected_severity
+            and expected_fact in event.facts
+            and expected_source in event.identified_sources
+            and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+            for event in events
+        ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        if case == "compatible_with_source_role_warning":
+            assert (BASE.tFocus, RDF.type, OWL.DatatypeProperty) in delivered_graph
+            assert set(delivered_graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+            assert set(delivered_graph.objects(BASE.tFocus, RDFS.range)) == {XSD.int}
+            assert not any(BASE.sFocus in triple for triple in delivered_graph)
+            assert (BASE.sPeer, OWL.inverseOf, BASE.tPeer) in delivered_graph
+        elif case == "incompatible_source_multiplicity":
+            assert not any(BASE.tFocus in triple or BASE.sFocus in triple for triple in delivered_graph)
+            assert (BASE.tPeer, RDF.type, OWL.ObjectProperty) in delivered_graph
+        else:
+            assert (BASE.pThird, RDFS.subPropertyOf, BASE.pBase) in delivered_graph
+            assert (BASE.pChild, RDFS.subPropertyOf, BASE.pBase) not in delivered_graph
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_datatype_valued_relation_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-REL-01, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence.
+
+    RD-02 Alternative B: real diagnostics-report write failure takes exit-4
+    precedence over exit 3/1 while preserving console diagnostics, underlying
+    outcome, output eligibility, and the compatibility ERROR.
+    """
+    document = load_json("shared/binary_relation")
+    source_element(document, "cB").update(name="int", stereotype="datatype")
+    source_element(document, "rFocus")["stereotype"] = "mediation"
+    source_element(document, "sFocus").update(name=None, cardinality=None)
+    source_element(document, "tFocus").update(name=None, cardinality="1")
+    assert fixture_issues(document) == frozenset()
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert any(event.severity == "ERROR" and "incompatible_datatype_relation_stereotype" in event.facts
+               and "rFocus" in event.identified_sources for event in process.observation.diagnostics)
+
+

@@ -1897,3 +1897,21 @@ Selected regressions match the base identically (`171` passed, `75` pre-existing
 failures; `110/110` passing in `test_classes.py` and `test_input_diagnostics.py`).
 Full-suite execution was unperformed. This submission awaits independent Test
 Reviewer review; no production-correctness claim is made.
+
+## RD-02 datatype-valued ordinary binary relations and global DK-PROP-03 mixed-kind rejection
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK, no findings** for `f2ed3929668245e31d52f1d8290856862140219c`.
+The [scoped inventory](coverage.md#rd-02-datatype-valued-ordinary-binary-relations-and-global-dk-prop-03-mixed-kind-rejection)
+records the 731 new nodes, the 20 revised same-kind `DK-PROP-03` nodes
+replacing the 16 superseded mixed-kind nodes, updated homogeneous reference
+expectations, accepted clauses, fixture pairings, and validation evidence at
+base `283f9b01361830c2dfb1e96b08111e1f8f849b31`.
+
+They use the existing public `convert()`, `ConversionResult`, and real
+subprocess CLI bindings plus affirmative semantic diagnostic readers
+(`_rd02_datatype_relation_facts`, `_rd02_mixed_kind_facts`,
+`rd02_relation_diagnostic`) in `tests/support/invocation.py` without fixing
+provisional diagnostic codes, rejecting internal/deferred guard wording,
+negations, hedges, and unrelated diagnostics. This TEST CHANGE awaits
+independent Test Reviewer review; no production-correctness claim is made.

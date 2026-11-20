@@ -147,18 +147,43 @@ def test_each_end_reference_resolves_its_own_named_or_anonymous_expression(run, 
 
 @pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
 @pytest.mark.parametrize('mode', ['all', 'none'])
-@pytest.mark.parametrize('left,right', [('pChild','t0'),('pBase','s0'),('t1','pBase'),('s1','pChild')],
-                         ids=['attribute_to_primary', 'attribute_to_inverse', 'primary_to_attribute', 'inverse_to_attribute'])
-def test_attribute_and_end_references_ignore_semantic_property_kind_compatibility(run, source_json, tmp_path, field, mode, left, right):
-    """Rules: DK-PROP-03, DK-GEN-02, DK-DIAG-02; §3.4 property-kind compatibility boundary."""
+@pytest.mark.parametrize('left,right', [
+    ('pChild', 't0'),
+    ('s1', 'pChild'),
+    ('pBase', 'tData'),
+    ('tData', 'pThird'),
+    ('tData', 'tDataPeer'),
+], ids=['object_attr_to_primary', 'object_inverse_to_attr', 'datatype_attr_to_rel', 'datatype_rel_to_attr', 'datatype_rel_to_rel'])
+def test_same_kind_attribute_and_end_references_ignore_semantic_compatibility(
+        run, source_json, tmp_path, field, mode, left, right):
+    """Rules: DK-PROP-03, DK-GEN-02, DK-DIAG-02, DK-REL-01; §3.4 semantic compatibility boundary."""
     document = source_json('properties/references')
+    uses_data_rel = 'tData' in (left, right)
+    if uses_data_rel:
+        d_string = copy.deepcopy(source_element(document, 'dInt'))
+        d_string.update(id='dString', name='string')
+        document['model']['contents'].append(d_string)
+        r_data = copy.deepcopy(source_element(document, 'r0'))
+        r_data.update(id='rData', name='hasData')
+        r_data['properties'][0].update(id='sData', name=None, propertyType={'id': 'cA', 'type': 'Class'})
+        r_data['properties'][1].update(id='tData', name='dataVal', propertyType={'id': 'dString', 'type': 'Class'})
+        r_data_peer = copy.deepcopy(source_element(document, 'r0'))
+        r_data_peer.update(id='rDataPeer', name='hasPeerData')
+        r_data_peer['properties'][0].update(id='sDataPeer', name=None, propertyType={'id': 'cB', 'type': 'Class'})
+        r_data_peer['properties'][1].update(id='tDataPeer', name='peerDataVal', propertyType={'id': 'dInt', 'type': 'Class'})
+        document['model']['contents'].extend([r_data, r_data_peer])
     source_element(document, left)[field] = [_reference(right)]
+    assert not fixture_issues(document)
     result = run(path=write_input(tmp_path, document), iri_strategy='id', inverse_properties=mode)
     assert result.outcome == 'completed'
     def expression(identifier):
         return ('inverse', BASE['t'+identifier[1:]]) if identifier.startswith('s') and mode == 'none' else BASE[identifier]
     assert _hierarchy(result.ontology) == {(expression(left), expression(right))}
     assert (BASE.pBase, RDF.type, OWL.DatatypeProperty) in result.ontology
+    if uses_data_rel:
+        assert (BASE.tData, RDF.type, OWL.DatatypeProperty) in result.ontology
+        assert (BASE.tDataPeer, RDF.type, OWL.DatatypeProperty) in result.ontology
+    assert (BASE.pThird, RDF.type, OWL.DatatypeProperty) in result.ontology
     assert (BASE.pChild, RDF.type, OWL.ObjectProperty) in result.ontology
     assert not any(d.kind in {'semantic_validation', 'redefinition_warning'} or d.severity == 'ERROR' for d in result.diagnostics)
 
@@ -168,16 +193,20 @@ def test_attribute_and_end_references_ignore_semantic_property_kind_compatibilit
 def test_attribute_inclusion_does_not_merge_replace_or_copy_constraints(run, source_json, tmp_path, input_policy, field):
     """Rules: DK-PROP-01, DK-PROP-03, DK-GEN-03, DK-GEN-02, DK-ATT-03, DK-DIAG-02; §3.4 semantic compatibility."""
     document = source_json('properties/references')
+    d_string = copy.deepcopy(source_element(document, 'dInt'))
+    d_string.update(id='dString', name='string')
+    document['model']['contents'].append(d_string)
     source_element(document, 'pBase')['cardinality'] = '2..5'
-    source_element(document, 'pChild')['cardinality'] = '0..1'
-    source_element(document, 'pChild')[field] = [_reference('pBase')]
+    source_element(document, 'pChild').update(
+        cardinality='0..1', propertyType={'id': 'dString', 'type': 'Class'}, **{field: [_reference('pBase')]})
+    assert not fixture_issues(document)
     result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy, inverse_properties='none')
     assert result.outcome == 'completed'
     assert _hierarchy(result.ontology) == {(BASE.pChild, BASE.pBase)}
     assert (BASE.pBase, RDF.type, OWL.DatatypeProperty) in result.ontology
-    assert (BASE.pChild, RDF.type, OWL.ObjectProperty) in result.ontology
+    assert (BASE.pChild, RDF.type, OWL.DatatypeProperty) in result.ontology
     assert set(result.ontology.objects(BASE.pBase, RDFS.range)) == {XSD.int}
-    assert set(result.ontology.objects(BASE.pChild, RDFS.range)) == {BASE.dCustom}
+    assert set(result.ontology.objects(BASE.pChild, RDFS.range)) == {XSD.string}
     for prop in (BASE.pBase, BASE.pChild):
         assert set(result.ontology.objects(prop, RDFS.domain)) == {BASE.cOwner}
         assert not list(result.ontology.objects(prop, OWL.equivalentProperty))
@@ -190,6 +219,8 @@ def test_attribute_inclusion_does_not_merge_replace_or_copy_constraints(run, sou
 def test_every_reference_is_independent_deduplicated_and_not_transitively_closed(run, source_json, tmp_path):
     """Rules: DK-PROP-03, DK-GEN-02, DK-DIAG-05; §3.4 repeated references are not declarations."""
     document = source_json('properties/references')
+    source_element(document,'pBase')['propertyType'] = {'id': 'cA', 'type': 'Class'}
+    source_element(document,'pThird')['propertyType'] = {'id': 'dCustom', 'type': 'Class'}
     source_element(document,'pChild')['subsettedProperties'] = [_reference('pThird'),_reference('t0'),_reference('pThird')]
     source_element(document,'pChild')['redefinedProperties'] = [_reference('pThird')]
     source_element(document,'pThird')['redefinedProperties'] = [_reference('pBase')]
@@ -207,6 +238,7 @@ def test_every_reference_is_independent_deduplicated_and_not_transitively_closed
 def test_unresolved_or_failed_required_property_references_obey_policy(run, source_json, tmp_path, input_policy, field, failure):
     """Rules: DK-PROP-03, DK-DIAG-05, DK-DIAG-03, DK-GEN-03."""
     document = source_json('properties/references')
+    source_element(document,'pBase')['propertyType'] = {'id': 'dCustom', 'type': 'Class'}
     source_element(document,'pChild')[field] = [_reference('pBase')]
     if failure == 'unresolved':
         source_element(document,'pChild')[field].append(_reference('missingProperty'))
@@ -229,7 +261,7 @@ def test_unresolved_or_failed_required_property_references_obey_policy(run, sour
     else:
         assert result.outcome == 'completed-with-errors'
         assert _hierarchy(result.ontology) == {(BASE.pChild,BASE.pBase)}
-        assert (BASE.pBase,RDF.type,OWL.DatatypeProperty) in result.ontology
+        assert (BASE.pBase,RDF.type,OWL.ObjectProperty) in result.ontology
         assert (BASE.pChild,RDF.type,OWL.ObjectProperty) in result.ontology
         for absent in (BASE.missingProperty,BASE.s1,BASE.t1) if failure in {'referenced_failed','referencing_failed'} else (BASE.missingProperty,):
             assert not any(absent in triple for triple in result.ontology)
@@ -785,4 +817,190 @@ def test_class_valued_attribute_property_references_resolve_object_properties_wi
     assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.pChild)} == {('max', 1)}
     assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.pThird)} == {('exact', 1)}
     assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
+
+
+_MIXED_PROP_PAIRS = [
+    pytest.param('pBase', 'pChild', id='attr_data_to_attr_obj'),
+    pytest.param('pChild', 'pBase', id='attr_obj_to_attr_data'),
+    pytest.param('pBase', 't0', id='attr_data_to_rel_obj_primary'),
+    pytest.param('t1', 'pBase', id='rel_obj_primary_to_attr_data'),
+    pytest.param('pBase', 's0', id='attr_data_to_rel_obj_inverse'),
+    pytest.param('s1', 'pBase', id='rel_obj_inverse_to_attr_data'),
+    pytest.param('tData', 't0', id='rel_data_to_rel_obj_primary'),
+    pytest.param('t0', 'tData', id='rel_obj_primary_to_rel_data'),
+    pytest.param('s0', 'tData', id='rel_obj_inverse_to_rel_data'),
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('left,right', _MIXED_PROP_PAIRS)
+def test_mixed_kind_property_references_report_error_and_omit_only_incompatible_inclusion(
+        run, source_json, tmp_path, input_policy, field, mode, left, right):
+    """Rules: DK-PROP-03, DK-DIAG-02, DK-DIAG-04, DK-DIAG-05, DK-GEN-02, DK-GEN-03, DK-REL-01, DK-INV-04; §3.3, §3.4.
+
+    RD-02 global DK-PROP-03 supersession: mixed owl:ObjectProperty /
+    owl:DatatypeProperty inclusions fail with structural ERROR across
+    attributes and relations; best-effort omits only the incompatible axiom
+    while preserving independently valid properties and homogeneous inclusions.
+    """
+    document = source_json('properties/references')
+    uses_data_rel = 'tData' in (left, right)
+    if uses_data_rel:
+        r_data = copy.deepcopy(source_element(document, 'r0'))
+        r_data.update(id='rData', name='hasData')
+        r_data['properties'][0].update(id='sData', name=None, propertyType={'id': 'cA', 'type': 'Class'})
+        r_data['properties'][1].update(id='tData', name='dataVal', propertyType={'id': 'dInt', 'type': 'Class'})
+        document['model']['contents'].append(r_data)
+    # Keep a valid homogeneous inclusion alongside to verify partial recovery.
+    source_element(document, 'pThird')[field] = [_reference('pBase')]
+    source_element(document, left)[field] = list(source_element(document, left).get(field) or []) + [_reference(right)]
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties=mode)
+    assert any(
+        d.severity == 'ERROR'
+        and 'mixed_property_kind_inclusion' in d.facts
+        and left in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == {(BASE.pThird, BASE.pBase)}
+    for prop in (BASE.pBase, BASE.pThird) + ((BASE.tData,) if uses_data_rel else ()):
+        assert (prop, RDF.type, OWL.DatatypeProperty) in graph
+        assert (prop, RDF.type, OWL.ObjectProperty) not in graph
+    for prop in (BASE.pChild, BASE.t0, BASE.t1):
+        assert (prop, RDF.type, OWL.ObjectProperty) in graph
+        assert (prop, RDF.type, OWL.DatatypeProperty) not in graph
+    # No orphaned anonymous inverse blank node may be emitted solely for a failed mixed inclusion.
+    if mode == 'none':
+        assert not any(isinstance(subj, BNode) for subj in graph.subjects(OWL.inverseOf, None))
+    assert not any(BASE.sData in triple for triple in graph)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('left,right', [
+    ('sData', 'pBase'),
+    ('sData', 't0'),
+    ('pBase', 'sData'),
+    ('t0', 'sData'),
+    ('tData', 'sData'),
+], ids=['source_to_data_attr', 'source_to_obj_primary', 'data_attr_to_source', 'obj_primary_to_source', 'data_target_to_source'])
+def test_datatype_relation_source_end_in_property_reference_is_rejected_without_forcing_inverse(
+        run, source_json, tmp_path, input_policy, field, mode, left, right):
+    """Rules: DK-PROP-03, DK-REL-01, DK-INV-01, DK-INV-02, DK-INV-04, DK-DIAG-04, DK-DIAG-05.
+
+    RD-02 Q5a: referencing or referenced source association end of a
+    datatype-valued relation has no named or anonymous inverse and produces
+    a structural ERROR; best-effort omits the incompatible inclusion while
+    preserving the primary datatype property and valid homogeneous inclusions.
+    """
+    document = source_json('properties/references')
+    r_data = copy.deepcopy(source_element(document, 'r0'))
+    r_data.update(id='rData', name='hasData')
+    r_data['properties'][0].update(id='sData', name=None, propertyType={'id': 'cA', 'type': 'Class'})
+    r_data['properties'][1].update(id='tData', name='dataVal', propertyType={'id': 'dInt', 'type': 'Class'})
+    document['model']['contents'].append(r_data)
+    source_element(document, 'pThird')[field] = [_reference('pBase')]
+    source_element(document, left)[field] = [_reference(right)]
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties=mode)
+    assert any(
+        d.severity == 'ERROR'
+        and 'unavailable_datatype_inverse_reference' in d.facts
+        and left in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == {(BASE.pThird, BASE.pBase)}
+    assert (BASE.tData, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(BASE.tData, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tData, RDFS.range)) == {XSD.int}
+    assert not any(BASE.sData in triple for triple in graph)
+    assert not any(
+        obj == BASE.tData for subj, obj in graph.subject_objects(OWL.inverseOf)
+    )
+
+
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('strategy', ['id', 'name'])
+def test_datatype_valued_relation_source_flags_and_boundary_stereotypes_stay_on_primary(
+        run, invoke, source_json, tmp_path, mode, strategy):
+    """Rules: DK-REL-01, DK-GEN-05, DK-CLS-01, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-DIAG-15, DK-DIAG-16, DK-DIAG-18, DK-INV-02.
+
+    RD-02 Q7: compatible datatype-valued relations retain relation isAbstract,
+    isDerived (relation/source/target), isReadOnly, comment-only SHARED/COMPOSITE
+    aggregation on non-mereological relations, isOrdered + INFO, and begin/end
+    stereotypes on the primary owl:DatatypeProperty without generating inverses.
+    """
+    document = source_json('properties/source_flags')
+    for identifier in ('cOwner', 'cOther'):
+        source_element(document, identifier).pop('isAbstract', None)
+    source_element(document, 'rFlag').update(name='flagLink', stereotype='material', isAbstract=True, isDerived=True)
+    source_element(document, 'sFlag').update(
+        name=None, isDerived=False, isReadOnly=True, isOrdered=True,
+        aggregationKind='SHARED', stereotype='begin')
+    source_element(document, 'tFlag').update(
+        name='targetFlag', propertyType={'id': 'dValue', 'type': 'Class'},
+        isDerived=True, isReadOnly=True, isOrdered=True,
+        aggregationKind='COMPOSITE', stereotype='end')
+    assert not fixture_issues(document)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy, inverse_properties=mode)
+    assert result.outcome == 'completed'
+    assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics), result.diagnostics
+    graph = result.ontology
+    primary = BASE.tFlag if strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('tFlag'))
+    owner = BASE.cOwner if strategy == 'id' else BASE.Owner
+    assert (primary, RDF.type, OWL.DatatypeProperty) in graph
+    assert (primary, RDF.type, OWL.ObjectProperty) not in graph
+    assert set(graph.objects(primary, RDFS.domain)) == {owner}
+    assert set(graph.objects(primary, RDFS.range)) == {XSD.int}
+    assert not any(primary in pair for pair in graph.subject_objects(OWL.inverseOf))
+    assert not any(BASE.sFlag in triple for triple in graph)
+    assert not any(BASE.dValue in triple for triple in graph)
+    assert not list(graph.objects(primary, RDFS.subPropertyOf))
+    assert (primary, RDF.type, OWL.AsymmetricProperty) not in graph
+    assert not result.flag_semantic_output
+
+    assert _flag_values(result, primary, 'isAbstract') == {('relation', True)}
+    assert _flag_values(result, primary, 'isDerived') == {
+        ('relation', True), ('source_end', False), ('target_end', True)}
+    assert _flag_values(result, primary, 'isReadOnly') == {('source_end', True), ('target_end', True)}
+    assert _flag_values(result, primary, 'aggregationKind') == {
+        ('source_end', 'SHARED'), ('target_end', 'COMPOSITE')}
+    assert _flag_values(result, primary, 'isOrdered') == {('source_end', True), ('target_end', True)}
+
+    boundary = invoke.read_property_stereotype_comments(result)
+    assert {(c.subject, c.context, c.value) for c in boundary if c.subject == primary} == {
+        (primary, 'source_end', 'begin'), (primary, 'target_end', 'end')}
+    assert any(d.kind == 'abstractness' and d.severity == 'INFO' and 'rFlag' in d.identified_sources
+               for d in result.diagnostics)
+    for source_id in ('rFlag', 'tFlag'):
+        assert any(d.kind == 'derived_status' and d.severity == 'INFO' and source_id in d.identified_sources
+                   for d in result.diagnostics)
+    for source_id in ('sFlag', 'tFlag'):
+        assert any(d.kind == 'ordering' and d.severity == 'INFO' and source_id in d.identified_sources
+                   for d in result.diagnostics)
+
 

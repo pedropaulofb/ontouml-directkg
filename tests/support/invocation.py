@@ -1971,6 +1971,160 @@ def unresolved_attribute_type_diagnostic(message: str) -> bool:
     return bool(_unresolved_attribute_type_facts(message))
 
 
+def _normalize_diagnostic_clauses(message: str) -> tuple[str, list[str]]:
+    """Normalize prose into lowercase clauses, rejecting internal/deferred guard wording."""
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return "", []
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"""(?<!\w)(['"])(void)\1""", r"\2", wording)
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:relation|property|generalization|source|target|void|stereotype)\b",
+        r"\b(?:may|might|could)\s+(?:be|fail|conflict)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return "", []
+    clauses = [clause.strip() for clause in re.split(r"[.!?;]+", wording) if clause.strip()]
+    return wording, clauses
+
+
+def _rd02_datatype_relation_facts(severity: str, message: str, effect: str = "") -> tuple[str | None, set[str]]:
+    """Read affirmative RD-02 datatype-valued relation compatibility/warning conditions."""
+    combined = f"{message} {effect}".strip()
+    _, clauses = _normalize_diagnostic_clauses(combined)
+    if not clauses:
+        return None, set()
+    facts: set[str] = set()
+    kind: str | None = None
+    datatype_prop = r"(?:owl:)?datatype[- ]?propert(?:y|ies)|datatype[- ]valued(?: ordinary)?(?: binary)? relation"
+    object_prop = r"(?:owl:)?object[- ]?propert(?:y|ies)"
+    owl_class = r"(?:generated\s+)?(?:local\s+)?(?:owl[:\s]+)?class(?:\s+(?:declaration|resource|element|representation))?"
+
+    if severity == "ERROR":
+        void_patterns = (
+            re.compile(r"\b(?:relation|target(?:s|ing|ed)?(?: end| endpoint)?)\b[^.!?;]*\bvoid\b[^.!?;]*\b(?:no (?:registered )?datatype|no mapping|unsupported|cannot (?:generate|map)|not mapped|lacks|has no)\b"),
+            re.compile(r"\bvoid\b[^.!?;]*\b(?:target(?:s|ing|ed)?|endpoint|relation)\b[^.!?;]*\b(?:no (?:registered )?datatype|no mapping|unsupported|cannot|lacks|has no)\b"),
+        )
+        source_patterns = (
+            re.compile(rf"\bsource\b[^.!?;]*\b(?:no|lacks|without)\s+{owl_class}"),
+            re.compile(rf"\bsource\b[^.!?;]*\b(?:primitive|void)\b[^.!?;]*\b(?:no|lacks|without|cannot)\b"),
+            re.compile(rf"\b(?:primitive|void)\s+(?:datatype\s+)?source\b[^.!?;]*\b(?:cannot|rejected|unsupported|no\s+{owl_class}|lacks)\b"),
+        )
+        stereotype_names = r"(?:componentof|memberof|subcollectionof|subquantityof|characterization|mediation|participational|externaldependence)"
+        stereo_patterns = (
+            re.compile(rf"\bstereotype\b[^.!?;]*(?:{stereotype_names})?[^.!?;]*\b(?:incompatible|requires\s+(?:an?\s+)?{object_prop}|not compatible|cannot be used|rejected)\b[^.!?;]*(?:{datatype_prop})?"),
+            re.compile(rf"\b{stereotype_names}\b[^.!?;]*\b(?:{datatype_prop})\b[^.!?;]*\b(?:incompatible|requires\s+(?:an?\s+)?{object_prop}|not compatible|cannot|rejected)\b"),
+            re.compile(rf"\b(?:{datatype_prop})\b[^.!?;]*\b(?:stereotype|{stereotype_names})\b[^.!?;]*\b(?:incompatible|requires\s+(?:an?\s+)?{object_prop}|not compatible|cannot|rejected)\b"),
+        )
+        chain_patterns = (
+            re.compile(rf"\b(?:material[- ]property[- ]chain|material chain|property chain)\b[^.!?;]*\b(?:requires\s+(?:an?\s+)?{object_prop}|incompatible|conflicts?)\b[^.!?;]*(?:{datatype_prop})?"),
+            re.compile(rf"\b(?:{datatype_prop})\b[^.!?;]*(?:\b(?:incompatible|conflicts?)\b[^.!?;]*\b(?:material[- ]property[- ]chain|material chain|property chain)\b|\b(?:material[- ]property[- ]chain|material chain|property chain)\b[^.!?;]*\b(?:incompatible|requires\s+(?:an?\s+)?{object_prop}|conflicts?|cannot)\b)"),
+        )
+        comparative_patterns = (
+            re.compile(rf"\b(?:comparative(?:[-– ]quality)? derivation|comparative relation)\b[^.!?;]*\b(?:requires\s+(?:an?\s+)?{object_prop}|incompatible|conflicts?)\b[^.!?;]*(?:{datatype_prop})?"),
+            re.compile(rf"\b(?:{datatype_prop})\b[^.!?;]*(?:\b(?:incompatible|conflicts?)\b[^.!?;]*\b(?:comparative(?:[-– ]quality)? derivation)\b|\b(?:comparative(?:[-– ]quality)? derivation)\b[^.!?;]*\b(?:incompatible|requires\s+(?:an?\s+)?{object_prop}|conflicts?|cannot)\b)"),
+        )
+        mult_patterns = (
+            re.compile(rf"\bsource(?:[- ]end)?\s+(?:multiplicit(?:y|ies)|cardinalit(?:y|ies)|bounds?|constraints?)\b[^.!?;]*\b(?:inverse|cannot|incompatible|requires\s+an?\s+(?:unavailable\s+)?inverse|no inverse)\b"),
+            re.compile(rf"\b(?:unavailable|no)\s+inverse(?:\s+datatype\s+property)?\b[^.!?;]*\bsource(?:[- ]end)?\s+(?:multiplicit(?:y|ies)|cardinalit(?:y|ies)|bounds?|constraints?)\b"),
+            re.compile(rf"\b(?:{datatype_prop})\b[^.!?;]*\bsource(?:[- ]end)?\s+(?:multiplicit(?:y|ies)|cardinalit(?:y|ies)|bounds?)\b[^.!?;]*\b(?:no inverse|unavailable|cannot|incompatible)\b"),
+        )
+        for clause in clauses:
+            if not re.search(r"\bnot\s+(?:incompatible|unsupported|rejected|missing)\b", clause):
+                if any(p.search(clause) for p in void_patterns) and not re.search(r"^\s*attribute\b", clause):
+                    facts.add("void_relation_target")
+                    kind = kind or "datatype_relation_incompatibility"
+                if any(p.search(clause) for p in source_patterns):
+                    facts.add("non_class_relation_source")
+                    kind = kind or "failed_relation"
+                if any(p.search(clause) for p in stereo_patterns) and (
+                        "stereotype" in clause or re.search(stereotype_names, clause)):
+                    if "datatype" in clause or "primitive" in clause:
+                        facts.add("incompatible_datatype_relation_stereotype")
+                        kind = kind or "datatype_relation_incompatibility"
+                if any(p.search(clause) for p in chain_patterns) and (
+                        "datatype" in clause or "primitive" in clause):
+                    facts.add("incompatible_material_chain")
+                    kind = kind or "datatype_relation_incompatibility"
+                if any(p.search(clause) for p in comparative_patterns) and (
+                        "datatype" in clause or "primitive" in clause):
+                    facts.add("incompatible_comparative_derivation")
+                    kind = kind or "datatype_relation_incompatibility"
+                if any(p.search(clause) for p in mult_patterns):
+                    facts.add("incompatible_source_multiplicity")
+                    kind = kind or "datatype_relation_incompatibility"
+    elif severity == "WARNING":
+        role_patterns = (
+            re.compile(r"\bsource(?:[- ]end)?\s+role(?:\s+name)?\b[^.!?;]*\b(?:cannot be represented|not represented|unrepresentable|omitted|no inverse|without an inverse)\b"),
+            re.compile(r"\b(?:cannot represent|omitted|unrepresentable)\b[^.!?;]*\bsource(?:[- ]end)?\s+role(?:\s+name)?\b"),
+        )
+        for clause in clauses:
+            if not re.search(r"\b(?:is|was)\s+represented\b", clause) and any(p.search(clause) for p in role_patterns):
+                facts.add("unrepresentable_source_role")
+                kind = kind or "unrepresentable_source_role"
+    return kind, facts
+
+
+def _rd02_mixed_kind_facts(severity: str, message: str, effect: str = "") -> tuple[str | None, set[str]]:
+    """Read affirmative RD-02 DK-PROP-03 and DK-REL-14/15 mixed-kind / unavailable-inverse ERRORs."""
+    if severity != "ERROR":
+        return None, set()
+    combined = f"{message} {effect}".strip()
+    _, clauses = _normalize_diagnostic_clauses(combined)
+    if not clauses:
+        return None, set()
+    facts: set[str] = set()
+    kind: str | None = None
+    mixed_cue = (
+        r"(?:mix(?:ed|es|ing)\s+(?:owl\s+)?(?:object(?:/|\s+and\s+|\s+or\s+)data(?:type)?|property[- ]kind)"
+        r"|cross[- ]kind"
+        r"|(?:owl:)?object[- ]?propert(?:y|ies)\b[^.!?;]*\b(?:and|with|to|from|cannot\s+(?:subset|redefine|specialize|be\s+disjoint\s+with))\b[^.!?;]*\b(?:owl:)?datatype[- ]?propert(?:y|ies)"
+        r"|(?:owl:)?datatype[- ]?propert(?:y|ies)\b[^.!?;]*\b(?:and|with|to|from|cannot\s+(?:subset|redefine|specialize|be\s+disjoint\s+with))\b[^.!?;]*\b(?:owl:)?object[- ]?propert(?:y|ies)"
+        r"|property[- ]kind\s+incompatibilit(?:y|ies)"
+        r"|incompatible\s+property\s+kinds?)"
+    )
+    unavail_inv_patterns = (
+        re.compile(r"\b(?:subsettedproperties|redefinedproperties|subsetting|redefinition|property (?:reference|inclusion))\b[^.!?;]*\b(?:no|unavailable|lacks|has no|without)\b[^.!?;]*\binverse\b[^.!?;]*\bdatatype\b"),
+        re.compile(r"\b(?:subsettedproperties|redefinedproperties|subsetting|redefinition|property (?:reference|inclusion))\b[^.!?;]*\binverse\b[^.!?;]*\bdatatype\b[^.!?;]*\b(?:no|unavailable|lacks|has no|cannot)\b"),
+        re.compile(r"\b(?:datatype[- ]?propert(?:y|ies)|datatype[- ]valued relation)\b[^.!?;]*\b(?:no|lacks|has no|without)\b[^.!?;]*\binverse\b[^.!?;]*(?:subset|redefin|reference|inclusion|source(?:[- ]association)? end)"),
+        re.compile(r"\bsource(?:[- ]association)? end\b[^.!?;]*\bdatatype\b[^.!?;]*\b(?:no|unavailable|lacks|has no)\b[^.!?;]*\binverse\b"),
+    )
+    for clause in clauses:
+        if re.search(r"\bnot\s+(?:mixed|incompatible|cross[- ]kind)\b", clause):
+            continue
+        if any(p.search(clause) for p in unavail_inv_patterns):
+            facts.add("unavailable_datatype_inverse_reference")
+            kind = kind or "property_inclusion_incompatibility"
+        if re.search(mixed_cue, clause):
+            if re.search(r"\b(?:subset(?:ting|tedproperties)?|redefin(?:ing|ition|edproperties)?|property (?:reference|inclusion)|inclusion)\b", clause):
+                facts.add("mixed_property_kind_inclusion")
+                kind = kind or "property_inclusion_incompatibility"
+            if re.search(r"\b(?:disjoint|disjointness|generalization[- ]set)\b", clause):
+                facts.add("mixed_property_kind_disjointness")
+                kind = kind or "mixed_property_kind_disjointness"
+            if re.search(r"\b(?:generalization|subproperty)\b", clause) and not re.search(
+                    r"\b(?:generalization[- ]set|disjoint|disjointness)\b", clause):
+                facts.add("mixed_property_kind_generalization")
+                kind = kind or "failed_relation_generalization"
+    return kind, facts
+
+
+def rd02_relation_diagnostic(severity: str, message: str, effect: str = "") -> frozenset[str]:
+    """Return recognized RD-02 datatype-relation / mixed-kind semantic facts for harness checks."""
+    _, rel_facts = _rd02_datatype_relation_facts(severity, message, effect)
+    _, mixed_facts = _rd02_mixed_kind_facts(severity, message, effect)
+    return frozenset(rel_facts | mixed_facts)
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2010,6 +2164,17 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 kind = "unresolved_attribute_type"
         elif kind == "unresolved_attribute_type":
             facts.add("unresolved_attribute_type")
+        if event.code != "INTERNAL_TRANSFORMATION_FAILURE":
+            rel_kind, rel_facts = _rd02_datatype_relation_facts(event.severity, event.message, event.effect)
+            if rel_facts:
+                facts.update(rel_facts)
+                if kind is None:
+                    kind = rel_kind
+            mixed_kind, mixed_facts = _rd02_mixed_kind_facts(event.severity, event.message, event.effect)
+            if mixed_facts:
+                facts.update(mixed_facts)
+                if kind is None:
+                    kind = mixed_kind
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
