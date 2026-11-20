@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-18
+**Consolidated:** 2026-11-20
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -160,13 +160,13 @@ Documentation MUST cover the following recommendations and their limitations, in
 
 Documentation MUST explain the following sources of incompatibility, including when material chains are disabled.
 
-- **Mixed property kinds.** DK-PROP-03 emits an inclusion for a structurally resolved UML subsetting or redefinition when both mapped property expressions are available. For example, a subsetting reference from an attribute targeting a reified custom datatype to an `int` attribute can yield an object property as a subproperty of a data property with range `xsd:int`. OWL 2 DL has no corresponding subproperty axiom for this combination. [OWL 2 Mapping to RDF Graphs §3.2.5](https://www.w3.org/TR/2012/REC-owl2-mapping-to-rdf-20121211/#Parsing_of_Axioms).
+- **Mixed property kinds.** DirectKG rejects mixed `owl:ObjectProperty` and `owl:DatatypeProperty` inclusions under DK-PROP-03 (RD-14 / RD-02), mixed object/data relation generalizations under DK-REL-14 and DK-REL-20, and cross-kind disjointness pairs under DK-REL-15 as structural errors, omitting incompatible axioms under `best-effort` rather than emitting subproperty or disjointness axioms across OWL object and datatype properties.
 - **IRIs, declarations, and auxiliary RDF.** An RDF-legal IRI can still use reserved OWL vocabulary in a prohibited position. A collision with DKGM or another vocabulary can give one IRI conflicting property types. Non-built-in annotation properties such as `dcterms:identifier` require a declaration in the axiom closure. External descriptive metadata and embedded provenance may introduce further terms and statements whose declarations and OWL encoding affect conformance. [OWL 2 Structural Specification §§2.4, 3.1, and 5.8.1](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/).
 - **Property simplicity and hierarchy regularity.** Axioms in the assessed closure can make a property used in a cardinality restriction, asymmetry, irreflexivity, or disjointness axiom non-simple through chain conclusions, hierarchy links, or inverses. The full hierarchy with its chains must also satisfy OWL 2 DL regularity. Imported axioms and axioms supplied by a consumer can affect these conditions in their respective assessment scopes. DK-REL-01's per-axiom gate applies to the five specified additions. [OWL 2 Structural Specification §11](https://www.w3.org/TR/2012/REC-owl2-syntax-20121211/#Global_Restrictions_on_Axioms_in_OWL_2_DL).
 
 ### 3.4 Semantic validation boundary
 
-DirectKG transforms the source model as stated. It is not an OntoUML semantic validator. Relation-to-relation generalization follows DK-REL-14 (RD-12), and relation generalization-set disjointness follows DK-REL-15 (RD-13), without semantic endpoint, domain, or range compatibility checks; structural resolution remains required.
+DirectKG transforms the source model as stated. It is not an OntoUML semantic validator. Relation-to-relation generalization follows DK-REL-14 (RD-12), and relation generalization-set disjointness follows DK-REL-15 (RD-13), without semantic endpoint, domain, or range compatibility checks; structural resolution and OWL property-kind compatibility remain required.
 
 DirectKG MUST NOT suppress otherwise applicable output because the source appears semantically incorrect or because the resulting ontology may be inconsistent. Structural processability remains required: malformed JSON, dangling references, missing elements, unresolved endpoints, or invalid identifiers that make a transformation technically impossible MUST be reported as errors.
 
@@ -174,11 +174,11 @@ The mereological mapping in DK-REL-19 (RD-17 / RD-25) uses the recognized stereo
 
 A structurally resolved relation-valued endpoint is governed by DK-REL-08, DK-REL-18, or DK-REL-17, as applicable, rather than treated as an unresolved endpoint. DirectKG MUST NOT infer missing stereotypes or change endpoint identity to make a connector match a supported pattern.
 
-Explicit UML property subsetting and redefinition references follow DK-PROP-03 (RD-14) without owner, endpoint, type, property-kind, or other UML semantic-compatibility checks. Their structural references and underlying property transformations must still resolve. Semantic preservation of the resulting inclusion depends on the source satisfying the mapping's assumptions; structurally processable but semantically invalid source relationships may yield output outside an OWL 2 DL profile.
+Explicit UML property subsetting and redefinition references follow DK-PROP-03 (RD-14 / RD-02) without semantic owner, endpoint, type, domain, range, or other UML semantic-compatibility checks. Their structural references, underlying property transformations, and required OWL property-kind compatibility (prohibiting mixed `owl:ObjectProperty` and `owl:DatatypeProperty` inclusions) must still resolve. Likewise, DK-REL-01, DK-REL-14–15, and DK-REL-20 enforce targeted transformation-compatibility checks—determining whether applicable OWL representations can coexist in the required property, inclusion, generalization, or disjointness mapping—without checking semantic compatibility between property owners, endpoint classes, domains, ranges, or OntoUML meanings. Semantic preservation of the resulting output still depends on the source satisfying each mapping's assumptions, and structurally processable, kind-compatible but semantically invalid source relationships may yield output outside an OWL 2 DL profile. This targeted compatibility policy is a narrowly scoped exception to the semantic-validation boundary, not a replacement of that boundary.
 
 The per-axiom OWL 2 DL compatibility assessment for the five additions under DK-REL-01 (RD-17) does not change this semantic-validation boundary. It establishes no semantic validation, consistency checking, or source-model repair, and no overall OWL 2 DL guarantee.
 
-RD-02 establishes policy-dependent severity and continuation in DK-DIAG-05, subject to the duplicate-source-element-ID exception below. RD-03 (DK-DIAG-06) exclusively governs acceptance and rejection of missing and unrecognized stereotypes, taking precedence over the input policy for those conditions. The semantic-validation boundary applies in every input and stereotype policy: semantically questionable but structurally processable information remains subject to the accepted transformation rules. DirectKG MUST NOT introduce OntoUML semantic validation or output-consistency checking through these policies. No recovery behavior is defined beyond the explicit recovery rules in this specification.
+RD-02 establishes policy-dependent severity and continuation in DK-DIAG-05, subject to the duplicate-source-element-ID exception below. RD-03 (DK-DIAG-06) exclusively governs acceptance and rejection of missing and unrecognized stereotypes, taking precedence over the input policy for those conditions. The semantic-validation boundary applies in every input and stereotype policy: semantically questionable but structurally processable information remains subject to the accepted transformation rules. DirectKG MUST NOT introduce OntoUML semantic validation, classifier-order or stereotype-appropriateness validation, general output-consistency checking, or overall OWL 2 DL conformance checking through these policies. No recovery behavior is defined beyond the explicit recovery rules in this specification.
 
 #### Minimal opaque source identifiers (RD-02, Alternative A)
 
@@ -260,9 +260,9 @@ DirectKG MUST apply the selected vocabulary mode under DK-GEN-04 (RD-17 / RD-25)
 
 ### DK-GEN-02 — Explicit source structures
 
-Unless a rule explicitly requires closure materialization, DirectKG transforms explicit source structures and does not materialize logically inferred closure. Class generalization is such a case: explicit subclass axioms are emitted, but their transitive closure need not be repeated. Explicit relation-to-relation generalizations map to primary-property `rdfs:subPropertyOf` axioms under DK-REL-14 (RD-12), subject to this explicit-source-structure rule. Class generalization-set disjointness under DK-CLS-06 (RD-13) uses only the set’s explicit specific classifiers and MUST NOT additionally materialize inherited disjointness for their descendants. Relation generalization-set disjointness under DK-REL-15 (RD-13) uses the generated properties corresponding to the set's explicit specific relations. Powertype extension materialization is an explicit exception. DK-INV-12 (RD-12) is another explicitly required materialization: it mirrors each successfully mapped explicit relation generalization between generated named inverses when both exist. It MUST NOT additionally materialize the generalization edges’ transitive closure. DK-REL-20 (RD-13) additionally requires explicit reverse inclusion for singleton relation completeness, including between corresponding named inverses when both exist.
+Unless a rule explicitly requires closure materialization, DirectKG transforms explicit source structures and does not materialize logically inferred closure. Class generalization is such a case: explicit subclass axioms are emitted, but their transitive closure need not be repeated. Explicit relation-to-relation generalizations map to primary-property `rdfs:subPropertyOf` axioms under DK-REL-14 (RD-12 / RD-02), subject to this explicit-source-structure rule. Class generalization-set disjointness under DK-CLS-06 (RD-13) uses only the set’s explicit specific classifiers and MUST NOT additionally materialize inherited disjointness for their descendants. Relation generalization-set disjointness under DK-REL-15 (RD-13 / RD-02) uses the generated properties corresponding to the set's explicit specific relations. Powertype extension materialization is an explicit exception. DK-INV-12 (RD-12) is another explicitly required materialization: it mirrors each successfully mapped explicit `owl:ObjectProperty` relation generalization between generated named inverses when both exist. It MUST NOT additionally materialize the generalization edges’ transitive closure. DK-REL-20 (RD-13 / RD-02) additionally requires explicit reverse inclusion for singleton relation completeness, including between corresponding named inverses when both `owl:ObjectProperty` inverses exist.
 
-Explicit UML property subsetting and redefinition references follow DK-PROP-03 (RD-14). Their identical resulting axioms are deduplicated, but DirectKG MUST NOT additionally emit logically entailed inverse counterparts or materialize the transitive closure of their property hierarchy. The inverse-specialization requirement for relation generalizations in DK-INV-12 does not extend to RD-14 references.
+Explicit UML property subsetting and redefinition references follow DK-PROP-03 (RD-14 / RD-02). Their identical resulting axioms are deduplicated, but DirectKG MUST NOT additionally emit logically entailed inverse counterparts or materialize the transitive closure of their property hierarchy. The inverse-specialization requirement for relation generalizations in DK-INV-12 does not extend to RD-14 references.
 
 The three generic mereological chains in DK-GEN-04 are defined in the reusable vocabulary. DK-GEN-04 governs how these axioms are supplied for consumer reasoning. Their inferred instance-level consequences do not require materialization as source-specific property assertions or additional source-specific chains under DK-REL-19 (RD-17 / RD-25).
 
@@ -280,14 +280,15 @@ DirectKG MUST generate `rdfs:range` whenever the target or value type is unambig
 - Custom-datatype-valued attribute: custom datatype class.
 - Enumeration-valued attribute: enumeration class generated under DK-CLS-10 (RD-09).
 - Class-valued attribute whose `propertyType` resolves to any other `Class` with a generated local `owl:Class` under DK-CLS-01 (including ordinary OntoUML class stereotypes, `null` stereotype, or unrecognized custom stereotypes accepted under DK-DIAG-06): that target `Class`'s generated local `owl:Class`.
-- Primary relation: target-end classifier.
-- Generated inverse: primary property's domain.
+- Primary relation (`owl:ObjectProperty`): target-end `Class`'s generated local `owl:Class`.
+- Primary relation (`owl:DatatypeProperty`): mapped XSD datatype registered under DK-DAT-02 for the target-end supported primitive `«datatype»`.
+- Generated inverse (object-property relations only): primary property's domain.
 
-DirectKG MUST NOT invent a range for an untyped attribute, `void`, or an unresolved target.
+DirectKG MUST NOT invent a range for an untyped attribute, `void`, or an unresolved target. An ordinary binary relation whose target resolves to `void` fails with a structural ERROR under DK-REL-01 and generates no rangeless datatype property.
 
 `rdfs:domain` and `rdfs:range` are inferential axioms, not validation constraints. DirectKG deliberately adopts their RDF/OWL semantics.
 
-For supported ordinary binary class-to-class relations, the unqualified cardinality forms are specified in DK-REL-10 (RD-11); the endpoint domain and range declarations above continue to apply.
+For supported ordinary binary class-to-class relations and compatible datatype-valued relations, the unqualified cardinality forms are specified in DK-REL-10 (RD-11 / RD-02); the endpoint domain and range declarations above continue to apply.
 
 The four generic `dkgm` properties in DK-GEN-04 are vocabulary terms, not generated properties representing source attributes, relations, or inverses. The source-class domain and range requirements of this rule do not assign them domain or range from a particular converted model.
 
@@ -1107,6 +1108,8 @@ An attribute typed by `void`:
 
 This differs from `null`: `null` means unspecified, while `void` means explicitly selected, recognized, and unsupported.
 
+This rangeless `owl:DatatypeProperty` and warning handling applies to `void`-typed attributes only. An ordinary binary relation whose target resolves to `void` is a structural ERROR under DK-REL-01 (RD-02) and MUST NOT generate a rangeless datatype property.
+
 The unsupported status of `void` MUST be explicitly documented in user-facing DirectKG documentation.
 
 ### DK-DAT-05 — Custom datatypes
@@ -1167,39 +1170,45 @@ name_unnamedClass_C17
 
 Existing property collision handling then applies.
 
-### DK-PROP-03 — UML property subsetting and redefinition (RD-14)
+### DK-PROP-03 — UML property subsetting and redefinition (RD-14 / RD-02)
 
-For every explicit UML Property reference `p1 subsets p0` in `subsettedProperties`, DirectKG MUST generate `OWL(p1) rdfs:subPropertyOf OWL(p0)`. For every explicit UML Property reference `p1 redefines p0` in `redefinedProperties`, DirectKG MUST generate the same property-inclusion axiom. Subsetting and redefinition remain semantically distinct UML relationships despite this shared DirectKG mapping.
+For every explicit UML Property reference `p1 subsets p0` in `subsettedProperties`, DirectKG MUST generate `OWL(p1) rdfs:subPropertyOf OWL(p0)`. For every explicit UML Property reference `p1 redefines p0` in `redefinedProperties`, DirectKG MUST generate the same property-inclusion axiom, subject to the property-expression availability and property-kind compatibility requirements below. Subsetting and redefinition remain semantically distinct UML relationships despite this shared DirectKG mapping.
 
 `OWL(p)` is the OWL property or property expression assigned to UML Property `p` under the accepted property-generation and direction rules:
 
 | UML Property | `OWL(p)` |
 |---|---|
-| Classifier-owned attribute | Its generated OWL property |
-| Target association end | The relation's primary property |
-| Source association end with a generated named inverse | The corresponding named inverse property |
-| Source association end without a generated named inverse, when the primary object property exists | An anonymous inverse expression of that primary property |
+| Classifier-owned attribute | Its generated OWL property (`owl:ObjectProperty` or `owl:DatatypeProperty`) |
+| Target association end | The relation's primary property (`owl:ObjectProperty` or `owl:DatatypeProperty`) |
+| Source association end of an `owl:ObjectProperty` relation with a generated named inverse | The corresponding named inverse `owl:ObjectProperty` |
+| Source association end of an `owl:ObjectProperty` relation without a generated named inverse, when the primary object property exists | An anonymous inverse expression of that primary property |
+| Source association end of a datatype-valued (`owl:DatatypeProperty`) relation | None (no named or anonymous inverse datatype property exists) |
 
-Each association end MUST be resolved independently. For either `subsets` or `redefines`, the direction combinations are:
+Each association end MUST be resolved independently. For either `subsets` or `redefines` between compatible property expressions of the same OWL property kind, the direction combinations are:
 
 | Referencing end → referenced end | Property inclusion |
 |---|---|
-| Target → target | Forward → forward |
-| Source → source | Inverse → inverse |
-| Target → source | Forward → inverse |
-| Source → target | Inverse → forward |
+| Target → target | Forward → forward (homogeneous `ObjectProperty` or homogeneous `DatatypeProperty`) |
+| Source → source | Inverse → inverse (`ObjectProperty` relations only) |
+| Target → source | Forward → inverse (`ObjectProperty` relations only) |
+| Source → target | Inverse → forward (`ObjectProperty` relations only) |
 
 DirectKG MUST process every explicit subsetting and redefinition reference independently and preserve multiple superproperty relationships. It MUST deduplicate identical resulting axioms. It MUST NOT additionally emit logically entailed inverse counterparts or materialize the transitive closure of the property hierarchy. These requirements are distinct from DK-INV-12's explicit mirroring of relation generalizations.
 
-Eligibility requires structural resolution and an OWL property expression for each referenced UML Property under existing mappings. If an accepted rule intentionally produces no property expression for either UML Property, including an unsupported relation-valued endpoint connector under DK-REL-17 (RD-16), DirectKG MUST NOT generate a property solely for the reference or override that non-representation decision. An anonymous inverse expression under this rule MUST NOT force generation of a named inverse property, assign an inverse name, or change established primary and inverse naming and IRI rules. DK-INV-04 permits this additional anonymous-inverse use specifically for RD-14; inverse-generation modes and eligibility remain unchanged.
+Eligibility requires structural resolution, an available OWL property expression for each referenced UML Property under existing mappings, and OWL property-kind compatibility between the two expressions:
 
-DirectKG MUST NOT check owner, endpoint, type, property-kind, or other UML semantic compatibility before applying this mapping. Structurally processable references with available property expressions remain transformable even if the source appears semantically invalid or the resulting graph may be outside an OWL 2 DL profile. Unresolved references and failures of required underlying property transformations follow DK-DIAG-05 and other applicable diagnostic rules.
+- **Unavailable inverse of a datatype property.** Whenever `subsettedProperties` or `redefinedProperties` requires an inverse expression of a datatype-valued relation (i.e., either the referencing end or the referenced end is the source association end of a datatype-valued relation whose primary property exists), DirectKG MUST report a structural ERROR identifying the affected property reference and explaining that an `owl:DatatypeProperty` has no named or anonymous inverse expression. Under `strict` and `tolerant`, conversion MUST abort under DK-DIAG-05. Under `best-effort`, DirectKG MUST retain ERROR severity, omit only the affected property-inclusion axiom when the primary relation remains independently transformable, and preserve other valid references and independently generated properties.
+- **Mixed object/data property inclusions (global supersession).** Whenever a `DK-PROP-03` property inclusion would connect an `owl:ObjectProperty` (or inverse object-property expression) and an `owl:DatatypeProperty`—whether as referencing subproperty or referenced superproperty—DirectKG MUST report a structural ERROR identifying the affected property reference and explaining the mixed object/data property-kind incompatibility. This requirement applies globally to all mappings governed by DK-PROP-03, including existing classifier-owned attributes as well as newly supported datatype-valued relations, and explicitly supersedes the previous DK-PROP-03 allowance for mixed property kinds. Under `strict` and `tolerant`, conversion MUST abort under DK-DIAG-05. Under `best-effort`, DirectKG MUST retain ERROR severity, omit the incompatible inclusion axiom, and preserve independently valid properties and homogeneous object-property or homogeneous datatype-property inclusions.
+
+If an accepted rule intentionally produces no property expression for either UML Property—including an unsupported relation-valued endpoint connector under DK-REL-17 (RD-16) or a relation omitted under `best-effort` because of a structural or compatibility error—DirectKG MUST NOT generate a property or inclusion axiom referring to that omitted relation, force generation of a named inverse property, assign an inverse name, or change established primary and inverse naming and IRI rules. DK-INV-04 permits anonymous-inverse expressions specifically for RD-14 object-property source ends; inverse-generation modes and eligibility remain unchanged.
+
+Except for this targeted OWL property-kind compatibility check, DirectKG MUST NOT check owner, endpoint, type, domain, range, or other UML semantic compatibility before applying this mapping. Structurally processable, kind-compatible references with available property expressions remain transformable even if the source appears semantically invalid or the resulting graph may be outside an OWL 2 DL profile. Unresolved references and failures of required underlying property transformations follow DK-DIAG-05 and other applicable diagnostic rules.
 
 The `redefines` mapping is a partial translation: it preserves property inclusion without representing UML's full contextual replacement semantics. From the redefinition relationship alone, DirectKG MUST NOT derive `owl:equivalentProperty`, contextual value equality, property merging or replacement, additional domain or range axioms, or copied or additional cardinality restrictions. Independently applicable property declarations, domains, ranges, cardinalities, and relation-generalization rules remain unchanged.
 
-DirectKG MUST document redefinition as a partial translation. It MUST NOT emit a runtime warning solely because a structurally processable `redefines` relationship is transformed under this rule. Other applicable diagnostics remain required. The general OWL profile claim is specified in §3.3 (RD-04).
+DirectKG MUST document redefinition as a partial translation and document the rejection of mixed object/data inclusions. It MUST NOT emit a runtime warning solely because a structurally processable, kind-compatible `redefines` relationship is transformed under this rule. Other applicable diagnostics remain required. The general OWL profile claim is specified in §3.3 (RD-04).
 
-**Rationale and example (non-normative):** Subsetting expresses inclusion of property extensions. Redefinition has stronger contextual semantics; this mapping preserves its property-inclusion consequence. For primary properties `a1` and `a0`, the four association-end combinations generate, respectively, `a1 ⊑ a0`, `inverse(a1) ⊑ inverse(a0)`, `a1 ⊑ inverse(a0)`, and `inverse(a1) ⊑ a0`. Generated named inverses are used when present; otherwise `inverse(a)` is an anonymous inverse expression. No special inverse name is created by this mapping.
+**Rationale and example (non-normative):** Subsetting expresses inclusion of property extensions. Redefinition has stronger contextual semantics; this mapping preserves its property-inclusion consequence. For primary object properties `a1` and `a0`, the four association-end combinations generate, respectively, `a1 ⊑ a0`, `inverse(a1) ⊑ inverse(a0)`, `a1 ⊑ inverse(a0)`, and `inverse(a1) ⊑ a0`. Generated named inverses are used when present; otherwise `inverse(a)` is an anonymous inverse expression. No special inverse name is created by this mapping. For homogeneous datatype properties (attributes or target ends of compatible datatype-valued relations), `p1 ⊑ p0` is likewise generated, whereas mixed object/data inclusions and references requiring an inverse of a datatype property are rejected with a structural ERROR.
 
 ### DK-PROP-04 — Comments for read-only and aggregation metadata (RD-24 / RD-25)
 
@@ -1208,7 +1217,7 @@ DirectKG MUST preserve the following source characteristics as human-readable `r
 | Source occurrence | Comment target and required source context |
 |---|---|
 | `isReadOnly: true` on a supported class attribute | Its successfully generated attribute property; identify that the attribute is read-only |
-| `isReadOnly: true` on either end of an eligible ordinary relation | Its successfully generated primary source-specific object property; identify the source or target association end |
+| `isReadOnly: true` on either end of an eligible ordinary relation | Its successfully generated primary source-specific property (`owl:ObjectProperty` or `owl:DatatypeProperty`); identify the source or target association end |
 | `aggregationKind: "SHARED"` on either end of an eligible ordinary relation | The same primary property; identify the source or target association end and shared aggregation |
 | `aggregationKind: "COMPOSITE"` on either end of an eligible ordinary relation | The same primary property; identify the source or target association end and composite aggregation |
 
@@ -1228,7 +1237,7 @@ OntoUML source metadata: the target association end has composite aggregation.
 
 Comments are informational annotations only and introduce no additional OWL logical semantics. DirectKG MUST NOT introduce dedicated DirectKG vocabulary properties solely to represent `isReadOnly`, shared aggregation, or composite aggregation.
 
-DirectKG MUST preserve the covered comments according to characteristics explicitly present in the supported source representation. This mapping MUST NOT use `isReadOnly`, `SHARED`, or `COMPOSITE` to reverse or normalize relation direction, determine eligibility for the generic mereological mapping, replace a primary property with a named or anonymous inverse, create additional logical property characteristics, repair the source model, or infer semantics not independently established by another accepted rule. In particular, `isReadOnly` alone MUST NOT imply an existential-dependence axiom. Independently applicable mappings remain in force. The separate lexical-only use of a unique aggregation marker under DK-REL-04 MUST NOT alter these comment requirements or authorize any of the prohibited direction or logical-mapping changes. The comments preserve source information for human-readable documentation and provenance without guaranteeing machine-readable reconstruction or round-tripping from the generated OWL ontology.
+DirectKG MUST preserve the covered comments according to characteristics explicitly present in the supported source representation, including comment-only aggregation metadata (`SHARED` or `COMPOSITE`) on otherwise compatible non-mereological datatype-valued relations. This mapping MUST NOT use `isReadOnly`, `SHARED`, or `COMPOSITE` to reverse or normalize relation direction, determine eligibility for the generic mereological mapping, replace a primary property with a named or anonymous inverse, create additional logical property characteristics, repair the source model, or infer semantics not independently established by another accepted rule. In particular, `isReadOnly` alone MUST NOT imply an existential-dependence axiom. Independently applicable mappings remain in force. The separate lexical-only use of a unique aggregation marker under DK-REL-04 MUST NOT alter these comment requirements or authorize any of the prohibited direction or logical-mapping changes. The comments preserve source information for human-readable documentation and provenance without guaranteeing machine-readable reconstruction or round-tripping from the generated OWL ontology.
 
 **Non-normative example:** A primary relation property may carry both `rdfs:comment "OntoUML source metadata: the target association end is read-only."@en` and `rdfs:comment "OntoUML source metadata: the target association end has composite aggregation."@en` when both characteristics occur on its target end.
 
@@ -1239,7 +1248,7 @@ For `isOrdered: true`, DirectKG MUST preserve the ordering declaration as an `rd
 | Source occurrence | Comment target and required source context |
 |---|---|
 | `isOrdered: true` on a supported attribute | Its successfully generated property |
-| `isOrdered: true` on either end of an eligible ordinary relation | Its successfully generated primary source-specific object property; the comment MUST identify whether the declaration concerns the source or target end |
+| `isOrdered: true` on either end of an eligible ordinary relation | Its successfully generated primary source-specific property (`owl:ObjectProperty` or `owl:DatatypeProperty`); the comment MUST identify whether the declaration concerns the source or target end |
 
 If both relation ends are ordered, both occurrences MUST be preserved. Comment preservation MUST NOT depend on whether a separately named inverse property is generated. For each occurrence preserved under this rule, DirectKG MUST emit the INFO diagnostic specified in DK-DIAG-18.
 
@@ -1361,7 +1370,7 @@ DirectKG MUST NOT create a resource solely to host a description or attach primi
 
 For association ends, DirectKG MUST preserve a nonempty target-end description on the successfully generated primary relation property. The enclosing relation's description and the target-end description MUST be emitted independently as comments on that property, without concatenation.
 
-DirectKG MUST preserve a nonempty source-end description on the corresponding generated named inverse property, when that inverse exists. DirectKG MUST NOT generate an inverse solely to preserve a description. When no named inverse is generated, the source-end description MUST be omitted without an additional diagnostic solely for that omission. Existing inverse-generation controls determine whether that named inverse is available.
+DirectKG MUST preserve a nonempty source-end description on the corresponding generated named inverse property, when that inverse exists. DirectKG MUST NOT generate an inverse solely to preserve a description. When no named inverse is generated—including for compatible datatype-valued relations under DK-REL-01—the source-end description MUST be omitted without an additional diagnostic solely for that omission. Existing inverse-generation controls and inverse-eligibility rules determine whether that named inverse is available.
 
 All descriptions remain subject to the lexical-preservation and language-resolution rules in this section. Package descriptions are omitted under DK-GEN-06, and custom `propertyAssignments` are omitted under DK-GEN-07.
 
@@ -1412,19 +1421,59 @@ These rules apply within the supported input contract, including the bounded lan
 
 ## 10. Primary binary-relation transformation
 
-### DK-REL-01 — Eligible ordinary relation
+### DK-REL-01 — Eligible ordinary relation (RD-02)
 
-A supported binary relation with two resolved classifier endpoints that is transformed as a primary relation MUST become an IRI-identified `owl:ObjectProperty` with explicit source domain and target range. Explicit relation-to-relation generalizations use these primary properties under DK-REL-14 (RD-12), and relation generalization-set disjointness uses them under DK-REL-15 (RD-13).
+A supported ordinary binary relation with two resolved `Class` endpoints that undergoes primary-relation transformation follows one of two primary-property branches according to its endpoint classification under DK-CLS-01 and DK-DAT-02:
+
+- **Class-to-class ordinary relation (`owl:ObjectProperty`).** When both source and target resolve to `Class` elements with generated local `owl:Class` representations (including domain classes, custom `«datatype»` classes under DK-DAT-05, and `«enumeration»` classes under DK-CLS-10), DirectKG MUST generate an IRI-identified `owl:ObjectProperty` with `rdfs:domain` equal to the source `Class`'s generated local `owl:Class` and `rdfs:range` equal to the target `Class`'s generated local `owl:Class`.
+- **Datatype-valued ordinary relation (`owl:DatatypeProperty`).** When the source resolves to a `Class` with a generated local `owl:Class` and the target resolves to a supported primitive `«datatype»` under DK-DAT-02, and all applicable compatibility requirements below are satisfied, DirectKG MUST generate an IRI-identified `owl:DatatypeProperty` with:
+  - `rdfs:domain` equal to the source's generated local `owl:Class`;
+  - `rdfs:range` equal to the XSD datatype registered under DK-DAT-02; and
+  - the existing property identity, primary direction, naming (DK-REL-02–04), labels (DK-LBL-01), descriptions (DK-LBL-02), applicable annotations (`isDerived` under DK-GEN-05, relation `isAbstract` under DK-CLS-01, `isReadOnly`/`aggregationKind` under DK-PROP-04, `isOrdered` under DK-PROP-05, `begin`/`end` under DK-PROP-06), source-ID annotations (DK-IRI-09), and representable target-end multiplicity constraints.
+
+For datatype-valued relations, DirectKG MUST reuse DK-DAT-02's existing nine-entry primitive datatype registry without introducing additional datatype mappings, aliases, local classes for registered primitives, or new configuration options. This datatype-valued relation mapping is a narrowly scoped exception to the object-property and inverse-generation requirements established for class-to-class relations; it does not produce a compatibility error merely because ordinary relation rules were originally written for object properties, and it preserves compatible stereotype-specific naming, annotations, diagnostics, and other applicable behavior.
+
+**Compatibility principle:** DirectKG MUST apply all compatible established mappings. When two applicable transformation requirements cannot both be satisfied for a relation or dependent mapping, DirectKG MUST report a structural transformation ERROR identifying the affected relation, property reference, or dependent mapping and explaining the conflicting transformation requirements, rather than arbitrarily prioritizing one requirement or silently discarding meaningful information. This is a targeted transformation-compatibility policy, not general OntoUML semantic validation.
+
+#### Incompatible endpoints, stereotypes, multiplicities, and dependent mappings for datatype-valued relations (RD-02)
+
+1. **Endpoint rejections:**
+   - **`Class → void`:** When the target endpoint resolves to Visual Paradigm `void` (`stereotype == "datatype"`), DirectKG MUST report a structural ERROR because `void` has no registered datatype mapping, and MUST NOT generate a rangeless datatype property for the relation. (Attribute handling under DK-DAT-04 remains unchanged.)
+   - **Source without a generated local `owl:Class`:** When the source endpoint resolves to a supported primitive `«datatype»`, `void`, or any other `Class` lacking a generated local `owl:Class` (covering `Primitive/void → Class` and `Primitive/void → Primitive/void`), DirectKG MUST reject the relation with a structural ERROR under DK-DIAG-03 and DK-DIAG-05. DirectKG MUST NOT reverse relation direction, invent a local OWL class, or reinterpret the source endpoint to make the relation transformable. Custom `«datatype»` classifiers already receive local `owl:Class` representations and retain their existing mappings.
+
+2. **Stereotype compatibility:**
+   - DirectKG MUST report a structural ERROR when an applicable stereotype-specific mapping requires object-property-only semantics incompatible with `owl:DatatypeProperty`. Specifically, DirectKG MUST reject datatype-valued relations carrying any of the eight stereotypes: `componentOf`, `memberOf`, `subCollectionOf`, `subQuantityOf`, `characterization`, `mediation`, `participational`, or `externalDependence`.
+   - Other recognized relation stereotypes (such as `historicalDependence`, `participation`, `creation`, `termination`, `manifestation`, `bringsAbout`, and `triggers`), as well as accepted missing or custom stereotypes under DK-DIAG-06, MAY use the datatype-property mapping when their independently applicable requirements remain compatible, preserving existing naming rules, annotations, and limitation or residual-semantics warnings.
+   - For `«material»`, enabling `--material-property-chains` (`omit-conflicting-constraints` or `preserve-conflicting-constraints`) alone does NOT constitute a conflict. DirectKG MUST report a structural ERROR only when an applicable, unambiguous property-chain mapping under DK-REL-07 actually requires an incompatible `owl:ObjectProperty` representation. Under `best-effort`, when a required `«mediation»` or `«characterization»` grounding relation fails (or an incomplete or ambiguous grounding pattern prevents chain emission), DirectKG MUST preserve the independently valid datatype-valued `«material»` relation without propagating the grounding failure into rejection of the material property.
+   - For `«comparative»`, DirectKG MUST retain the datatype-property mapping when otherwise compatible, and MUST report a structural compatibility ERROR if an explicitly recognized comparative–quality derivation activates DK-REL-18's requirement for an ordinary object property.
+   - DirectKG MUST NOT infer, repair, replace, or discard stereotypes merely to make another mapping applicable.
+
+3. **Multiplicities and `DK-DIAG-10` precedence:**
+   - Target-end multiplicities MUST be preserved through the generated `owl:DatatypeProperty` using the established unqualified cardinality representations (DK-REL-10–13, DK-DIAG-09–11, §3.4).
+   - DirectKG MUST NOT generate named or anonymous inverse datatype properties.
+   - On the source end of a datatype-valued relation, explicit `*`, `0..*`, explicit `null`, and absent `cardinality` (with DK-DIAG-09's nonfatal warning) require no inverse cardinality restriction and remain compatible. Any valid, meaningful source-end multiplicity that requires a cardinality restriction (`0`, `0..0`, `0..u` with `u > 0`, `l..*` with `l > 0`, or `l..u` with `l > 0` or finite `u`, including contradictory `l > u` intervals) requires an unavailable inverse datatype property and MUST produce a structural ERROR rather than discarding that constraint.
+   - For an invalid source-end multiplicity on a datatype-valued relation, DirectKG MUST retain the `INVALID_CARDINALITY` ERROR under DK-DIAG-10–11. Under `best-effort`, the determination that an `owl:DatatypeProperty` has no inverse takes precedence over preservation of recoverable source-end bounds: if an independently identifiable meaningful recoverable reverse constraint exists (`lower > 0` or finite `upper` under DK-DIAG-10), DirectKG MUST report the compatibility ERROR and omit the relation rather than generating an inverse or retaining an incompatible relation; if no meaningful recoverable reverse constraint exists, DirectKG MUST preserve the otherwise compatible datatype property under DK-DIAG-10. `DK-DIAG-10` recovery for attributes and ordinary `owl:ObjectProperty` relations, and `DK-REL-07`'s `omit-conflicting-constraints` and other established cardinality-omission policies, remain unchanged.
+
+4. **Inverses and source-end role metadata:**
+   - Datatype-valued relations are not inverse-eligible under DK-INV-02; selecting `--inverse-properties` (`all`, `informed`, `named`, or `none`) MUST NOT independently cause a compatibility ERROR.
+   - When an explicit, nonempty source-end role name (present under DK-INV-05's criterion) on an otherwise compatible datatype-valued relation cannot be represented because no inverse property exists, DirectKG MUST emit a nonfatal WARNING under every input policy, including `strict`. DirectKG MUST NOT treat the role name alone as a structural conflict, MUST preserve DK-LBL-02's omission of source-end descriptions when no named inverse exists, and MUST retain applicable primary-property annotations and independently representable association-end metadata.
+
+5. **Check timing, policy application, and clean recovery:**
+   - DirectKG MUST detect relation-local incompatibilities (endpoint rejections, the eight rejected stereotypes, and incompatible source-end multiplicities—including invalid source-end multiplicities with meaningful recoverable bounds under `best-effort`) before property IRI allocation and naming, avoiding unnecessary IRI claims and dependent naming work.
+   - Dependent-mapping incompatibilities (`DK-REL-18` comparative–quality derivation and `DK-REL-07` eligible material-property chain) MUST be evaluated at the processing stages where the required information is available.
+   - Under `strict` and `tolerant`, any compatibility ERROR MUST abort conversion under DK-DIAG-05 (`aborted` outcome, no ontology delivered). Under `best-effort`, DirectKG MUST retain ERROR severity, omit the affected relation (removing or avoiding only output dependent on the failed mapping), and preserve independently transformable resources and axioms. DirectKG MUST NOT leave inverse expressions, property hierarchies, cardinality restrictions, annotations, property inclusions, or chain axioms referring to a relation omitted under these compatibility rules.
+
+Explicit relation-to-relation generalizations use primary properties under DK-REL-14 (RD-12 / RD-02), and relation generalization-set disjointness uses them under DK-REL-15 (RD-13 / RD-02).
 
 Relation descriptions and target-end descriptions MUST be preserved independently on the successfully generated primary property under DK-LBL-02. Source-end descriptions follow its named-inverse placement rule.
 
 Explicitly supplied, recognized `begin` or `end` property stereotypes on either association end follow DK-PROP-06 (RD-18): comments identify the source or target end on the successfully generated primary relation property, independently of named-inverse generation.
 
-For covered ordinary mereological relations, DK-REL-19 (RD-17 / RD-25) additionally maps that primary property beneath the corresponding generic `dkgm` property and declares the primary property asymmetric. Association-end `isReadOnly` and aggregation comments follow DK-PROP-04 (RD-24 / RD-25). Association-end `isOrdered: true` comments follow DK-PROP-05 (RD-23), including per-occurrence INFO reporting under DK-DIAG-18. Explicit boolean relation `isAbstract` values MUST be preserved as `rdfs:comment` on the generated primary property under DK-CLS-01 (RD-19), with the INFO reporting required by DK-DIAG-15; they MUST NOT, by themselves, introduce additional logical constraints or change the existing relation and generalization-set mappings. These rules do not change the source-backed property identity, direction, domain, range, inverses, or cardinality mappings.
+For covered ordinary mereological relations, DK-REL-19 (RD-17 / RD-25) additionally maps that primary `owl:ObjectProperty` beneath the corresponding generic `dkgm` property and declares the primary property asymmetric. Association-end `isReadOnly` and aggregation comments follow DK-PROP-04 (RD-24 / RD-25). Association-end `isOrdered: true` comments follow DK-PROP-05 (RD-23), including per-occurrence INFO reporting under DK-DIAG-18. Explicit boolean relation `isAbstract` values MUST be preserved as `rdfs:comment` on the generated primary property under DK-CLS-01 (RD-19), with the INFO reporting required by DK-DIAG-15; they MUST NOT, by themselves, introduce additional logical constraints or change the existing relation and generalization-set mappings. Subject to the datatype-valued relation compatibility rules above, these rules do not change the source-backed property identity, direction, domain, range, inverses, or cardinality mappings.
 
-A binary relation whose endpoint `propertyType` resolves to a source `Relation` does not undergo ordinary primary-property generation; its mapping or intentional omission is specified in DK-REL-08, DK-REL-18, and DK-REL-17. This does not change ordinary relations with eligible class endpoints, including the material and comparative relations connected by recognized derivations.
+A binary relation whose endpoint `propertyType` resolves to a source `Relation` does not undergo ordinary primary-property generation; its mapping or intentional omission is specified in DK-REL-08, DK-REL-18, and DK-REL-17. This does not change ordinary relations with eligible class endpoints, including the material and comparative relations connected by recognized derivations (subject to the comparative–quality and material-chain compatibility rules above when those relations target supported primitives).
 
-Property selection for reverse-side cardinality restrictions is established in DK-REL-09 (RD-11). DK-REL-10 (RD-11) establishes unqualified cardinality forms for supported ordinary binary class-to-class relations. DK-REL-11 (RD-11) establishes direction, necessary-condition representation, and finite numeric multiplicity mapping. DK-REL-12 (RD-11) establishes unbounded relation-end multiplicity mapping. Explicit null cardinalities are specified in DK-REL-13. Missing `cardinality` fields use the fallback in DK-DIAG-09 (RD-11 / RD-02). Untranslatable multiplicities and bounds follow DK-DIAG-10, including partial recovery of independently valid numeric bounds in `best-effort`. Contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
+Property selection for reverse-side cardinality restrictions on `owl:ObjectProperty` relations is established in DK-REL-09 (RD-11). DK-REL-10 (RD-11) establishes unqualified cardinality forms for supported ordinary binary relations. DK-REL-11 (RD-11) establishes direction, necessary-condition representation, and finite numeric multiplicity mapping. DK-REL-12 (RD-11) establishes unbounded relation-end multiplicity mapping. Explicit null cardinalities are specified in DK-REL-13. Missing `cardinality` fields use the fallback in DK-DIAG-09 (RD-11 / RD-02). Untranslatable multiplicities and bounds follow DK-DIAG-10, including partial recovery of independently valid numeric bounds in `best-effort` and compatibility precedence for datatype-valued relation source ends. Contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
 
 #### Ordinary mapping of `historicalDependence` with the applicable limitation warning (RD-17, Alternative A)
 
@@ -1470,7 +1519,7 @@ The existing explicit-multiplicity, inverse-generation, annotation, and other ap
 
 #### Partial mapping of `participational` and `manifestation` with residual-semantics warnings (RD-17, alternative A)
 
-Eligible ordinary relations carrying the recognized `participational` or `manifestation` stereotype MUST retain all existing ordinary mappings, including property identity, direction, naming, labels, descriptions, domains, ranges, explicit cardinalities, inverses, applicable generalization mappings, and independently required annotations.
+Eligible ordinary relations carrying the recognized `participational` (when mapped to `owl:ObjectProperty`; rejected with a structural ERROR under DK-REL-01 when targeting a supported primitive) or `manifestation` (including compatible datatype-valued `«manifestation»` relations) stereotype MUST retain all existing ordinary mappings, including property identity, direction, naming, labels, descriptions, domains, ranges, explicit representable cardinalities, applicable inverses, applicable generalization mappings, and independently required annotations.
 
 The accepted `participational` asymmetry and its per-axiom compatibility gate below MUST remain applicable. DirectKG MUST NOT infer an additional property characteristic solely from `manifestation`. Beyond existing accepted mappings, DirectKG MUST NOT generate further logical axioms solely from either stereotype.
 
@@ -1785,7 +1834,7 @@ The selected mode changes only whether eligible material-property chains are gen
 
 Under `none`, DirectKG MUST NOT generate material–relator or material–mode property-chain axioms. All independently applicable mappings, including cardinality restrictions and property-disjointness axioms, MUST remain applicable. DirectKG MUST NOT emit DK-DIAG-07 solely because material-property-chain generation is disabled.
 
-Under either chain-generating mode, DirectKG MUST generate every eligible, unambiguous material–relator and material–mode property chain required by this rule.
+Under either chain-generating mode, DirectKG MUST generate every eligible, unambiguous material–relator and material–mode property chain required by this rule when the material relation maps to an `owl:ObjectProperty`. Enabling `--material-property-chains` alone does NOT conflict with a datatype-valued `«material»` relation (`owl:DatatypeProperty`). However, if a datatype-valued `«material»` relation has an eligible, unambiguous material–relator or material–mode property-chain mapping under this rule, that applicable chain requires an `owl:ObjectProperty` conclusion incompatible with the datatype-property representation: DirectKG MUST report a structural compatibility ERROR under DK-REL-01 and DK-DIAG-05 (`strict` and `tolerant` abort; `best-effort` omits the affected `«material»` relation and all dependent output—including the property declaration, annotations, cardinality restrictions, hierarchy edges, property inclusions, and chain axiom—without leaving orphaned references). Under `best-effort`, when a required `«mediation»` or `«characterization»` grounding relation fails (or an incomplete or ambiguous pattern prevents chain emission), DirectKG MUST preserve an independently valid datatype-valued `«material»` relation rather than propagating that grounding failure into rejection of the material relation.
 
 Under `omit-conflicting-constraints`, DirectKG MUST first determine which material chains are actually emitted. It MUST then determine the object-property expressions made non-simple by those emitted chains under the generated OWL property hierarchy. Affected expressions include, as applicable:
 
@@ -1910,11 +1959,11 @@ This limitation supports the current transformation scope; it does not establish
 
 The ordinary cardinality mappings in DK-REL-09–13 are subject to DK-REL-07's mode-specific omission rule. Property selection determines the expression whose affected status is assessed; it does not exempt primary properties, named inverses, or anonymous inverse expressions from that rule.
 
-When expressing a reverse-side cardinality restriction for a supported ordinary binary relation, DirectKG MUST use the corresponding named inverse property if that property is generated.
+When expressing a reverse-side cardinality restriction for a supported ordinary binary class-to-class relation (`owl:ObjectProperty`), DirectKG MUST use the corresponding named inverse property if that property is generated.
 
-Otherwise, DirectKG MUST use an anonymous inverse expression of the primary relation property.
+Otherwise, for an `owl:ObjectProperty` relation, DirectKG MUST use an anonymous inverse expression of the primary relation property.
 
-DirectKG MUST NOT force generation of a named inverse property merely to express the restriction. The established inverse-generation modes in DK-INV-01 determine whether a corresponding named inverse is generated.
+DirectKG MUST NOT force generation of a named inverse property merely to express the restriction. The established inverse-generation modes in DK-INV-01 determine whether a corresponding named inverse is generated. Datatype-valued ordinary relations (`owl:DatatypeProperty`) have no named or anonymous inverse properties; any valid, meaningful source-end multiplicity on a datatype-valued relation triggers a structural compatibility ERROR under DK-REL-01 rather than generating an inverse datatype property.
 
 No additional configuration argument is introduced to omit reverse-side cardinality restrictions when no named inverse property is generated.
 
@@ -1924,7 +1973,7 @@ This rule specifies property selection when expressing such a restriction. DK-RE
 
 ### DK-REL-10 — Unqualified relation-cardinality restrictions (RD-11)
 
-For supported ordinary binary class-to-class relations, generated minimum, maximum, and exact cardinality restrictions MUST use the following unqualified OWL forms:
+For supported ordinary binary relations (class-to-class `owl:ObjectProperty` relations, and target ends of compatible datatype-valued `owl:DatatypeProperty` relations under DK-REL-01), generated minimum, maximum, and exact cardinality restrictions MUST use the following unqualified OWL forms:
 
 | Restriction | OWL form |
 |---|---|
@@ -1932,20 +1981,25 @@ For supported ordinary binary class-to-class relations, generated minimum, maxim
 | Maximum | `owl:maxCardinality` |
 | Exact | `owl:cardinality` |
 
-This rule applies in both directions, including restrictions expressed through named inverse properties or anonymous inverse expressions. Reverse-side property selection MUST follow DK-REL-09 (RD-11).
+This rule applies in both directions for `owl:ObjectProperty` relations, including restrictions expressed through named inverse properties or anonymous inverse expressions, and to target-end restrictions on compatible `owl:DatatypeProperty` relations. Reverse-side property selection for `owl:ObjectProperty` relations MUST follow DK-REL-09 (RD-11).
 
 No configuration argument is introduced for choosing qualified restrictions.
 
 DK-GEN-03 supplies the endpoint domain and range declarations. This rule does not change attribute mappings. Direction, necessary-condition representation, and finite numeric multiplicity mapping are specified in DK-REL-11. Unbounded multiplicities are specified in DK-REL-12, and explicit null cardinalities in DK-REL-13; DK-DIAG-09 specifies the missing-field fallback. Untranslatable multiplicities and bounds follow DK-DIAG-10. Contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
 
-**Rationale (non-normative):** With the accepted endpoint domain and range axioms, unqualified cardinalities express the same constraints as cardinalities qualified by the corresponding endpoint classes. The unqualified representation avoids repeating those classes inside each restriction.
+**Rationale (non-normative):** With the accepted endpoint domain and range axioms, unqualified cardinalities express the same constraints as cardinalities qualified by the corresponding endpoint classes or datatypes. The unqualified representation avoids repeating those types inside each restriction.
 
 ### DK-REL-11 — Direction and finite numeric relation-cardinality mapping (RD-11)
 
-For a supported ordinary binary class-to-class relation:
+For a supported ordinary binary class-to-class relation (`owl:ObjectProperty`):
 
 - The target-end multiplicity MUST constrain instances of the source class through the primary relation property.
 - The source-end multiplicity MUST constrain instances of the target class through the inverse direction.
+
+For a compatible datatype-valued ordinary binary relation (`owl:DatatypeProperty` under DK-REL-01):
+
+- The target-end multiplicity MUST constrain instances of the source class through the primary `owl:DatatypeProperty`.
+- Source-end multiplicities requiring a cardinality restriction (including `0`, `0..0`, `0..u` with `u > 0`, `l..*` with `l > 0`, and `l..u` with `l > 0` or finite `u`, including `l > u`) CANNOT be represented without an inverse datatype property and MUST report a structural ERROR under DK-REL-01 rather than generating an inverse or discarding the constraint.
 
 These constraints MUST be expressed as necessary conditions using `rdfs:subClassOf` restrictions, not as class definitions using `owl:equivalentClass`.
 
@@ -1958,30 +2012,30 @@ Finite numeric multiplicities MUST be mapped as follows, where the bounds are no
 | `l..u`, where `0 < l < u` | Separate minimum-cardinality and maximum-cardinality restrictions with values `l` and `u` |
 | `l..u`, where `l > u` | Separate minimum-cardinality and maximum-cardinality restrictions with values `l` and `u`, under every input policy; no warning or error solely for the contradiction (§3.4, RD-11) |
 
-The generated restrictions MUST use the unqualified OWL forms specified in DK-REL-10. Reverse-side property selection MUST follow DK-REL-09: use the corresponding named inverse when generated; otherwise, use an anonymous inverse expression of the primary property.
+The generated restrictions MUST use the unqualified OWL forms specified in DK-REL-10. Reverse-side property selection for `owl:ObjectProperty` relations MUST follow DK-REL-09: use the corresponding named inverse when generated; otherwise, use an anonymous inverse expression of the primary property.
 
 These cardinalities MUST follow DK-REL-07's mode-specific treatment (RD-17 / ODI-CONTROLS): `none` retains the independently applicable mapping; `preserve-conflicting-constraints` MUST NOT adjust or omit it to accommodate chains; `omit-conflicting-constraints` MUST omit only restrictions using property expressions made non-simple by actually emitted material chains, including through the accepted hierarchy and inverse mappings.
 
-This mapping does not modify the attribute mapping in DK-ATT-03. Unbounded relation-end multiplicities are specified in DK-REL-12. Explicit null cardinalities are specified in DK-REL-13. Missing `cardinality` fields use the fallback in DK-DIAG-09 (RD-11 / RD-02). Untranslatable multiplicities and bounds follow DK-DIAG-10, including partial recovery of independently valid numeric bounds in `best-effort`. Contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
+This mapping does not modify the attribute mapping in DK-ATT-03. Unbounded relation-end multiplicities are specified in DK-REL-12. Explicit null cardinalities are specified in DK-REL-13. Missing `cardinality` fields use the fallback in DK-DIAG-09 (RD-11 / RD-02). Untranslatable multiplicities and bounds follow DK-DIAG-10, including partial recovery of independently valid numeric bounds in `best-effort` and compatibility precedence for datatype-valued relation source ends. Contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
 
 **Rationale (non-normative):** Equal minimum and maximum bounds have the same OWL meaning as an exact-cardinality restriction. Using one exact restriction expresses that requirement compactly.
 
 ### DK-REL-12 — Unbounded relation-end multiplicities (RD-11)
 
-For supported ordinary binary class-to-class relations, standalone `*` MUST be interpreted as `0..*`. Unbounded multiplicities MUST be mapped as follows:
+For supported ordinary binary relations (class-to-class `owl:ObjectProperty` relations, and compatible datatype-valued `owl:DatatypeProperty` relations under DK-REL-01), standalone `*` MUST be interpreted as `0..*`. Unbounded multiplicities MUST be mapped as follows:
 
 | Multiplicity | Required cardinality output |
 |---|---|
 | `*` or `0..*` | No cardinality restriction |
-| `l..*`, where `l` is a positive integer | One unqualified `owl:minCardinality` restriction with value `l` |
+| `l..*`, where `l` is a positive integer | One unqualified `owl:minCardinality` restriction with value `l` (on a compatible datatype-valued relation, valid on target end only; on source end, triggers a structural ERROR under DK-REL-01) |
 
 DirectKG MUST NOT generate a maximum-cardinality or exact-cardinality restriction from these multiplicities. An unbounded upper bound MUST NOT be replaced with a finite numeric limit.
 
-Restrictions MUST follow the relation-end direction and `rdfs:subClassOf` placement in DK-REL-11 and the reverse-side property-selection rules in DK-REL-09. The unqualified forms are specified in DK-REL-10.
+Restrictions MUST follow the relation-end direction and `rdfs:subClassOf` placement in DK-REL-11 and, for `owl:ObjectProperty` relations, the reverse-side property-selection rules in DK-REL-09. The unqualified forms are specified in DK-REL-10.
 
-These forms MUST be accepted without a warning or error solely because they are unbounded.
+These forms MUST be accepted without a warning or error solely because they are unbounded (on the source end of a datatype-valued relation, `*` and `0..*` are accepted without conflict or diagnostic, whereas `l..*` with `l > 0` requires a reverse-side restriction and fails compatibility under DK-REL-01).
 
-Generating no cardinality restriction for `*` or `0..*` MUST NOT omit the relation property or change inverse-generation eligibility. These values remain non-null multiplicities under the `informed` inverse mode in DK-INV-01.
+Generating no cardinality restriction for `*` or `0..*` MUST NOT omit the relation property or change inverse-generation eligibility for inverse-eligible relations. These values remain non-null multiplicities under the `informed` inverse mode in DK-INV-01 (datatype-valued relations remain ineligible for inverse generation under DK-INV-02 without error).
 
 This unbounded relation-end mapping does not change attribute mappings. Explicit null cardinalities are governed by DK-ATT-03 and DK-REL-13. Missing `cardinality` fields use the fallback in DK-DIAG-09 (RD-11 / RD-02). Untranslatable multiplicities and bounds follow DK-DIAG-10, including partial recovery of independently valid numeric bounds in `best-effort`. Contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
 
@@ -1989,53 +2043,57 @@ This unbounded relation-end mapping does not change attribute mappings. Explicit
 
 ### DK-REL-13 — Explicit null relation-end cardinalities (RD-11 / DK-ATT-03)
 
-For supported ordinary binary relation ends, an explicit JSON `cardinality: null` MUST be treated as the absence of an explicit multiplicity available for transformation. DirectKG MUST NOT generate a cardinality restriction from that value or substitute a default multiplicity.
+For supported ordinary binary relation ends (including compatible datatype-valued relations under DK-REL-01), an explicit JSON `cardinality: null` MUST be treated as the absence of an explicit multiplicity available for transformation. DirectKG MUST NOT generate a cardinality restriction from that value or substitute a default multiplicity.
 
 All other applicable mappings MUST continue. An explicit null cardinality MUST NOT, by itself, cause a warning, error, or transformation failure under any input policy.
 
-Existing inverse-generation eligibility rules remain unchanged. Under `informed`, a null cardinality does not satisfy the non-null multiplicity condition; a qualifying role name may independently trigger inverse generation, as specified in DK-INV-01. Null MUST remain distinct from explicit `*` or `0..*`, including when evaluating inverse-generation eligibility.
+Existing inverse-generation eligibility rules remain unchanged. For inverse-eligible relations under `informed`, a null cardinality does not satisfy the non-null multiplicity condition; a qualifying role name may independently trigger inverse generation, as specified in DK-INV-01. Null MUST remain distinct from explicit `*` or `0..*`, including when evaluating inverse-generation eligibility. Datatype-valued relations remain excluded from inverse generation under DK-INV-02 without error.
 
 The corresponding supported-attribute handling is specified in DK-ATT-03. Missing `cardinality` fields use the distinct fallback in DK-DIAG-09, which requires a warning. Untranslatable multiplicities and bounds are governed separately by DK-DIAG-10; contradictory numeric intervals are transformable under §3.4 (RD-11). Cardinality syntax, limited lexical normalization, and treatment of ambiguous malformed expressions are specified in DK-DIAG-11 (RD-11 / RD-02).
 
 **Rationale (non-normative, for attributes and ordinary relation ends):** VP-plugin 0.5.3 converts Visual Paradigm's “Unspecified” multiplicity to null. Generating a numeric restriction would introduce a bound not supplied by that JSON value.
 
-### DK-REL-14 — Direct mapping of relation generalization (RD-12)
+### DK-REL-14 — Direct mapping of relation generalization (RD-12 / RD-02)
 
-For every explicit relation-to-relation generalization whose specific and general relations both successfully generate primary `owl:ObjectProperty` resources, DirectKG MUST emit:
+For every explicit relation-to-relation generalization whose specific and general relations both successfully generate primary `owl:ObjectProperty` resources, or both successfully generate primary `owl:DatatypeProperty` resources, DirectKG MUST emit:
 
 ```turtle
 :SpecificProperty rdfs:subPropertyOf :GeneralProperty .
 ```
 
-DirectKG MUST use the primary properties generated under the existing relation-transformation rules, preserving their established source-to-target directions.
+DirectKG MUST use the primary properties generated under the existing relation-transformation rules, preserving their established source-to-target directions, property identities, cardinalities, and applicable diagnostics.
 
-Generation of this axiom MUST NOT depend on checking semantic compatibility between the relations' endpoint classes, domains, or ranges. DirectKG MUST NOT require corresponding endpoint classes to have an explicit or inferred specialization relationship.
+When one endpoint relation successfully generates an `owl:ObjectProperty` and the other successfully generates an `owl:DatatypeProperty`, DirectKG MUST report a structural ERROR identifying the affected generalization and explaining the mixed object/data property-kind incompatibility. Under `strict` and `tolerant`, conversion MUST abort under DK-DIAG-05. Under `best-effort`, DirectKG MUST retain ERROR severity, omit the incompatible hierarchy edge, and preserve independent properties and valid homogeneous mappings.
+
+Except for this OWL property-kind compatibility check, generation of this axiom MUST NOT depend on checking semantic compatibility between the relations' endpoint classes, domains, or ranges. DirectKG MUST NOT require corresponding endpoint classes to have an explicit or inferred specialization relationship.
 
 DirectKG MUST NOT reverse, repair, or reinterpret either relation to establish endpoint correspondence. Classes and relations MUST otherwise retain their existing mappings.
 
-Structural resolution remains required. Unresolved references or failures to generate the required primary properties remain subject to the accepted input-processing rules in DK-DIAG-05 (RD-02); they MUST NOT be treated as semantic compatibility failures.
+Structural resolution remains required. Unresolved references or failures to generate the required primary properties (including relations omitted earlier because of compatibility errors) remain subject to the accepted input-processing rules in DK-DIAG-05 (RD-02); they MUST NOT be treated as semantic compatibility failures.
 
-This rule establishes the primary-property mapping for ordinary relation generalizations. DK-INV-12 (RD-12) additionally requires the corresponding specialization between generated named inverses when both exist. Endpoint compatibility and semantic orientation checks are not eligibility conditions. Disjoint relation generalization sets are mapped under DK-REL-15 (RD-13). The completeness limitation for relation sets with two or more distinct specific relations is specified in DK-REL-16; fully resolved singleton relation-set completeness is specified in DK-REL-20.
+This rule establishes the primary-property mapping for ordinary relation generalizations. DK-INV-12 (RD-12) additionally requires the corresponding specialization between generated named inverses when both relations are `owl:ObjectProperty` relations and both named inverses exist; for homogeneous `owl:DatatypeProperty` generalizations, no inverse specialization is generated and no warning is issued. Disjoint relation generalization sets are mapped under DK-REL-15 (RD-13). The completeness limitation for relation sets with two or more distinct specific relations is specified in DK-REL-16; fully resolved singleton relation-set completeness is specified in DK-REL-20. A generalization that fails because of mixed property kinds MUST NOT activate singleton completeness or DK-DIAG-14 INFO.
 
 Explicit UML Property subsetting and redefinition references are mapped separately under DK-PROP-03 (RD-14). They do not inherit the additional inverse-specialization emission required for relation generalizations by DK-INV-12.
 
 **Example (non-normative):** If `relates` connects A to B and `relates2` connects C to D, an explicit specialization of `relates` by `relates2` produces `relates2 rdfs:subPropertyOf relates`, without checking compatibility between C and A or between D and B.
 
-### DK-REL-15 — Disjointness of relation specializations and generated inverses (RD-13)
+### DK-REL-15 — Disjointness of relation specializations and generated inverses (RD-13 / RD-02)
 
 The examples below illustrate the ordinary disjointness mapping; emitted axioms remain subject to the mode-specific treatment in this rule and DK-REL-07.
 
-For a relation generalization set with `isDisjoint: true`, DirectKG MUST emit pairwise `owl:propertyDisjointWith` statements between the successfully generated primary `owl:ObjectProperty` resources corresponding to the set's explicit specific relations.
+For a relation generalization set with `isDisjoint: true`, DirectKG MUST emit pairwise `owl:propertyDisjointWith` statements between every unordered pair of successfully generated primary properties corresponding to the set's explicit specific relations that share the same OWL property kind—both homogeneous `owl:ObjectProperty` pairs and homogeneous `owl:DatatypeProperty` pairs.
 
-For each such pair, DirectKG MUST also emit `owl:propertyDisjointWith` between the corresponding named inverse properties when both inverses are generated.
+For each homogeneous `owl:ObjectProperty` pair, DirectKG MUST also emit `owl:propertyDisjointWith` between the corresponding named inverse properties when both inverses are generated.
 
-If either named inverse is absent under the selected inverse-generation mode, DirectKG MUST omit that inverse disjointness pair without a warning. DirectKG MUST NOT force inverse generation to express the pair.
+If either named inverse is absent under the selected inverse-generation mode, or for homogeneous `owl:DatatypeProperty` pairs (which have no inverses), DirectKG MUST omit that inverse disjointness pair without a warning. DirectKG MUST NOT force inverse generation to express the pair.
+
+For every cross-kind pair among surviving explicit specifics in a disjoint relation generalization set (one `owl:ObjectProperty` and one `owl:DatatypeProperty`), DirectKG MUST report a structural ERROR identifying the affected generalization set and pair and explaining the mixed object/data property-kind incompatibility. Under `strict` and `tolerant`, conversion MUST abort under DK-DIAG-05. Under `best-effort`, DirectKG MUST retain ERROR severity, omit only the cross-kind disjointness pairs, and preserve independently valid homogeneous disjointness pairs (together with independent properties and valid homogeneous hierarchy edges).
 
 For `isDisjoint: false`, DirectKG MUST generate no disjointness axiom from that flag.
 
-DirectKG MUST preserve the properties' established directions and existing mappings. Generation of these disjointness axioms MUST NOT depend on checking or repairing semantic compatibility between endpoint classes, domains, or ranges.
+DirectKG MUST preserve the properties' established directions and existing mappings. Except for the OWL property-kind compatibility check above, generation of these disjointness axioms MUST NOT depend on checking or repairing semantic compatibility between endpoint classes, domains, or ranges.
 
-These disjointness axioms MUST follow DK-REL-07's mode-specific treatment. Under `none` and `preserve-conflicting-constraints`, all independently applicable pairs MUST remain. Under `omit-conflicting-constraints`, DirectKG MUST omit only pairwise axioms with at least one property expression made non-simple by actually emitted material chains, including through accepted hierarchy and inverse mappings; unrelated pairs MUST remain. DK-DIAG-07 requires documentation of the resulting OWL 2 DL compatibility limitation. This rule does not change inverse-generation eligibility, primary-property directions, or material-property-chain generation. Multi-member relation-set completeness is governed by DK-REL-16 and singleton completeness by DK-REL-20. For `isDisjoint: true`, a singleton relation generalization set MUST generate no disjointness statement from that set because no pair of specific relations exists; independently applicable disjointness mappings remain in force. Under `best-effort`, an inapplicable non-null `categorizer` on a relation generalization set alone does not suppress this disjointness mapping, and surviving explicit specifics retain applicable pairwise disjointness when another member fails (DK-HO-04). DK-DIAG-12 governs explicitly empty arrays and missing or malformed membership containers.
+These disjointness axioms MUST follow DK-REL-07's mode-specific treatment. Under `none` and `preserve-conflicting-constraints`, all independently applicable homogeneous pairs MUST remain. Under `omit-conflicting-constraints`, DirectKG MUST omit only pairwise axioms with at least one property expression made non-simple by actually emitted material chains, including through accepted hierarchy and inverse mappings; unrelated pairs MUST remain. DK-DIAG-07 requires documentation of the resulting OWL 2 DL compatibility limitation. This rule does not change inverse-generation eligibility, primary-property directions, or material-property-chain generation. Multi-member relation-set completeness is governed by DK-REL-16 and singleton completeness by DK-REL-20. For `isDisjoint: true`, a singleton relation generalization set MUST generate no disjointness statement from that set because no pair of specific relations exists; independently applicable disjointness mappings remain in force. Under `best-effort`, an inapplicable non-null `categorizer` on a relation generalization set alone does not suppress this disjointness mapping, and surviving explicit specifics retain applicable homogeneous pairwise disjointness when another member fails (DK-HO-04). DK-DIAG-12 governs explicitly empty arrays and missing or malformed membership containers.
 
 **Rationale and examples (non-normative):**
 
@@ -2061,13 +2119,13 @@ DirectKG MUST emit a warning identifying the affected set and explaining that it
 
 Documentation MUST identify this omission as a mapping limitation.
 
-All other applicable mappings MUST remain applicable, including relation properties, subproperty axioms, generated inverses, and disjointness axioms.
+All other applicable mappings MUST remain applicable, including relation properties, compatible subproperty axioms, generated inverses, and compatible disjointness axioms.
 
 For `isComplete: false`, DirectKG MUST generate no completeness axiom and MUST NOT issue a warning solely because of that flag.
 
-This rule does not change class-set completeness mappings. Fully resolved singleton relation-set completeness is governed separately by DK-REL-20. Under `best-effort`, an inapplicable non-null `categorizer` on a relation generalization set alone does not suppress this warning when its conditions hold (DK-HO-04). DK-DIAG-12 governs explicitly empty arrays and missing or malformed membership containers.
+This rule does not change class-set completeness mappings. Fully resolved singleton relation-set completeness is governed separately by DK-REL-20; a larger incomplete set whose member failed (including because of mixed property kinds) MUST NOT be treated as a valid singleton merely because one member survived. Under `best-effort`, an inapplicable non-null `categorizer` on a relation generalization set alone does not suppress this warning when its conditions hold (DK-HO-04). DK-DIAG-12 governs explicitly empty arrays and missing or malformed membership containers.
 
-**Rationale (non-normative):** OWL 2 provides no ordinary object-property union constructor corresponding to class union. Property chains express composition, not alternatives. Omitting coverage preserves the supported mappings without introducing an incorrect approximation or a separate validation representation.
+**Rationale (non-normative):** OWL 2 provides no ordinary object-property or datatype-property union constructor corresponding to class union. Property chains express composition, not alternatives. Omitting coverage preserves the supported mappings without introducing an incorrect approximation or a separate validation representation.
 
 ### DK-REL-17 — Binary relations with relation-valued endpoints (RD-16 / RD-17)
 
@@ -2083,9 +2141,11 @@ RD-17 establishes the accepted material–mode and comparative–quality behavio
 
 **Rationale and example (non-normative):** VP-plugin exports include both material-relation → relator-class and relator-class → material-relation endpoint orders. Resolving endpoint identities and types recognizes the same supported material–relator derivation in either order. Mode-grounded material and quality-grounded comparative patterns likewise do not depend on serialized endpoint order. An otherwise unmapped relation-valued connector is omitted because an ordinary object property would assign misleading class-domain and class-range semantics. The omission does not reject potential future transformations of other truthmaker patterns.
 
-### DK-REL-18 — Quality-grounded comparative derivations (RD-17)
+### DK-REL-18 — Quality-grounded comparative derivations (RD-17 / RD-02)
 
-For an explicit `«derivation»` whose resolved endpoints are a `«comparative»` relation `C` and a `«quality»` class `Q`, DirectKG MUST recognize the pattern independently of serialized endpoint order. DirectKG MUST transform `C` as an ordinary object property under the existing rules, including its independently applicable naming, inverse, domain, range, and diagnostic behavior. The derivation connector MUST NOT receive a separate resource or ordinary-property representation.
+For an explicit `«derivation»` whose resolved endpoints are a `«comparative»` relation `C` and a `«quality»` class `Q`, DirectKG MUST recognize the pattern independently of serialized endpoint order. DirectKG MUST transform `C` as an ordinary `owl:ObjectProperty` under the existing rules, including its independently applicable naming, inverse, domain, range, and diagnostic behavior. The derivation connector MUST NOT receive a separate resource or ordinary-property representation.
+
+When `C` targets a supported primitive `«datatype»` (requiring an `owl:DatatypeProperty` under DK-REL-01) while this recognized comparative–quality derivation activates DK-REL-18's requirement for an ordinary `owl:ObjectProperty`, DirectKG MUST report a structural compatibility ERROR identifying `C` (and the derivation and `Q` where available) and explaining the conflicting requirements. Under `strict` and `tolerant`, conversion MUST abort under DK-DIAG-05. Under `best-effort`, DirectKG MUST retain ERROR severity, omit `C` and any output dependent on `C`, and preserve `Q` and independently transformable mappings. Other `«comparative»` relations for which no recognized comparative–quality derivation applies retain their datatype-property eligibility under DK-REL-01.
 
 DirectKG MUST NOT derive a property chain, property equivalence, value-comparison rule, cardinality restriction, special property name, or property characteristic solely from the comparative–quality derivation. In particular, it MUST NOT infer transitivity, symmetry, asymmetry, reflexivity, irreflexivity, functionality, or inverse functionality merely from the `«comparative»` stereotype or its grounding quality.
 
@@ -2095,7 +2155,7 @@ DirectKG MUST emit a nonfatal unsupported-semantics diagnostic under every input
 
 The comment preservation of `isExtensional` under DK-CLS-01 (RD-21) introduces no additional logical axioms solely from that flag and leaves this mereological mapping unchanged.
 
-For each eligible ordinary binary class-to-class relation carrying the recognized OntoUML stereotype `memberOf`, `subCollectionOf`, `subQuantityOf`, or `componentOf`, DirectKG MUST retain its distinct source-specific primary `owl:ObjectProperty` and generate a direct `rdfs:subPropertyOf` axiom from that primary property to the corresponding generic property under DK-GEN-04 in every vocabulary mode:
+For each eligible ordinary binary class-to-class relation (`owl:ObjectProperty`) carrying the recognized OntoUML stereotype `memberOf`, `subCollectionOf`, `subQuantityOf`, or `componentOf`, DirectKG MUST retain its distinct source-specific primary `owl:ObjectProperty` and generate a direct `rdfs:subPropertyOf` axiom from that primary property to the corresponding generic property under DK-GEN-04 in every vocabulary mode:
 
 | Source stereotype | Superproperty of source relation's primary property |
 |---|---|
@@ -2103,6 +2163,8 @@ For each eligible ordinary binary class-to-class relation carrying the recognize
 | `subCollectionOf` | `dkgm:subCollectionOf` |
 | `subQuantityOf` | `dkgm:subQuantityOf` |
 | `componentOf` | `dkgm:componentOf` |
+
+Under DK-REL-01 (RD-02), an ordinary relation carrying one of these four mereological stereotypes whose target resolves to a supported primitive `«datatype»` is rejected with a structural ERROR because this object-property-only mapping cannot be satisfied by an `owl:DatatypeProperty`.
 
 The generic property IRIs in this table use the `U#` namespace established by DK-GEN-04 (RD-05). The vocabulary ontology URI is `U`, which is also the import target in `import` mode. This identifier pattern does not change the source-specific mappings.
 
@@ -2116,9 +2178,9 @@ The accepted generic chains operate on the generic `dkgm` properties when those 
 
 **Non-normative example.** If `r1` and `r2` are distinct subproperties of `dkgm:subQuantityOf`, assertions `a r1 b` and `b r2 c` allow a reasoner with the generic chain to entail `a dkgm:subQuantityOf c`. Those facts alone do not entail `a r1 c` or `a r2 c`. A model whose primary direction is opposite its intended mereological direction may consequently yield an unintended generic assertion; this mapping does not validate or fix that model.
 
-### DK-REL-20 — Complete singleton relation generalization sets (RD-13)
+### DK-REL-20 — Complete singleton relation generalization sets (RD-13 / RD-02)
 
-For a fully resolved relation generalization set containing exactly one member generalization, with `isComplete: true`, whose general and specific relations successfully generate primary `owl:ObjectProperty` resources, DirectKG MUST emit:
+For a fully resolved relation generalization set containing exactly one member generalization, with `isComplete: true`, whose general and specific relations both successfully generate primary `owl:ObjectProperty` resources or both successfully generate primary `owl:DatatypeProperty` resources, DirectKG MUST emit:
 
 ```turtle
 :GeneralProperty rdfs:subPropertyOf :SpecificProperty .
@@ -2130,19 +2192,19 @@ The existing specialization mapping under DK-REL-14 MUST remain applicable:
 :SpecificProperty rdfs:subPropertyOf :GeneralProperty .
 ```
 
-DirectKG MUST represent singleton completeness using the reverse subproperty axiom. It MUST NOT additionally emit `owl:equivalentProperty` for this completeness mapping. The properties MUST retain their distinct identifiers and established directions. DirectKG MUST NOT introduce semantic endpoint, domain, or range compatibility checks as prerequisites for this mapping.
+DirectKG MUST represent singleton completeness using the reverse subproperty axiom. It MUST NOT additionally emit `owl:equivalentProperty` for this completeness mapping. The properties MUST retain their distinct identifiers and established directions. Except for DK-REL-14's OWL property-kind compatibility check, DirectKG MUST NOT introduce semantic endpoint, domain, or range compatibility checks as prerequisites for this mapping.
 
-When both corresponding named inverse properties are generated, DirectKG MUST additionally emit:
+When both relations are `owl:ObjectProperty` relations and both corresponding named inverse properties are generated, DirectKG MUST additionally emit:
 
 ```turtle
 :GeneralInverse rdfs:subPropertyOf :SpecificInverse .
 ```
 
-The existing specific-to-general inverse specialization under DK-INV-12 MUST remain applicable. If either named inverse is absent, DirectKG MUST omit the additional reverse inverse-specialization axiom without a warning. It MUST NOT generate a named inverse or an anonymous inverse expression solely to represent this completeness.
+The existing specific-to-general inverse specialization under DK-INV-12 MUST remain applicable. If either named inverse is absent (or for homogeneous `owl:DatatypeProperty` generalizations, which have no inverses), DirectKG MUST omit the additional reverse inverse-specialization axiom without a warning. It MUST NOT generate a named inverse or an anonymous inverse expression solely to represent this completeness.
 
 Singleton membership alone MUST NOT produce a warning. For `isDisjoint: true`, a singleton relation generalization set MUST generate no disjointness statement from that set because no pair of specific relations exists. Independently applicable disjointness mappings remain in force.
 
-DirectKG MUST NOT apply singleton completeness merely because partial processing failure leaves one surviving member of a larger set. Existing structural-error policies remain unchanged. Membership is counted under DK-GEN-12, including repeated references to the same generalization. Under `best-effort`, an inapplicable non-null `categorizer` on a relation generalization set alone does not suppress this singleton completeness mapping or its DK-DIAG-14 INFO diagnostic when membership is complete; when a member also fails, completeness is omitted (DK-HO-04). DK-DIAG-12 governs explicitly empty arrays and missing or malformed membership containers.
+DirectKG MUST NOT apply singleton completeness—or emit the DK-DIAG-14 INFO diagnostic—when the member generalization fails (including failure due to mixed object/data property kinds under DK-REL-14), or merely because partial processing failure leaves one surviving member of a larger set. Existing structural-error policies remain unchanged. Membership is counted under DK-GEN-12, including repeated references to the same generalization. Under `best-effort`, an inapplicable non-null `categorizer` on a relation generalization set alone does not suppress this singleton completeness mapping or its DK-DIAG-14 INFO diagnostic when membership is complete; when a member also fails, completeness is omitted (DK-HO-04). DK-DIAG-12 governs explicitly empty arrays and missing or malformed membership containers.
 
 The added subproperty axioms MUST participate in DK-REL-07's non-simplicity propagation through the generated property hierarchy when material chains are emitted. These hierarchy axioms are not themselves subject to that rule's targeted omission of cardinality restrictions and property-disjointness axioms.
 
@@ -2156,7 +2218,7 @@ The generated inverse properties governed by this section are separately named i
 
 ### DK-INV-01 — Generation modes (ODI-CONTROLS)
 
-The CLI MUST expose `--inverse-properties` with the values `all`, `informed`, `named`, and `none`. The default MUST be `all`. This control governs generation of separately named inverse properties. It MUST NOT prohibit anonymous inverse expressions required or permitted by the accepted mappings, including those inside material-property chains generated under RD-17, those required by DK-REL-09 for reverse-side relation-cardinality restrictions when no corresponding named inverse is generated, those required by DK-PROP-03 (RD-14) for source association ends without generated named inverses, or those required by DK-REL-01 (RD-17) to align characterization–external-dependence disjointness when reversal is required and no corresponding named inverse is generated:
+The CLI MUST expose `--inverse-properties` with the values `all`, `informed`, `named`, and `none`. The default MUST be `all`. This control governs generation of separately named inverse properties for inverse-eligible relations. Selecting `all`, `informed`, `named`, or `none` MUST NOT independently cause a compatibility ERROR on datatype-valued relations, which are not inverse-eligible. It MUST NOT prohibit anonymous inverse expressions required or permitted by the accepted object-property mappings, including those inside material-property chains generated under RD-17, those required by DK-REL-09 for reverse-side relation-cardinality restrictions when no corresponding named inverse is generated, those required by DK-PROP-03 (RD-14) for object-property source association ends without generated named inverses, or those required by DK-REL-01 (RD-17) to align characterization–external-dependence disjointness when reversal is required and no corresponding named inverse is generated:
 
 | Mode | Behavior |
 |---|---|
@@ -2175,10 +2237,11 @@ Under `informed`, either qualifying datum is sufficient. The values `*` and `0..
 
 A relation is inverse-eligible exactly when it is a supported binary OntoUML relation whose primary transformation successfully produces an IRI-identified `owl:ObjectProperty` with two resolved classifier endpoints suitable as domain and range.
 
-Eligible cases include self-relations, supported stereotyped relations, and unnamed source relations that receive generated IRIs.
+Eligible cases include self-relations, supported stereotyped object-property relations, and unnamed source object-property relations that receive generated IRIs.
 
 The following are not eligible:
 
+- datatype-valued ordinary binary relations whose primary property is an `owl:DatatypeProperty` under DK-REL-01 (RD-02)—neither named nor anonymous inverse datatype properties may be generated, and an explicit, nonempty source-end role name on an otherwise compatible datatype-valued relation triggers DK-REL-01's nonfatal WARNING;
 - `«instantiation»`;
 - material–relator and material–mode `«derivation»` connectors covered by DK-REL-08;
 - comparative–quality `«derivation»` connectors covered by DK-REL-18;
@@ -2188,7 +2251,7 @@ The following are not eligible:
 - unsupported n-ary relations;
 - constructs mapped as assertions, annotations, or reified structures instead of object properties.
 
-Malformed relations are diagnosed under their underlying problem and MUST NOT be silently reclassified as ineligible. Recognized derivation connectors covered by DK-REL-08 and DK-REL-18 and other resolved relation-valued endpoint connectors omitted under DK-REL-17 do not produce inverse properties. In particular, DK-REL-17 prohibits both named and anonymous inverses representing an unsupported connector. Independently generated material and comparative properties retain their established inverse eligibility.
+Malformed or incompatible relations are diagnosed under their underlying problem and MUST NOT be silently reclassified as ineligible. Recognized derivation connectors covered by DK-REL-08 and DK-REL-18 and other resolved relation-valued endpoint connectors omitted under DK-REL-17 do not produce inverse properties. In particular, DK-REL-17 prohibits both named and anonymous inverses representing an unsupported connector. Independently generated material and comparative object properties retain their established inverse eligibility.
 
 ### DK-INV-03 — Inverse direction, domain, and range
 
@@ -2219,7 +2282,9 @@ When present:
 
 When the inverse-facing role is absent, no synthetic `rdfs:label` is generated for the inverse under either IRI strategy.
 
-Source-end descriptions MUST be preserved on the corresponding generated named inverse under DK-LBL-02. That rule does not require generating an inverse solely for a description and does not automatically copy the enclosing relation's description to the inverse.
+For a compatible datatype-valued relation under DK-REL-01 (which is not inverse-eligible under DK-INV-02), an explicit, nonempty source-end role name (present under the criterion above) triggers a nonfatal WARNING rather than generating an inverse or causing a structural conflict.
+
+Source-end descriptions MUST be preserved on the corresponding generated named inverse under DK-LBL-02. That rule does not require generating an inverse solely for a description, omits source-end descriptions without an additional diagnostic when no named inverse exists (including on datatype-valued relations), and does not automatically copy the enclosing relation's description to the inverse.
 
 ### DK-INV-06 — Name-strategy structural fallback
 
@@ -2329,7 +2394,7 @@ For plain JSON exported from VPP through the VP-plugin extraction path, which ex
 
 ### DK-INV-12 — Explicit specialization of generated named inverses (RD-12)
 
-For each explicit relation generalization successfully mapped to a primary-property `rdfs:subPropertyOf` axiom under DK-REL-14, DirectKG MUST also emit the corresponding specialization between the named inverse properties when both named inverses are generated:
+For each explicit relation generalization successfully mapped to a primary `owl:ObjectProperty` `rdfs:subPropertyOf` axiom under DK-REL-14, DirectKG MUST also emit the corresponding specialization between the named inverse properties when both named inverses are generated:
 
 ```turtle
 :SpecificInverse rdfs:subPropertyOf :GeneralInverse .
@@ -2337,9 +2402,9 @@ For each explicit relation generalization successfully mapped to a primary-prope
 
 The inverse of the specific relation specializes the inverse of the general relation.
 
-If either named inverse is absent under the selected inverse-generation mode, DirectKG MUST omit this additional axiom without a warning. DirectKG MUST NOT generate a named inverse or an anonymous inverse expression solely to express this specialization.
+If either named inverse is absent under the selected inverse-generation mode, or when both relations are `owl:DatatypeProperty` relations under DK-REL-14 (which have no inverses), DirectKG MUST omit this additional axiom without a warning. DirectKG MUST NOT generate a named inverse or an anonymous inverse expression solely to express this specialization.
 
-For the specific-to-general specialization in this rule, DirectKG MUST mirror only the explicit source generalization edges. This mapping MUST NOT additionally materialize their transitive closure. DK-REL-20 (RD-13) additionally requires the reverse named-inverse inclusion for fully resolved complete singleton relation generalization sets when both named inverses are generated; it does not change inverse-generation eligibility.
+For the specific-to-general specialization in this rule, DirectKG MUST mirror only the explicit source generalization edges. This mapping MUST NOT additionally materialize their transitive closure. DK-REL-20 (RD-13) additionally requires the reverse named-inverse inclusion for fully resolved complete singleton relation generalization sets when both relations are `owl:ObjectProperty` relations and both named inverses are generated; it does not change inverse-generation eligibility.
 
 Generation of the inverse specialization MUST NOT depend on semantic-compatibility checks between endpoint classes, domains, or ranges.
 
@@ -2765,15 +2830,25 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Expected inverse omission under `informed` or `named` | No diagnostic or element report | No |
 | Either named inverse is absent under the selected inverse-generation mode for a mapped explicit relation generalization | Omit the additional inverse-specialization axiom without a warning under DK-INV-12 | No solely for this omission |
 | Either named inverse is absent for a primary-property pair disjoint under DK-REL-15 | Omit that inverse-disjointness pair without a warning; do not force inverse generation | No solely for this omission |
-| Structurally processable UML Property `redefines` reference transformed under DK-PROP-03 (RD-14) | No runtime warning solely because redefinition is mapped as property inclusion; document the partial translation | No solely for this mapping |
+| Structurally processable, property-kind-compatible UML Property `redefines` reference transformed under DK-PROP-03 (RD-14) | No runtime warning solely because redefinition is mapped as property inclusion; document the partial translation | No solely for this mapping |
+| UML Property `subsettedProperties` or `redefinedProperties` requiring an unavailable inverse of a datatype property, or connecting an `owl:ObjectProperty` and an `owl:DatatypeProperty` (including attributes) | Structural ERROR under DK-PROP-03 (RD-02) identifying the property reference and conflicting requirements; `strict` and `tolerant` abort under DK-DIAG-05; `best-effort` omits only the affected inclusion axiom and preserves independently valid properties and homogeneous inclusions | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
 | Unresolved UML Property subsetting or redefinition reference, or failed required underlying property transformation | Apply the existing structural-error and input-policy rules, particularly DK-DIAG-05 | Policy-dependent |
+| Ordinary binary relation `Class → void` | Structural ERROR under DK-REL-01 (RD-02) because `void` has no registered datatype mapping; do not generate a rangeless datatype property; `strict` and `tolerant` abort; `best-effort` omits the affected relation and dependent output | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Ordinary binary relation with source `Class` lacking a generated local `owl:Class` (`Primitive/void → Class`, `Primitive/void → Primitive/void`, or other missing local class) | Structural ERROR under DK-REL-01, DK-DIAG-03, and DK-DIAG-05 (RD-02); do not reverse direction, invent a class, or reinterpret source; `strict` and `tolerant` abort; `best-effort` omits the affected relation and dependent output | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Datatype-valued ordinary binary relation (`Class → Primitive`) carrying `componentOf`, `memberOf`, `subCollectionOf`, `subQuantityOf`, `characterization`, `mediation`, `participational`, or `externalDependence` | Structural ERROR under DK-REL-01 (RD-02) before IRI allocation and naming; `strict` and `tolerant` abort; `best-effort` omits the affected relation and dependent output | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Datatype-valued `«material»` relation with an eligible, unambiguous `DK-REL-07` property chain under `omit-conflicting-constraints` or `preserve-conflicting-constraints` | Structural compatibility ERROR under DK-REL-01 and DK-REL-07 (RD-02); `strict` and `tolerant` abort; `best-effort` omits the affected `«material»` relation and all dependent output (failed or ambiguous grounding preserves compatible datatype-valued `«material»` relation under `best-effort`) | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Datatype-valued `«comparative»` relation paired with a recognized `DK-REL-18` comparative–quality derivation | Structural compatibility ERROR under DK-REL-01 and DK-REL-18 (RD-02); `strict` and `tolerant` abort; `best-effort` omits the comparative relation and dependent output while retaining independent quality and other mappings | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Datatype-valued relation with a valid, meaningful source-end multiplicity requiring a cardinality restriction | Structural ERROR under DK-REL-01 (RD-02) before IRI allocation and naming because no inverse datatype property exists; `strict` and `tolerant` abort; `best-effort` omits the affected relation and dependent output | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Datatype-valued relation with an invalid source-end multiplicity | Retain `INVALID_CARDINALITY` ERROR under DK-DIAG-10; `strict` and `tolerant` abort; under `best-effort`, if a meaningful recoverable reverse bound exists (`lower > 0` or finite `upper`), report compatibility ERROR and omit the relation; otherwise preserve the compatible datatype property | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Explicit, nonempty source-end role name on an otherwise compatible datatype-valued relation | Nonfatal WARNING under DK-REL-01 (RD-02) because no inverse property exists; do not treat as a structural conflict; omit source-end description per DK-LBL-02 | No under any input policy, including `strict` |
+| Mixed object/data relation generalization or cross-kind disjointness pair in a relation generalization set | Structural ERROR under DK-REL-14 or DK-REL-15 (RD-02); `strict` and `tolerant` abort; `best-effort` omits only the incompatible hierarchy edge or cross-kind disjointness pair and preserves independent properties and valid homogeneous mappings; failed generalization MUST NOT activate singleton completeness or DK-DIAG-14 INFO | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
 | Relation generalization set with `isComplete: true` and at least two distinct specific relations | Warning identifying the set and explaining that relation-set coverage is not represented; generate no completeness axiom or substitute validation constraint under DK-REL-16 | No under any input policy, including `strict`, solely for this limitation |
 | Relation generalization set with `isComplete: false` | No completeness axiom and no warning solely because of that flag under DK-REL-16 | No solely for this flag |
-| Unbounded relation-end multiplicity accepted under DK-REL-12 | No warning or error solely because it is unbounded | No solely for being unbounded |
+| Unbounded relation-end multiplicity accepted under DK-REL-12 | No warning or error solely because it is unbounded (for datatype-valued relation source ends, `*` and `0..*` are accepted without diagnostic; `l..*` with `l > 0` fails compatibility under DK-REL-01) | No solely for being unbounded |
 | Explicit JSON `cardinality: null` on a supported attribute or ordinary binary relation end | No cardinality restriction or default multiplicity; continue all other applicable mappings under DK-ATT-03 and DK-REL-13; no warning or error solely for this value | No solely for this value under any input policy |
 | Absent `cardinality` field on a supported attribute or ordinary binary relation end | Warning identifying the affected property or relation end; no cardinality restriction or default multiplicity; continue all other applicable mappings under DK-DIAG-09 | No solely for field absence under any input policy, including `strict` |
-| Untranslatable multiplicity or bound on a supported attribute or ordinary binary relation end | Error under every input policy; partial-bound recovery in `best-effort` follows DK-DIAG-10 | Yes under `strict` and `tolerant`; `best-effort` MAY continue under DK-DIAG-10 |
-| Nonnegative integer multiplicity bounds with lower bound greater than upper bound | Generate both minimum and maximum restrictions under §3.4 (RD-11), subject to DK-REL-07's targeted mode-specific omission; no warning or error solely for the contradiction | No solely for this contradiction under any input policy |
+| Untranslatable multiplicity or bound on a supported attribute or ordinary binary relation end | Error under every input policy; partial-bound recovery in `best-effort` follows DK-DIAG-10 (subject to inverse-unavailability precedence for datatype-valued relation source ends) | Yes under `strict` and `tolerant`; `best-effort` MAY continue under DK-DIAG-10 |
+| Nonnegative integer multiplicity bounds with lower bound greater than upper bound | Generate both minimum and maximum restrictions under §3.4 (RD-11), subject to DK-REL-07's targeted mode-specific omission and DK-REL-01's source-end incompatibility for datatype-valued relations; no warning or error solely for the contradiction | No solely for this contradiction under any input policy |
 | Cardinality lexical normalization alone under DK-DIAG-11 | No diagnostic | No |
 | Incorrect JSON cardinality type, blank string, or ambiguous malformed cardinality expression | Error; no automatic type conversion or notation repair; `best-effort` preserves independently transformable information under DK-DIAG-11 | Yes under `strict` and `tolerant`; applicable recovery under `best-effort` |
 | Discarded `«instantiation»` association data | One consolidated warning identifying the source association ID, available type, discarded-information categories, and output effect without copying discarded values under DK-INS-02; mirror the produced warning in JSON when enabled | No by itself |
@@ -2798,19 +2873,19 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 
 In every input and stereotype policy, DirectKG does not validate source OntoUML semantics. It does not validate classifier orders, stereotype appropriateness, higher-order conflicts, or output consistency. It emits every applicable higher-order assertion from transformable source structures, even if the resulting ontology is inconsistent.
 
-Under DK-PROP-03 (RD-14), structurally processable UML Property subsetting and redefinition references likewise do not undergo owner, endpoint, type, property-kind, or other UML semantic-compatibility checks.
+Under DK-PROP-03 (RD-14 / RD-02), structurally processable UML Property subsetting and redefinition references likewise do not undergo semantic owner, endpoint, type, domain, range, or other UML semantic-compatibility checks, while still enforcing the targeted OWL property-kind compatibility check (prohibiting mixed `owl:ObjectProperty` and `owl:DatatypeProperty` inclusions and references requiring unavailable datatype-property inverses). Likewise, DK-REL-01, DK-REL-14–15, and DK-REL-20 apply only their targeted transformation-compatibility checks without validating OntoUML semantics or guaranteeing overall OWL 2 DL conformance.
 
 DK-REL-01's per-axiom OWL 2 DL compatibility assessment for the five RD-17 additions does not introduce source-semantic validation, consistency checking, or source-model repair. It does not require overall OWL 2 DL conformance of the existing ontology.
 
 ### DK-DIAG-03 — Failed relations
 
-A relation undergoing directional-property generation requires resolvable source and target classifiers before either directional property can be generated. For such a relation, a missing or invalid association-end ID, or a null or unresolved end `propertyType`, invokes established error diagnostics and neither the direct nor inverse property is generated in any input policy. Whether conversion aborts or continues with other output is governed by DK-DIAG-05.
+A relation undergoing directional-property generation requires a resolvable source `Class` with a generated local `owl:Class` and a resolvable target `Class` that either has a generated local `owl:Class` (`owl:ObjectProperty`) or is a supported primitive `«datatype»` (`owl:DatatypeProperty`, subject to DK-REL-01 compatibility checks). For such a relation, a missing or invalid association-end ID, a null or unresolved end `propertyType`, a source `Class` without a generated local `owl:Class` (`Primitive`, `void`, or omitted class), or a target `void` invokes established structural ERROR diagnostics and neither a direct nor inverse property is generated in any input policy. Whether conversion aborts or continues with other output is governed by DK-DIAG-05.
 
 The missing and invalid association-end ID conditions in this rule use §3.4's minimal opaque identifier definitions (RD-02, Alternative A).
 
 An association-end ID can be valid even when its `propertyType` is null; the relation remains untransformable because its classifier is unresolved, not because its ID is absent. Recognized material–relator and material–mode derivations do not undergo directional-property generation; DK-DIAG-08 preserves diagnostics for malformed or unresolved source data without treating intentional non-representation as an error. A structurally resolved endpoint typed by a source `Relation` follows DK-REL-08, DK-REL-18, or DK-REL-17, as applicable. Null, malformed, or unresolved endpoints on these connectors remain structural failures, not intentionally unsupported resolved patterns.
 
-For supported ordinary binary relation ends with untranslatable multiplicities or bounds, DK-DIAG-10 requires preservation of the affected property and all independently applicable mappings in `best-effort`, including restrictions from a valid opposite-end multiplicity. The endpoint-processing requirements above remain applicable.
+For supported ordinary binary relation ends with untranslatable multiplicities or bounds, DK-DIAG-10 requires preservation of the affected property and all independently applicable mappings in `best-effort` (including restrictions from a valid opposite-end multiplicity for `owl:ObjectProperty` relations), subject to DK-REL-01 and DK-DIAG-10's inverse-unavailability precedence for the source end of a datatype-valued relation. The endpoint-processing requirements above remain applicable.
 
 ### DK-DIAG-04 — Diagnostic format and persistent delivery (RD-04 / ODI-CONTROLS)
 
@@ -3067,7 +3142,9 @@ The warning required by DK-REL-16 for a complete relation generalization set wit
 
 Unrecognized information MUST NOT acquire invented transformation semantics. When continuation is permitted, recognized structure may still receive its applicable accepted transformations. A known class with an unknown stereotype is distinct from an element whose type itself is unknown. For accepted missing or unrecognized stereotypes, DK-DIAG-06 requires ordinary transformations wherever their established prerequisites hold. Other unrecognized information and structural failures remain governed by this input policy.
 
-For DK-PROP-03 (RD-14), unresolved property references and failures of required underlying property transformations follow these existing structural-error and continuation rules. A structurally processable `redefines` reference transformed under the accepted inclusion mapping does not itself require a runtime warning.
+For DK-PROP-03 (RD-14 / RD-02), unresolved property references, failures of required underlying property transformations, references requiring unavailable datatype-property inverses, and mixed object/data property inclusions follow these existing structural-error and continuation rules (`strict` and `tolerant` abort; `best-effort` retains ERROR severity, omits only the affected inclusion axiom, and preserves independently valid properties and homogeneous inclusions). A structurally processable, property-kind-compatible `redefines` reference transformed under the accepted inclusion mapping does not itself require a runtime warning.
+
+Under DK-REL-01, DK-REL-07, DK-REL-14–15, DK-REL-18, and DK-REL-20 (RD-02), transformation-compatibility ERRORs for datatype-valued relations (`Class → void`, `Primitive/void` or missing-local-class sources, the eight rejected relation stereotypes, meaningful source-end multiplicities, applicable material-chain or comparative–quality derivation conflicts) and mixed object/data relation generalizations or cross-kind disjointness pairs likewise follow these policies: `strict` and `tolerant` abort (`aborted` outcome, no ontology delivered); `best-effort` retains ERROR severity, omits only the affected relation (leaving no orphaned inverse expressions, property hierarchies, cardinality restrictions, annotations, inclusions, or chain axioms referring to it) or the affected incompatible generalization edge or cross-kind disjointness pair, and preserves independently transformable information. An explicit, nonempty source-end role name on an otherwise compatible datatype-valued relation produces a nonfatal WARNING under every input policy, including `strict`.
 
 These rules establish policy-dependent continuation, subject to the duplicate-ID abort rule above. No recovery behavior is defined beyond the explicit recovery rules in this specification. The input-policy argument and default are specified in §15.
 
@@ -3153,7 +3230,9 @@ When lower and upper bounds can be separated unambiguously, `best-effort` MUST p
 
 Partial recovery MUST NOT guess replacement bounds or repair ambiguous notation. Under DK-DIAG-11, an empty or untranslatable bound in an interval with unambiguous lower and upper positions follows this recovery policy. An empty bound MUST NOT be interpreted as zero or unlimited. Ambiguous malformed expressions yield no cardinality restriction.
 
-The affected property and all other independently applicable mappings MUST be preserved in `best-effort`. For relations, this includes restrictions derived from a valid opposite-end multiplicity.
+The affected property and all other independently applicable mappings MUST be preserved in `best-effort`. For `owl:ObjectProperty` relations, this includes restrictions derived from a valid opposite-end multiplicity.
+
+For the source end of a datatype-valued relation (`owl:DatatypeProperty` under DK-REL-01), the determination that an `owl:DatatypeProperty` has no inverse takes precedence over `best-effort` preservation of recoverable source-end bounds: DirectKG MUST retain the `INVALID_CARDINALITY` ERROR, and under `best-effort`, if an independently identifiable meaningful recoverable reverse constraint exists (`lower > 0` or finite `upper` under the table above), DirectKG MUST report the compatibility ERROR and omit the affected relation rather than generating an inverse or retaining an incompatible relation; if no meaningful recoverable reverse constraint exists, DirectKG MUST preserve the otherwise compatible datatype property (and any valid target-end constraints) under this recovery rule. This precedence does not alter DK-DIAG-10 recovery for attributes or ordinary `owl:ObjectProperty` relations.
 
 Recovered restrictions remain subject to DK-REL-07's targeted mode-specific omission rule. Otherwise, recovered restrictions MUST follow the applicable accepted cardinality mapping, direction, class-constraint placement, and property-selection rules: DK-ATT-02 and DK-ATT-03 for attributes, and DK-REL-09–11 for ordinary relations.
 
@@ -3242,9 +3321,9 @@ Whenever DirectKG applies singleton completeness to a class generalization set u
 - identify the corresponding general and specific class or relation; and
 - explain that applying completeness to the single-member set makes the generated classes or properties extensionally equivalent, while their identifiers remain distinct.
 
-The diagnostic MUST be informational and nonfatal under every input policy. Singleton completeness MUST NOT be treated as a warning or error solely because of this equivalence. The INFO diagnostic is required when singleton completeness is applied, not merely when a set has one member or when partial failure leaves one survivor. Singleton membership alone MUST NOT produce a warning. Existing structural-error policies and the prohibition on deriving singleton coverage from partial failure remain unchanged.
+The diagnostic MUST be informational and nonfatal under every input policy. Singleton completeness MUST NOT be treated as a warning or error solely because of this equivalence. The INFO diagnostic is required when singleton completeness is applied, not merely when a set has one member or when partial failure leaves one survivor. A failed relation generalization (including failure due to mixed object/data property kinds under DK-REL-14) MUST NOT activate singleton completeness or this INFO diagnostic, and a larger incomplete set MUST NOT be treated as a valid singleton merely because only one member survived. Singleton membership alone MUST NOT produce a warning. Existing structural-error policies and the prohibition on deriving singleton coverage from partial failure remain unchanged.
 
-The class transformation remains DK-CLS-08's reverse subclass mapping; the relation transformation is DK-REL-20's reverse subproperty mapping. When persistent JSON diagnostics export is enabled, this INFO diagnostic MUST be included under DK-DIAG-04.
+The class transformation remains DK-CLS-08's reverse subclass mapping; the relation transformation is DK-REL-20's reverse subproperty mapping (covering homogeneous `owl:ObjectProperty` and homogeneous `owl:DatatypeProperty` generalizations). When persistent JSON diagnostics export is enabled, this INFO diagnostic MUST be included under DK-DIAG-04.
 
 ### DK-DIAG-15 — INFO for abstractness comment preservation (RD-19)
 
@@ -3317,7 +3396,7 @@ DirectKG MUST expose `--dkgm-vocabulary {import,embed,none}` with default `impor
 
 This control governs vocabulary delivery. DK-REL-19's source-specific bridge and primary-property asymmetry rules and DK-PROP-04's source-metadata comments apply in every vocabulary mode. `--material-property-chains` applies only to material-relation chains under DK-REL-07.
 
-RD-11 introduces no additional configuration argument to omit reverse-side cardinality restrictions when no named inverse property is generated; DK-REL-09 specifies the required property selection. RD-11 also introduces no configuration argument for choosing qualified restrictions; DK-REL-10 specifies the unqualified forms for supported ordinary binary class-to-class relations.
+RD-11 introduces no additional configuration argument to omit reverse-side cardinality restrictions when no named inverse property is generated; DK-REL-09 specifies the required property selection. RD-11 also introduces no configuration argument for choosing qualified restrictions; DK-REL-10 specifies the unqualified forms for supported ordinary binary class-to-class relations and target ends of compatible datatype-valued relations. RD-02's datatype-valued relation mapping introduces no additional configuration options.
 
 RD-12 inverse specialization follows the existing inverse-generation setting; no additional configuration argument is introduced (DK-INV-12).
 
@@ -3348,7 +3427,7 @@ The following transformation, diagnostic-delivery, and CLI presentation controls
 | `--language LANG` | Established by RD-27 / ODI-CONTROLS; exactly one language tag; overrides input language information for supported source-authored text under DK-LBL-02; equivalent Python control required, parameter name unspecified; excludes generated fallback labels |
 | `--no-stereotype-relation-naming` | Established; stereotype naming otherwise enabled |
 | `--relation-labels source-only\|generated` | Established by RD-26 / ODI-CONTROLS; default `source-only`; Python `relation_labels` exposes the same values and default; primary-relation label selection under DK-LBL-01 applies under either IRI strategy; RDF origin markers solely distinguishing fallback labels from source-authored labels are prohibited; absence of a marker alone adds no diagnostic or control |
-| `--inverse-properties all\|informed\|named\|none` | Established by ODI-CONTROLS; controls separately named inverse properties under DK-INV-01; default `all`; does not prohibit anonymous inverse expressions in material-property chains or those required for reverse-side cardinality restrictions under DK-REL-09, property subsetting/redefinition under DK-PROP-03 (RD-14), or aligned characterization–external-dependence disjointness under DK-REL-01 (RD-17) |
+| `--inverse-properties all\|informed\|named\|none` | Established by ODI-CONTROLS; controls separately named inverse properties for inverse-eligible relations under DK-INV-01; default `all`; does not independently cause a compatibility ERROR on datatype-valued relations (which are not inverse-eligible under DK-INV-02); does not prohibit anonymous inverse expressions for object-property relations in material-property chains or those required for reverse-side cardinality restrictions under DK-REL-09, property subsetting/redefinition under DK-PROP-03 (RD-14), or aligned characterization–external-dependence disjointness under DK-REL-01 (RD-17) |
 
 ### Semantic parity of transformation controls (ODI-CONTROLS)
 
