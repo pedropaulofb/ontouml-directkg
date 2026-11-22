@@ -195,13 +195,16 @@ class PropertyExpressions:
         self.anonymous: dict[URIRef, BNode] = {}
 
     def is_omitted(self, element: SourceElement) -> bool:
-        identifier = element.data["id"]
+        identifier = element.data.get("id")
+        if not isinstance(identifier, str):
+            return element.owner in self.omitted
         return (identifier in self.omitted_attributes
                 or (identifier not in self.attributes and element.owner in self.omitted))
 
     def unavailable_datatype_inverse_primary(self, element: SourceElement) -> str | None:
-        identifier = element.data["id"]
-        if (identifier in self.attributes or identifier in self.omitted_attributes
+        identifier = element.data.get("id")
+        if (not isinstance(identifier, str) or identifier in self.attributes
+                or identifier in self.omitted_attributes
                 or element.owner in self.omitted or identifier not in self.ends):
             return None
         primary_id, reverse = self.ends[identifier]
@@ -210,12 +213,12 @@ class PropertyExpressions:
         return None
 
     def property_kind(self, element: SourceElement) -> URIRef | None:
-        identifier = element.data["id"]
-        if identifier in self.attributes:
+        identifier = element.data.get("id")
+        if isinstance(identifier, str) and identifier in self.attributes:
             return self.attributes[identifier]
-        if identifier in self.omitted_attributes or element.owner in self.omitted:
+        if (isinstance(identifier, str) and identifier in self.omitted_attributes) or element.owner in self.omitted:
             return None
-        if identifier not in self.ends:
+        if not isinstance(identifier, str) or identifier not in self.ends:
             raise KeyError("Required underlying property transformation did not generate an expression")
         _, reverse = self.ends[identifier]
         kind = self.end_kinds.get(identifier, OWL.ObjectProperty)
@@ -232,12 +235,12 @@ class PropertyExpressions:
         return self.anonymous[primary]
 
     def resolve(self, element: SourceElement, *, emit_inverse: bool = True) -> URIRef | BNode | None:
-        identifier = element.data["id"]
-        if identifier in self.attributes:
+        identifier = element.data.get("id")
+        if isinstance(identifier, str) and identifier in self.attributes:
             return self.resources[identifier]
-        if identifier in self.omitted_attributes or element.owner in self.omitted:
+        if (isinstance(identifier, str) and identifier in self.omitted_attributes) or element.owner in self.omitted:
             return None
-        if identifier not in self.ends:
+        if not isinstance(identifier, str) or identifier not in self.ends:
             raise KeyError("Required underlying property transformation did not generate an expression")
         primary_id, reverse = self.ends[identifier]
         if reverse and self.end_kinds.get(identifier, OWL.ObjectProperty) == OWL.DatatypeProperty:

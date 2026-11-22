@@ -174,16 +174,20 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
                 continue
             enumeration_values = (kind == "Class" and value.get("stereotype") == "enumeration"
                                   and field == "literals")
-            # DK-DIAG-13 owns these malformed lists/values. Preserve the raw
-            # collection for that mapping while indexing every Literal
-            # declaration that can participate in fatal duplicate-ID checking.
-            if enumeration_values and not isinstance(children, list):
+            relation_ends = (kind == "Relation" and field == "properties")
+            # DK-DIAG-13 (enumerations) and DK-DIAG-03/DK-INS-02 (Relation.properties)
+            # own these malformed lists/values. Preserve the raw collection for those
+            # mappings while indexing every valid Literal/Property declaration that can
+            # participate in fatal duplicate-ID and stereotype checks.
+            if (enumeration_values or relation_ends) and not isinstance(children, list):
                 continue
             if not isinstance(children, list):
                 raise NotImplementedError("Malformed declaration-container recovery is outside BI-W1")
             child_kind = "Property" if field == "properties" else "Literal" if field == "literals" else None
             for number, child in enumerate(children):
                 if enumeration_values and (not isinstance(child, dict) or child.get("type") != "Literal"):
+                    continue
+                if relation_ends and (not isinstance(child, dict) or child.get("type") != "Property"):
                     continue
                 visit(child, f"{path}.{field}[{number}]", identifier if field != "contents" else None, child_kind)
 

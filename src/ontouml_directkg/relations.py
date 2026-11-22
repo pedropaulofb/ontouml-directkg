@@ -34,12 +34,34 @@ class Relation:
     datatype: URIRef | None = None
 
 
-def _discard_instantiation(element: SourceElement, diagnostics: DiagnosticCollector) -> None:
+def _discard_instantiation(element: SourceElement, diagnostics: DiagnosticCollector, policy: str) -> None:
     """Report categories only; discarded values never enter the diagnostic."""
     data = element.data
-    ends = data.get("properties") or []
-    if not isinstance(ends, list) or not all(isinstance(end, dict) for end in ends):
-        raise NotImplementedError("Malformed instantiation-container recovery remains unspecified")
+    identifier = data.get("id")
+    if "properties" in data and data["properties"] is not None:
+        ends = data["properties"]
+        if not isinstance(ends, list):
+            input_error(
+                diagnostics,
+                policy,
+                "FAILED_RELATION",
+                f"Instantiation relation {identifier!r} properties field is not a JSON array (got {type(ends).__name__}).",
+                (element.location,),
+                "Affected instantiation relation omitted without generating discard output; independent mappings retained.",
+            )
+            return
+        if any(not isinstance(end, dict) or end.get("type") != "Property" for end in ends):
+            input_error(
+                diagnostics,
+                policy,
+                "FAILED_RELATION",
+                f"Instantiation relation {identifier!r} properties array contains a non-object or non-Property entry.",
+                (element.location,),
+                "Affected instantiation relation omitted without generating discard output; independent mappings retained.",
+            )
+            return
+    else:
+        ends = []
     categories = []
     for field, label in (("id", "association identifier"), ("name", "association name"),
                          ("description", "association description")):
@@ -77,12 +99,55 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
         if not isinstance(identifier, str) or not identifier:
             raise NotImplementedError("Invalid relation-ID recovery remains unspecified")
         if data.get("stereotype") == "instantiation":
-            _discard_instantiation(element, diagnostics)
+            _discard_instantiation(element, diagnostics, policy)
             omitted.add(identifier)
             continue
-        ends = data.get("properties")
-        if not isinstance(ends, list) or len(ends) != 2:
-            raise NotImplementedError("Non-binary/malformed relation-container handling is outside this increment")
+        if "properties" not in data:
+            input_error(
+                diagnostics, policy, "FAILED_RELATION",
+                f"Relation {identifier!r} is missing its 'properties' field.",
+                (element.location,),
+                "Affected relation and dependent output omitted; independent mappings retained.",
+            )
+            omitted.add(identifier)
+            continue
+        ends = data["properties"]
+        if ends is None:
+            input_error(
+                diagnostics, policy, "FAILED_RELATION",
+                f"Relation {identifier!r} properties field is explicitly null.",
+                (element.location,),
+                "Affected relation and dependent output omitted; independent mappings retained.",
+            )
+            omitted.add(identifier)
+            continue
+        if not isinstance(ends, list):
+            input_error(
+                diagnostics, policy, "FAILED_RELATION",
+                f"Relation {identifier!r} properties field is not a JSON array (got {type(ends).__name__}).",
+                (element.location,),
+                "Affected relation and dependent output omitted; independent mappings retained.",
+            )
+            omitted.add(identifier)
+            continue
+        if any(not isinstance(end, dict) or end.get("type") != "Property" for end in ends):
+            input_error(
+                diagnostics, policy, "FAILED_RELATION",
+                f"Relation {identifier!r} properties array contains a non-object or non-Property entry.",
+                (element.location,),
+                "Affected relation and dependent output omitted; independent mappings retained.",
+            )
+            omitted.add(identifier)
+            continue
+        if len(ends) != 2:
+            input_error(
+                diagnostics, policy, "FAILED_RELATION",
+                f"Non-instantiation relation {identifier!r} has non-binary properties array (length {len(ends)}, expected 2).",
+                (element.location,),
+                "Affected relation and dependent output omitted; independent mappings retained.",
+            )
+            omitted.add(identifier)
+            continue
         declarations = tuple(SourceElement(end, element.path + f".properties[{n}]", identifier)
                              for n, end in enumerate(ends))
         try:
