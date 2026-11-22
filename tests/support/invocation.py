@@ -2181,6 +2181,104 @@ def rd02_relation_diagnostic(severity: str, message: str, effect: str = "") -> f
     return frozenset(rel_facts | mixed_facts)
 
 
+def _relation_properties_container_facts(message: str) -> set[str]:
+    """Read affirmative RD-02 Relation.properties container/arity ERROR wording."""
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside this increment|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    wording = re.sub(r"\bproperties\[\d+\]", "properties entry", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"""(?<!\w)(['"])(properties|property|relation|null|instantiation)\1""", r"\2", wording)
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:relation|association|properties|end|ends|arity)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\b(?:absent|missing)\s+or\s+null\b|\bnull\s+or\s+(?:absent|missing)\b",
+        r"\b(?:missing|absent|null)\s+or\s+(?:not\s+(?:an?\s+)?(?:json\s+)?array|non[- ]?array|malformed|non[- ]?binary)\b",
+        r"\b(?:non[- ]?binary|malformed)\s+or\s+(?:absent|missing|null|non[- ]?array)\b",
+        r"\bbinary\s+or\s+non[- ]?binary\b|\bvalid\s+or\s+(?:invalid|malformed|non[- ]?binary)\b",
+        r"\bnot\s+(?:absent|missing|malformed|non[- ]?binary|non[- ]?array|invalid)\b",
+        r"\b(?:generalizations|generalization[- ]?set|literals|categorizer|package\.contents|class\.properties)\b",
+        r"^\s*(?:class|package|attribute|enumeration)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    if not re.search(r"\b(?:relation|association)\b", wording):
+        return set()
+
+    prop_noun = r"(?:properties(?:\s+(?:field|container|array|list|value|entry|entries))?)"
+    rel_scope = r"(?:\s+(?:on|of|for|in)\s+(?:the\s+)?(?:(?:non[- ]?instantiation|instantiation)\s+)?(?:relation|association)(?:\s+(?:<quoted>|<value>))?)?"
+    non_array_type = r"(?:non[- ]?array(?:\s+(?:value|type))?|object|dict(?:ionary)?|string|str|int(?:eger)?|number|float|bool(?:ean)?)"
+    absent_patterns = (
+        re.compile(rf"\b{prop_noun}{rel_scope}\s+(?:is|was)\s+(?:absent|missing|omitted|not\s+(?:present|supplied|provided))\b"),
+        re.compile(rf"\b(?:missing|absent|omitted|no)\s+(?:(?:its|their|a|an|the|required)\s+)?{prop_noun}\b"),
+        re.compile(rf"\b(?:does\s+not|did\s+not)\s+(?:have|contain|supply|provide)\s+(?:(?:a|an|the|its|their|required)\s+)?{prop_noun}\b"),
+        re.compile(rf"\b(?:lacks|is\s+without)\s+(?:(?:a|an|the|its|their|required)\s+)?{prop_noun}\b"),
+    )
+    null_patterns = (
+        re.compile(rf"(?<!\bnot\s)\b{prop_noun}{rel_scope}\s+(?:is|was)\s+(?:explicitly\s+)?(?:null|none)\b"),
+        re.compile(rf"(?<!\bnot\s)\b(?:explicitly\s+)?null\s+{prop_noun}\b"),
+        re.compile(rf"\b{prop_noun}{rel_scope}[^.!?;]*(?:expected|must\s+be|should\s+be)\s+(?:a\s+)?(?:json\s+)?(?:array|list)\s*[,;:]\s*(?:but\s+)?(?:got|found|received|not\b[^.!?;]*)\s+(?:null|none|nonetype)\b"),
+    )
+    non_array_patterns = (
+        re.compile(rf"\b{prop_noun}{rel_scope}\s+(?:is|was)\s+(?:(?:a|an)\s+)?(?:{non_array_type}|not\s+(?:a|an)\s+(?:json\s+)?(?:array|list))\b"),
+        re.compile(rf"\b(?:has|had|contains|with)\s+(?:(?:a|an)\s+)?non[- ]?array\s+{prop_noun}\b"),
+        re.compile(rf"\bnon[- ]?array\s+{prop_noun}\b"),
+        re.compile(rf"\b{prop_noun}{rel_scope}[^.!?;]*(?:expected|must\s+be|should\s+be)\s+(?:a|an)\s+(?:json\s+)?(?:array|list)\s*[,;:]\s*(?:(?:but\s+)?(?:got|found|received)|not)\s+(?:type\s+)?(?:(?:a|an)\s+)?(?:(?:{non_array_type}|-?\d+(?:\.\d+)?|true|false)\b|<quoted>|<value>)"),
+        re.compile(rf"\b{prop_noun}{rel_scope}\s+(?:is|was)\s+not\s+null\s*[,;:]\s*(?:but\s+)?it\s+(?:is|was)\s+(?:(?:a|an)\s+)?{non_array_type}\b"),
+    )
+    malformed_entry_patterns = (
+        re.compile(rf"\b(?:properties|association[- ]?ends?)\b[^.!?;]*\b(?:contains?|has|had|with|entry|entries|item|items|element|elements)\b[^.!?;]*\b(?:non[- ]?object|non[- ]?property|not\s+(?:a|an)\s+(?:json\s+)?object|not\s+(?:a|an)\s+property(?:\s+object)?|malformed\s+(?:entry|entries|item|element)|has\s+(?:invalid\s+)?type\s+(?!property\b)\S+)\b"),
+        re.compile(rf"\b(?:non[- ]?object|non[- ]?property)\b[^.!?;]*\b(?:entry|entries|item|items|element|elements)\b[^.!?;]*\b(?:in|inside|of|at)\s+(?:the\s+)?(?:relation\s+(?:<quoted>\s+)?)?{prop_noun}\b"),
+        re.compile(rf"\bproperties\s+entry\b[^.!?;]*\b(?:must\s+be|should\s+be|expected)\s+(?:a\s+)?(?:property\s+object|json\s+object)\s*[,;:]\s*(?:but\s+)?(?:got|found|received)\s+(?:(?:null|none|{non_array_type}|array|list)\b|<quoted>|<value>)"),
+        re.compile(rf"\bproperties\s+entry\b[^.!?;]*\b(?:is\s+not\s+(?:a|an)\s+(?:json\s+)?object|not\s+(?:a|an)\s+property(?:\s+object)?|is\s+(?:null|none)|has\s+(?:invalid\s+)?type\s+(?!property\b)\S+)\b"),
+    )
+    end_or_entry = r"(?:(?:association\s+)?ends?|entries|items|elements)"
+    non_binary_patterns = (
+        re.compile(r"\b(?:non[- ]?binary|unary|n[- ]?ary)\s+(?:relation|association|properties(?:\s+array)?|arity)\b"),
+        re.compile(rf"\b(?:relation|association)\b[^.!?;]*\b(?:is|has)\s+(?:(?:a|an)\s+)?(?:non[- ]?binary|unary|n[- ]?ary|arity\s+(?!2\b)\d+|(?:length|size)\s+(?!2\b)\d+|(?!2\b)\d+\s+{end_or_entry})\b"),
+        re.compile(rf"\b{prop_noun}\b[^.!?;]*(?:\bis\s+(?:empty|non[- ]?binary|unary|n[- ]?ary)\b|\b(?:has\s+)?(?:length|size|arity)\s+(?!2\b)\d+\b|\bhas\s+(?!2\b)\d+\s+{end_or_entry}\b)"),
+        re.compile(rf"\b(?:must|should|expected(?:\s+to)?)\s+(?:have|contain)\s+(?:exactly\s+)?2\s+{end_or_entry}\b[^.!?;]*\b(?:got|found|received|has|length|arity)\s+(?!2\b)\d+\b"),
+        re.compile(rf"\b(?:expected|requires?)\s+(?:exactly\s+)?2\s+{end_or_entry}\b[^.!?;]*\b(?:got|found|received)\s+(?!2\b)\d+\b"),
+    )
+
+    facts: set[str] = set()
+    for clause in re.split(r"[.!?]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:binary|valid)\b", clause) and not re.search(r"\bnot\s+(?:binary|valid)\b", clause):
+            continue
+        if any(p.search(clause) for p in absent_patterns):
+            facts.add("relation_properties_absent")
+        if any(p.search(clause) for p in null_patterns):
+            facts.add("relation_properties_null")
+        if any(p.search(clause) for p in non_array_patterns):
+            facts.add("relation_properties_non_array")
+        if any(p.search(clause) for p in malformed_entry_patterns):
+            facts.add("relation_properties_malformed_entry")
+        if any(p.search(clause) for p in non_binary_patterns):
+            facts.add("relation_properties_non_binary")
+    return facts
+
+
+def relation_properties_container_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized RD-02 Relation.properties container/arity facts for harness checks."""
+    return frozenset(_relation_properties_container_facts(message))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2238,6 +2336,12 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.update(mixed_facts)
                 if kind is None:
                     kind = mixed_kind
+            if event.severity == "ERROR":
+                rel_prop_facts = _relation_properties_container_facts(event.message)
+                if rel_prop_facts:
+                    facts.update(rel_prop_facts)
+                    if kind is None:
+                        kind = "failed_relation"
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")
@@ -2317,6 +2421,21 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.add("ambiguous_correspondence")
             if "same-class material endpoints cannot be assigned uniquely" in wording:
                 facts.add("same_class_occurrences_unassigned")
+        if event.code == "DISCARDED_INSTANTIATION_INFORMATION":
+            msg = event.message.casefold()
+            eff = event.effect.casefold()
+            if "association identifier" in msg:
+                facts.add("discarded_identifier")
+            if "association name" in msg:
+                facts.add("discarded_association_name")
+            if "role names" in msg:
+                facts.add("discarded_role_names")
+            if "multiplicities" in msg:
+                facts.add("discarded_multiplicities")
+            if "association-level characteristics" in msg or "association description" in msg:
+                facts.add("discarded_characteristics")
+            if "no association or property resource" in eff or "not materialized" in eff:
+                facts.add("association_data_not_materialized")
         ids = tuple(source.identifier for source in event.sources if source.identifier is not None)
         observed.append(Diagnostic(
             event.severity, kind, event.message + " " + event.effect,

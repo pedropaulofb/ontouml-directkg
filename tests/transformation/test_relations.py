@@ -5,15 +5,17 @@ import json
 import socket
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import DKGM, DKGM_CHAINS, DKGM_STEREOTYPES, assert_dkgm_vocabulary
-from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, diagnostic_signatures,
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, _observed_diagnostics, diagnostic_signatures,
                                       inapplicable_relation_categorizer_diagnostic,
-                                      rd02_relation_diagnostic, relation_end_comment_meanings)
+                                      rd02_relation_diagnostic, relation_end_comment_meanings,
+                                      relation_properties_container_diagnostic)
 from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
@@ -4533,4 +4535,462 @@ def test_rd02_relation_diagnostic_reader_requires_affirmative_conditions():
     )
     for severity, message in rejected:
         assert not rd02_relation_diagnostic(severity, message), (severity, message)
+
+
+def _third_relation_end():
+    return {
+        'id': 'eThird', 'name': 'thirdRole', 'description': 'Third end description.',
+        'type': 'Property', 'propertyAssignments': None, 'stereotype': 'end',
+        'isDerived': True, 'isReadOnly': True, 'isOrdered': True, 'cardinality': '1..*',
+        'propertyType': {'id': 'cExtra', 'type': 'Class'},
+        'subsettedProperties': None, 'redefinedProperties': None, 'aggregationKind': 'SHARED',
+    }
+
+
+def _mutate_relation_properties(relation, source_end, target_end, container_case):
+    if container_case == 'absent':
+        relation.pop('properties', None)
+        return {'nonbinary_relation'}, {'relation_properties_absent'}
+    if container_case == 'null':
+        relation['properties'] = None
+        return {'nonbinary_relation'}, {'relation_properties_null'}
+    if container_case == 'non_array_object':
+        relation['properties'] = copy.deepcopy(source_end)
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_array_string':
+        relation['properties'] = 'bad'
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_array_empty_string':
+        relation['properties'] = ''
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_array_zero':
+        relation['properties'] = 0
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_array_number':
+        relation['properties'] = 42
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_array_false':
+        relation['properties'] = False
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_array_true':
+        relation['properties'] = True
+        return {'nonbinary_relation', 'malformed_properties'}, {'relation_properties_non_array'}
+    if container_case == 'non_object_null_entry':
+        relation['properties'] = [None, copy.deepcopy(target_end)]
+        return {'unresolved_endpoint', 'malformed_declaration'}, {'relation_properties_malformed_entry'}
+    if container_case == 'non_object_string_entry':
+        relation['properties'] = [copy.deepcopy(source_end), 'bad']
+        return {'unresolved_endpoint', 'malformed_declaration'}, {'relation_properties_malformed_entry'}
+    if container_case == 'non_object_number_entry':
+        relation['properties'] = [123]
+        return {'nonbinary_relation', 'unresolved_endpoint', 'malformed_declaration'}, {
+            'relation_properties_malformed_entry', 'relation_properties_non_binary',
+        }
+    if container_case == 'non_property_class_entry':
+        relation['properties'] = [{'id': 'cA', 'type': 'Class'}, copy.deepcopy(target_end)]
+        return {'unresolved_endpoint', 'wrong_container_type', 'unknown_field:stereotype',
+                'unknown_field:isAbstract', 'unknown_field:isExtensional', 'unknown_field:isPowertype',
+                'unknown_field:order', 'unknown_field:literals', 'unknown_field:restrictedTo'}, {
+            'relation_properties_malformed_entry',
+        }
+    if container_case == 'empty':
+        relation['properties'] = []
+        return {'nonbinary_relation'}, {'relation_properties_non_binary'}
+    if container_case == 'unary':
+        relation['properties'] = [copy.deepcopy(source_end)]
+        return {'nonbinary_relation'}, {'relation_properties_non_binary'}
+    if container_case == 'n_ary':
+        relation['properties'] = [copy.deepcopy(source_end), copy.deepcopy(target_end), _third_relation_end()]
+        return {'nonbinary_relation'}, {'relation_properties_non_binary'}
+    raise AssertionError(f'Unknown container case: {container_case}')
+
+
+_RELATION_CONTAINER_CASES = [
+    'absent', 'null', 'non_array_object', 'non_array_string', 'non_array_empty_string',
+    'non_array_zero', 'non_array_number', 'non_array_false', 'non_array_true',
+    'non_object_null_entry', 'non_object_string_entry', 'non_object_number_entry', 'non_property_class_entry',
+    'empty', 'unary', 'n_ary',
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('strategy', ['name', 'id'])
+@pytest.mark.parametrize('relation_kind', ['ordinary', 'derivation'])
+@pytest.mark.parametrize('container_case', _RELATION_CONTAINER_CASES)
+def test_non_instantiation_relation_rejects_missing_malformed_or_non_binary_properties(
+        run, source_json, tmp_path, input_policy, strategy, relation_kind, container_case):
+    """Rules: DK-DIAG-03, DK-DIAG-05, DK-DIAG-01, DK-INV-02, DK-DIAG-04, DK-REL-08, DK-REL-17, DK-REL-18; §3.2. RD-02 Alternative A."""
+    document = source_json('shared/binary_relation')
+    c_extra = copy.deepcopy(source_element(document, 'cA'))
+    c_extra.update(id='cExtra', name='ExtraClass')
+    c_peer = copy.deepcopy(source_element(document, 'cA'))
+    c_peer.update(id='cPeer', name='PeerClass')
+    peer_rel = copy.deepcopy(source_element(document, 'rFocus'))
+    peer_rel.update(id='rPeer', name='worksFor', stereotype='material')
+    peer_rel['properties'][0].update(id='sPeer', name=None, propertyType={'id': 'cA', 'type': 'Class'})
+    peer_rel['properties'][1].update(id='tPeer', name=None, cardinality='1', propertyType={'id': 'cPeer', 'type': 'Class'})
+    document['model']['contents'].extend([c_extra, c_peer, peer_rel])
+
+    focus = source_element(document, 'rFocus')
+    s_focus = copy.deepcopy(source_element(document, 'sFocus'))
+    t_focus = copy.deepcopy(source_element(document, 'tFocus'))
+    if relation_kind == 'derivation':
+        focus.update(stereotype='derivation', name=None)
+        s_focus['propertyType'] = {'id': 'rPeer', 'type': 'Relation'}
+        t_focus['propertyType'] = {'id': 'cA', 'type': 'Class'}
+    expected_issues, expected_facts = _mutate_relation_properties(focus, s_focus, t_focus, container_case)
+    if container_case == 'non_property_class_entry':
+        focus['properties'][0] = copy.deepcopy(source_element(document, 'cA'))
+        focus['properties'][0]['id'] = 'cFakeProp'
+        assert expected_issues <= fixture_issues(document)
+    else:
+        assert fixture_issues(document) == expected_issues
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 input_policy=input_policy, inverse_properties='all')
+    assert any(
+        d.severity == 'ERROR'
+        and (expected_facts & d.facts)
+        and 'rFocus' in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        and isinstance(d.code, str) and d.code
+        and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in NAMING_KINDS and {'rFocus', 'sFocus', 'tFocus', 'eThird'} & set(d.identified_sources)
+        for d in result.diagnostics
+    )
+    assert not any(d.kind in {'unsupported_connector', 'comparative_derivation_semantics'}
+                   or d.code in {'UNSUPPORTED_RELATION_CONNECTOR', 'UNSUPPORTED_COMPARATIVE_DERIVATION'}
+                   for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus', 'eThird', 'cFakeProp')
+    for omitted_id in ('rFocus', 'eThird', 'cFakeProp'):
+        assert not list(graph.subjects(DCTERMS.identifier, Literal(omitted_id)))
+    c_a = BASE.cA if strategy == 'id' else BASE.HTTPServer
+    c_peer_iri = BASE.cPeer if strategy == 'id' else BASE.PeerClass
+    assert (c_a, RDF.type, OWL.Class) in graph
+    assert (c_peer_iri, RDF.type, OWL.Class) in graph
+    t_peer = _primary(result, 'tPeer', strategy)
+    s_peer = _primary(result, 'sPeer', strategy)
+    assert {s for s in graph.subjects(RDF.type, OWL.ObjectProperty)
+            if str(s).startswith(str(BASE))} == {t_peer, s_peer}
+    assert not list(graph.subjects(RDF.type, OWL.DatatypeProperty))
+    if strategy == 'name':
+        # Omitted rFocus must not claim worksFor or workers and force a suffix on peer_rel.
+        assert t_peer == BASE.worksFor
+        assert s_peer == BASE.inverseOfWorksFor
+    _counts(graph, c_a, t_peer, {('exact', 1)})
+
+
+@pytest.mark.parametrize('scenario', [
+    'mereology_n_ary',
+    'mereology_unary',
+    'mereology_null',
+    'mereology_mixed_entry',
+    'material_n_ary_with_chains',
+    'derivation_absent_breaks_grounding',
+    'derivation_null_breaks_grounding',
+    'derivation_unary_breaks_grounding',
+    'derivation_n_ary_breaks_grounding',
+    'comparative_derivation_n_ary',
+])
+def test_best_effort_omitted_non_binary_or_malformed_relation_suppresses_all_dependent_outputs(
+        run, source_json, tmp_path, scenario):
+    """Rules: DK-DIAG-03, DK-DIAG-05, DK-REL-07, DK-REL-08, DK-REL-18, DK-REL-19, DK-GEN-04, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-DIAG-15, DK-DIAG-16, DK-DIAG-18. RD-02 Alternative A."""
+    if scenario.startswith('mereology_'):
+        document = source_json('shared/binary_relation')
+        c_extra = copy.deepcopy(source_element(document, 'cA'))
+        c_extra.update(id='cExtra', name='ExtraClass')
+        c_peer = copy.deepcopy(source_element(document, 'cA'))
+        c_peer.update(id='cPeer', name='PeerClass')
+        p_indep = {
+            'id': 'pIndep', 'name': 'indepAttr', 'description': None, 'type': 'Property',
+            'propertyAssignments': None, 'stereotype': None, 'isDerived': False,
+            'isReadOnly': False, 'isOrdered': False, 'cardinality': '1',
+            'propertyType': None, 'subsettedProperties': None, 'redefinedProperties': None,
+            'aggregationKind': None,
+        }
+        source_element(document, 'cA')['properties'] = [p_indep]
+        peer_rel = copy.deepcopy(source_element(document, 'rFocus'))
+        peer_rel.update(id='rPeer', name='peerLink', stereotype='material')
+        peer_rel['properties'][0].update(id='sPeer', name=None, propertyType={'id': 'cA', 'type': 'Class'})
+        peer_rel['properties'][1].update(id='tPeer', name=None, cardinality='1', propertyType={'id': 'cPeer', 'type': 'Class'})
+        document['model']['contents'].extend([c_extra, c_peer, peer_rel])
+
+        focus = source_element(document, 'rFocus')
+        focus.update(stereotype='componentOf', isAbstract=True, isDerived=True, description='OMITTED_REL_DESC')
+        s_focus = copy.deepcopy(source_element(document, 'sFocus'))
+        t_focus = copy.deepcopy(source_element(document, 'tFocus'))
+        for end, desc in ((s_focus, 'OMITTED_SRC_DESC'), (t_focus, 'OMITTED_TGT_DESC')):
+            end.update(description=desc, stereotype='begin', isDerived=True, isReadOnly=True,
+                       isOrdered=True, cardinality='2..5', aggregationKind='COMPOSITE')
+        case = scenario.removeprefix('mereology_')
+        if case == 'n_ary':
+            focus['properties'] = [s_focus, t_focus, _third_relation_end()]
+            expected_fact = 'relation_properties_non_binary'
+        elif case == 'unary':
+            focus['properties'] = [s_focus]
+            expected_fact = 'relation_properties_non_binary'
+        elif case == 'null':
+            focus['properties'] = None
+            expected_fact = 'relation_properties_null'
+        else:
+            focus['properties'] = [None, t_focus]
+            expected_fact = 'relation_properties_malformed_entry'
+
+        result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                     input_policy='best-effort', dkgm_vocabulary='none')
+        assert result.outcome == 'completed-with-errors'
+        assert any(d.severity == 'ERROR' and expected_fact in d.facts and 'rFocus' in d.identified_sources
+                   for d in result.diagnostics), result.diagnostics
+        assert not any(d.kind in {'abstractness', 'derived_status', 'ordering'}
+                       and {'rFocus', 'sFocus', 'tFocus', 'eThird'} & set(d.identified_sources)
+                       for d in result.diagnostics)
+        assert not any(DKGM_CHAIN_WARNING_FACTS & d.facts for d in result.diagnostics)
+        graph = result.ontology
+        _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus', 'eThird')
+        assert not any(s == DKGM.componentOf or o == DKGM.componentOf for s, _, o in graph)
+        assert not list(graph.subjects(RDF.type, OWL.AsymmetricProperty))
+        for text_val in ('OMITTED_REL_DESC', 'OMITTED_SRC_DESC', 'OMITTED_TGT_DESC', 'Third end description.'):
+            assert not list(graph.triples((None, RDFS.comment, Literal(text_val))))
+        assert not any(isinstance(s, BNode) and (BASE.cB, RDFS.subClassOf, s) in graph for s in graph.subjects())
+        assert not any(isinstance(s, BNode) and (BASE.cExtra, RDFS.subClassOf, s) in graph for s in graph.subjects())
+        assert {s for s in graph.subjects(RDF.type, OWL.DatatypeProperty)
+                if str(s).startswith(str(BASE))} == {BASE.pIndep}
+        assert {s for s in graph.subjects(RDF.type, OWL.ObjectProperty)
+                if str(s).startswith(str(BASE))} == {BASE.tPeer, BASE.sPeer}
+        _counts(graph, BASE.cA, BASE.tPeer, {('exact', 1)})
+        return
+
+    document = source_json('shared/material_pattern')
+    c_extra = copy.deepcopy(source_element(document, 'cA'))
+    c_extra.update(id='cExtra', name='ExtraClass')
+    document['model']['contents'].append(c_extra)
+    if scenario == 'comparative_derivation_n_ary':
+        source_element(document, 'cGround')['stereotype'] = 'quality'
+        source_element(document, 'rMaterial').update(stereotype='comparative', name='compRel')
+        source_element(document, 'tMaterial')['name'] = None
+        deriv = source_element(document, 'rDerivation')
+        deriv['properties'].append(_third_relation_end())
+        expected_id, expected_fact = 'rDerivation', 'relation_properties_non_binary'
+    else:
+        _grounding(document, 'relator')
+        if scenario == 'material_n_ary_with_chains':
+            mat = source_element(document, 'rMaterial')
+            mat['properties'].append(_third_relation_end())
+            expected_id, expected_fact = 'rMaterial', 'relation_properties_non_binary'
+        else:
+            deriv = source_element(document, 'rDerivation')
+            s_der, t_der = deriv['properties']
+            sub = scenario.removeprefix('derivation_').removesuffix('_breaks_grounding')
+            sub_case = {'absent': 'absent', 'null': 'null', 'unary': 'unary', 'n_ary': 'n_ary'}[sub]
+            _, facts = _mutate_relation_properties(deriv, s_der, t_der, sub_case)
+            expected_id, expected_fact = 'rDerivation', next(iter(facts))
+            # Clear rMaterial name so if rDerivation were recognized, relator naming would apply.
+            source_element(document, 'rMaterial')['name'] = None
+            source_element(document, 'tMaterial')['name'] = None
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='name',
+                 input_policy='best-effort', material_property_chains='omit-conflicting-constraints')
+    assert result.outcome == 'completed-with-errors'
+    assert any(d.severity == 'ERROR' and expected_fact in d.facts and expected_id in d.identified_sources
+               and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+               for d in result.diagnostics), result.diagnostics
+    graph = result.ontology
+    assert not list(graph.triples((None, OWL.propertyChainAxiom, None)))
+    assert not any(d.kind == 'chain_compatibility' for d in result.diagnostics)
+    assert not any(d.kind in {'unsupported_connector', 'relator_naming', 'comparative_derivation_semantics'}
+                   or d.code in {'UNSUPPORTED_RELATION_CONNECTOR', 'UNSUPPORTED_COMPARATIVE_DERIVATION'}
+                   for d in result.diagnostics)
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('eThird')))
+    t_left = one_subject(graph, DCTERMS.identifier, Literal('tLeft'))
+    t_right = one_subject(graph, DCTERMS.identifier, Literal('tRight'))
+    t_unrelated = one_subject(graph, DCTERMS.identifier, Literal('tUnrelated'))
+    assert (t_left, RDF.type, OWL.ObjectProperty) in graph
+    assert (t_right, RDF.type, OWL.ObjectProperty) in graph
+    assert (t_unrelated, RDF.type, OWL.ObjectProperty) in graph
+    if scenario == 'material_n_ary_with_chains':
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('tMaterial')))
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('sMaterial')))
+    else:
+        t_mat = one_subject(graph, DCTERMS.identifier, Literal('tMaterial'))
+        if scenario == 'comparative_derivation_n_ary':
+            assert t_mat == BASE.compRel
+        else:
+            assert t_mat == BASE.participantA_participantB
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('rDerivation')))
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('sDerivation')))
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('tDerivation')))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('container_case', ['absent', 'null', 'non_array_object', 'non_object_null_entry', 'empty', 'unary', 'n_ary'])
+@pytest.mark.parametrize('hierarchy_case', [
+    'failed_specific_two_member_complete_no_singleton',
+    'failed_specific_three_member_disjoint',
+    'failed_general_disjoint',
+    'failed_singleton_complete',
+])
+def test_relation_generalization_and_sets_treat_non_binary_or_malformed_relations_as_failed(
+        run, source_json, tmp_path, input_policy, mode, container_case, hierarchy_case):
+    """Rules: DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-03, DK-DIAG-05, DK-DIAG-14. RD-02 Alternative A."""
+    document = source_json('relations/hierarchy')
+    c_extra = copy.deepcopy(source_element(document, 'cA'))
+    c_extra.update(id='cExtra', name='ExtraClass')
+    document['model']['contents'].append(c_extra)
+
+    gs = source_element(document, 'gsRelations')
+    if hierarchy_case == 'failed_specific_two_member_complete_no_singleton':
+        gs.update(isComplete=True, isDisjoint=True)
+        target_rel = source_element(document, 'rSibling')
+        expected_failed_gens = {'gSibling'}
+    elif hierarchy_case == 'failed_specific_three_member_disjoint':
+        extra = copy.deepcopy(source_element(document, 'gMiddle'))
+        extra.update(id='gLeafGeneral', specific={'id': 'rLeaf', 'type': 'Relation'})
+        document['model']['contents'].append(extra)
+        gs.update(isComplete=True, isDisjoint=True,
+                  generalizations=[{'id': i, 'type': 'Generalization'} for i in ('gMiddle', 'gLeafGeneral', 'gSibling')])
+        target_rel = source_element(document, 'rSibling')
+        expected_failed_gens = {'gSibling'}
+    elif hierarchy_case == 'failed_general_disjoint':
+        gs.update(isComplete=True, isDisjoint=True)
+        target_rel = source_element(document, 'rGeneral')
+        expected_failed_gens = {'gMiddle', 'gSibling'}
+    else:
+        gs.update(isComplete=True, isDisjoint=False, generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}])
+        target_rel = source_element(document, 'rMiddle')
+        expected_failed_gens = {'gMiddle', 'gLeaf'}
+
+    s_end, t_end = target_rel['properties']
+    _, expected_facts = _mutate_relation_properties(target_rel, s_end, t_end, container_case)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=mode, input_policy=input_policy)
+    assert any(
+        d.severity == 'ERROR' and (expected_facts & d.facts)
+        and target_rel['id'] in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(d.kind == 'singleton_completeness' for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    for gen_id in expected_failed_gens:
+        assert any(
+            d.severity == 'ERROR' and d.kind == 'failed_relation_generalization'
+            and gen_id in d.identified_sources
+            for d in result.diagnostics
+        ), (gen_id, result.diagnostics)
+
+    graph = result.ontology
+    assert not list(graph.triples((None, OWL.equivalentProperty, None)))
+    prefixes = ('t', 's') if mode == 'all' else ('t',)
+    if hierarchy_case == 'failed_specific_two_member_complete_no_singleton':
+        edges = [('Middle', 'General'), ('Leaf', 'Middle')]
+        pairs = set()
+        valid = {'General', 'Middle', 'Leaf'}
+    elif hierarchy_case == 'failed_specific_three_member_disjoint':
+        edges = [('Middle', 'General'), ('Leaf', 'Middle'), ('Leaf', 'General')]
+        pairs = {frozenset((BASE[p + 'Middle'], BASE[p + 'Leaf'])) for p in prefixes}
+        valid = {'General', 'Middle', 'Leaf'}
+    elif hierarchy_case == 'failed_general_disjoint':
+        edges = [('Leaf', 'Middle')]
+        pairs = {frozenset((BASE[p + 'Middle'], BASE[p + 'Sibling'])) for p in prefixes}
+        valid = {'Middle', 'Leaf', 'Sibling'}
+    else:
+        edges = [('Sibling', 'General')]
+        pairs = set()
+        valid = {'General', 'Leaf', 'Sibling'}
+
+    assert _edges(graph) == {(BASE[p + a], BASE[p + b]) for p in prefixes for a, b in edges}
+    assert _pairs(graph) == pairs
+    assert {node for node in graph.subjects(RDF.type, OWL.ObjectProperty)
+            if isinstance(node, URIRef) and str(node).startswith(str(BASE))} == {
+        BASE[p + key] for p in prefixes for key in valid}
+    assert (BASE.cD, RDF.type, OWL.Class) in graph
+
+
+def test_relation_properties_container_reader_requires_affirmative_conditions():
+    """Rules: DK-DIAG-03, DK-INS-02. Harness only: verify affirmative Relation.properties wording without fixing provisional codes."""
+    accepted = {
+        'relation_properties_absent': (
+            "Relation 'rFocus' is missing its 'properties' field.",
+            "Non-instantiation relation 'rFocus' has no properties container.",
+            "The 'properties' field on relation 'rFocus' is absent.",
+            "Relation 'rFocus' does not supply a properties field.",
+            "Relation 'rFocus' lacks a 'properties' array.",
+        ),
+        'relation_properties_null': (
+            "Relation 'rFocus' properties field is explicitly null.",
+            "The 'properties' field on relation 'rFocus': expected a JSON array, got null.",
+            "Relation 'rFocus' has null properties.",
+        ),
+        'relation_properties_non_array': (
+            "Relation 'rFocus' properties field must be a JSON array, got dict.",
+            "Relation 'rFocus' properties field must be a JSON array, not int.",
+            "The 'properties' field on relation 'rFocus': expected a JSON array, got ''.",
+            "Relation 'rFocus' has a non-array properties value.",
+            "The 'properties' field on instantiation relation 'rInstantiation' is not a JSON array.",
+            "Relation 'rFocus' properties is not null; it is a string.",
+        ),
+        'relation_properties_malformed_entry': (
+            "Relation 'rFocus' properties[0] must be a Property object, got null.",
+            "Relation 'rFocus' properties array contains a non-object entry.",
+            "Relation 'rFocus' properties array contains a non-Property entry ('Class').",
+            "Relation 'rFocus' properties[0] has type 'Class', expected 'Property'.",
+            "Non-Property entry at relation 'rFocus' properties[0].",
+            "Instantiation relation 'rInstantiation' properties contains a non-object or non-Property entry.",
+        ),
+        'relation_properties_non_binary': (
+            "Non-instantiation relation 'rFocus' has non-binary properties array (length 3, expected 2).",
+            "Relation 'rFocus' properties array is empty; expected 2 association ends.",
+            "Unary relation 'rFocus' has 1 association end; binary (2 ends) is required.",
+            "Unsupported n-ary relation 'rFocus' has 3 association ends.",
+            "Relation 'rFocus' must have exactly 2 association ends, got 0.",
+        ),
+    }
+    for expected_fact, messages in accepted.items():
+        for message in messages:
+            observed = relation_properties_container_diagnostic(message)
+            assert expected_fact in observed, (expected_fact, message, observed)
+            source = SimpleNamespace(identifier='rFocus', element_type='Relation')
+            native = SimpleNamespace(severity='ERROR', code='PROVISIONAL_TEST_CODE',
+                                     message=message, effect='Aborted.',
+                                     sources=(source,), generated_iri=None)
+            diag, = _observed_diagnostics((native,), retain_unclassified=True)
+            assert expected_fact in diag.facts
+
+    rejected = (
+        "Non-binary/malformed relation-container handling is outside this increment.",
+        "Malformed instantiation-container recovery remains unspecified.",
+        "Unexpected internal failure while transforming relation.",
+        "Relation 'rFocus' properties is absent or null.",
+        "Relation 'rFocus' properties is missing or not an array.",
+        "Relation 'rFocus' properties is null or non-binary.",
+        "Relation 'rFocus' properties is not absent.",
+        "Relation 'rFocus' properties is not null.",
+        "Relation 'rFocus' properties is not non-binary.",
+        "Relation 'rFocus' properties is binary.",
+        "If a relation has non-binary properties, conversion aborts.",
+        "Relation 'rFocus' properties may be empty.",
+        "Class 'cA' has a non-array properties field.",
+        "GeneralizationSet 'gsFirst' generalizations is null.",
+    )
+    for message in rejected:
+        assert not relation_properties_container_diagnostic(message), message
+
+
 

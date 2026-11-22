@@ -2216,3 +2216,170 @@ def test_datatype_valued_relation_report_failure_takes_precedence(invoke, tmp_pa
                and "rFocus" in event.identified_sources for event in process.observation.diagnostics)
 
 
+def _relation_container_cli_document(case):
+    if case == "instantiation_n_ary_valid":
+        document = load_json("shared/instantiation")
+        third = copy.deepcopy(source_element(document, "tInstantiation"))
+        third.update(id="eThird", name="DISCARDED_THIRD_ROLE_SENTINEL", cardinality="49..53")
+        source_element(document, "rInstantiation")["properties"].append(third)
+        return document
+    if case == "instantiation_false":
+        document = load_json("shared/instantiation")
+        source_element(document, "rInstantiation")["properties"] = False
+        return document
+    document = load_json("shared/binary_relation")
+    c_peer = copy.deepcopy(source_element(document, "cA"))
+    c_peer.update(id="cPeer", name="PeerClass")
+    peer_rel = copy.deepcopy(source_element(document, "rFocus"))
+    peer_rel.update(id="rPeer", name="peerLink", stereotype="material")
+    peer_rel["properties"][0].update(id="sPeer", name=None, propertyType={"id": "cA", "type": "Class"})
+    peer_rel["properties"][1].update(id="tPeer", name=None, cardinality="1", propertyType={"id": "cPeer", "type": "Class"})
+    document["model"]["contents"].extend([c_peer, peer_rel])
+
+    focus = source_element(document, "rFocus")
+    if case == "non_instantiation_absent":
+        focus.pop("properties", None)
+    elif case == "non_instantiation_empty_string":
+        focus["properties"] = ""
+    elif case == "non_instantiation_n_ary":
+        third = copy.deepcopy(source_element(document, "tFocus"))
+        third.update(id="eThird", propertyType={"id": "cPeer", "type": "Class"})
+        focus["properties"].append(third)
+    elif case == "non_instantiation_mixed_entry":
+        focus["properties"] = [None, copy.deepcopy(source_element(document, "tFocus"))]
+    else:
+        raise AssertionError(f"Unlisted CLI relation-container case: {case}")
+    return document
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", [
+    "non_instantiation_absent",
+    "non_instantiation_empty_string",
+    "non_instantiation_n_ary",
+    "non_instantiation_mixed_entry",
+    "instantiation_false",
+    "instantiation_n_ary_valid",
+])
+def test_relation_properties_container_cli_python_parity(invoke, tmp_path, case, input_policy):
+    """Rules: DK-DIAG-03, DK-DIAG-04, DK-DIAG-05, DK-INS-01, DK-INS-02; §3.2, §15. RD-02 Alternative A."""
+    document = _relation_container_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    valid = case == "instantiation_n_ary_valid"
+    if valid:
+        outcome, expected_code, delivered_expected = "completed", 0, True
+    elif input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    if valid:
+        for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+            assert not any(event.severity == "ERROR" for event in events), events
+            warnings = [event for event in events if event.kind == "discarded_instantiation_data"]
+            assert len(warnings) == 1 and warnings[0].severity == "WARNING"
+            assert "rInstantiation" in warnings[0].source_ids
+        discarded = ("DISCARDED_ASSOCIATION_SENTINEL", "DISCARDED_DESCRIPTION_SENTINEL",
+                     "DISCARDED_SOURCE_ROLE_SENTINEL", "DISCARDED_TARGET_ROLE_SENTINEL",
+                     "DISCARDED_THIRD_ROLE_SENTINEL", "37..41", "43..47", "49..53")
+        assert not any(value in report.read_text(encoding="utf-8") for value in discarded)
+    else:
+        expected_fact, target_id = {
+            "non_instantiation_absent": ("relation_properties_absent", "rFocus"),
+            "non_instantiation_empty_string": ("relation_properties_non_array", "rFocus"),
+            "non_instantiation_n_ary": ("relation_properties_non_binary", "rFocus"),
+            "non_instantiation_mixed_entry": ("relation_properties_malformed_entry", "rFocus"),
+            "instantiation_false": ("relation_properties_non_array", "rInstantiation"),
+        }[case]
+        for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+            assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+            assert not any(event.kind == "discarded_instantiation_data" for event in events)
+            assert any(
+                event.severity == "ERROR"
+                and expected_fact in event.facts
+                and target_id in event.identified_sources
+                and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+                for event in events
+            ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        if valid:
+            assert not list(delivered_graph.subjects(RDF.type, OWL.ObjectProperty))
+            assert (BASE.cCategorizer, RDF.type, OWL.Class) in delivered_graph
+            assert (BASE.cSpecific, RDF.type, BASE.cCategorizer) in delivered_graph
+        elif case == "instantiation_false":
+            assert not list(delivered_graph.subjects(RDF.type, OWL.ObjectProperty))
+            assert (BASE.cSpecific, RDF.type, BASE.cCategorizer) in delivered_graph
+            assert not any(BASE.rInstantiation in triple for triple in delivered_graph)
+        else:
+            assert {s for s in delivered_graph.subjects(RDF.type, OWL.ObjectProperty)
+                    if str(s).startswith(str(BASE))} == {BASE.tPeer, BASE.sPeer}
+            for absent in (BASE.rFocus, BASE.sFocus, BASE.tFocus, BASE.eThird):
+                assert not any(absent in triple for triple in delivered_graph)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_relation_properties_container_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-DIAG-03, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence. RD-02 Alternative A."""
+    document = _relation_container_cli_document("non_instantiation_n_ary")
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "none", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert any(
+        event.severity == "ERROR"
+        and "relation_properties_non_binary" in event.facts
+        and "rFocus" in event.identified_sources
+        and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in process.observation.diagnostics
+    )
+
+
+def test_relation_properties_container_adds_no_new_cli_or_python_controls(invoke):
+    """Rules: DK-DIAG-03; §15 configuration surface boundary. RD-02 Alternative A."""
+    surface = invoke.inspect_controls()
+    assert set(surface.python) == set(DEFAULTS)
+    assert set(surface.cli) == {
+        flag for flag, *_ in CONTROLS
+    } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
+

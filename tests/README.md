@@ -1941,3 +1941,23 @@ runtime mutations and inline assertions.
 `attribute_owner_without_local_class_diagnostic` without fixing provisional
 diagnostic codes. This TEST CHANGE awaits independent Test Reviewer review; no
 production-correctness claim is made.
+
+## RD-02 non-binary and absent, null, or malformed Relation.properties containers
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** for `08abccac8a6923c587cf351a5137f1e140e44a17`. The
+[scoped inventory](coverage.md#rd-02-non-binary-and-absent-null-or-malformed-relationproperties-containers--alternative-a)
+records the 727 new behavioral nodes and 1 harness reader check across
+`tests/transformation/test_relations.py`, `tests/transformation/test_higher_order.py`,
+`tests/transformation/test_properties.py`, `tests/transformation/test_input_diagnostics.py`,
+and `tests/cli/test_cli.py`, reusing existing shared fixtures with explicit
+runtime mutations and inline assertions.
+
+`tests/support/data.py` guards `fixture_issues` against non-list `properties`
+containers, and `tests/support/invocation.py` adds the affirmative semantic
+reader `_relation_properties_container_facts` /
+`relation_properties_container_diagnostic` (without fixing provisional diagnostic
+codes) plus `DISCARDED_INSTANTIATION_INFORMATION` category fact reading from
+native `Diagnostic.message` and `Diagnostic.effect`. This TEST CHANGE awaits
+independent Test Reviewer review; no production-correctness claim is made.
+

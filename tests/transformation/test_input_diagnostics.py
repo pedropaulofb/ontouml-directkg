@@ -11,7 +11,8 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
                                source_element, source_elements, write_input)
 from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
-                                      diagnostic_signatures)
+                                      diagnostic_signatures,
+                                      relation_properties_container_diagnostic)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
 
@@ -1005,3 +1006,182 @@ def test_attribute_owner_without_local_class_json_diagnostics_export_contract(
         assert (BASE.cOwner, RDF.type, OWL.Class) in observed_graph
         assert (BASE.pFocus, RDF.type, OWL.DatatypeProperty) in observed_graph
         assert not any(BASE.pOwned in triple or BASE.dValue in triple for triple in observed_graph)
+
+
+_CONTAINER_FACTS = frozenset({
+    "relation_properties_absent",
+    "relation_properties_null",
+    "relation_properties_non_array",
+    "relation_properties_malformed_entry",
+    "relation_properties_non_binary",
+})
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_rel_id_absent_props",
+    "duplicate_end_id_n_ary",
+    "duplicate_end_id_mixed_array",
+    "duplicate_end_id_instantiation_mixed_array",
+    "rejected_rel_stereotype_null_props",
+    "rejected_end_stereotype_n_ary",
+    "rejected_end_stereotype_mixed_array",
+    "accepted_custom_end_stereotype_n_ary",
+    "invalid_relation_id_absent",
+    "invalid_relation_id_empty_with_null_props",
+])
+def test_relation_properties_container_respects_diagnostic_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-DIAG-03, DK-DIAG-05, DK-DIAG-06, DK-INS-02; §3.4 opaque source IDs and duplicate IDs. RD-02 Alternative A."""
+    document = source_json("shared/core_model")
+    rel = source_element(document, "rWorks")
+    s_end, t_end = rel["properties"]
+    extra_end = copy.deepcopy(t_end)
+    extra_end.update(id="eThird", name="thirdEnd")
+    fake_class = copy.deepcopy(source_element(document, "cOrg"))
+    fake_class["id"] = "cFakeProp"
+
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = True
+
+    if condition == "duplicate_rel_id_absent_props":
+        rel.pop("properties", None)
+        dup_rel = copy.deepcopy(source_element(document, "cOrg"))
+        dup_rel["id"] = "rWorks"
+        document["model"]["contents"].append(dup_rel)
+        expected_kind = "duplicate_id"
+    elif condition == "duplicate_end_id_n_ary":
+        extra_end["id"] = "cOrg"
+        rel["properties"] = [s_end, t_end, extra_end]
+        expected_kind = "duplicate_id"
+    elif condition == "duplicate_end_id_mixed_array":
+        t_end["id"] = "cOrg"
+        rel["properties"] = [None, t_end]
+        expected_kind = "duplicate_id"
+    elif condition == "duplicate_end_id_instantiation_mixed_array":
+        rel["stereotype"] = "instantiation"
+        t_end["id"] = "cOrg"
+        rel["properties"] = [fake_class, t_end]
+        expected_kind = "duplicate_id"
+    elif condition == "rejected_rel_stereotype_null_props":
+        rel["stereotype"] = None
+        rel["properties"] = None
+        options["stereotype_policy"] = "require-known"
+        expected_kind = "missing_stereotype"
+    elif condition == "rejected_end_stereotype_n_ary":
+        extra_end["stereotype"] = "customEnd"
+        rel["properties"] = [s_end, t_end, extra_end]
+        options["stereotype_policy"] = "allow-missing"
+        expected_kind = "unrecognized_stereotype"
+    elif condition == "rejected_end_stereotype_mixed_array":
+        t_end["stereotype"] = "customEnd"
+        rel["properties"] = [fake_class, t_end]
+        options["stereotype_policy"] = "allow-missing"
+        expected_kind = "unrecognized_stereotype"
+    elif condition == "accepted_custom_end_stereotype_n_ary":
+        extra_end["stereotype"] = "customEnd"
+        rel["properties"] = [s_end, t_end, extra_end]
+        options["stereotype_policy"] = "allow-custom"
+        expected_kind = "unrecognized_stereotype"
+        always_abort = False
+    elif condition == "invalid_relation_id_absent":
+        rel.pop("id", None)
+        expected_kind = "missing_id"
+        always_abort = False
+    else:
+        rel["id"] = ""
+        rel["properties"] = None
+        expected_kind = "invalid_id"
+        always_abort = False
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+
+    if condition == "accepted_custom_end_stereotype_n_ary":
+        assert any(d.severity == "WARNING" and d.kind == "unrecognized_stereotype" for d in result.diagnostics)
+        assert any(d.severity == "ERROR" and "relation_properties_non_binary" in d.facts
+                   and "rWorks" in d.identified_sources for d in result.diagnostics)
+    else:
+        assert any(d.severity == "ERROR" and d.kind == expected_kind for d in result.diagnostics), result.diagnostics
+        if expected_kind == "duplicate_id":
+            assert any(d.code == "DUPLICATE_SOURCE_ID" and {"competing_declarations", "conversion_aborted"} <= d.facts
+                       for d in result.diagnostics if d.kind == "duplicate_id")
+        assert not any(_CONTAINER_FACTS & d.facts for d in result.diagnostics), result.diagnostics
+
+    if always_abort or input_policy != "best-effort":
+        assert result.outcome == "aborted"
+        assert result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in result.ontology
+        for absent in (BASE.rWorks, BASE.eSource, BASE.eTarget, BASE.eThird):
+            assert not any(absent in triple for triple in result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,expected_fact", [
+    ("non_instantiation_n_ary", "relation_properties_non_binary"),
+    ("non_instantiation_null", "relation_properties_null"),
+    ("instantiation_non_array", "relation_properties_non_array"),
+])
+def test_relation_properties_container_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy, case, expected_fact):
+    """Rules: DK-DIAG-03, DK-DIAG-04, DK-DIAG-05, DK-INS-02; §15 Python JSON export. RD-02 Alternative A."""
+    document = source_json("shared/core_model")
+    rel = source_element(document, "rWorks")
+    s_end, t_end = rel["properties"]
+    if case == "non_instantiation_n_ary":
+        e_third = copy.deepcopy(t_end)
+        e_third["id"] = "eThird"
+        rel["properties"] = [s_end, t_end, e_third]
+    elif case == "non_instantiation_null":
+        rel["properties"] = None
+    else:
+        rel["stereotype"] = "instantiation"
+        rel["properties"] = 0
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "relation_container.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] != "INTERNAL_TRANSFORMATION_FAILURE"
+        and event["code"] not in {"PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID",
+                                   "UNKNOWN_INFORMATION", "REQUIRED_PROVENANCE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY"}
+        and event["message"]
+        and event["effect"]
+        and expected_fact in relation_properties_container_diagnostic(event["message"])
+    ]
+    assert matching, payload["diagnostics"]
+    reported_sources = {
+        (source_loc["element_type"], source_loc["identifier"])
+        for event in matching for source_loc in event["sources"]
+    }
+    assert ("Relation", "rWorks") in reported_sources
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+        assert (BASE.cPerson, RDF.type, OWL.Class) in observed_graph
+        assert (BASE.cOrg, RDF.type, OWL.Class) in observed_graph
+        assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in observed_graph
+        assert not any(BASE.rWorks in triple or BASE.eSource in triple or BASE.eTarget in triple
+                       for triple in observed_graph)
+

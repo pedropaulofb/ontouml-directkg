@@ -166,8 +166,11 @@ def fixture_issues(document) -> frozenset[str]:
             if kind == "Relation" and isinstance(properties, list):
                 if any(not isinstance(end, dict) or end.get("propertyType") is None for end in properties):
                     issues.add("unresolved_endpoint")
-            for member in properties or []:
-                visit(member, "Property")
+            if isinstance(properties, list):
+                for member in properties:
+                    visit(member, "Property")
+            elif properties is not None:
+                issues.add("malformed_properties")
         if kind == "Property":
             if value.get("propertyType") is not None:
                 reference(value["propertyType"])

@@ -1106,3 +1106,198 @@ def test_instantiation_declaration_does_not_invent_membership_or_reconcile_categ
         assert (instance,RDF.type,OWL.Class) in result.ontology
     assert (BASE.cOutside,RDF.type,BASE.cCategorizer) not in result.ontology
     assert not any(d.kind=='semantic_validation' or d.severity=='ERROR' for d in result.diagnostics)
+
+
+_INSTANTIATION_EXTRA_SENTINELS = tuple(INSTANTIATION_SENTINELS) + (
+    'DISCARDED_THIRD_ROLE_SENTINEL', '49..53',
+)
+
+
+def _third_instantiation_end():
+    return {
+        'id': 'eThirdInstantiation',
+        'name': 'DISCARDED_THIRD_ROLE_SENTINEL',
+        'description': None,
+        'type': 'Property',
+        'propertyAssignments': None,
+        'stereotype': None,
+        'isDerived': True,
+        'isReadOnly': True,
+        'isOrdered': True,
+        'cardinality': '49..53',
+        'propertyType': {'id': 'cOutside', 'type': 'Class'},
+        'subsettedProperties': None,
+        'redefinedProperties': None,
+        'aggregationKind': 'COMPOSITE',
+    }
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('container_case', [
+    'absent', 'null', 'empty', 'unary', 'binary', 'n_ary', 'n_ary_third_end_only',
+])
+def test_instantiation_relation_accepts_absent_null_and_any_length_property_arrays(
+        run, source_json, tmp_path, input_policy, container_case):
+    """Rules: DK-INS-01, DK-INS-02, DK-HO-01, DK-HO-02, DK-DIAG-03, DK-DIAG-05. RD-02 Alternative A."""
+    document = source_json('shared/instantiation')
+    association = source_element(document, 'rInstantiation')
+    s_end, t_end = copy.deepcopy(association['properties'])
+    expected_categories = {'discarded_identifier', 'discarded_association_name', 'discarded_characteristics'}
+    if container_case == 'absent':
+        association.pop('properties', None)
+    elif container_case == 'null':
+        association['properties'] = None
+    elif container_case == 'empty':
+        association['properties'] = []
+    elif container_case == 'unary':
+        association['properties'] = [s_end]
+        expected_categories |= {'discarded_role_names', 'discarded_multiplicities'}
+    elif container_case == 'binary':
+        association['properties'] = [s_end, t_end]
+        expected_categories |= {'discarded_role_names', 'discarded_multiplicities'}
+    elif container_case == 'n_ary':
+        association['properties'] = [s_end, t_end, _third_instantiation_end()]
+        expected_categories |= {'discarded_role_names', 'discarded_multiplicities'}
+    else:
+        for end in (s_end, t_end):
+            end.update(name=None, description=None, cardinality=None)
+            for key in ('isReadOnly', 'isOrdered', 'isDerived', 'aggregationKind'):
+                end.pop(key, None)
+        association['properties'] = [s_end, t_end, _third_instantiation_end()]
+        expected_categories |= {'discarded_role_names', 'discarded_multiplicities'}
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert result.outcome == 'completed'
+    assert not any(d.severity == 'ERROR' for d in result.diagnostics), result.diagnostics
+
+    warnings = [d for d in result.diagnostics if d.kind == 'discarded_instantiation_data']
+    assert len(warnings) == 1
+    warning = warnings[0]
+    assert warning.severity == 'WARNING'
+    assert 'rInstantiation' in warning.source_ids and 'Relation' in warning.source_types
+    assert {'association_data_not_materialized', *expected_categories} <= warning.facts
+
+    for diagnostic in result.diagnostics:
+        text = diagnostic.message + repr(diagnostic.raw) + repr(diagnostic.facts) + repr(diagnostic.generated_iris)
+        assert not any(value in text for value in _INSTANTIATION_EXTRA_SENTINELS)
+        assert not {
+            str(BASE.rInstantiation), str(BASE.sInstantiation),
+            str(BASE.tInstantiation), str(BASE.eThirdInstantiation),
+        } & set(diagnostic.generated_iris)
+
+    graph = result.ontology
+    for triple in graph:
+        assert not any(value in str(term) for term in triple for value in _INSTANTIATION_EXTRA_SENTINELS)
+        assert not any(term in {
+            BASE.rInstantiation, BASE.sInstantiation, BASE.tInstantiation, BASE.eThirdInstantiation,
+        } for term in triple)
+    assert not list(graph.subjects(RDF.type, OWL.ObjectProperty))
+    assert not list(graph.subjects(RDF.type, OWL.DatatypeProperty))
+    assert {OWL.Class, OWL.NamedIndividual, BASE.cCategorizer, BASE.cOtherCategorizer} <= set(
+        graph.objects(BASE.cSpecific, RDF.type))
+    assert (BASE.cOutside, RDF.type, BASE.cCategorizer) not in graph
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('container_case', [
+    'non_array_object', 'non_array_string', 'non_array_empty_string',
+    'non_array_zero', 'non_array_number', 'non_array_false', 'non_array_true',
+    'non_object_null_entry', 'non_object_string_entry', 'non_object_number_entry',
+    'non_property_class_entry', 'mixed_valid_and_non_property',
+])
+def test_instantiation_relation_rejects_non_array_or_malformed_properties_containers(
+        run, source_json, tmp_path, input_policy, container_case):
+    """Rules: DK-DIAG-03, DK-DIAG-05, DK-INS-01, DK-INS-02, DK-HO-01, DK-HO-02, DK-DIAG-04. RD-02 Alternative A."""
+    document = source_json('shared/instantiation')
+    peer_rel = {
+        'id': 'rPeer', 'name': 'peerLink', 'description': None, 'type': 'Relation',
+        'propertyAssignments': None, 'stereotype': 'material', 'isAbstract': False, 'isDerived': False,
+        'properties': [
+            {'id': 'sPeer', 'name': None, 'description': None, 'type': 'Property',
+             'propertyAssignments': None, 'stereotype': None, 'isDerived': False, 'isReadOnly': False,
+             'isOrdered': False, 'cardinality': None, 'propertyType': {'id': 'cOutside', 'type': 'Class'},
+             'subsettedProperties': None, 'redefinedProperties': None, 'aggregationKind': 'NONE'},
+            {'id': 'tPeer', 'name': None, 'description': None, 'type': 'Property',
+             'propertyAssignments': None, 'stereotype': None, 'isDerived': False, 'isReadOnly': False,
+             'isOrdered': False, 'cardinality': '1', 'propertyType': {'id': 'cBase', 'type': 'Class'},
+             'subsettedProperties': None, 'redefinedProperties': None, 'aggregationKind': 'NONE'},
+        ],
+    }
+    document['model']['contents'].append(peer_rel)
+
+    association = source_element(document, 'rInstantiation')
+    s_end, t_end = copy.deepcopy(association['properties'])
+    fake_class = copy.deepcopy(source_element(document, 'cOutside'))
+    fake_class['id'] = 'cFakeEnd'
+    if container_case == 'non_array_object':
+        association['properties'] = s_end
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_array_string':
+        association['properties'] = 'bad'
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_array_empty_string':
+        association['properties'] = ''
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_array_zero':
+        association['properties'] = 0
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_array_number':
+        association['properties'] = 42
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_array_false':
+        association['properties'] = False
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_array_true':
+        association['properties'] = True
+        expected_fact = 'relation_properties_non_array'
+    elif container_case == 'non_object_null_entry':
+        association['properties'] = [None, t_end]
+        expected_fact = 'relation_properties_malformed_entry'
+    elif container_case == 'non_object_string_entry':
+        association['properties'] = [s_end, 'bad']
+        expected_fact = 'relation_properties_malformed_entry'
+    elif container_case == 'non_object_number_entry':
+        association['properties'] = [123]
+        expected_fact = 'relation_properties_malformed_entry'
+    elif container_case == 'non_property_class_entry':
+        association['properties'] = [fake_class, t_end]
+        expected_fact = 'relation_properties_malformed_entry'
+    else:
+        association['properties'] = [s_end, {'id': 'lFakeEnd', 'name': 'Fake', 'description': None,
+                                             'type': 'Literal', 'propertyAssignments': None}, t_end]
+        expected_fact = 'relation_properties_malformed_entry'
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='none')
+    assert any(
+        d.severity == 'ERROR'
+        and expected_fact in d.facts
+        and 'rInstantiation' in d.identified_sources
+        and d.code != 'INTERNAL_TRANSFORMATION_FAILURE'
+        and isinstance(d.code, str) and d.code
+        and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(d.kind == 'discarded_instantiation_data' for d in result.diagnostics)
+    for diagnostic in result.diagnostics:
+        text = diagnostic.message + repr(diagnostic.raw) + repr(diagnostic.facts) + repr(diagnostic.generated_iris)
+        assert not any(value in text for value in _INSTANTIATION_EXTRA_SENTINELS)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    for triple in graph:
+        assert not any(value in str(term) for term in triple for value in _INSTANTIATION_EXTRA_SENTINELS)
+        assert not any(term in {
+            BASE.rInstantiation, BASE.sInstantiation, BASE.tInstantiation, BASE.cFakeEnd, BASE.lFakeEnd,
+        } for term in triple)
+    assert {s for s in graph.subjects(RDF.type, OWL.ObjectProperty)
+            if str(s).startswith(str(BASE))} == {BASE.tPeer}
+    assert not list(graph.subjects(RDF.type, OWL.DatatypeProperty))
+    assert {OWL.Class, OWL.NamedIndividual, BASE.cCategorizer, BASE.cOtherCategorizer} <= set(
+        graph.objects(BASE.cSpecific, RDF.type))
+    assert (BASE.cOutside, RDF.type, BASE.cCategorizer) not in graph
+

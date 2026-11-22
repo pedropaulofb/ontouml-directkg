@@ -1132,3 +1132,172 @@ def test_best_effort_retains_property_reference_errors_outside_owner_omission_sc
     expected_hierarchy = (set() if boundary == 'surviving_malformed_container_with_omitted_owner_attr'
                           else {(BASE.pChild, BASE.t0)})
     assert _hierarchy(result.ontology) == expected_hierarchy
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('container_case', [
+    'unary', 'n_ary', 'mixed_null_entry', 'mixed_class_entry', 'instantiation_malformed',
+])
+@pytest.mark.parametrize('scenario', [
+    'surviving_attr_to_end',
+    'surviving_end_to_end',
+    'surviving_inverse_to_end',
+    'end_to_surviving',
+    'end_without_id_to_surviving',
+    'end_without_id_dangling',
+    'end_without_id_malformed_container',
+])
+def test_best_effort_cleanly_omits_property_references_involving_omitted_container_relations(
+        run, source_json, tmp_path, input_policy, field, container_case, scenario):
+    """Rules: DK-PROP-03, DK-DIAG-03, DK-DIAG-05, DK-INS-02, DK-INV-04. RD-02 Alternative A."""
+    document = source_json('properties/references')
+    r_omitted = copy.deepcopy(source_element(document, 'r0'))
+    r_omitted.update(id='rOmitted', name='omittedLink')
+    s_omitted, t_omitted = r_omitted['properties']
+    s_omitted.update(id='sOmitted', name='omittedSrc')
+    t_omitted.update(id='tOmitted', name='omittedTgt')
+    e_third = copy.deepcopy(t_omitted)
+    e_third.update(id='eThird', name='omittedThird')
+
+    if scenario == 'surviving_attr_to_end':
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('tOmitted')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'surviving_end_to_end':
+        source_element(document, 't0')[field] = [_reference('t1'), _reference('tOmitted')]
+        expected_hierarchy = {(BASE.t0, BASE.t1)}
+    elif scenario == 'surviving_inverse_to_end':
+        source_element(document, 's0')[field] = [_reference('s1'), _reference('tOmitted')]
+        expected_hierarchy = {(BASE.s0, BASE.s1)}
+    elif scenario == 'end_to_surviving':
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        t_omitted[field] = [_reference('t0')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'end_without_id_to_surviving':
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        t_omitted.pop('id', None)
+        t_omitted[field] = [_reference('t0')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'end_without_id_dangling':
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        t_omitted.pop('id', None)
+        t_omitted[field] = [_reference('missingProp')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    else:
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        t_omitted.pop('id', None)
+        t_omitted[field] = 'not-a-list'
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+
+    if container_case == 'unary':
+        r_omitted['properties'] = [t_omitted]
+        expected_fact = 'relation_properties_non_binary'
+    elif container_case == 'n_ary':
+        r_omitted['properties'] = [s_omitted, t_omitted, e_third]
+        expected_fact = 'relation_properties_non_binary'
+    elif container_case == 'mixed_null_entry':
+        r_omitted['properties'] = [None, t_omitted]
+        expected_fact = 'relation_properties_malformed_entry'
+    elif container_case == 'mixed_class_entry':
+        fake_class = copy.deepcopy(source_element(document, 'cA'))
+        fake_class['id'] = 'cFakeProp'
+        r_omitted['properties'] = [fake_class, t_omitted]
+        expected_fact = 'relation_properties_malformed_entry'
+    else:
+        r_omitted['stereotype'] = 'instantiation'
+        r_omitted['properties'] = [None, t_omitted]
+        expected_fact = 'relation_properties_malformed_entry'
+
+    document['model']['contents'].append(r_omitted)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and expected_fact in d.facts
+        and 'rOmitted' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in {'unresolved_property_reference', 'invalid_property_references',
+                   'property_inclusion_incompatibility', 'discarded_instantiation_data'}
+        or d.code in {'UNRESOLVED_PROPERTY_REFERENCE', 'INVALID_PROPERTY_REFERENCES', 'INCOMPATIBLE_PROPERTY_INCLUSION'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == expected_hierarchy
+    for absent in (BASE.rOmitted, BASE.sOmitted, BASE.tOmitted, BASE.eThird, BASE.cFakeProp):
+        assert not any(absent in triple for triple in graph), absent
+    for prop in (BASE.pBase, BASE.pChild, BASE.t0, BASE.s0, BASE.t1, BASE.s1):
+        assert any((prop, RDF.type, kind) in graph for kind in (OWL.ObjectProperty, OWL.DatatypeProperty))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('boundary', [
+    'surviving_to_dangling',
+    'surviving_to_non_property',
+    'surviving_to_missing_end_of_null_rel',
+    'surviving_malformed_container',
+])
+def test_best_effort_retains_property_reference_errors_alongside_omitted_container_relations(
+        run, source_json, tmp_path, input_policy, field, boundary):
+    """Rules: DK-PROP-03, DK-DIAG-03, DK-DIAG-05. RD-02 Alternative A."""
+    document = source_json('properties/references')
+    r_omitted = copy.deepcopy(source_element(document, 'r0'))
+    r_omitted.update(id='rOmitted', name='omittedLink')
+    s_omitted, t_omitted = r_omitted['properties']
+    s_omitted['id'] = 'sOmitted'
+    t_omitted['id'] = 'tOmitted'
+
+    if boundary == 'surviving_to_missing_end_of_null_rel':
+        r_omitted['properties'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('tOmitted')]
+        expected_container_fact = 'relation_properties_null'
+    else:
+        e_third = copy.deepcopy(t_omitted)
+        e_third['id'] = 'eThird'
+        r_omitted['properties'] = [s_omitted, t_omitted, e_third]
+        expected_container_fact = 'relation_properties_non_binary'
+        if boundary == 'surviving_to_dangling':
+            source_element(document, 'pChild')[field] = [_reference('t0'), _reference('missingProp')]
+        elif boundary == 'surviving_to_non_property':
+            source_element(document, 'pChild')[field] = [_reference('t0'), _reference('cA')]
+        else:
+            source_element(document, 'pChild')[field] = 'not-a-list'
+
+    document['model']['contents'].append(r_omitted)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and expected_container_fact in d.facts
+        and 'rOmitted' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    expected_ref_kind = ('invalid_property_references'
+                         if boundary == 'surviving_malformed_container'
+                         else 'unresolved_property_reference')
+    assert any(
+        d.severity == 'ERROR'
+        and (d.kind == expected_ref_kind or d.code in {'UNRESOLVED_PROPERTY_REFERENCE', 'INVALID_PROPERTY_REFERENCES'})
+        and 'pChild' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    expected_hierarchy = set() if boundary == 'surviving_malformed_container' else {(BASE.pChild, BASE.t0)}
+    assert _hierarchy(result.ontology) == expected_hierarchy
+    assert not any(BASE.rOmitted in triple or BASE.tOmitted in triple for triple in result.ontology)
+
