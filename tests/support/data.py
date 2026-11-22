@@ -78,6 +78,35 @@ def source_element(document, identifier):
     return matches[0]
 
 
+def package_contents_document(scope, form, *, dependent=False):
+    """Construct one package-container variation from the shared binary model."""
+    import copy
+
+    document = load_json("shared/binary_relation")
+    root = document["model"]
+    lost = copy.deepcopy(source_element(document, "cB"))
+    lost.update(id="cLost", name="LostClass")
+    package = root
+    if scope == "nested":
+        package = {**root, "id": "pNested", "name": "Nested", "contents": [lost]}
+        root["contents"].insert(1, package)
+        if dependent:
+            relation = copy.deepcopy(source_element(document, "rFocus"))
+            relation.update(id="rDependent", name="dependent")
+            relation["properties"][0]["id"] = "sDependent"
+            relation["properties"][1].update(id="tDependent", propertyType={"id": "cLost", "type": "Class"})
+            root["contents"].append(relation)
+    assert not fixture_issues(document)
+    if form == "absent":
+        del package["contents"]
+    else:
+        package["contents"] = {
+            "null": None, "empty": [], "object": lost,
+            "string": "INVALID_CONTENTS_SENTINEL", "number": 0, "boolean": False,
+        }[form]
+    return document
+
+
 def _valid_identifier(value):
     """Fixture-authoring check for RD-02's opaque strings; never repair data."""
     if not isinstance(value, str) or value == "":

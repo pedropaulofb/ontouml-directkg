@@ -2280,6 +2280,22 @@ def relation_properties_container_diagnostic(message: str) -> frozenset[str]:
     return frozenset(_relation_properties_container_facts(message))
 
 
+def malformed_package_contents_diagnostic(event, package_id, package_path):
+    """Identify the structural package-contents error using its native context."""
+    if event.severity != "ERROR" or event.code in {"INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION"}:
+        return False
+    native = event.raw
+    reason = native.message.casefold()
+    return ("contents" in reason
+            and re.search(r"\b(?:malformed|invalid|non[- ](?:array|list)|not (?:an? )?(?:json )?(?:array|list)|(?:must|expected to) be (?:an? )?(?:json )?(?:array|list))\b", reason)
+            and (any(source.path in {package_path, package_path + ".contents"}
+                     or source.identifier == package_id for source in native.sources)
+                 or re.search(rf"(?<!\w){re.escape(package_id.casefold())}(?!\w)", reason)
+                 or re.search(rf"{re.escape(package_path.casefold())}(?![.\[\w])", reason)
+                 or re.search(rf"{re.escape(package_path.casefold())}\.contents(?![.\[\w])", reason)
+                 or (package_path == "$.model" and re.search(r"\broot (?:model|package)\b", reason))))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2343,6 +2359,12 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                     facts.update(rel_prop_facts)
                     if kind is None:
                         kind = "failed_relation"
+        if kind is None:
+            if (event.severity == "ERROR" and
+                    (re.search(r"\bpackage\b", event.message, re.I)
+                     or any(source.element_type == "Package" for source in event.sources)) and
+                    re.search(r"\bcontents\b", event.message, re.I)):
+                kind = "malformed_package_contents"
         if kind is None:
             if not facts and not retain_unclassified:
                 raise ImplementationUnavailable(f"Diagnostic interpretation not bound: {event.code}")

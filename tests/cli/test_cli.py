@@ -13,12 +13,12 @@ import yaml
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.data import fixture_path, fixture_issues, load_json, source_element, source_elements, write_input
+from tests.support.data import fixture_path, fixture_issues, load_json, package_contents_document, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, console_covers_diagnostic_records,
                                       diagnostic_record_counts, diagnostic_signatures,
                                       diagnostics_report_write_error, dkgm_chain_facts, escaped_id_collision_diagnostic,
-                                      ontology_serialization_error,
+                                      malformed_package_contents_diagnostic, ontology_serialization_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained,
                                       transformation_failure_diagnostic)
 from tests.support.rdf import assert_graph_equal, load_graph, one_object, property_chains, rdf_list, rooted_graph
@@ -656,6 +656,70 @@ def _assert_cli_json_and_console(invoke, process, path):
     # Code equality is checked only when the observed console record displays it.
     assert console_covers_diagnostic_records(process.console, delivered.events)
     return delivered
+
+
+@pytest.mark.parametrize("scope", ["root", "nested"])
+@pytest.mark.parametrize("form", ["absent", "object"])
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_package_contents_cli_python_parity(invoke, tmp_path, scope, form, input_policy):
+    """Rules: DK-GEN-06, DK-DIAG-04, DK-DIAG-05; §15. RD-02 reduced-scope Alternative A."""
+    source = write_input(tmp_path, package_contents_document(scope, form))
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar",
+               "input_policy": input_policy}
+    valid = form == "absent"
+    recover = not valid and scope == "nested" and input_policy == "best-effort"
+    outcome = "completed" if valid else "completed-with-errors" if recover else "aborted"
+    eligible = valid or recover
+    destination, report = tmp_path / "out.ttl", tmp_path / "cli.json"
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=tmp_path)
+    assert process.conversion_started
+    assert process.returncode == {"completed": 0, "completed-with-errors": 1, "aborted": 3}[outcome]
+    assert invoke.read_outcome(python) == outcome
+    exported = _assert_native_json_mirror(invoke, python, tmp_path / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        if valid:
+            assert not any(event.severity in {"WARNING", "ERROR"} for event in events)
+        else:
+            package_id, package_path = ("binaryProjectRoot", "$.model") if scope == "root" else ("pNested", "$.model.contents[1]")
+            assert any(malformed_package_contents_diagnostic(event, package_id, package_path) for event in events)
+            assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+    assert (invoke.read_ontology(python) is not None) == eligible
+    assert (invoke.read_provenance(python) is not None) == eligible
+    assert destination.is_file() == eligible
+    assert destination.with_name("out.provenance.ttl").is_file() == eligible
+    if eligible:
+        assert_graph_equal(load_graph(destination), invoke.read_ontology(python))
+
+
+@pytest.mark.parametrize("scope", ["root", "nested"])
+def test_package_contents_report_failure_takes_precedence(invoke, tmp_path, scope):
+    """Rules: DK-GEN-06, DK-DIAG-04, DK-DIAG-05; §15 exit code 4."""
+    source = write_input(tmp_path, package_contents_document(scope, "object"))
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar",
+               "input_policy": "best-effort"}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    assert process.returncode == 4
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    expected = "aborted" if scope == "root" else "completed-with-errors"
+    assert converted.outcome == delivered.outcome == expected
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert destination.is_file() == (scope == "nested")
+    assert destination.with_name("out.provenance.ttl").is_file() == (scope == "nested")
+    package_id, package_path = ("binaryProjectRoot", "$.model") if scope == "root" else ("pNested", "$.model.contents[1]")
+    assert any(malformed_package_contents_diagnostic(event, package_id, package_path)
+               for event in process.observation.diagnostics)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

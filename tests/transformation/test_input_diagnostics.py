@@ -9,9 +9,10 @@ from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
-                               source_element, source_elements, write_input)
+                               package_contents_document, source_element, source_elements, write_input)
 from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
                                       diagnostic_signatures,
+                                      malformed_package_contents_diagnostic,
                                       relation_properties_container_diagnostic)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
@@ -264,6 +265,71 @@ def test_failed_relation_never_delivers_either_direction(run, source_json, tmp_p
         # A delivered partial graph must still serialize and parse as RDF.
         parsed = Graph().parse(data=result.ontology.serialize(format="turtle"), format="turtle")
         assert_graph_equal(parsed, result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scope", ["root", "nested"])
+@pytest.mark.parametrize("form", ["absent", "null", "empty"])
+def test_empty_package_contents_representations_are_equivalent(run, invoke, tmp_path, input_policy, scope, form):
+    """Rules: DK-GEN-06, DK-DIAG-05; §3.2. RD-02 reduced-scope Alternative A."""
+    baseline = run(path=write_input(tmp_path, package_contents_document(scope, "empty"), "control.json"),
+                   iri_strategy="id", input_policy=input_policy)
+    result = run(path=write_input(tmp_path, package_contents_document(scope, form)),
+                 iri_strategy="id", input_policy=input_policy)
+    assert baseline.outcome == result.outcome == "completed"
+    assert_graph_equal(baseline.ontology, result.ontology)
+    assert diagnostic_record_counts(invoke.report_content(result).events) == diagnostic_record_counts(
+        invoke.report_content(baseline).events)
+    assert not any(event.severity in {"WARNING", "ERROR"} for event in result.diagnostics)
+    if scope == "nested":
+        assert (BASE.cA, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.tFocus, RDF.type, OWL.ObjectProperty) in result.ontology
+    else:
+        assert not list(result.ontology.subjects(RDF.type, OWL.Class))
+    assert not any(BASE.pNested in triple or BASE.binaryProjectRoot in triple for triple in result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scope", ["root", "nested"])
+@pytest.mark.parametrize("form", ["object", "string", "number", "boolean"])
+def test_malformed_package_contents_follows_root_and_nested_policy(run, tmp_path, input_policy, scope, form):
+    """Rules: DK-GEN-06, DK-DIAG-04, DK-DIAG-05; §3.2, §3.4. RD-02 reduced-scope Alternative A."""
+    result = run(path=write_input(tmp_path, package_contents_document(scope, form)),
+                 iri_strategy="id", input_policy=input_policy)
+    package_id, package_path = ("binaryProjectRoot", "$.model") if scope == "root" else ("pNested", "$.model.contents[1]")
+    assert any(malformed_package_contents_diagnostic(event, package_id, package_path)
+               for event in result.diagnostics), result.diagnostics
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    if scope == "root":
+        assert any(event.code == "UNPROCESSABLE_DOCUMENT" and event.severity == "ERROR"
+                   for event in result.diagnostics)
+    if scope == "root" or input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        assert result.provenance is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        control = run(path=write_input(tmp_path, package_contents_document("nested", "empty"), "control.json"),
+                      iri_strategy="id", input_policy=input_policy)
+        assert control.outcome == "completed"
+        assert_graph_equal(result.ontology, control.ontology)
+        assert not any(BASE.cLost in triple for triple in result.ontology)
+
+
+def test_malformed_nested_package_contents_preserves_independent_output_and_reports_unresolved_reference(run, tmp_path):
+    """Rules: DK-GEN-06, DK-DIAG-03, DK-DIAG-05; §3.4. RD-02 reduced-scope Alternative A."""
+    result = run(path=write_input(tmp_path, package_contents_document("nested", "object", dependent=True)),
+                 iri_strategy="id", input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    assert any(malformed_package_contents_diagnostic(event, "pNested", "$.model.contents[1]")
+               for event in result.diagnostics)
+    assert any(event.severity == "ERROR" and event.kind == "failed_relation"
+               and "rDependent" in event.identified_sources for event in result.diagnostics)
+    control = run(path=write_input(tmp_path, package_contents_document("nested", "empty"), "control.json"),
+                  iri_strategy="id", input_policy="best-effort")
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
+    assert not any(term in triple for triple in result.ontology
+                   for term in (BASE.cLost, BASE.sDependent, BASE.tDependent))
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
