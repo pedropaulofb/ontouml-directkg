@@ -4587,10 +4587,8 @@ def _mutate_relation_properties(relation, source_end, target_end, container_case
             'relation_properties_malformed_entry', 'relation_properties_non_binary',
         }
     if container_case == 'non_property_class_entry':
-        relation['properties'] = [{'id': 'cA', 'type': 'Class'}, copy.deepcopy(target_end)]
-        return {'unresolved_endpoint', 'wrong_container_type', 'unknown_field:stereotype',
-                'unknown_field:isAbstract', 'unknown_field:isExtensional', 'unknown_field:isPowertype',
-                'unknown_field:order', 'unknown_field:literals', 'unknown_field:restrictedTo'}, {
+        relation['properties'] = [{'id': 'cFakeProp', 'type': 'Class'}, copy.deepcopy(target_end)]
+        return {'unresolved_endpoint', 'wrong_container_type'}, {
             'relation_properties_malformed_entry',
         }
     if container_case == 'empty':
@@ -4634,17 +4632,16 @@ def test_non_instantiation_relation_rejects_missing_malformed_or_non_binary_prop
     focus = source_element(document, 'rFocus')
     s_focus = copy.deepcopy(source_element(document, 'sFocus'))
     t_focus = copy.deepcopy(source_element(document, 'tFocus'))
+    fake_prop = copy.deepcopy(source_element(document, 'cA'))
+    fake_prop['id'] = 'cFakeProp'
     if relation_kind == 'derivation':
         focus.update(stereotype='derivation', name=None)
         s_focus['propertyType'] = {'id': 'rPeer', 'type': 'Relation'}
         t_focus['propertyType'] = {'id': 'cA', 'type': 'Class'}
     expected_issues, expected_facts = _mutate_relation_properties(focus, s_focus, t_focus, container_case)
     if container_case == 'non_property_class_entry':
-        focus['properties'][0] = copy.deepcopy(source_element(document, 'cA'))
-        focus['properties'][0]['id'] = 'cFakeProp'
-        assert expected_issues <= fixture_issues(document)
-    else:
-        assert fixture_issues(document) == expected_issues
+        focus['properties'][0] = fake_prop
+    assert fixture_issues(document) == expected_issues
 
     result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
                  input_policy=input_policy, inverse_properties='all')

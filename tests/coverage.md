@@ -1,6 +1,19 @@
 # Requirement-to-test inventory
 
-**Current assignment authority:** RD-02 Attributes Owned by a `Class` Without a
+**Current assignment authority:** RD-02 Non-Binary and Absent, Null, or Malformed
+`Relation.properties` Containers (`Alternative A`), registered on `main` at
+`08abccac8a6923c587cf351a5137f1e140e44a17`. The owner forwarded the Architect's
+unified handoff and independent Architect Reviewer **OK** for that decision and
+scope. The governing specification blob is
+`documentation/specification/transformation-specification.md`, blob
+`5ffae1ca3f55e7856dd05f5ad3295b76535b7487`; the test-suite structure blob is
+`documentation/specification/test-suite-structure.md`, blob
+`ae7a5f3b392a90db8baacf938460314c87de9698`. Exact nodes, test-only diagnostic
+reader bindings, and validation results appear in the RD-02 `Relation.properties`
+containers section below. This TEST CHANGE is pending independent Test Reviewer
+review.
+
+**Historical assignment authority:** RD-02 Attributes Owned by a `Class` Without a
 Generated Local `owl:Class` and Dependent `DK-PROP-03` Handling (`Alternative A`),
 registered on `main` at `ddca486133edb1b27a26c8995d612c4579afd838`. The owner
 forwarded the Architect's unified handoff and independent Architect Reviewer
@@ -10,8 +23,7 @@ blob is `documentation/specification/transformation-specification.md`, blob
 `documentation/specification/test-suite-structure.md`, blob
 `ae7a5f3b392a90db8baacf938460314c87de9698`. Exact nodes, test-only diagnostic
 reader bindings, and validation results appear in the RD-02 attributes without
-local `owl:Class` section below. This TEST CHANGE is pending independent Test
-Reviewer review.
+local `owl:Class` section below.
 
 **Historical assignment authority:** RD-02 Datatype-Valued Ordinary Binary Relations
 (`Alternative B + Q1–Q7 + Conflicts A–I`) and Global `DK-PROP-03` Mixed-Kind
@@ -9942,10 +9954,11 @@ values, and `tests/support/invocation.py` adds the affirmative semantic reader
 (without fixing provisional diagnostic codes) plus `DISCARDED_INSTANTIATION_INFORMATION`
 category fact reading from actual `Diagnostic.message`/`effect`.
 
-**Validation at `08abccac8a6923c587cf351a5137f1e140e44a17`:**
+**Validation at `ef4b4498cb8b1d5f3f350b28e40758e863311aa2` (rebased onto `main`, post-F1 fix):**
 - Collection (`--collect-only -q tests`): **5,934** nodes collected (`+728`, `0` removed).
-- Focused RD-02 `Relation.properties` selection (`728` cases across `test_relations.py`, `test_higher_order.py`, `test_properties.py`, `test_input_diagnostics.py`, `test_cli.py`): **45 passed, 683 failed** (`45` passing: `1` harness reader check, `21` valid `«instantiation»` container cases, `18` precedence cases, `4` valid `«instantiation»` CLI/Python parity cases, and `1` control-surface check; all `683` failures fail solely at pre-Stage-3 `NotImplementedError` guards in `src/ontouml_directkg/source.py:152/159/183` and `src/ontouml_directkg/relations.py:42/85`).
-- Existing cases in affected modules (excluding the `728` new nodes; zero regressions): `test_relations.py` (`1,661 passed, 491 failed`), `test_higher_order.py` (`217 passed, 30 failed`), `test_properties.py` (`439 passed, 49 failed`), `test_input_diagnostics.py` (`308 passed, 6 failed`), `test_cli.py` (`365 passed, 98 failed`).
+- Focused RD-02 `Relation.properties` selection (`728` cases across `test_relations.py`, `test_higher_order.py`, `test_properties.py`, `test_input_diagnostics.py`, `test_cli.py`): **45 passed, 683 failed** (`45` passing: `1` harness reader check, `21` valid `«instantiation»` container cases, `18` precedence cases, `4` valid `«instantiation»` CLI/Python parity cases, and `1` control-surface check; all `683` failures—including all `12` `non_property_class_entry` cases—reach `run()` / `convert()` / CLI execution and fail solely at pre-Stage-3 `NotImplementedError` guards in `src/ontouml_directkg/source.py:152/159/183` and `src/ontouml_directkg/relations.py:42/85`, with zero test-setup crashes).
+- Full `tests/transformation/test_relations.py` (`2,523` nodes): **1,662 passed, 861 failed** (`1,661` existing + `1` new harness reader passing; `491` pre-existing + `370` new pre-Stage-3 `NotImplementedError` failures; zero regressions).
+- Existing cases in remaining affected modules (excluding new nodes; zero regressions): `test_higher_order.py` (`217 passed, 30 failed`), `test_properties.py` (`439 passed, 49 failed`), `test_input_diagnostics.py` (`308 passed, 6 failed`), `test_cli.py` (`365 passed, 98 failed`).
 - Independent fixture/RDF-helper/vocabulary checks: **91 passed, 5,843 deselected**.
 
 | Test Node | Rules | Fixtures / Pairings | Scope |
