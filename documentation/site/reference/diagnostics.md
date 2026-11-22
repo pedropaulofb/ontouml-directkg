@@ -255,6 +255,19 @@ Established diagnostic precedence remains unchanged: fatal duplicate declaration
 
 **Implementation status.** At [specification registration revision `08abccac8a6923c587cf351a5137f1e140e44a17`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/src/ontouml_directkg/relations.py#L83-L85), `index_project` in [`src/ontouml_directkg/source.py`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/src/ontouml_directkg/source.py#L150-L189) still raises `NotImplementedError` for non-list `properties` containers, non-object entries, or non-`Property` entries; `collect_relations` in `src/ontouml_directkg/relations.py` (lines 83–85) still raises `NotImplementedError("Non-binary/malformed relation-container handling is outside this increment")` when `properties` is absent, `null`, non-list, or has length other than `2`; and [`_discard_instantiation`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/src/ontouml_directkg/relations.py#L40-L42) still raises `NotImplementedError` for non-list or non-dict `properties` entries without validating `type == "Property"`. Those `NotImplementedError` exceptions are caught in [`conversion.py`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/src/ontouml_directkg/conversion.py#L250-L254) as `INTERNAL_TRANSFORMATION_FAILURE`, aborting under every input policy, including `best-effort`. The rules above describe accepted intended behavior.
 
+#### Malformed package contents
+
+An absent, explicitly `null`, or empty array-valued `Package.contents` is accepted as an empty collection under every input policy, without an additional diagnostic solely for that condition (DK-GEN-06). For a non-null, non-array value, apply the existing structural-error policies (DK-DIAG-05):
+
+| Location | `strict` and `tolerant` | `best-effort` |
+| --- | --- | --- |
+| Root model package | ERROR and abort | ERROR and abort, because reliable model discovery is impossible |
+| Nested package | ERROR and abort | ERROR, omit the affected contents, and continue with independently transformable elements |
+
+An abort yields `aborted` with no ontology output (CLI exit `3` when diagnostics delivery does not fail). Successful continuation after the nested-container error yields `completed-with-errors` with eligible ontology output if no other condition requires abortion (CLI exit `1` when requested output delivery succeeds). References to declarations that cannot be discovered follow the existing unresolved-reference rules. Diagnostic access and export follow the [existing outcome and delivery contract](#outcomes-and-output-eligibility), including exit `4` when requested diagnostics delivery fails. This treatment introduces no new stable diagnostic identifier. Malformed individual entries inside otherwise valid arrays remain a separate unresolved question.
+
+**Implementation status at the reviewed registration.** Static inspection of [source indexing](https://github.com/pedropaulofb/ontouml-directkg/blob/ef4b4498cb8b1d5f3f350b28e40758e863311aa2/src/ontouml_directkg/source.py#L169-L188) shows that absent, null and empty contents are accepted, but other non-array values still raise `NotImplementedError` and reach the [internal-failure handler](https://github.com/pedropaulofb/ontouml-directkg/blob/ef4b4498cb8b1d5f3f350b28e40758e863311aa2/src/ontouml_directkg/conversion.py#L250-L254) instead of the applicable structural-error path. The table describes the specified behavior.
+
 #### Missing or malformed generalization-set membership
 
 For a recognized `GeneralizationSet`, an absent, explicitly `null`, or other non-array JSON value for `generalizations` requires a structural **ERROR** under DK-DIAG-12. The diagnostic identifies the set and which field condition occurred. Its identifier remains [provisional](#stable-first-release-diagnostic-core). A fatal duplicate declaration ID still takes precedence under the [input-policy rules](#input-policy).
@@ -371,7 +384,7 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §§3.3–3.4; §15; DK-ATT-01; DK-CLS-01; DK-DAT-02, 04; DK-GEN-03–04, 09–10, 12, including I1's recovery within list-valued metadata; DK-REL-01–07, 09–16, 18, 20; DK-PROP-03; DK-LBL-01–02; DK-INV-01–02, 05–08, 10, 12; DK-INS-01–02; DK-HO-04; DK-IRI-05, 07; baseline consolidated: **2026-11-20**; repository commit: `08abccac8a6923c587cf351a5137f1e140e44a17`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §§3.3–3.4; §15; DK-ATT-01; DK-CLS-01; DK-DAT-02, 04; DK-GEN-03–04, 06, 09–10, 12, including I1's recovery within list-valued metadata; DK-REL-01–07, 09–16, 18, 20; DK-PROP-03; DK-LBL-01–02; DK-INV-01–02, 05–08, 10, 12; DK-INS-01–02; DK-HO-04; DK-IRI-05, 07; baseline consolidated: **2026-11-22**; repository commit: `ef4b4498cb8b1d5f3f350b28e40758e863311aa2`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ef4b4498cb8b1d5f3f350b28e40758e863311aa2/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — Non-binary (`len != 2`) and absent/null/malformed `Relation.properties` association-end containers (Alternative A)** (project-owner formalization included in the cited consolidation).
 

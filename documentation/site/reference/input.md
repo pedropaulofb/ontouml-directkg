@@ -70,6 +70,12 @@ Other structural failures follow their applicable recovery rules. `best-effort` 
 
 An explicit attribute `propertyType: null` is supported as [unspecified typing](../mapping/attributes-and-datatypes.md#untyped-and-void); it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. See [Multiplicity parsing and recovery](diagnostics.md#multiplicity-parsing-and-recovery) for the detailed rules and [Policies and precedence](diagnostics.md#policies-and-precedence) for continuation and abortion.
 
+### Package contents
+
+The root model package and nested packages accept an absent `contents` field, explicit `null`, or an empty JSON array (`[]`) as an empty collection. These representations produce no additional diagnostic solely for being empty (DK-GEN-06). The VP-plugin 0.5.3 [package serializer](https://github.com/OntoUML/ontouml-vp-plugin/blob/9fc02b8162db9910f21b8713549cafce2627dad0/src/main/java/it/unibz/inf/ontouml/vp/model/ontouml/serialization/PackageSerializer.java) can serialize an empty collection as `null`.
+
+A non-null, non-array `contents` value is a structural error. At the root model it prevents reliable discovery of declarations. In a nested package, `best-effort` permits omission of the affected contents. See [Malformed package contents](diagnostics.md#malformed-package-contents) for policy outcomes and remaining reference-resolution requirements.
+
 ### Generalization-set membership
 
 Within each set's `generalizations` array, otherwise valid references resolving to the same source `Generalization` declaration count as **one membership** (DK-GEN-12). Identity uses the exact decoded source-ID string, without trimming, normalization, or case folding. Counting is separate for each set and applies under `strict`, `tolerant`, and `best-effort`. The existing class, relation, and categorizer mappings use that effective membership.
@@ -106,7 +112,7 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07, 12; DK-CLS-08–09; DK-HO-04; DK-REL-15–16, 20; DK-INS-01–02; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 12, 14, 19; baseline consolidated: **2026-11-20**; repository commit: `08abccac8a6923c587cf351a5137f1e140e44a17`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/documentation/specification/transformation-specification.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07, 12; DK-CLS-08–09; DK-HO-04; DK-REL-15–16, 20; DK-INS-01–02; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 12, 14, 19; baseline consolidated: **2026-11-22**; repository commit: `ef4b4498cb8b1d5f3f350b28e40758e863311aa2`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ef4b4498cb8b1d5f3f350b28e40758e863311aa2/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — Non-binary (`len != 2`) and absent/null/malformed `Relation.properties` association-end containers (Alternative A)** (project-owner formalization included in the cited consolidation).
 
