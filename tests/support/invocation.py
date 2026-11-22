@@ -1109,6 +1109,7 @@ _DIAGNOSTIC_KINDS = {
     "EXTENSIONALITY_ANNOTATION": "extensionality",
     "VOID_DATATYPE": "void_datatype", "ORDERING_ANNOTATION": "ordering",
     "RELATION_NAMING": "relation_naming", "MISSING_RELATION_NAME": "missing_name",
+    "UNAVAILABLE_GROUNDING_RELATOR": "unavailable_grounding_relator",
     "METADATA_FIELD": "metadata_field", "METADATA_INPUT": "metadata_input",
     "UNMAPPED_RELATION_STEREOTYPE": "unmapped_relation_stereotype",
     "MISSING_CARDINALITY": "missing_cardinality",

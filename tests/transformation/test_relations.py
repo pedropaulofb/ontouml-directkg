@@ -4768,32 +4768,32 @@ def test_best_effort_omitted_non_binary_or_malformed_relation_suppresses_all_dep
         return
 
     document = source_json('shared/material_pattern')
-    c_extra = copy.deepcopy(source_element(document, 'cA'))
-    c_extra.update(id='cExtra', name='ExtraClass')
-    document['model']['contents'].append(c_extra)
     if scenario == 'comparative_derivation_n_ary':
         source_element(document, 'cGround')['stereotype'] = 'quality'
         source_element(document, 'rMaterial').update(stereotype='comparative', name='compRel')
         source_element(document, 'tMaterial')['name'] = None
         deriv = source_element(document, 'rDerivation')
         deriv['properties'].append(_third_relation_end())
+        expected_issues = {'nonbinary_relation'}
         expected_id, expected_fact = 'rDerivation', 'relation_properties_non_binary'
     else:
         _grounding(document, 'relator')
         if scenario == 'material_n_ary_with_chains':
             mat = source_element(document, 'rMaterial')
             mat['properties'].append(_third_relation_end())
+            expected_issues = {'nonbinary_relation'}
             expected_id, expected_fact = 'rMaterial', 'relation_properties_non_binary'
         else:
             deriv = source_element(document, 'rDerivation')
             s_der, t_der = deriv['properties']
             sub = scenario.removeprefix('derivation_').removesuffix('_breaks_grounding')
             sub_case = {'absent': 'absent', 'null': 'null', 'unary': 'unary', 'n_ary': 'n_ary'}[sub]
-            _, facts = _mutate_relation_properties(deriv, s_der, t_der, sub_case)
+            expected_issues, facts = _mutate_relation_properties(deriv, s_der, t_der, sub_case)
             expected_id, expected_fact = 'rDerivation', next(iter(facts))
             # Clear rMaterial name so if rDerivation were recognized, relator naming would apply.
             source_element(document, 'rMaterial')['name'] = None
             source_element(document, 'tMaterial')['name'] = None
+    assert fixture_issues(document) == expected_issues
 
     result = run(path=write_input(tmp_path, document), iri_strategy='name',
                  input_policy='best-effort', material_property_chains='omit-conflicting-constraints')

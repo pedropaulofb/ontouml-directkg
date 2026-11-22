@@ -9951,14 +9951,22 @@ The **728** new nodes (`727` behavioral + `1` harness reader check) across
 `tests/support/data.py` guards `fixture_issues` against non-list `properties`
 values, and `tests/support/invocation.py` adds the affirmative semantic reader
 `_relation_properties_container_facts` / `relation_properties_container_diagnostic`
-(without fixing provisional diagnostic codes) plus `DISCARDED_INSTANTIATION_INFORMATION`
-category fact reading from actual `Diagnostic.message`/`effect`.
+(without fixing provisional diagnostic codes), `DISCARDED_INSTANTIATION_INFORMATION`
+category fact reading from actual `Diagnostic.message`/`effect`, and
+`UNAVAILABLE_GROUNDING_RELATOR` → `unavailable_grounding_relator` mapping in
+`_DIAGNOSTIC_KINDS`.
 
-**Validation at `ef4b4498cb8b1d5f3f350b28e40758e863311aa2` (rebased onto `main`, post-F1 fix):**
+**Pre-Stage-3 validation at `ef4b4498cb8b1d5f3f350b28e40758e863311aa2` (rebased onto `main`, post-F1 fix):**
 - Collection (`--collect-only -q tests`): **5,934** nodes collected (`+728`, `0` removed).
 - Focused RD-02 `Relation.properties` selection (`728` cases across `test_relations.py`, `test_higher_order.py`, `test_properties.py`, `test_input_diagnostics.py`, `test_cli.py`): **45 passed, 683 failed** (`45` passing: `1` harness reader check, `21` valid `«instantiation»` container cases, `18` precedence cases, `4` valid `«instantiation»` CLI/Python parity cases, and `1` control-surface check; all `683` failures—including all `12` `non_property_class_entry` cases—reach `run()` / `convert()` / CLI execution and fail solely at pre-Stage-3 `NotImplementedError` guards in `src/ontouml_directkg/source.py:152/159/183` and `src/ontouml_directkg/relations.py:42/85`, with zero test-setup crashes).
 - Full `tests/transformation/test_relations.py` (`2,523` nodes): **1,662 passed, 861 failed** (`1,661` existing + `1` new harness reader passing; `491` pre-existing + `370` new pre-Stage-3 `NotImplementedError` failures; zero regressions).
 - Existing cases in remaining affected modules (excluding new nodes; zero regressions): `test_higher_order.py` (`217 passed, 30 failed`), `test_properties.py` (`439 passed, 49 failed`), `test_input_diagnostics.py` (`308 passed, 6 failed`), `test_cli.py` (`365 passed, 98 failed`).
+- Independent fixture/RDF-helper/vocabulary checks: **91 passed, 5,843 deselected**.
+
+**Post-Stage-3 validation against `504a69e1fd1d394cffb45f1a25c51e49f10ca642` (after removing duplicate `cExtra` in `test_relations.py` and binding `UNAVAILABLE_GROUNDING_RELATOR`):**
+- Collection (`--collect-only -q tests`): **5,934** nodes collected (`0` removed).
+- Focused RD-02 `Relation.properties` selection (`728` nodes across `test_relations.py`, `test_higher_order.py`, `test_properties.py`, `test_input_diagnostics.py`, `test_cli.py`): **728 passed, 0 failed** (`3,664` deselected).
+- Full `tests/transformation/test_relations.py` (`2,523` nodes): **2,037 passed, 486 failed** (zero regressions; all `371` Run #6 nodes and all `5` `test_unavailable_material_grounding_warns_and_uses_endpoint_fallback` cases pass; remaining `486` failures are pre-existing non-Run-#6 items).
 - Independent fixture/RDF-helper/vocabulary checks: **91 passed, 5,843 deselected**.
 
 | Test Node | Rules | Fixtures / Pairings | Scope |
