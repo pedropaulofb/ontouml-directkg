@@ -1,7 +1,7 @@
 # OntoUML DirectKG Current Specification
 
 **Status:** Consolidated normative baseline
-**Consolidated:** 2026-11-20
+**Consolidated:** 2026-11-22
 **Repository:** https://github.com/pedropaulofb/ontouml-directkg
 
 ## 1. Document purpose and authority
@@ -371,6 +371,8 @@ Explicit `«derivation»` relations MUST continue to follow their independently 
 ### DK-GEN-06 — Omission of package organization and diagrammatic presentation (RD-31 / RD-32)
 
 Packages are input-side organizational containers only. DirectKG MAY traverse them as needed to discover and process supported model elements. Packages themselves MUST generate no RDF/OWL resources or annotations. DirectKG MUST omit package names, descriptions, hierarchy, membership information, paths, and similar organizational information.
+
+An absent `Package.contents` field MUST be accepted as an empty contents collection without an additional diagnostic.
 
 Package organization MUST NOT affect generated entity IRIs, namespaces, logical mappings, or other transformation semantics.
 
@@ -3205,6 +3207,7 @@ These rules establish policy-dependent continuation, subject to the duplicate-ID
 - An attribute whose `propertyType` resolves to a `Class` with a generated local `owl:Class` outside `«datatype»` and `«enumeration»` is non-erroneous under every input policy and transforms as an ordinary `owl:ObjectProperty` under DK-ATT-01.
 - An attribute owned by a registered primitive `«datatype»` or `void` triggers a structural ERROR under DK-ATT-01; `best-effort` omits it and its dependent output cleanly while retaining independently transformable elements.
 - Malformed JSON that cannot be parsed prevents transformation in every policy.
+- A non-null, non-array `Package.contents` at the root model prevents reliable discovery of the model declarations and is an example of document-level unprocessability under the general policy above. The same container failure in a nested package permits local recovery under `best-effort`: omit the affected contents, preserve independently transformable elements, and apply the existing rules to unresolved references. This example concerns the container value itself. Malformed individual entries in an otherwise valid array are a separate question.
 
 ### DK-DIAG-06 — Stereotype acceptance policy (RD-03)
 
