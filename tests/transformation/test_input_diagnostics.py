@@ -14,6 +14,7 @@ from tests.support.invocation import (attribute_owner_without_local_class_diagno
                                       class_properties_container_diagnostic,
                                       diagnostic_signatures,
                                       malformed_package_contents_diagnostic,
+                                      malformed_stereotype_diagnostic,
                                       non_enum_literals_diagnostic,
                                       package_contents_entry_diagnostic,
                                       project_languages_diagnostic,
@@ -1911,4 +1912,367 @@ def test_textual_and_project_languages_readers_require_affirmative_conditions():
     assert not project_languages_diagnostic("Invalid language tag 'bad tag' in Class 'cPerson' name languageString.")
 
 
+_STABLE_DIAGNOSTIC_CODES = frozenset({
+    "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+    "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+})
+
+_MALFORMED_STEREOTYPE_VALUES = [
+    pytest.param(True, id="bool_true"),
+    pytest.param(False, id="bool_false"),
+    pytest.param(42, id="int"),
+    pytest.param(1.5, id="float"),
+    pytest.param(["kind"], id="list"),
+    pytest.param({"value": "kind"}, id="dict"),
+    pytest.param("", id="empty_string"),
+    pytest.param(" \t\n\u00a0", id="whitespace_only"),
+]
+
+
+def _prepare_malformed_stereotype_target(document, target, value):
+    if target == "class":
+        malformed = copy.deepcopy(source_element(document, "cOrg"))
+        malformed.update(id="cMalformed", name="MalformedClass", stereotype=copy.deepcopy(value))
+        document["model"]["contents"].append(malformed)
+        return "cMalformed"
+    if target == "relation":
+        source_element(document, "rWorks")["stereotype"] = copy.deepcopy(value)
+        return "rWorks"
+    if target == "attribute":
+        source_element(document, "aAge")["stereotype"] = copy.deepcopy(value)
+        return "aAge"
+    if target == "source_end":
+        source_element(document, "eSource")["stereotype"] = copy.deepcopy(value)
+        return "eSource"
+    if target == "target_end":
+        source_element(document, "eTarget")["stereotype"] = copy.deepcopy(value)
+        return "eTarget"
+    if target == "misplaced_property":
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced.update(id="pMisplaced", name="misplacedAttr", stereotype=copy.deepcopy(value))
+        document["model"]["contents"].append(misplaced)
+        return "pMisplaced"
+    raise AssertionError(f"Unlisted malformed stereotype target: {target}")
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("stereotype_policy", ["require-known", "allow-missing", "allow-custom"])
+@pytest.mark.parametrize("target", ["class", "relation", "attribute", "source_end", "target_end", "misplaced_property"])
+@pytest.mark.parametrize("value", _MALFORMED_STEREOTYPE_VALUES)
+def test_malformed_stereotype_values_emit_structural_error_independently_of_stereotype_policy(
+        run, source_json, source_path, tmp_path, input_policy, stereotype_policy, target, value):
+    """Rules: DK-DIAG-05, DK-DIAG-06, DK-PROP-06, DK-GEN-06, DK-DIAG-04; §§3.2, 3.4, 15. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json("shared/core_model")
+    target_id = _prepare_malformed_stereotype_target(document, target, value)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id",
+                 input_policy=input_policy, stereotype_policy=stereotype_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(
+        d.code in {"MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE", "UNKNOWN_INFORMATION"}
+        or d.kind in {"missing_stereotype", "unrecognized_stereotype", "unknown_information"}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    matching = [
+        d for d in result.diagnostics
+        if d.severity == "ERROR"
+        and "malformed_stereotype" in d.facts
+        and target_id in d.identified_sources
+        and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+    ]
+    assert matching, result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted"
+        assert result.ontology is None
+        assert result.provenance is None
+        if target == "misplaced_property":
+            assert not any("package_contents_misplaced_declaration" in d.facts for d in result.diagnostics)
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert (BASE.cPerson, RDF.type, OWL.Class) in graph
+    assert (BASE.cOrg, RDF.type, OWL.Class) in graph
+    assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in graph
+    if target == "class":
+        assert_contains(graph, load_graph(source_path("shared/core_model", "expected.ttl")))
+        assert not any(BASE.cMalformed in triple for triple in graph)
+        assert not list(graph.subjects(DCTERMS.identifier, Literal("cMalformed")))
+    elif target == "relation":
+        for omitted in (BASE.rWorks, BASE.eSource, BASE.eTarget):
+            assert not any(omitted in triple for triple in graph)
+    elif target == "misplaced_property":
+        assert_contains(graph, load_graph(source_path("shared/core_model", "expected.ttl")))
+        assert any(d.severity == "ERROR" and "package_contents_misplaced_declaration" in d.facts
+                   for d in result.diagnostics)
+        assert not any(BASE.pMisplaced in triple for triple in graph)
+    else:
+        assert_contains(graph, load_graph(source_path("shared/core_model", "expected.ttl")))
+        assert not any(
+            d.severity == "ERROR" and target_id in d.identified_sources and "malformed_stereotype" not in d.facts
+            for d in result.diagnostics
+        )
+
+
+@pytest.mark.parametrize("target", ["class", "relation", "attribute", "source_end", "target_end"])
+@pytest.mark.parametrize("value", [pytest.param(123, id="int"), pytest.param("   ", id="whitespace_only")])
+def test_malformed_stereotype_default_input_policy_aborts(run, source_json, tmp_path, target, value):
+    """Rules: DK-DIAG-05, DK-DIAG-06; §15 default input-policy. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json("shared/core_model")
+    target_id = _prepare_malformed_stereotype_target(document, target, value)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id")
+    assert result.outcome == "aborted"
+    assert result.ontology is None
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_stereotype" in d.facts
+        and target_id in d.identified_sources
+        and d.code not in {"MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE", "INTERNAL_TRANSFORMATION_FAILURE"}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_class_id_with_malformed_stereotype",
+    "duplicate_relation_id_with_malformed_stereotype",
+    "duplicate_attribute_id_with_malformed_stereotype",
+    "duplicate_end_id_with_malformed_stereotype",
+    "duplicate_misplaced_property_id_with_malformed_stereotype",
+    "omitted_class_suppresses_id_container_and_textual_errors",
+    "omitted_relation_suppresses_id_container_and_textual_errors",
+    "omitted_relation_with_malformed_end_suppresses_end_id_and_textual_errors",
+    "surviving_attribute_retains_downstream_invalid_id",
+    "surviving_attribute_retains_downstream_textual_error",
+    "surviving_end_retains_downstream_invalid_end_id",
+    "surviving_end_retains_downstream_non_binary_relation_error",
+    "surviving_misplaced_property_retains_downstream_misplaced_error",
+    "surviving_misplaced_property_retains_downstream_invalid_id_and_misplaced_error",
+])
+def test_malformed_stereotype_respects_duplicate_id_and_downstream_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-DIAG-05, DK-DIAG-06, DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-03, DK-LBL-02; §§3.2, 3.4. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json("shared/core_model")
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = False
+
+    if condition == "duplicate_class_id_with_malformed_stereotype":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup["stereotype"] = 123
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "duplicate_relation_id_with_malformed_stereotype":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup["id"] = "rWorks"
+        source_element(document, "rWorks")["stereotype"] = ""
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "duplicate_attribute_id_with_malformed_stereotype":
+        dup = copy.deepcopy(source_element(document, "aAge"))
+        dup["stereotype"] = False
+        source_element(document, "cOrg")["properties"] = [dup]
+        always_abort = True
+    elif condition == "duplicate_end_id_with_malformed_stereotype":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup["id"] = "eSource"
+        source_element(document, "eSource")["stereotype"] = "  "
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "duplicate_misplaced_property_id_with_malformed_stereotype":
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced.update(id="cOrg", stereotype=["prop"])
+        document["model"]["contents"].append(misplaced)
+        always_abort = True
+    elif condition == "omitted_class_suppresses_id_container_and_textual_errors":
+        bad_cls = copy.deepcopy(source_element(document, "cOrg"))
+        bad_cls.update(id="", name=123, description={"bad tag": "BadDesc"},
+                       stereotype=True, properties="bad", literals="bad")
+        document["model"]["contents"].append(bad_cls)
+    elif condition == "omitted_relation_suppresses_id_container_and_textual_errors":
+        source_element(document, "rWorks").update(id="", name=123, description=["bad"],
+                                                  stereotype="   ", properties=None)
+    elif condition == "omitted_relation_with_malformed_end_suppresses_end_id_and_textual_errors":
+        rel = source_element(document, "rWorks")
+        rel.update(stereotype=42, name=123)
+        rel["properties"][0].update(id="", name=123)
+        rel["properties"][1].update(description={"bad tag": "BadEnd"})
+    elif condition == "surviving_attribute_retains_downstream_invalid_id":
+        source_element(document, "aAge").update(id="", stereotype=False)
+    elif condition == "surviving_attribute_retains_downstream_textual_error":
+        source_element(document, "aAge").update(name=123, stereotype=" \t ")
+    elif condition == "surviving_end_retains_downstream_invalid_end_id":
+        source_element(document, "eSource").update(id="", stereotype="")
+    elif condition == "surviving_end_retains_downstream_non_binary_relation_error":
+        rel = source_element(document, "rWorks")
+        third = copy.deepcopy(source_element(document, "eTarget"))
+        third.update(id="eThird", stereotype=True)
+        rel["properties"].append(third)
+    elif condition == "surviving_misplaced_property_retains_downstream_misplaced_error":
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced.update(id="pMisplaced", stereotype="")
+        document["model"]["contents"].append(misplaced)
+    else:
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced.update(id="", stereotype=0)
+        document["model"]["contents"].append(misplaced)
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+
+    if always_abort:
+        assert result.outcome == "aborted" and result.ontology is None
+        assert any(d.code == "DUPLICATE_SOURCE_ID" and d.severity == "ERROR" for d in result.diagnostics)
+        assert not any("malformed_stereotype" in d.facts for d in result.diagnostics)
+        return
+
+    assert any(d.severity == "ERROR" and "malformed_stereotype" in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        # Malformed stereotype precedes apply_identifier_policy, validate_containers, and validate_textual_carriers.
+        assert not any(
+            d.kind in {"invalid_id", "missing_id", "malformed_class_properties", "invalid_non_enumeration_literals",
+                       "invalid_package_contents_entry", "malformed_textual_carrier", "failed_relation"}
+            for d in result.diagnostics
+        ), result.diagnostics
+        return
+
+    assert result.outcome == "completed-with-errors"
+    assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+    assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+
+    if condition in {
+        "omitted_class_suppresses_id_container_and_textual_errors",
+        "omitted_relation_suppresses_id_container_and_textual_errors",
+        "omitted_relation_with_malformed_end_suppresses_end_id_and_textual_errors",
+    }:
+        assert not any(
+            d.kind in {"invalid_id", "missing_id", "malformed_class_properties", "invalid_non_enumeration_literals",
+                       "failed_relation", "malformed_textual_carrier"}
+            or "malformed_textual_carrier" in d.facts
+            or "invalid_language_string_entry" in d.facts
+            or "relation_properties_null" in d.facts
+            for d in result.diagnostics
+        ), result.diagnostics
+    elif condition == "surviving_attribute_retains_downstream_invalid_id":
+        assert any(d.severity == "ERROR" and d.kind == "invalid_id" for d in result.diagnostics)
+        assert not any(BASE.aAge in triple for triple in result.ontology)
+    elif condition == "surviving_attribute_retains_downstream_textual_error":
+        assert any(d.severity == "ERROR" and "malformed_textual_carrier" in d.facts for d in result.diagnostics)
+        assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in result.ontology
+    elif condition == "surviving_end_retains_downstream_invalid_end_id":
+        assert any(d.severity == "ERROR" and d.kind == "failed_relation" for d in result.diagnostics)
+        assert not any(BASE.eTarget in triple for triple in result.ontology)
+    elif condition == "surviving_end_retains_downstream_non_binary_relation_error":
+        assert any(d.severity == "ERROR" and "relation_properties_non_binary" in d.facts for d in result.diagnostics)
+        assert not any(BASE.eTarget in triple for triple in result.ontology)
+    elif condition == "surviving_misplaced_property_retains_downstream_misplaced_error":
+        assert any(d.severity == "ERROR" and "package_contents_misplaced_declaration" in d.facts for d in result.diagnostics)
+        assert not any(BASE.pMisplaced in triple for triple in result.ontology)
+    else:
+        assert any(d.severity == "ERROR" and d.kind == "invalid_id" for d in result.diagnostics)
+        assert any(d.severity == "ERROR" and "package_contents_misplaced_declaration" in d.facts for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,target_kind,target_id", [
+    ("class_bool", "Class", "cMalformed"),
+    ("relation_empty_string", "Relation", "rWorks"),
+    ("attribute_whitespace", "Property", "aAge"),
+    ("source_end_int", "Property", "eSource"),
+    ("target_end_list", "Property", "eTarget"),
+    ("misplaced_property_dict", "Property", "pMisplaced"),
+])
+def test_malformed_stereotype_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy, case, target_kind, target_id):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-06; §15 Python JSON export. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json("shared/core_model")
+    value_map = {
+        "class_bool": ("class", True),
+        "relation_empty_string": ("relation", ""),
+        "attribute_whitespace": ("attribute", "   "),
+        "source_end_int": ("source_end", 7),
+        "target_end_list": ("target_end", ["end"]),
+        "misplaced_property_dict": ("misplaced_property", {"stereotype": "begin"}),
+    }
+    target_role, bad_value = value_map[case]
+    _prepare_malformed_stereotype_target(document, target_role, bad_value)
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "malformed_stereotype.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] not in _STABLE_DIAGNOSTIC_CODES | {"MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE"}
+        and event["message"]
+        and event["effect"]
+        and "malformed_stereotype" in malformed_stereotype_diagnostic(
+            event["message"], [type("Loc", (), s)() for s in event["sources"]]
+        )
+    ]
+    assert matching, payload["diagnostics"]
+    reported_sources = {
+        (source_loc["element_type"], source_loc["identifier"])
+        for event in matching for source_loc in event["sources"]
+    }
+    assert (target_kind, target_id) in reported_sources
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+        assert (BASE.cPerson, RDF.type, OWL.Class) in observed_graph
+        assert (BASE.cOrg, RDF.type, OWL.Class) in observed_graph
+
+
+def test_malformed_stereotype_reader_requires_affirmative_conditions():
+    """Harness only: verify affirmative malformed-stereotype reader rejects guard, missing/unrecognized, negated, and unrelated wording."""
+    accepted = (
+        "Class 'cPerson' stereotype must be a nonempty string or null, got bool.",
+        "Malformed stereotype value on Relation 'rWorks': expected a non-whitespace string or null, got int.",
+        "Property 'aAge' has an empty or whitespace-only stereotype string.",
+        "Invalid stereotype '' on Class 'cPerson'.",
+        "Whitespace-only stereotype '   ' on Property 'eSource' is not permitted.",
+        "Relation 'rWorks' has a non-string stereotype (got list).",
+        "Class 'cPerson' stereotype is malformed.",
+        "Property 'aAge' stereotype cannot be empty or whitespace-only.",
+    )
+    for message in accepted:
+        assert "malformed_stereotype" in malformed_stereotype_diagnostic(message), message
+
+    rejected = (
+        "Malformed stereotype-value recovery is outside BI-W1",
+        "Unexpected internal failure while validating stereotype.",
+        "Missing stereotype on Class.",
+        "Class 'cPerson' stereotype is null.",
+        "Absent stereotype on Relation 'rWorks'.",
+        "Unrecognized stereotype 'waveOneCustom' on Class.",
+        "Class 'cPerson' stereotype 'customKind' is unrecognized.",
+        "Datatype-valued relation 'rFocus' cannot use stereotype 'mediation', which requires an owl:ObjectProperty.",
+        "Class 'cPerson' stereotype is valid.",
+        "Class 'cPerson' stereotype is not malformed.",
+        "If a stereotype is empty, conversion aborts.",
+        "Class 'cPerson' stereotype may be malformed.",
+        "Class 'cPerson' stereotype is null or empty.",
+        "Stereotype must be a nonempty string.",
+        "Class 'cPerson' name must be a string, languageString object, or null, got int.",
+    )
+    for message in rejected:
+        assert not malformed_stereotype_diagnostic(message), message
 

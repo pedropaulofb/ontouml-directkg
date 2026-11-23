@@ -5074,5 +5074,208 @@ def test_relation_and_target_end_textual_carrier_recovery(
         assert set(result.ontology.objects(primary, RDFS.label)) == {Literal('hTTPServer_xMLNode')}
 
 
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('strategy', ['id', 'name'])
+@pytest.mark.parametrize('scenario', [
+    'ordinary_with_flags_and_peer_naming',
+    'material_chain_broken_by_omitted_derivation',
+    'malformed_container_suppressed',
+])
+def test_relation_malformed_stereotype_omits_relation_and_suppresses_dependent_outputs(
+        run, source_json, tmp_path, input_policy, strategy, scenario):
+    """Rules: DK-DIAG-05, DK-DIAG-06, DK-REL-01, DK-REL-07, DK-REL-08, DK-REL-17, DK-REL-18, DK-PROP-04, DK-PROP-05, DK-DIAG-03; §3.2. RD-02 Alt 1C + Sub-option 2A."""
+    if scenario == 'material_chain_broken_by_omitted_derivation':
+        document = source_json('shared/material_pattern')
+        _grounding(document, 'relator')
+        source_element(document, 'rDerivation')['stereotype'] = ''
+        source_element(document, 'rMaterial')['name'] = None
+        source_element(document, 'tMaterial')['name'] = None
+        target_id = 'rDerivation'
+        extra_options = {'material_property_chains': 'omit-conflicting-constraints'}
+    else:
+        document = source_json('shared/binary_relation')
+        c_peer = copy.deepcopy(source_element(document, 'cA'))
+        c_peer.update(id='cPeer', name='PeerClass')
+        peer_rel = copy.deepcopy(source_element(document, 'rFocus'))
+        peer_rel.update(id='rPeer', name='worksFor', stereotype='material')
+        peer_rel['properties'][0].update(id='sPeer', name='workers', propertyType={'id': 'cA', 'type': 'Class'})
+        peer_rel['properties'][1].update(id='tPeer', name=None, cardinality='1', propertyType={'id': 'cPeer', 'type': 'Class'})
+        document['model']['contents'].extend([c_peer, peer_rel])
+
+        focus = source_element(document, 'rFocus')
+        target_id = 'rFocus'
+        extra_options = {}
+        if scenario == 'ordinary_with_flags_and_peer_naming':
+            focus.update(stereotype=True, isAbstract=True, isDerived=True, description='OMITTED_REL_DESC')
+            for end, desc in zip(focus['properties'], ('OMITTED_SRC_DESC', 'OMITTED_TGT_DESC')):
+                end.update(description=desc, stereotype='begin', isDerived=True, isReadOnly=True,
+                           isOrdered=True, cardinality='2..5', aggregationKind='COMPOSITE')
+        else:
+            focus.update(stereotype=42, properties=None)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 input_policy=input_policy, inverse_properties='all', **extra_options)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and target_id in d.identified_sources
+        and d.code not in STABLE_DIAGNOSTIC_CODES | {'MISSING_STEREOTYPE', 'UNRECOGNIZED_STEREOTYPE'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    if scenario == 'material_chain_broken_by_omitted_derivation':
+        assert not list(graph.triples((None, OWL.propertyChainAxiom, None)))
+        assert not any(d.kind in {'chain_compatibility', 'unsupported_connector',
+                                  'comparative_derivation_semantics', 'relator_naming'}
+                       for d in result.diagnostics)
+        t_mat = _primary(result, 'tMaterial', strategy)
+        assert (t_mat, RDF.type, OWL.ObjectProperty) in graph
+        _assert_no_relation_triples(graph, 'rDerivation', 'sDerivation', 'tDerivation')
+    else:
+        _assert_no_relation_triples(graph, 'rFocus', 'sFocus', 'tFocus')
+        assert not any(
+            d.kind in {'abstractness', 'derived_status', 'ordering'}
+            and ({'rFocus', 'sFocus', 'tFocus'} & set(d.identified_sources))
+            for d in result.diagnostics
+        )
+        assert not any('relation_properties_null' in d.facts for d in result.diagnostics)
+        for text_val in ('OMITTED_REL_DESC', 'OMITTED_SRC_DESC', 'OMITTED_TGT_DESC'):
+            assert not list(graph.triples((None, RDFS.comment, Literal(text_val))))
+        t_peer = _primary(result, 'tPeer', strategy)
+        s_peer = _primary(result, 'sPeer', strategy)
+        assert {s for s in graph.subjects(RDF.type, OWL.ObjectProperty)
+                if str(s).startswith(str(BASE))} == {t_peer, s_peer}
+        if strategy == 'name':
+            assert t_peer == BASE.worksFor
+            assert s_peer == BASE.workers
 
 
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('hierarchy_case', [
+    'failed_specific_disjoint',
+    'failed_general_disjoint',
+    'failed_singleton_complete',
+])
+def test_relation_generalizations_and_sets_treat_malformed_stereotype_relation_as_failed(
+        run, source_json, tmp_path, input_policy, mode, hierarchy_case):
+    """Rules: DK-REL-14, DK-REL-15, DK-REL-20, DK-INV-12, DK-DIAG-05, DK-DIAG-14. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json('relations/hierarchy')
+    gs = source_element(document, 'gsRelations')
+    if hierarchy_case == 'failed_specific_disjoint':
+        gs.update(isComplete=True, isDisjoint=True)
+        target_rel = source_element(document, 'rSibling')
+        expected_failed_gens = {'gSibling'}
+    elif hierarchy_case == 'failed_general_disjoint':
+        gs.update(isComplete=True, isDisjoint=True)
+        target_rel = source_element(document, 'rGeneral')
+        expected_failed_gens = {'gMiddle', 'gSibling'}
+    else:
+        gs.update(isComplete=True, isDisjoint=False, generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}])
+        target_rel = source_element(document, 'rMiddle')
+        expected_failed_gens = {'gMiddle', 'gLeaf'}
+
+    target_rel['stereotype'] = ' \t '
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=mode, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and target_rel['id'] in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(d.kind == 'singleton_completeness' for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    for gen_id in expected_failed_gens:
+        assert any(
+            d.severity == 'ERROR' and d.kind == 'failed_relation_generalization'
+            and gen_id in d.identified_sources
+            for d in result.diagnostics
+        ), (gen_id, result.diagnostics)
+
+    graph = result.ontology
+    assert not list(graph.triples((None, OWL.equivalentProperty, None)))
+    prefixes = ('t', 's') if mode == 'all' else ('t',)
+    if hierarchy_case == 'failed_specific_disjoint':
+        edges = [('Middle', 'General'), ('Leaf', 'Middle')]
+        pairs = set()
+        valid = {'General', 'Middle', 'Leaf'}
+    elif hierarchy_case == 'failed_general_disjoint':
+        edges = [('Leaf', 'Middle')]
+        pairs = {frozenset((BASE[p + 'Middle'], BASE[p + 'Sibling'])) for p in prefixes}
+        valid = {'Middle', 'Leaf', 'Sibling'}
+    else:
+        edges = [('Sibling', 'General')]
+        pairs = set()
+        valid = {'General', 'Leaf', 'Sibling'}
+
+    assert _edges(graph) == {(BASE[p + a], BASE[p + b]) for p in prefixes for a, b in edges}
+    assert _pairs(graph) == pairs
+    assert {node for node in graph.subjects(RDF.type, OWL.ObjectProperty)
+            if isinstance(node, URIRef) and str(node).startswith(str(BASE))} == {
+        BASE[p + key] for p in prefixes for key in valid}
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('end_side', ['source_end', 'target_end'])
+@pytest.mark.parametrize('scenario', ['ordinary_with_inverse_and_flags', 'mereology_component_with_bridge'])
+def test_relation_end_malformed_stereotype_omits_field_and_preserves_relation_and_mereology(
+        run, invoke, source_json, tmp_path, input_policy, end_side, scenario):
+    """Rules: DK-REL-01, DK-REL-09, DK-REL-10, DK-REL-19, DK-GEN-04, DK-INV-01, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-DIAG-05. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json('shared/binary_relation')
+    focus = source_element(document, 'rFocus')
+    s_focus = source_element(document, 'sFocus')
+    t_focus = source_element(document, 'tFocus')
+    if scenario == 'mereology_component_with_bridge':
+        focus['stereotype'] = 'componentOf'
+        s_focus['aggregationKind'] = 'COMPOSITE'
+    s_focus.update(cardinality='1', isDerived=True, isReadOnly=True, isOrdered=True)
+    t_focus.update(cardinality='2..5', isDerived=True, isReadOnly=True, isOrdered=True)
+
+    bad_end = s_focus if end_side == 'source_end' else t_focus
+    good_end = t_focus if end_side == 'source_end' else s_focus
+    bad_end['stereotype'] = 42 if scenario == 'ordinary_with_inverse_and_flags' else ''
+    good_end['stereotype'] = 'end' if end_side == 'source_end' else 'begin'
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all', dkgm_vocabulary='none')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and bad_end['id'] in d.identified_sources
+        and d.code not in STABLE_DIAGNOSTIC_CODES | {'MISSING_STEREOTYPE', 'UNRECOGNIZED_STEREOTYPE'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert (BASE.tFocus, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.sFocus, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.sFocus, OWL.inverseOf, BASE.tFocus) in graph
+    assert set(graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tFocus, RDFS.range)) == {BASE.cB}
+    _counts(graph, BASE.cA, BASE.tFocus, {('min', 2), ('max', 5)})
+    _counts(graph, BASE.cB, BASE.sFocus, {('exact', 1)})
+
+    if scenario == 'mereology_component_with_bridge':
+        assert (BASE.tFocus, RDFS.subPropertyOf, DKGM.componentOf) in graph
+        assert (BASE.tFocus, RDF.type, OWL.AsymmetricProperty) in graph
+    else:
+        assert not list(graph.objects(BASE.tFocus, RDFS.subPropertyOf))
+
+    expected_ctx = 'target_end' if end_side == 'source_end' else 'source_end'
+    expected_val = 'end' if end_side == 'source_end' else 'begin'
+    boundary = invoke.read_property_stereotype_comments(result)
+    assert {(c.subject, c.context, c.value) for c in boundary} == {(BASE.tFocus, expected_ctx, expected_val)}

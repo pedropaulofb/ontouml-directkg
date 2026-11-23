@@ -1396,3 +1396,108 @@ def test_datatype_name_carrier_validation_and_primitive_selection_under_policy(
                    for d in result.diagnostics)
 
 
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('value_kind', ['primitive', 'custom', 'enumeration', 'untyped'])
+@pytest.mark.parametrize('bad_value', [pytest.param(42, id='int'), pytest.param(' \t ', id='whitespace_only')])
+def test_attribute_malformed_stereotype_omits_field_and_preserves_mapping(
+        run, invoke, source_json, tmp_path, input_policy, iri_strategy, value_kind, bad_value):
+    """Rules: DK-ATT-01, DK-ATT-03, DK-DAT-01, DK-DAT-05, DK-CLS-10, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-GEN-03, DK-DIAG-05; §3.2. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json('attributes_datatypes/value_types')
+    focus = source_element(document, 'pFocus')
+    focus.update(
+        stereotype=bad_value,
+        cardinality='2..5',
+        isDerived=True,
+        isReadOnly=True,
+        isOrdered=True,
+    )
+    value_cls = source_element(document, 'dValue')
+    if value_kind == 'untyped':
+        focus['propertyType'] = None
+        prop_kind, expected_range = OWL.DatatypeProperty, None
+    elif value_kind == 'primitive':
+        prop_kind, expected_range = OWL.DatatypeProperty, XSD.int
+    elif value_kind == 'custom':
+        value_cls['name'] = 'StructuredValue'
+        prop_kind = OWL.ObjectProperty
+        expected_range = BASE.dValue if iri_strategy == 'id' else BASE.StructuredValue
+    else:
+        value_cls.update(
+            name='Status', stereotype='enumeration',
+            literals=[{'id': 'vOne', 'name': 'One', 'description': None, 'type': 'Literal', 'propertyAssignments': None}],
+        )
+        prop_kind = OWL.ObjectProperty
+        expected_range = BASE.dValue if iri_strategy == 'id' else BASE.Status
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and 'pFocus' in d.identified_sources
+        and d.code not in {'MISSING_STEREOTYPE', 'UNRECOGNIZED_STEREOTYPE', 'INTERNAL_TRANSFORMATION_FAILURE'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    owner = BASE.cOwner if iri_strategy == 'id' else BASE.Owner
+    prop = BASE.pFocus if iri_strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('pFocus'))
+    _focus(graph, prop_kind, expected_range, owner, prop)
+    _counts(graph, owner, prop, {('min', 2), ('max', 5)}, expected_range)
+    assert (prop, RDFS.label, Literal('focus')) in graph
+    assert invoke.read_property_stereotype_comments(result) == ()
+    assert any(d.kind == 'derived_status' and d.severity == 'INFO' and 'pFocus' in d.identified_sources
+               for d in result.diagnostics)
+    assert any(d.kind == 'ordering' and d.severity == 'INFO' and 'pFocus' in d.identified_sources
+               for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('role', ['target_class', 'owner_class'])
+@pytest.mark.parametrize('bad_value', [pytest.param(True, id='bool_true'), pytest.param('', id='empty_string')])
+def test_attribute_referencing_or_owned_by_malformed_stereotype_class_follows_policy(
+        run, source_json, tmp_path, input_policy, role, bad_value):
+    """Rules: DK-ATT-01, DK-DIAG-05; §3.2. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json('attributes_datatypes/value_types')
+    if role == 'target_class':
+        source_element(document, 'cOther')['stereotype'] = bad_value
+        source_element(document, 'pFocus')['propertyType'] = {'id': 'cOther', 'type': 'Class'}
+        bad_cls_id = 'cOther'
+    else:
+        owned = copy.deepcopy(source_element(document, 'pFocus'))
+        owned.update(id='pOwned', name='ownedAttr')
+        source_element(document, 'cOther').update(stereotype=bad_value, properties=[owned])
+        bad_cls_id = 'cOther'
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and bad_cls_id in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        assert not any(d.kind in {'unresolved_attribute_type', 'attribute_owner_without_local_class'}
+                       for d in result.diagnostics)
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert (BASE.cOwner, RDF.type, OWL.Class) in graph
+    assert not any(BASE.cOther in triple for triple in graph)
+    if role == 'target_class':
+        assert any(
+            d.severity == 'ERROR' and d.kind == 'unresolved_attribute_type' and 'pFocus' in d.identified_sources
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert not any(BASE.pFocus in triple for triple in graph)
+    else:
+        _focus(graph, OWL.DatatypeProperty, XSD.int, BASE.cOwner, BASE.pFocus)
+        assert not any(BASE.pOwned in triple for triple in graph)
+        assert not any(d.kind == 'attribute_owner_without_local_class' for d in result.diagnostics)
+

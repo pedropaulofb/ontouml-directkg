@@ -2648,6 +2648,83 @@ def project_languages_diagnostic(message: str) -> frozenset[str]:
     return frozenset(_project_languages_facts(message))
 
 
+def _malformed_stereotype_facts(message: str, sources: tuple = ()) -> set[str]:
+    """Read affirmative RD-02 malformed stereotype ERROR wording.
+
+    Rejects internal/deferred guard wording, conditionals, hedges, negations,
+    bare expectations, missing/null/unrecognized DK-DIAG-06 wording, datatype-
+    relation incompatibility wording, and unrelated carrier/container subjects.
+    """
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside bi-w1|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"(?<!\w)(?:''|\"\"|'\s+'|\"\s+\")(?=$|[\s.,;:)!?])", "<blank_quoted>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(stereotype|class|relation|property|null|string)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    global_disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\bstereotype\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:malformed|invalid|empty|blank|whitespace(?:-only)?|non[- ]?string)\b",
+        r"\b(?:missing|absent|unrecognized)\s+stereotype\b",
+        r"\bstereotype(?:\s+(?:field|value))?\s+(?:is|was)\s+(?:explicitly\s+)?(?<!non-)(?<!non )(?:null|none|absent|missing|omitted|unrecognized|recognized|valid|allowed|accepted)\b",
+        r"\b(?:null|absent|missing)\s+or\s+(?:empty|blank|malformed|invalid|non[- ]?string)\b",
+        r"\b(?:empty|blank|malformed|invalid|non[- ]?string)\s+or\s+(?:null|absent|missing)\b",
+        r"\bdatatype[- ]valued\b|\brequires\s+(?:an?\s+)?(?:owl:)?object[- ]?propert(?:y|ies)\b",
+        r"\b(?:name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in global_disqualifiers):
+        return set()
+
+    has_stereotype_context = (
+        "stereotype" in wording
+        or any((getattr(src, "path", "") or "").endswith(".stereotype") for src in sources)
+    )
+    if not has_stereotype_context:
+        return set()
+
+    bad_adj = r"(?:malformed|invalid(?:\s+type)?|non[- ]?string(?:\s+value)?|empty|blank|whitespace(?:-only)?)"
+    bad_type = r"(?:int(?:eger)?|float|number|bool(?:ean)?|array|list|object|dict(?:ionary)?|<blank_quoted>)"
+    patterns = (
+        re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)\b{bad_adj}\s+(?:or\s+{bad_adj}\s+)?stereotype\b"),
+        re.compile(rf"\bstereotype(?:\s+(?:field|value))?(?:\s+(?:<quoted>|<value>))?\s+(?:is|was)\s+(?:(?:a|an)\s+)?(?:{bad_adj}|{bad_type}|not\s+(?:a|an)\s+(?:valid\s+|non[- ]?empty\s+|non[- ]?whitespace\s+)?(?:json\s+)?string)\b"),
+        re.compile(rf"\b(?:has|had|with)\s+(?:a|an)?\s*{bad_adj}(?:\s+or\s+{bad_adj})?\s+stereotype\b"),
+        re.compile(r"\bstereotype(?:\s+(?:field|value))?\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\b[^.!?;]*(?:got|found|received)\b"),
+        re.compile(rf"\bstereotype(?:\s+(?:field|value))?\b[^.!?;]*\b(?:cannot|must\s+not)\s+be\s+(?:{bad_adj}|{bad_type})\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|allowed|accepted|recognized)\b", clause) and not re.search(r"\bnot\s+(?:valid|allowed|accepted|recognized)\b", clause):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"malformed_stereotype"}
+    return set()
+
+
+def malformed_stereotype_diagnostic(message: str, sources: tuple = ()) -> frozenset[str]:
+    """Return recognized RD-02 malformed-stereotype ERROR facts for harness checks."""
+    return frozenset(_malformed_stereotype_facts(message, sources))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2742,6 +2819,11 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.update(textual_facts)
                 if kind is None:
                     kind = "malformed_textual_carrier"
+            stereo_facts = _malformed_stereotype_facts(event.message, event.sources)
+            if stereo_facts:
+                facts.update(stereo_facts)
+                if kind is None:
+                    kind = "malformed_stereotype"
         if kind is None:
             if (event.severity == "ERROR" and
                     (re.search(r"\bpackage\b", event.message, re.I)

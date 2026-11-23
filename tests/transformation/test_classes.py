@@ -1058,3 +1058,113 @@ def test_non_enumeration_class_literals_respect_diagnostic_precedence(
         assert not list(result.ontology.subjects(RDF.type, OWL.NamedIndividual))
         assert not any(BASE.vDisallowed in triple for triple in result.ontology)
 
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scenario", [
+    "ordinary_with_attrs_and_flags",
+    "enumeration_with_literals_and_referencing_attr",
+    "generalization_set_member",
+    "nested_package_with_malformed_containers_and_textual_errors",
+])
+def test_class_malformed_stereotype_omits_element_and_descendants_while_retaining_unresolved_dependents(
+        run, source_json, tmp_path, input_policy, scenario):
+    """Rules: DK-CLS-01, DK-CLS-02, DK-CLS-06, DK-CLS-09, DK-CLS-10, DK-CLS-11, DK-ATT-01, DK-GEN-05, DK-GEN-06, DK-DIAG-05; §§3.2, 3.4. RD-02 Alt 1C + Sub-option 2A."""
+    if scenario == "ordinary_with_attrs_and_flags":
+        document = source_json("shared/core_model")
+        bad_cls = copy.deepcopy(source_element(document, "cOrg"))
+        bad_attr = copy.deepcopy(source_element(document, "aAge"))
+        bad_attr.update(id="aBad", name="badAttr", description="OMITTED_ATTR_DESC", isDerived=True)
+        bad_cls.update(
+            id="cBad", name="Organization", description="OMITTED_CLS_DESC",
+            stereotype=True, isAbstract=True, isDerived=True, isExtensional=True,
+            properties=[bad_attr], literals="bad",
+        )
+        document["model"]["contents"].append(bad_cls)
+        strategy, target_id = "name", "cBad"
+    elif scenario == "enumeration_with_literals_and_referencing_attr":
+        document = source_json("classes/enumerations")
+        source_element(document, "eStatus")["stereotype"] = " \t "
+        strategy, target_id = "id", "eStatus"
+    elif scenario == "generalization_set_member":
+        document = source_json("classes/generalization_sets")
+        source_element(document, "gsMain").update(isComplete=True, isDisjoint=True)
+        source_element(document, "cD")["stereotype"] = 42
+        strategy, target_id = "id", "cD"
+    else:
+        document = source_json("shared/core_model")
+        nested_valid = copy.deepcopy(source_element(document, "cOrg"))
+        nested_valid.update(id="cNestedValid", name="NestedValid")
+        nested_bad = copy.deepcopy(source_element(document, "cOrg"))
+        nested_bad.update(
+            id=None, name=123, description={"bad tag": "BadDesc"},
+            stereotype=["kind"], properties="bad", literals="bad",
+        )
+        document["model"]["contents"].append({
+            "id": "pNested", "name": "Nested", "description": None,
+            "type": "Package", "propertyAssignments": None,
+            "contents": [nested_valid, nested_bad],
+        })
+        strategy, target_id = "id", None
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy, input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_stereotype" in d.facts
+        and (target_id is None or target_id in d.identified_sources)
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+
+    if scenario == "ordinary_with_attrs_and_flags":
+        assert (BASE.Organization, RDF.type, OWL.Class) in graph
+        assert (BASE.Person, RDF.type, OWL.Class) in graph
+        assert not any(
+            d.kind in {"abstractness", "derived_status", "extensionality", "invalid_non_enumeration_literals"}
+            and ({"cBad", "aBad"} & set(d.identified_sources) or "non_enum_literals_non_array" in d.facts)
+            for d in result.diagnostics
+        ), result.diagnostics
+        for omitted in ("cBad", "aBad"):
+            assert not list(graph.subjects(DCTERMS.identifier, Literal(omitted)))
+        for text_val in ("OMITTED_CLS_DESC", "OMITTED_ATTR_DESC"):
+            assert not list(graph.triples((None, RDFS.comment, Literal(text_val))))
+    elif scenario == "enumeration_with_literals_and_referencing_attr":
+        assert (BASE.cOwner, RDF.type, OWL.Class) in graph
+        assert any(
+            d.severity == "ERROR" and d.kind == "unresolved_attribute_type" and "pStatus" in d.identified_sources
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+        assert not list(graph.triples((None, OWL.oneOf, None)))
+        assert not list(graph.subjects(RDF.type, OWL.AllDifferent))
+        for absent in (BASE.eStatus, BASE.pLegacy, BASE.vPending, BASE.vApproved, BASE.vClosed, BASE.pStatus):
+            assert not any(absent in triple for triple in graph)
+    elif scenario == "generalization_set_member":
+        assert any(
+            d.severity == "ERROR" and d.kind == "failed_class_generalization" and "gD" in d.identified_sources
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert not any(BASE.cD in triple or BASE.gD in triple for triple in graph)
+        assert not list(graph.triples((None, OWL.unionOf, None)))
+        assert (BASE.cB, RDFS.subClassOf, BASE.cA) in graph
+        assert (BASE.cC, RDFS.subClassOf, BASE.cA) in graph
+        assert (BASE.cE, RDFS.subClassOf, BASE.cB) in graph
+        assert (BASE.cF, RDFS.subClassOf, BASE.cA) in graph
+        assert ((BASE.cB, OWL.disjointWith, BASE.cC) in graph or (BASE.cC, OWL.disjointWith, BASE.cB) in graph)
+    else:
+        assert (BASE.cNestedValid, RDF.type, OWL.Class) in graph
+        assert (BASE.cPerson, RDF.type, OWL.Class) in graph
+        assert not any(
+            d.kind in {"invalid_id", "missing_id", "malformed_class_properties",
+                       "invalid_non_enumeration_literals", "malformed_textual_carrier"}
+            or "malformed_textual_carrier" in d.facts
+            for d in result.diagnostics
+        ), result.diagnostics
+
+

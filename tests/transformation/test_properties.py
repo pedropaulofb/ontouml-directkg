@@ -1433,3 +1433,117 @@ def test_best_effort_retains_unresolved_property_reference_for_unindexed_contain
         assert not any(omitted in triple for triple in result.ontology)
 
 
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('target', ['attribute', 'source_end', 'target_end'])
+@pytest.mark.parametrize('bad_value', [pytest.param(False, id='bool_false'), pytest.param('', id='empty_string')])
+def test_property_malformed_stereotype_omits_only_boundary_comment_and_preserves_inclusions(
+        run, invoke, source_json, tmp_path, input_policy, target, bad_value):
+    """Rules: DK-PROP-03, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-ATT-01, DK-REL-01, DK-DIAG-05; §3.2. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json('properties/references')
+    source_element(document, 'pChild').update(
+        cardinality='1', isDerived=True, isReadOnly=True, isOrdered=True,
+        subsettedProperties=[_reference('t0')],
+    )
+    source_element(document, 'pThird')['subsettedProperties'] = [_reference('pBase')]
+    source_element(document, 's0').update(isDerived=True, isReadOnly=True, isOrdered=True, cardinality='0..1')
+    source_element(document, 't0').update(isDerived=True, isReadOnly=True, isOrdered=True, cardinality='1..*')
+    source_element(document, 's1')['stereotype'] = 'begin'
+    source_element(document, 't1')['stereotype'] = 'end'
+
+    target_id = {'attribute': 'pChild', 'source_end': 's0', 'target_end': 't0'}[target]
+    source_element(document, target_id)['stereotype'] = bad_value
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and target_id in d.identified_sources
+        and d.code not in {'MISSING_STEREOTYPE', 'UNRECOGNIZED_STEREOTYPE', 'INTERNAL_TRANSFORMATION_FAILURE'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == {(BASE.pChild, BASE.t0), (BASE.pThird, BASE.pBase)}
+    assert (BASE.pChild, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.t0, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.s0, RDF.type, OWL.ObjectProperty) in graph
+    _boundary_annotations(invoke, result, {(BASE.t1, 'source_end', 'begin'), (BASE.t1, 'target_end', 'end')})
+    expected_subj = BASE.pChild if target == 'attribute' else BASE.t0
+    assert len(list(graph.objects(expected_subj, RDFS.comment))) >= (3 if target == 'attribute' else 6)
+    assert any(d.kind == 'derived_status' and d.severity == 'INFO' and target_id in d.identified_sources
+               for d in result.diagnostics)
+    assert any(d.kind == 'ordering' and d.severity == 'INFO' and target_id in d.identified_sources
+               for d in result.diagnostics)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('bad_value', [pytest.param(True, id='bool_true'), pytest.param('   ', id='whitespace_only')])
+@pytest.mark.parametrize('scenario', [
+    'surviving_attr_to_end',
+    'surviving_end_to_end',
+    'surviving_inverse_to_end',
+    'end_to_surviving',
+    'end_to_dangling',
+])
+def test_best_effort_cleanly_omits_property_references_involving_relation_omitted_for_malformed_stereotype(
+        run, source_json, tmp_path, input_policy, field, bad_value, scenario):
+    """Rules: DK-PROP-03, DK-DIAG-05, DK-INV-04. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json('properties/references')
+    r_omitted = copy.deepcopy(source_element(document, 'r0'))
+    r_omitted.update(id='rOmitted', name='omittedLink', stereotype=bad_value)
+    s_omitted, t_omitted = r_omitted['properties']
+    s_omitted.update(id='sOmitted', name='omittedSrc')
+    t_omitted.update(id='tOmitted', name='omittedTgt')
+
+    if scenario == 'surviving_attr_to_end':
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('tOmitted')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'surviving_end_to_end':
+        source_element(document, 't0')[field] = [_reference('t1'), _reference('tOmitted')]
+        expected_hierarchy = {(BASE.t0, BASE.t1)}
+    elif scenario == 'surviving_inverse_to_end':
+        source_element(document, 's0')[field] = [_reference('s1'), _reference('tOmitted')]
+        expected_hierarchy = {(BASE.s0, BASE.s1)}
+    elif scenario == 'end_to_surviving':
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        t_omitted[field] = [_reference('t0')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    else:
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        t_omitted[field] = [_reference('missingProp')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+
+    document['model']['contents'].append(r_omitted)
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_stereotype' in d.facts and 'rOmitted' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in {'unresolved_property_reference', 'invalid_property_references', 'property_inclusion_incompatibility'}
+        or d.code in {'UNRESOLVED_PROPERTY_REFERENCE', 'INVALID_PROPERTY_REFERENCES', 'INCOMPATIBLE_PROPERTY_INCLUSION'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == expected_hierarchy
+    for absent in (BASE.rOmitted, BASE.sOmitted, BASE.tOmitted):
+        assert not any(absent in triple for triple in graph), absent
+    for prop in (BASE.pBase, BASE.pChild, BASE.t0, BASE.s0, BASE.t1, BASE.s1):
+        assert any((prop, RDF.type, kind) in graph for kind in (OWL.ObjectProperty, OWL.DatatypeProperty))
+
+
+

@@ -2007,3 +2007,27 @@ rejecting BI-W1 internal-guard wording, conditionals, hedges, negations,
 awaits independent Test Reviewer review; no production-correctness claim is
 made.
 
+## RD-02 malformed `stereotype` values on `Class`, `Relation`, and `Property`
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** (`Findings: None`) for
+[`6d0636c78092491200ffd3b1776bf8a000d4da88`](https://github.com/pedropaulofb/ontouml-directkg/commit/6d0636c78092491200ffd3b1776bf8a000d4da88).
+The [scoped inventory](coverage.md#rd-02-malformed-stereotype-values-on-class-relation-and-property-alternative-1c--sub-option-2a)
+records the 755 behavioral nodes and 1 harness reader check across
+`tests/transformation/test_input_diagnostics.py`,
+`tests/transformation/test_classes.py`,
+`tests/transformation/test_higher_order.py`,
+`tests/transformation/test_attributes_datatypes.py`,
+`tests/transformation/test_properties.py`,
+`tests/transformation/test_relations.py`, and `tests/cli/test_cli.py`, reusing
+existing shared and topical fixtures with explicit runtime mutations and inline
+assertions.
+
+`tests/support/invocation.py` adds the affirmative semantic diagnostic reader
+`_malformed_stereotype_facts` / `malformed_stereotype_diagnostic` (wired into
+`_observed_diagnostics` for `ERROR` events outside `_structural_skip`) without
+fixing provisional diagnostic codes, rejecting BI-W1 internal-guard wording,
+`DK-DIAG-06` missing/unrecognized wording, `DK-REL-01` datatype-relation
+incompatibility wording, conditionals, hedges, negations, bare expectations, and
+unrelated subjects. This TEST CHANGE awaits independent Test Reviewer review; no
+production-correctness claim is made.

@@ -1301,3 +1301,94 @@ def test_instantiation_relation_rejects_non_array_or_malformed_properties_contai
         graph.objects(BASE.cSpecific, RDF.type))
     assert (BASE.cOutside, RDF.type, BASE.cCategorizer) not in graph
 
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("target", ["relation", "source_end"])
+@pytest.mark.parametrize("value", [pytest.param(True, id="bool_true"), pytest.param("", id="empty_string")])
+def test_instantiation_malformed_stereotype_hybrid_recovery(
+        run, source_json, tmp_path, input_policy, target, value):
+    """Rules: DK-INS-01, DK-INS-02, DK-HO-01, DK-HO-02, DK-DIAG-05, DK-DIAG-06. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json("shared/instantiation")
+    association = source_element(document, "rInstantiation")
+    if target == "relation":
+        association["stereotype"] = value
+        target_id = "rInstantiation"
+    else:
+        association["properties"][0]["stereotype"] = value
+        target_id = "sInstantiation"
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_stereotype" in d.facts
+        and target_id in d.identified_sources
+        and d.code not in STABLE_DIAGNOSTIC_CODES | {"MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE"}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        assert not any(d.kind == "discarded_instantiation_data" for d in result.diagnostics)
+        return
+
+    assert result.outcome == "completed-with-errors"
+    if target == "relation":
+        # Element-level omission suppresses DK-INS-02 discard warning on the omitted Relation.
+        assert not any(d.kind == "discarded_instantiation_data" for d in result.diagnostics)
+    else:
+        # Field-level omission on Property preserves enclosing <<instantiation>> DK-INS-02 discard handling.
+        warnings = [d for d in result.diagnostics if d.kind == "discarded_instantiation_data"]
+        assert len(warnings) == 1 and warnings[0].severity == "WARNING"
+        assert "rInstantiation" in warnings[0].source_ids
+        assert {
+            "association_data_not_materialized",
+            "discarded_identifier", "discarded_association_name", "discarded_role_names",
+            "discarded_multiplicities", "discarded_characteristics",
+        } <= warnings[0].facts
+
+    for diagnostic in result.diagnostics:
+        text = diagnostic.message + repr(diagnostic.raw) + repr(diagnostic.facts) + repr(diagnostic.generated_iris)
+        assert not any(sentinel in text for sentinel in INSTANTIATION_SENTINELS)
+    graph = result.ontology
+    for triple in graph:
+        assert not any(sentinel in str(term) for term in triple for sentinel in INSTANTIATION_SENTINELS)
+        assert not any(term in {BASE.rInstantiation, BASE.sInstantiation, BASE.tInstantiation} for term in triple)
+    assert not list(graph.subjects(RDF.type, OWL.ObjectProperty))
+    assert not list(graph.subjects(RDF.type, OWL.DatatypeProperty))
+    assert {OWL.Class, OWL.NamedIndividual, BASE.cCategorizer, BASE.cOtherCategorizer} <= set(
+        graph.objects(BASE.cSpecific, RDF.type))
+    assert (BASE.cOutside, RDF.type, BASE.cCategorizer) not in graph
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("value", [pytest.param(42, id="int"), pytest.param(" \t ", id="whitespace_only")])
+def test_categorizer_class_malformed_stereotype_triggers_unusable_categorizer(
+        run, source_json, tmp_path, input_policy, value):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-04, DK-CLS-02, DK-CLS-06, DK-CLS-07, DK-DIAG-05. RD-02 Alt 1C + Sub-option 2A."""
+    document = source_json("shared/categorizers")
+    source_element(document, "cCategorizer")["stereotype"] = value
+    source_element(document, "gsFirst").update(isComplete=True, isDisjoint=True)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_stereotype" in d.facts
+        and "cCategorizer" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    _assert_unusable_categorizer_error(result.diagnostics)
+    _assert_complete_multi_member_graph_without_gsfirst_categorizer(
+        result.ontology, modeled=MODELED - {BASE.cCategorizer},
+        disjoint_pairs={frozenset((BASE.cOne, BASE.cTwo))},
+    )
+    assert not any(BASE.cCategorizer in triple for triple in result.ontology)
+
+

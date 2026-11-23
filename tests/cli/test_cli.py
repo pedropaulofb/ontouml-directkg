@@ -2816,4 +2816,135 @@ def test_textual_and_project_languages_report_failure_takes_precedence(invoke, t
     ), process.observation.diagnostics
 
 
+def _malformed_stereotype_cli_document(case):
+    document = load_json("shared/core_model")
+    if case == "class_bool":
+        malformed = copy.deepcopy(source_element(document, "cOrg"))
+        malformed.update(id="cMalformed", name="MalformedClass", stereotype=True)
+        document["model"]["contents"].append(malformed)
+        return document, "cMalformed"
+    if case == "relation_empty":
+        source_element(document, "rWorks")["stereotype"] = ""
+        return document, "rWorks"
+    if case == "attribute_whitespace":
+        source_element(document, "aAge")["stereotype"] = " \t "
+        return document, "aAge"
+    if case == "relation_end_int":
+        source_element(document, "eTarget")["stereotype"] = 42
+        return document, "eTarget"
+    raise AssertionError(f"Unlisted CLI malformed stereotype case: {case}")
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("stereotype_policy", ["require-known", "allow-custom"])
+@pytest.mark.parametrize("case", ["class_bool", "relation_empty", "attribute_whitespace", "relation_end_int"])
+def test_malformed_stereotype_cli_python_parity(invoke, tmp_path, input_policy, stereotype_policy, case):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-06, DK-PROP-06; §§3.2, 15. RD-02 Alt 1C + Sub-option 2A."""
+    document, target_id = _malformed_stereotype_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar",
+               "stereotype_policy": stereotype_policy}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    if input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        assert not any(
+            event.code in {"MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE", "UNKNOWN_INFORMATION"}
+            for event in events
+        )
+        assert any(
+            event.severity == "ERROR"
+            and "malformed_stereotype" in event.facts
+            and target_id in event.identified_sources
+            and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+            for event in events
+        ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        assert (BASE.cPerson, RDF.type, OWL.Class) in delivered_graph
+        assert (BASE.cOrg, RDF.type, OWL.Class) in delivered_graph
+        if case == "class_bool":
+            assert not any(BASE.cMalformed in triple for triple in delivered_graph)
+        elif case == "relation_empty":
+            for absent in (BASE.rWorks, BASE.eSource, BASE.eTarget):
+                assert not any(absent in triple for triple in delivered_graph)
+        elif case == "attribute_whitespace":
+            assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in delivered_graph
+            assert not any("Declared OntoUML property stereotype" in str(obj)
+                           for obj in delivered_graph.objects(BASE.aAge, RDFS.comment))
+        else:
+            assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in delivered_graph
+            assert (BASE.eSource, RDF.type, OWL.ObjectProperty) in delivered_graph
+            assert not any("Declared OntoUML property stereotype" in str(obj)
+                           for obj in delivered_graph.objects(BASE.eTarget, RDFS.comment))
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+@pytest.mark.parametrize("case", ["class_bool", "attribute_whitespace"])
+def test_malformed_stereotype_report_failure_takes_precedence(invoke, tmp_path, input_policy, case):
+    """Rules: DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence. RD-02 Alt 1C + Sub-option 2A."""
+    document, target_id = _malformed_stereotype_cli_document(case)
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert any(
+        event.severity == "ERROR"
+        and "malformed_stereotype" in event.facts
+        and target_id in event.identified_sources
+        and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in process.observation.diagnostics
+    ), process.observation.diagnostics
+
+
+def test_malformed_stereotype_adds_no_new_cli_or_python_controls(invoke):
+    """Rules: DK-DIAG-05, DK-DIAG-06; §15 configuration surface boundary. RD-02 Alt 1C + Sub-option 2A."""
+    surface = invoke.inspect_controls()
+    assert set(surface.python) == set(DEFAULTS)
+    assert set(surface.cli) == {
+        flag for flag, *_ in CONTROLS
+    } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
 
