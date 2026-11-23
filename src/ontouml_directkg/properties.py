@@ -300,6 +300,11 @@ def emit_property_references(graph: Graph, index: SourceIndex, expressions: Prop
                     else:
                         superproperty = target_kind = None
                 except KeyError as exc:
+                    if (isinstance(reference, dict) and set(reference) == {"id", "type"}
+                            and reference.get("type") == "Property"
+                            and isinstance(reference.get("id"), str)
+                            and reference["id"] in index.omitted_relation_ends):
+                        continue
                     input_error(diagnostics, policy, "UNRESOLVED_PROPERTY_REFERENCE",
                                 f"Property {field} reference {reference!r} cannot supply a property expression: {exc}.",
                                 (element.location,), "Affected inclusion omitted; other explicit references and property mappings retained.")

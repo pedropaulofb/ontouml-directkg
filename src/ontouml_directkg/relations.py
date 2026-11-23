@@ -90,7 +90,7 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
     relations = []
     groundings: dict[str, dict[str, SourceElement]] = defaultdict(dict)
     comparative_derivations: dict[str, list[tuple[SourceElement, SourceElement]]] = defaultdict(list)
-    omitted = set()
+    omitted = set(index.omitted_relations)
     for element in index.elements:
         data = element.data
         if data["type"] != "Relation":

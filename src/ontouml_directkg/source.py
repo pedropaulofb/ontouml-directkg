@@ -79,6 +79,8 @@ class SourceIndex:
     declarations: dict[str, SourceElement]
     container_errors: tuple[tuple[tuple[SourceLocation, ...], str, str, str], ...] = ()
     omitted_paths: tuple[str, ...] = ()
+    omitted_relations: frozenset[str] = frozenset()
+    omitted_relation_ends: frozenset[str] = frozenset()
 
     def resolve(self, reference: dict) -> SourceElement:
         """Resolve an exact decoded ID and declared type, without guessing a target.
@@ -361,7 +363,7 @@ def apply_identifier_policy(index: SourceIndex, diagnostics: DiagnosticCollector
     """
     relation_ids = {identifier for identifier, element in index.declarations.items()
                     if element.data["type"] == "Relation"}
-    omitted: list[str] = []
+    omitted: list[str] = list(index.omitted_paths)
     retained = []
     for element in index.elements:
         if any(element.path.startswith(path + ".") for path in omitted):
@@ -383,7 +385,8 @@ def apply_identifier_policy(index: SourceIndex, diagnostics: DiagnosticCollector
     return SourceIndex(index.project, tuple(retained),
                        {key: element for key, element in index.declarations.items()
                         if element.path in retained_paths},
-                       index.container_errors, tuple(omitted))
+                       index.container_errors, tuple(omitted),
+                       index.omitted_relations, index.omitted_relation_ends)
 
 
 def validate_containers(index: SourceIndex, diagnostics: DiagnosticCollector, input_policy: str) -> None:
@@ -395,27 +398,73 @@ def validate_containers(index: SourceIndex, diagnostics: DiagnosticCollector, in
         input_error(diagnostics, input_policy, code, message, sources, recovery)
 
 
-def check_stereotypes(index: SourceIndex, diagnostics: DiagnosticCollector, policy: str) -> None:
-    """Apply DK-DIAG-06 independently of input policy; do not validate semantics."""
+def check_stereotypes(index: SourceIndex, diagnostics: DiagnosticCollector, policy: str,
+                      input_policy: str = "tolerant") -> SourceIndex:
+    """Apply DK-DIAG-06 and RD-02 malformed-stereotype checks without validating semantics."""
+    omitted_paths: list[str] = list(index.omitted_paths)
+    omitted_relation_paths: list[str] = []
+    omitted_relations = set(index.omitted_relations)
+    omitted_relation_ends = set(index.omitted_relation_ends)
+    retained: list[SourceElement] = []
     for element in index.elements:
+        if any(element.path.startswith(path + ".") for path in omitted_paths):
+            if (element.data.get("type") == "Property"
+                    and any(element.path.startswith(path + ".") for path in omitted_relation_paths)
+                    and _identifier_problem(element.data) is None):
+                omitted_relation_ends.add(element.data["id"])
+            continue
         kind = element.data["type"]
         if kind not in _STEREOTYPES:
+            retained.append(element)
             continue
         value = element.data.get("stereotype")
         if value is None:
-            if kind == "Property" or policy != "require-known":
-                continue
-            diagnostics.add("ERROR", "MISSING_STEREOTYPE", f"Missing stereotype on {kind}.",
-                            "Conversion aborted by the stereotype policy.", (element.location,))
-            raise _AbortConversion
-        if not isinstance(value, str):
-            raise NotImplementedError("Malformed stereotype-value recovery is outside BI-W1")
-        if value in _STEREOTYPES[kind]:
+            if kind != "Property" and policy == "require-known":
+                diagnostics.add("ERROR", "MISSING_STEREOTYPE", f"Missing stereotype on {kind}.",
+                                "Conversion aborted by the stereotype policy.", (element.location,))
+                raise _AbortConversion
+            retained.append(element)
             continue
-        accepted = policy == "allow-custom"
-        diagnostics.add("WARNING" if accepted else "ERROR", "UNRECOGNIZED_STEREOTYPE",
-                        f"Unrecognized stereotype {value!r} on {kind}.",
-                        "Accepted without stereotype-specific semantics." if accepted else
-                        "Conversion aborted by the stereotype policy.", (element.location,))
-        if not accepted:
-            raise _AbortConversion
+        if not isinstance(value, str) or not value.strip():
+            identifier = element.data.get("id")
+            id_text = f" {identifier!r}" if isinstance(identifier, str) else ""
+            if not isinstance(value, str):
+                message = f"{kind}{id_text} has a malformed stereotype (non-string {type(value).__name__})."
+            else:
+                message = f"{kind}{id_text} has an empty or whitespace-only stereotype."
+            if kind == "Property":
+                recovery = "Malformed Property.stereotype field omitted; valid property and independent mappings retained."
+            elif kind == "Class":
+                recovery = "Affected Class and its owned properties and literals omitted; independent mappings retained."
+            else:
+                recovery = "Affected Relation and dependent output omitted; independent mappings retained."
+            input_error(diagnostics, input_policy, "MALFORMED_STEREOTYPE", message, (element.location,), recovery)
+            if kind == "Property":
+                element.data.pop("stereotype", None)
+                retained.append(element)
+            else:
+                omitted_paths.append(element.path)
+                if kind == "Relation":
+                    omitted_relation_paths.append(element.path)
+                    if _identifier_problem(element.data) is None:
+                        omitted_relations.add(element.data["id"])
+            continue
+        if value not in _STEREOTYPES[kind]:
+            accepted = policy == "allow-custom"
+            diagnostics.add("WARNING" if accepted else "ERROR", "UNRECOGNIZED_STEREOTYPE",
+                            f"Unrecognized stereotype {value!r} on {kind}.",
+                            "Accepted without stereotype-specific semantics." if accepted else
+                            "Conversion aborted by the stereotype policy.", (element.location,))
+            if not accepted:
+                raise _AbortConversion
+        retained.append(element)
+    retained_paths = {element.path for element in retained}
+    return SourceIndex(
+        index.project,
+        tuple(retained),
+        {key: element for key, element in index.declarations.items() if element.path in retained_paths},
+        index.container_errors,
+        tuple(omitted_paths),
+        frozenset(omitted_relations),
+        frozenset(omitted_relation_ends),
+    )

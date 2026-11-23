@@ -136,7 +136,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         stage = "index_project"
         index = index_project(project, diagnostics, input_policy)
         stage = "check_stereotypes"
-        check_stereotypes(index, diagnostics, stereotype_policy)
+        index = check_stereotypes(index, diagnostics, stereotype_policy, input_policy)
         stage = "apply_identifier_policy"
         index = apply_identifier_policy(index, diagnostics, input_policy)
         stage = "validate_containers"
