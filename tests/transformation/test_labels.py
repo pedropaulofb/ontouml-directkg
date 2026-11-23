@@ -426,13 +426,9 @@ def test_malformed_textual_carrier_whole_field_types_follow_policy(
     if predicate == RDFS.label:
         assert not list(result.ontology.objects(target, RDFS.label))
     else:
-        if identifier == "projectOne":
-            assert not [v for v in result.ontology.objects(ONTOLOGY, RDFS.comment) if "Project" in str(v)]
-        elif identifier == "cPerson":
-            assert not [v for v in result.ontology.objects(target, RDFS.comment)
-                        if "Description cPerson" in str(v) or str(v) == str(bad_value)]
-        else:
-            assert not list(result.ontology.objects(target, RDFS.comment))
+        forbidden_fragments = ("Project", "Pending", "Description " + identifier, str(bad_value))
+        assert not [v for v in result.ontology.objects(target, RDFS.comment)
+                    if str(v) == "" or any(fragment in str(v) for fragment in forbidden_fragments)]
 
 
 _LANGSTRING_MUTATIONS = [
@@ -502,7 +498,7 @@ def test_invalid_language_string_entries_follow_policy_and_preserve_siblings(
         elif iri_strategy == "id":
             target = id_target
         else:
-            target = one_subject(result.ontology, DCTERMS.identifier, Literal(identifier))
+            target = one_subject(result.ontology, DCTERMS.identifier, Literal(id_target.removeprefix(str(BASE))))
 
         for bad_val in ("WrongSibling", "OnlyWrong"):
             assert not any(bad_val in str(term) for triple in result.ontology for term in triple)
@@ -513,10 +509,10 @@ def test_invalid_language_string_entries_follow_policy_and_preserve_siblings(
         else:
             if predicate == RDFS.label:
                 assert not list(result.ontology.objects(target, RDFS.label))
-            elif identifier == "projectOne":
-                assert not [v for v in result.ontology.objects(ONTOLOGY, RDFS.comment) if "Project" in str(v)]
             else:
-                assert not list(result.ontology.objects(target, RDFS.comment))
+                forbidden_fragments = ("Project", "Pending", "Description " + identifier, "OnlyWrong")
+                assert not [v for v in result.ontology.objects(target, RDFS.comment)
+                            if str(v) == "" or any(fragment in str(v) for fragment in forbidden_fragments)]
             if field == "name" and identifier == "cPerson" and iri_strategy == "name":
                 assert target == BASE.unnamedClass_cPerson
 
@@ -614,7 +610,7 @@ def test_malformed_project_languages_follows_policy_and_omits_as_a_whole(
     assert result.outcome == "completed-with-errors"
     assert not any(d.kind == "ambiguous_language" or d.code == "AMBIGUOUS_PROJECT_LANGUAGE" for d in result.diagnostics)
     expected_untagged_lang = "nl" if use_override else None
-    assert set(result.ontology.objects(BASE.cPerson, RDFS.label)) == {Literal("Person", lang=expected_untagged_lang)}
-    assert set(result.ontology.objects(BASE.cOrg, RDFS.comment)) == {Literal("Unknown org description", lang=expected_untagged_lang)}
-    assert set(result.ontology.objects(BASE.cAddress, RDFS.comment)) == {Literal("Adresse", lang="nl" if use_override else "fr")}
+    _assert_source_values(result.ontology, BASE.cPerson, RDFS.label, {Literal("Person", lang=expected_untagged_lang)})
+    _assert_source_values(result.ontology, BASE.cOrg, RDFS.comment, {Literal("Unknown org description", lang=expected_untagged_lang)})
+    _assert_source_values(result.ontology, BASE.cAddress, RDFS.comment, {Literal("Adresse", lang="nl" if use_override else "fr")})
 
