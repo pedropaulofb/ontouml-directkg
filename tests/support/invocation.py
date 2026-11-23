@@ -2296,6 +2296,215 @@ def malformed_package_contents_diagnostic(event, package_id, package_path):
                  or (package_path == "$.model" and re.search(r"\broot (?:model|package)\b", reason))))
 
 
+def _normalize_container_message(message: str) -> str:
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return ""
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    wording = re.sub(r"\bcontents\[\d+\]", "contents entry", wording)
+    wording = re.sub(r"\bproperties\[\d+\]", "properties entry", wording)
+    wording = re.sub(r"\bliterals\[\d+\]", "literals entry", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(contents|properties|literals|package|class|property|literal|project|type|null|enumeration)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    return " ".join(wording.split())
+
+
+def _package_contents_entry_facts(message: str, sources: tuple = ()) -> set[str]:
+    """Read affirmative RD-02 Package.contents entry and misplaced-declaration ERROR wording."""
+    wording = _normalize_container_message(message)
+    if not wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:package|contents|entry|entries|type|project|property|literal)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:invalid|malformed|misplaced|disallowed|forbidden|prohibited|non[- ]?object|missing)\b",
+        r"\b(?:class\.properties|relation\.properties|class\.literals|generalizations)\b",
+        r"^\s*(?:relation|association|attribute|enumeration)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    has_pkg_context = (
+        ("package" in wording and "contents" in wording)
+        or bool(re.search(r"\b(?:package\.contents|package[- ]contents|model\.contents)\b", wording))
+        or any(".contents[" in (getattr(src, "path", "") or "") for src in sources)
+    )
+    if not has_pkg_context:
+        return set()
+
+    non_object_patterns = (
+        re.compile(r"\b(?:non[- ]?object|not\s+(?:a|an)\s+(?:json\s+)?object)\b[^.!?;]*\b(?:entry|entries|item|items|element|elements)?[^.!?;]*\bcontents\b"),
+        re.compile(r"\bcontents(?:\s+(?:entry|item|element))?\b[^.!?;]*\b(?:is\s+not\s+(?:a|an)\s+(?:json\s+)?object|is\s+(?:a|an)\s+non[- ]?object|(?:must|should|expected(?:\s+to)?)\s+be\s+(?:a|an)\s+(?:json\s+)?object)\b"),
+    )
+    invalid_type_patterns = (
+        re.compile(r"\b(?:contents(?:\s+(?:entry|item|element))?|entry|item|element|object)\b[^.!?;]*\b(?:lacks?|missing|absent|without|has\s+(?:a|an)?\s*(?:invalid|missing|null|none|empty|blank|whitespace(?:-only)?|non[- ]?string))\s+(?:(?:a|an)\s+)?(?:valid\s+)?(?:non[- ]?empty\s+)?(?:string\s+)?type\b"),
+        re.compile(r"\b(?:contents(?:\s+(?:entry|item|element))?|entry|item|element|object)\b[^.!?;]*\b(?:must|should|expected\s+to)\s+have\s+(?:a|an)\s+(?:valid\s+)?(?:non[- ]?empty\s+)?(?:string\s+)?type\b"),
+        re.compile(r"\btype\b[^.!?;]*\b(?:is|was)\s+(?:absent|missing|null|none|empty|blank|whitespace(?:-only)?|non[- ]?string|not\s+(?:a|an)\s+(?:valid\s+)?(?:non[- ]?empty\s+)?(?:json\s+)?string)\b"),
+        re.compile(r"\b(?:invalid|missing|empty|blank|non[- ]?string)\s+(?:element\s+)?type\b[^.!?;]*\bcontents\b"),
+    )
+    misplaced_patterns = (
+        re.compile(r"\b(?:misplaced|disallowed|forbidden|prohibited|unsupported|not\s+(?:permitted|allowed))\b[^.!?;]*\b(?:project|property|literal)(?:\s+(?:declaration|entry|element|type))?\b"),
+        re.compile(r"\b(?:project|property|literal)(?:\s+(?:declaration|entry|element|type))?\b[^.!?;]*\b(?:is|was|are)?\s*(?:misplaced|disallowed|forbidden|prohibited|not\s+(?:permitted|allowed)|cannot\s+(?:appear|be\s+(?:placed|declared|contained)))\b"),
+        re.compile(r"\b(?:package\.contents|package\s+contents|contents)\b[^.!?;]*\b(?:cannot|must\s+not|does\s+not)\s+(?:contain|accept|allow|permit)\b[^.!?;]*\b(?:project|property|literal)\b"),
+    )
+
+    facts: set[str] = set()
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|permitted|allowed)\b", clause) and not re.search(r"\bnot\s+(?:valid|permitted|allowed)\b", clause):
+            continue
+        if any(p.search(clause) for p in non_object_patterns):
+            facts.add("package_contents_non_object_entry")
+        if any(p.search(clause) for p in invalid_type_patterns):
+            facts.add("package_contents_invalid_type")
+        if any(p.search(clause) for p in misplaced_patterns):
+            facts.add("package_contents_misplaced_declaration")
+    return facts
+
+
+def package_contents_entry_diagnostic(message: str, sources: tuple = ()) -> frozenset[str]:
+    """Return recognized RD-02 Package.contents entry/misplaced-declaration facts for harness checks."""
+    return frozenset(_package_contents_entry_facts(message, sources))
+
+
+def _class_properties_container_facts(message: str) -> set[str]:
+    """Read affirmative RD-02 Class.properties container/entry ERROR wording."""
+    wording = _normalize_container_message(message)
+    if not wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:class|classifier|properties|entry|entries)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:invalid|malformed|non[- ]?array|non[- ]?object|non[- ]?property)\b",
+        r"\b(?:relation|association|package\.contents|class\.literals|literals|generalizations)\b",
+        r"^\s*(?:relation|association|package|enumeration)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    if not (re.search(r"\b(?:class|classifier|datatype|enumeration)\b", wording) and "properties" in wording):
+        return set()
+
+    non_array_type = r"(?:non[- ]?array(?:\s+(?:value|container|type))?|object|dict(?:ionary)?|string|str|int(?:eger)?|number|float|bool(?:ean)?)"
+    non_array_patterns = (
+        re.compile(rf"\bproperties(?:\s+(?:field|container|value))?\b[^.!?;]*\b(?:is|was)\s+(?:(?:a|an)\s+)?(?:{non_array_type}|not\s+(?:a|an)\s+(?:json\s+)?(?:array|list)|malformed|invalid)\b"),
+        re.compile(rf"\b(?:malformed|invalid|non[- ]?array)\s+(?:class\s+)?properties\b"),
+        re.compile(rf"\bproperties(?:\s+(?:field|container|value))?\b[^.!?;]*(?:expected|must\s+be|should\s+be)\s+(?:a|an)\s+(?:json\s+)?(?:array|list)\b"),
+        re.compile(r"\b(?:has|had|with)\s+(?:a|an)?\s*non[- ]?array\s+properties\b"),
+    )
+    invalid_entry_patterns = (
+        re.compile(r"\bproperties(?:\s+(?:entry|entries|item|items|element|elements))?\b[^.!?;]*\b(?:non[- ]?object|non[- ]?property|not\s+(?:a|an)\s+(?:json\s+)?object|not\s+(?:a|an)\s+property(?:\s+object)?|malformed|invalid\s+(?:entry|type)|lacks?\s+(?:a\s+)?(?:valid\s+)?(?:property\s+)?type|missing\s+(?:a\s+)?type)\b"),
+        re.compile(r"\b(?:non[- ]?object|non[- ]?property|invalid|malformed)\s+(?:entry|entries|item|items|element|elements)\b[^.!?;]*\bproperties\b"),
+        re.compile(r"\bproperties(?:\s+(?:entry|item|element))?\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\s+(?:a|an)\s+(?:property(?:\s+object)?|json\s+object)\b"),
+        re.compile(r"\bproperties(?:\s+(?:entry|item|element))?\b[^.!?;]*\bhas\s+(?:invalid\s+|unsupported\s+|unexpected\s+)?type\b"),
+    )
+
+    facts: set[str] = set()
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|allowed|accepted)\b", clause) and not re.search(r"\bnot\s+(?:valid|allowed|accepted)\b", clause):
+            continue
+        if any(p.search(clause) for p in invalid_entry_patterns):
+            facts.add("class_properties_invalid_entry")
+        elif any(p.search(clause) for p in non_array_patterns):
+            facts.add("class_properties_non_array")
+    return facts
+
+
+def class_properties_container_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized RD-02 Class.properties container/entry facts for harness checks."""
+    return frozenset(_class_properties_container_facts(message))
+
+
+def _non_enum_literals_facts(message: str) -> set[str]:
+    """Read affirmative RD-02 non-enumeration Class.literals ERROR wording."""
+    wording = _normalize_container_message(message)
+    if not wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:class|literals?|enumeration)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:invalid|malformed|non[- ]?array|non[- ]?enumeration|disallowed|forbidden|prohibited)\b",
+        r"\b(?:is|was)\s+(?:an\s+)?enumeration\b",
+        r"^\s*enumeration\s+literals\b",
+        r"\bno\s+enumeration\s+values\s+were\s+available\b",
+        r"\b(?:relation|association|package\.contents|class\.properties|generalizations)\b",
+        r"^\s*(?:relation|association|package)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    has_non_enum_cue = bool(
+        re.search(
+            r"\bnon[- ]?enumeration\b|\bnot\s+(?:an?\s+)?enumeration\b"
+            r"|\bwithout\s+(?:the\s+|stereotype\s+)?enumeration\b|\boutside\s+(?:an?\s+)?enumeration",
+            wording,
+        )
+        or (
+            re.search(r"\b(?:class|classifier|datatype)\b", wording)
+            and not re.search(r"\benumeration\s+class\b|\bstereotype\s+enumeration\b", wording)
+        )
+    )
+    if not (has_non_enum_cue and ("literal" in wording or "literals" in wording)):
+        return set()
+
+    non_array_type = r"(?:non[- ]?array(?:\s+(?:value|container|type))?|object|dict(?:ionary)?|string|str|int(?:eger)?|number|float|bool(?:ean)?)"
+    non_array_patterns = (
+        re.compile(rf"\bliterals(?:\s+(?:field|container|value))?\b[^.!?;]*\b(?:is|was)\s+(?:(?:a|an)\s+)?(?:{non_array_type}|not\s+(?:a|an)\s+(?:json\s+)?(?:array|list)|malformed|invalid)\b"),
+        re.compile(r"\b(?:malformed|invalid|non[- ]?array)\s+(?:class\s+)?literals\b"),
+        re.compile(r"\bliterals(?:\s+(?:field|container|value))?\b[^.!?;]*(?:expected|must\s+be|should\s+be)\s+(?:a|an)\s+(?:json\s+)?(?:array|list)\b"),
+        re.compile(r"\b(?:has|had|with)\s+(?:a|an)?\s*non[- ]?array\s+literals\b"),
+    )
+    invalid_entry_patterns = (
+        re.compile(r"\bliterals(?:\s+(?:entry|entries|item|items|element|elements))?\b[^.!?;]*\b(?:non[- ]?object|non[- ]?literal|not\s+(?:a|an)\s+(?:json\s+)?object|not\s+(?:a|an)\s+literal(?:\s+object)?|malformed|invalid\s+(?:entry|type)|missing\s+(?:a\s+)?type)\b"),
+        re.compile(r"\b(?:non[- ]?object|non[- ]?literal|invalid|malformed)\s+(?:entry|entries|item|items|element|elements)\b[^.!?;]*\bliterals\b"),
+        re.compile(r"\bliterals(?:\s+(?:entry|item|element))?\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\s+(?:a|an)\s+(?:literal(?:\s+object)?|json\s+object)\b"),
+    )
+    disallowed_literal_patterns = (
+        re.compile(r"\bliterals?\b[^.!?;]*\b(?:disallowed|forbidden|prohibited|unsupported|rejected|not\s+(?:permitted|allowed|supported)|cannot\s+(?:be\s+(?:declared|used|present)|appear))\b"),
+        re.compile(r"\b(?:cannot|must\s+not|may\s+not)\s+(?:have|contain|declare|supply|provide)\s+(?:(?:a|an)\s+)?(?:non[- ]?empty\s+)?literals?\b"),
+        re.compile(r"\bliteral\s+declarations?\b[^.!?;]*\b(?:outside\s+(?:an?\s+)?enumerations?|on\s+non[- ]?enumeration)\b"),
+    )
+
+    facts: set[str] = set()
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|permitted|allowed)\b", clause) and not re.search(r"\bnot\s+(?:valid|permitted|allowed)\b", clause):
+            continue
+        if any(p.search(clause) for p in invalid_entry_patterns):
+            facts.add("non_enum_literals_invalid_entry")
+        elif any(p.search(clause) for p in non_array_patterns):
+            facts.add("non_enum_literals_non_array")
+        if any(p.search(clause) for p in disallowed_literal_patterns):
+            facts.add("non_enum_literals_disallowed_literal")
+    return facts
+
+
+def non_enum_literals_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized RD-02 non-enumeration Class.literals facts for harness checks."""
+    return frozenset(_non_enum_literals_facts(message))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2359,6 +2568,27 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                     facts.update(rel_prop_facts)
                     if kind is None:
                         kind = "failed_relation"
+        _structural_skip = {
+            "INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION", "DUPLICATE_SOURCE_ID",
+            "MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE", "MISSING_SOURCE_ID",
+            "INVALID_SOURCE_ID", "UNPROCESSABLE_DOCUMENT",
+        }
+        if event.severity == "ERROR" and event.code not in _structural_skip:
+            cls_prop_facts = _class_properties_container_facts(event.message)
+            if cls_prop_facts:
+                facts.update(cls_prop_facts)
+                if kind is None:
+                    kind = "malformed_class_properties"
+            non_enum_facts = _non_enum_literals_facts(event.message)
+            if non_enum_facts:
+                facts.update(non_enum_facts)
+                if kind is None:
+                    kind = "invalid_non_enumeration_literals"
+            pkg_entry_facts = _package_contents_entry_facts(event.message, event.sources)
+            if pkg_entry_facts:
+                facts.update(pkg_entry_facts)
+                if kind is None:
+                    kind = "invalid_package_contents_entry"
         if kind is None:
             if (event.severity == "ERROR" and
                     (re.search(r"\bpackage\b", event.message, re.I)

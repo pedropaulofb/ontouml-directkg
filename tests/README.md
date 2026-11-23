@@ -1961,3 +1961,25 @@ codes) plus `DISCARDED_INSTANTIATION_INFORMATION` category fact reading from
 native `Diagnostic.message` and `Diagnostic.effect`. This TEST CHANGE awaits
 independent Test Reviewer review; no production-correctness claim is made.
 
+## RD-02 declaration containers, malformed entries, and misplaced declarations
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** (`Findings: None`) for
+[`c87a6a2cd83f6da675018edb1b0af81f86ad7013`](https://github.com/pedropaulofb/ontouml-directkg/commit/c87a6a2cd83f6da675018edb1b0af81f86ad7013).
+The [scoped inventory](coverage.md#rd-02-declaration-containers-malformed-entries-and-misplaced-declarations--alternatives-1a--2a--3a--4a)
+records the 714 new behavioral nodes, 1 harness reader check, and 4 updated
+`untyped_location` nodes across `tests/transformation/test_input_diagnostics.py`,
+`tests/transformation/test_attributes_datatypes.py`,
+`tests/transformation/test_classes.py`, `tests/transformation/test_properties.py`,
+and `tests/cli/test_cli.py`, reusing existing shared fixtures with explicit
+runtime mutations and inline assertions.
+
+`tests/support/invocation.py` adds the affirmative semantic diagnostic readers
+`_package_contents_entry_facts` / `package_contents_entry_diagnostic`,
+`_class_properties_container_facts` / `class_properties_container_diagnostic`,
+and `_non_enum_literals_facts` / `non_enum_literals_diagnostic` (without fixing
+provisional diagnostic codes), rejecting internal/deferred guard wording,
+conditionals, hedges, negations, `UNKNOWN_INFORMATION`, and unrelated subjects.
+This TEST CHANGE awaits independent Test Reviewer review; no
+production-correctness claim is made.
+

@@ -1301,3 +1301,135 @@ def test_best_effort_retains_property_reference_errors_alongside_omitted_contain
     assert _hierarchy(result.ontology) == expected_hierarchy
     assert not any(BASE.rOmitted in triple or BASE.tOmitted in triple for triple in result.ontology)
 
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('scope', ['root', 'nested'])
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('scenario', [
+    'surviving_attr_to_misplaced',
+    'surviving_end_to_misplaced',
+    'surviving_inverse_to_misplaced',
+    'misplaced_to_surviving',
+    'misplaced_to_dangling',
+    'misplaced_malformed_container',
+])
+def test_best_effort_cleanly_omits_property_references_involving_misplaced_package_property(
+        run, source_json, tmp_path, input_policy, scope, field, scenario):
+    """Rules: DK-PROP-03, DK-GEN-06, DK-DIAG-01, DK-DIAG-05; RD-02 Alternatives 1A + 2A."""
+    document = source_json('properties/references')
+    misplaced = copy.deepcopy(source_element(document, 'pChild'))
+    misplaced.update(id='pMisplaced', name='misplacedProp', propertyType={'id': 'dCustom', 'type': 'Class'})
+
+    if scenario == 'surviving_attr_to_misplaced':
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('pMisplaced')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'surviving_end_to_misplaced':
+        source_element(document, 't0')[field] = [_reference('t1'), _reference('pMisplaced')]
+        expected_hierarchy = {(BASE.t0, BASE.t1)}
+    elif scenario == 'surviving_inverse_to_misplaced':
+        source_element(document, 's0')[field] = [_reference('s1'), _reference('pMisplaced')]
+        expected_hierarchy = {(BASE.s0, BASE.s1)}
+    elif scenario == 'misplaced_to_surviving':
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        misplaced[field] = [_reference('pChild')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'misplaced_to_dangling':
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        misplaced[field] = [_reference('missingProp')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    else:
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        misplaced[field] = 'not-a-list'
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+
+    if scope == 'root':
+        document['model']['contents'].append(misplaced)
+    else:
+        document['model']['contents'].append({
+            'id': 'pNested', 'name': 'Nested', 'description': None,
+            'type': 'Package', 'propertyAssignments': None,
+            'contents': [misplaced],
+        })
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'package_contents_misplaced_declaration' in d.facts
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in {'unresolved_property_reference', 'invalid_property_references', 'property_inclusion_incompatibility'}
+        or d.code in {'UNRESOLVED_PROPERTY_REFERENCE', 'INVALID_PROPERTY_REFERENCES', 'INCOMPATIBLE_PROPERTY_INCLUSION'}
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == expected_hierarchy
+    assert not any(BASE.pMisplaced in triple for triple in graph)
+    for prop in (BASE.pBase, BASE.pChild, BASE.t0, BASE.s0, BASE.t1, BASE.s1):
+        assert any((prop, RDF.type, kind) in graph for kind in (OWL.ObjectProperty, OWL.DatatypeProperty))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('boundary', [
+    'non_property_in_class_properties',
+    'misplaced_literal_in_package_contents',
+    'untyped_entry_in_package_contents',
+])
+def test_best_effort_retains_unresolved_property_reference_for_unindexed_container_entries(
+        run, source_json, tmp_path, input_policy, field, boundary):
+    """Rules: DK-PROP-03, DK-GEN-06, DK-ATT-01, DK-DIAG-01, DK-DIAG-05; RD-02 Alts 2A + 3A."""
+    document = source_json('properties/references')
+    if boundary == 'non_property_in_class_properties':
+        fake = copy.deepcopy(source_element(document, 'cA'))
+        fake['id'] = 'fakeAttr'
+        source_element(document, 'cOwner')['properties'].append(fake)
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('fakeAttr')]
+        expected_entry_fact = 'class_properties_invalid_entry'
+    elif boundary == 'misplaced_literal_in_package_contents':
+        document['model']['contents'].append({
+            'id': 'vMisplaced', 'name': 'MisplacedLit', 'description': None,
+            'type': 'Literal', 'propertyAssignments': None,
+        })
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('vMisplaced')]
+        expected_entry_fact = 'package_contents_misplaced_declaration'
+    else:
+        document['model']['contents'].append({
+            'id': 'uBad', 'name': 'Untyped', 'description': None,
+            'type': None, 'propertyAssignments': None,
+        })
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('uBad')]
+        expected_entry_fact = 'package_contents_invalid_type'
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and expected_entry_fact in d.facts
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert any(
+        d.severity == 'ERROR'
+        and (d.kind == 'unresolved_property_reference' or d.code == 'UNRESOLVED_PROPERTY_REFERENCE')
+        and 'pChild' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert _hierarchy(result.ontology) == {(BASE.pChild, BASE.t0)}
+    for omitted in (BASE.fakeAttr, BASE.vMisplaced, BASE.uBad):
+        assert not any(omitted in triple for triple in result.ontology)
+
+

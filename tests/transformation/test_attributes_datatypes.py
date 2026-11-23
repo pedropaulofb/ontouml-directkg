@@ -8,6 +8,8 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import assert_dkgm_vocabulary
 from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
+                                      class_properties_container_diagnostic,
+                                      diagnostic_record_counts,
                                       diagnostic_signatures,
                                       unresolved_attribute_type_diagnostic)
 from tests.support.rdf import (assert_contains, assert_graph_equal, cardinality_facts, load_graph,
@@ -1100,3 +1102,248 @@ def test_attribute_owner_without_local_class_reader_requires_affirmative_conditi
         assert attribute_owner_without_local_class_diagnostic(message), message
     for message in rejected:
         assert not attribute_owner_without_local_class_diagnostic(message), message
+
+
+def _class_properties_target(document, class_kind):
+    target = source_element(document, 'cOther')
+    if class_kind == 'kind':
+        target['stereotype'] = 'kind'
+    elif class_kind == 'custom_datatype':
+        target.update(name='CustomType', stereotype='datatype')
+    else:
+        target.update(
+            name='StatusEnum',
+            stereotype='enumeration',
+            literals=[
+                {'id': 'vOne', 'name': 'One', 'description': None, 'type': 'Literal', 'propertyAssignments': None},
+                {'id': 'vTwo', 'name': 'Two', 'description': None, 'type': 'Literal', 'propertyAssignments': None},
+            ],
+        )
+    return target
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('class_kind', ['kind', 'custom_datatype', 'enumeration'])
+@pytest.mark.parametrize('form', ['absent', 'null', 'empty'])
+def test_empty_class_properties_representations_are_equivalent(
+        run, invoke, source_json, tmp_path, input_policy, class_kind, form):
+    """Rules: DK-ATT-01, DK-DIAG-05; §3.2. RD-02 Alternative 3A."""
+    control_doc = source_json('attributes_datatypes/value_types')
+    _class_properties_target(control_doc, class_kind)['properties'] = []
+    document = source_json('attributes_datatypes/value_types')
+    target = _class_properties_target(document, class_kind)
+    if form == 'absent':
+        target.pop('properties', None)
+    else:
+        target['properties'] = None if form == 'null' else []
+
+    baseline = run(path=write_input(tmp_path, control_doc, 'control.json'),
+                   iri_strategy='id', input_policy=input_policy)
+    result = run(path=write_input(tmp_path, document),
+                 iri_strategy='id', input_policy=input_policy)
+    assert baseline.outcome == result.outcome == 'completed'
+    assert_graph_equal(baseline.ontology, result.ontology)
+    assert diagnostic_record_counts(invoke.report_content(result).events) == diagnostic_record_counts(
+        invoke.report_content(baseline).events)
+    assert not any(d.severity in {'WARNING', 'ERROR'} for d in result.diagnostics)
+    assert (BASE.cOther, RDF.type, OWL.Class) in result.ontology
+
+
+_NON_ARRAY_CLASS_PROPERTIES = [
+    ('object', lambda prop: copy.deepcopy(prop)),
+    ('string', lambda _prop: 'BAD_PROPERTIES_SENTINEL'),
+    ('empty_string', lambda _prop: ''),
+    ('zero', lambda _prop: 0),
+    ('false', lambda _prop: False),
+    ('true', lambda _prop: True),
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('class_kind', ['kind', 'custom_datatype', 'enumeration'])
+@pytest.mark.parametrize('form,builder', _NON_ARRAY_CLASS_PROPERTIES, ids=[item[0] for item in _NON_ARRAY_CLASS_PROPERTIES])
+def test_malformed_class_properties_container_follows_policy(
+        run, source_json, tmp_path, input_policy, class_kind, form, builder):
+    """Rules: DK-ATT-01, DK-CLS-01, DK-DIAG-04, DK-DIAG-05; §3.2, §3.4. RD-02 Alternative 3A."""
+    document = source_json('attributes_datatypes/value_types')
+    source_element(document, 'pFocus')['cardinality'] = '1'
+    target = _class_properties_target(document, class_kind)
+    sample_prop = copy.deepcopy(source_element(document, 'pFocus'))
+    sample_prop.update(id='pIgnored', name='ignoredAttr')
+    target['properties'] = builder(sample_prop)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == 'UNKNOWN_INFORMATION' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'class_properties_non_array' in d.facts
+        and 'cOther' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert (BASE.cOwner, RDF.type, OWL.Class) in graph
+    assert (BASE.cOther, RDF.type, OWL.Class) in graph
+    _focus(graph, OWL.DatatypeProperty, XSD.int, BASE.cOwner, BASE.pFocus)
+    _counts(graph, BASE.cOwner, BASE.pFocus, {('exact', 1)}, XSD.int)
+    assert not any(BASE.pIgnored in triple for triple in graph)
+    assert not list(graph.subjects(DCTERMS.identifier, Literal('pIgnored')))
+    if class_kind == 'enumeration':
+        assert (BASE.vOne, RDF.type, OWL.NamedIndividual) in graph
+        assert (BASE.vTwo, RDF.type, OWL.NamedIndividual) in graph
+
+
+_INVALID_CLASS_PROPERTY_ENTRIES = [
+    ('null_entry', None),
+    ('string_entry', 'BAD_PROPERTY_ENTRY_SENTINEL'),
+    ('zero_entry', 0),
+    ('false_entry', False),
+    ('array_entry', []),
+    ('known_class', {'id': 'fakeClassProp', 'name': 'Fake', 'description': None, 'type': 'Class', 'propertyAssignments': None}),
+    ('known_literal', {'id': 'fakeLitProp', 'name': 'FakeLit', 'description': None, 'type': 'Literal', 'propertyAssignments': None}),
+    ('unknown_string_type', {'id': 'fakeUnknownProp', 'name': 'FakeUnknown', 'description': None, 'type': 'Diagram', 'propertyAssignments': None}),
+    ('missing_type', {'id': 'fakeMissingType', 'name': 'FakeMissing', 'description': None, 'propertyAssignments': None}),
+    ('null_type', {'id': 'fakeNullType', 'name': 'FakeNull', 'description': None, 'type': None, 'propertyAssignments': None}),
+    ('empty_type', {'id': 'fakeEmptyType', 'name': 'FakeEmpty', 'description': None, 'type': '', 'propertyAssignments': None}),
+    ('whitespace_type', {'id': 'fakeBlankType', 'name': 'FakeBlank', 'description': None, 'type': ' \t ', 'propertyAssignments': None}),
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('entry_case,bad_entry', _INVALID_CLASS_PROPERTY_ENTRIES, ids=[item[0] for item in _INVALID_CLASS_PROPERTY_ENTRIES])
+def test_invalid_class_properties_entries_preserve_owner_and_valid_siblings(
+        run, source_json, tmp_path, input_policy, iri_strategy, entry_case, bad_entry):
+    """Rules: DK-ATT-01, DK-ATT-03, DK-GEN-03, DK-CLS-01, DK-DIAG-04, DK-DIAG-05; §3.2. RD-02 Alternative 3A."""
+    document = source_json('attributes_datatypes/value_types')
+    focus = source_element(document, 'pFocus')
+    focus['cardinality'] = '1'
+    sibling_after = copy.deepcopy(focus)
+    sibling_after.update(id='pAfter', name='afterAttr', cardinality='2..5')
+    source_element(document, 'cOwner')['properties'] = [focus, copy.deepcopy(bad_entry), sibling_after]
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == 'UNKNOWN_INFORMATION' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'class_properties_invalid_entry' in d.facts
+        and (
+            {'cOwner', 'fakeClassProp', 'fakeLitProp', 'fakeUnknownProp', 'fakeMissingType',
+             'fakeNullType', 'fakeEmptyType', 'fakeBlankType'} & set(d.identified_sources)
+            or any(s.path.startswith('$.model.contents[0].properties[1]') for s in d.raw.sources)
+        )
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    owner_iri = BASE.cOwner if iri_strategy == 'id' else BASE.Owner
+    other_iri = BASE.cOther if iri_strategy == 'id' else BASE.Other
+    p_focus = BASE.pFocus if iri_strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('pFocus'))
+    p_after = BASE.pAfter if iri_strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('pAfter'))
+    assert (owner_iri, RDF.type, OWL.Class) in graph
+    assert (other_iri, RDF.type, OWL.Class) in graph
+    _focus(graph, OWL.DatatypeProperty, XSD.int, owner_iri, p_focus)
+    _focus(graph, OWL.DatatypeProperty, XSD.int, owner_iri, p_after)
+    _counts(graph, owner_iri, p_focus, {('exact', 1)}, XSD.int)
+    _counts(graph, owner_iri, p_after, {('min', 2), ('max', 5)}, XSD.int)
+    local_props = {
+        s for kind in (OWL.ObjectProperty, OWL.DatatypeProperty)
+        for s in graph.subjects(RDF.type, kind)
+        if str(s).startswith(str(BASE))
+    }
+    assert local_props == {p_focus, p_after}
+    for fake_id in ('fakeClassProp', 'fakeLitProp', 'fakeUnknownProp',
+                    'fakeMissingType', 'fakeNullType', 'fakeEmptyType', 'fakeBlankType'):
+        assert not any(BASE[fake_id] in triple for triple in graph)
+        assert not list(graph.subjects(DCTERMS.identifier, Literal(fake_id)))
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('condition', [
+    'duplicate_sibling_after_invalid_entry',
+    'rejected_sibling_stereotype_after_invalid_entry',
+    'accepted_custom_sibling_stereotype_after_invalid_entry',
+    'invalid_sibling_id_after_invalid_entry',
+    'duplicate_owner_id_with_malformed_properties',
+    'rejected_owner_stereotype_with_malformed_properties',
+])
+def test_class_properties_container_and_entries_respect_diagnostic_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-ATT-01, DK-DIAG-05, DK-DIAG-06; §3.4 opaque source IDs and duplicate IDs. RD-02 Alternative 3A."""
+    document = source_json('attributes_datatypes/value_types')
+    owner = source_element(document, 'cOwner')
+    focus = source_element(document, 'pFocus')
+    focus['cardinality'] = '1'
+    sibling = copy.deepcopy(focus)
+    sibling.update(id='pSibling', name='siblingAttr')
+    options = {'iri_strategy': 'id', 'input_policy': input_policy}
+    always_abort = True
+
+    if condition == 'duplicate_sibling_after_invalid_entry':
+        sibling['id'] = 'cOther'
+        owner['properties'] = [None, sibling]
+        expected_kind = 'duplicate_id'
+    elif condition == 'rejected_sibling_stereotype_after_invalid_entry':
+        sibling['stereotype'] = 'customProp'
+        owner['properties'] = [None, sibling]
+        options['stereotype_policy'] = 'allow-missing'
+        expected_kind = 'unrecognized_stereotype'
+    elif condition == 'accepted_custom_sibling_stereotype_after_invalid_entry':
+        sibling['stereotype'] = 'customProp'
+        owner['properties'] = [None, sibling]
+        options['stereotype_policy'] = 'allow-custom'
+        expected_kind = 'unrecognized_stereotype'
+        always_abort = False
+    elif condition == 'invalid_sibling_id_after_invalid_entry':
+        sibling['id'] = ''
+        owner['properties'] = [None, sibling]
+        expected_kind = 'invalid_id'
+        always_abort = False
+    elif condition == 'duplicate_owner_id_with_malformed_properties':
+        dup = copy.deepcopy(source_element(document, 'cOther'))
+        dup['id'] = 'cOwner'
+        owner['properties'] = 'bad'
+        document['model']['contents'].append(dup)
+        expected_kind = 'duplicate_id'
+    else:
+        owner['stereotype'] = None
+        owner['properties'] = 'bad'
+        options['stereotype_policy'] = 'require-known'
+        expected_kind = 'missing_stereotype'
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    if condition == 'accepted_custom_sibling_stereotype_after_invalid_entry':
+        assert any(d.severity == 'WARNING' and d.kind == 'unrecognized_stereotype' and 'pSibling' in d.identified_sources
+                   for d in result.diagnostics), result.diagnostics
+        assert any(d.severity == 'ERROR' and 'class_properties_invalid_entry' in d.facts
+                   for d in result.diagnostics), result.diagnostics
+    else:
+        assert any(d.severity == 'ERROR' and d.kind == expected_kind for d in result.diagnostics), result.diagnostics
+        if expected_kind == 'duplicate_id':
+            assert any(d.code == 'DUPLICATE_SOURCE_ID' and {'competing_declarations', 'conversion_aborted'} <= d.facts
+                       for d in result.diagnostics if d.kind == 'duplicate_id')
+
+    if always_abort or input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+    else:
+        assert result.outcome == 'completed-with-errors'
+        assert (BASE.cOwner, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.cOther, RDF.type, OWL.Class) in result.ontology
+        if condition == 'accepted_custom_sibling_stereotype_after_invalid_entry':
+            _focus(result.ontology, OWL.DatatypeProperty, XSD.int, BASE.cOwner, BASE.pSibling)
+        else:
+            assert not any(BASE.pSibling in triple for triple in result.ontology)
+

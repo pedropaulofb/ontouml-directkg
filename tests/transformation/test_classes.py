@@ -8,7 +8,7 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
-from tests.support.invocation import diagnostic_signatures
+from tests.support.invocation import diagnostic_record_counts, diagnostic_signatures
 from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, load_graph,
                                one_object, one_subject, rdf_list)
 
@@ -865,3 +865,196 @@ def test_restricted_to_is_recognized_but_wholly_omitted(run, source_json, tmp_pa
     assert diagnostic_signatures(result.diagnostics) == diagnostic_signatures(ordered.diagnostics)
     assert _pairs(result.ontology) == _pairs(baseline.ontology)
     assert not any(d.kind in {"restricted_to", "unknown_information", "semantic_validation"} for d in result.diagnostics)
+
+
+def _configure_non_enum_target(document, class_kind):
+    target = copy.deepcopy(source_element(document, "cOwner"))
+    target.update(id="cTarget", name="TargetClass", properties=None, isAbstract=False, isDerived=False)
+    stereotype_policy = "allow-custom"
+    if class_kind == "kind":
+        target["stereotype"] = "kind"
+    elif class_kind == "custom_datatype":
+        target.update(name="CustomDatatype", stereotype="datatype")
+    elif class_kind == "primitive_datatype":
+        target.update(name="int", stereotype="datatype")
+    elif class_kind == "abstract":
+        target["stereotype"] = "abstract"
+    elif class_kind == "null_stereotype":
+        target["stereotype"] = None
+    else:
+        target["stereotype"] = "customNonEnum"
+        stereotype_policy = "allow-custom"
+    document["model"]["contents"].append(target)
+    return target, stereotype_policy
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("class_kind", [
+    "kind", "custom_datatype", "primitive_datatype", "abstract", "null_stereotype", "custom_stereotype",
+])
+@pytest.mark.parametrize("form", ["absent", "null", "empty"])
+def test_empty_non_enumeration_class_literals_are_accepted_without_warning(
+        run, invoke, source_json, tmp_path, input_policy, class_kind, form):
+    """Rules: DK-CLS-01, DK-CLS-11, DK-DIAG-05, DK-DIAG-13; §3.2. RD-02 Alternative 4A."""
+    control_doc = source_json("classes/enumerations")
+    control_doc["model"]["contents"] = [source_element(control_doc, "cOwner")]
+    source_element(control_doc, "cOwner")["properties"] = None
+    control_target, stereotype_policy = _configure_non_enum_target(control_doc, class_kind)
+    control_target["literals"] = None
+
+    document = copy.deepcopy(control_doc)
+    target = source_element(document, "cTarget")
+    if form == "absent":
+        target.pop("literals", None)
+    else:
+        target["literals"] = None if form == "null" else []
+
+    baseline = run(path=write_input(tmp_path, control_doc, "control.json"),
+                   iri_strategy="id", input_policy=input_policy, stereotype_policy=stereotype_policy)
+    result = run(path=write_input(tmp_path, document),
+                 iri_strategy="id", input_policy=input_policy, stereotype_policy=stereotype_policy)
+    assert baseline.outcome == result.outcome == "completed"
+    assert_graph_equal(baseline.ontology, result.ontology)
+    assert diagnostic_record_counts(invoke.report_content(result).events) == diagnostic_record_counts(
+        invoke.report_content(baseline).events)
+    assert not any(d.severity == "ERROR" or d.kind == "enumeration_values_unavailable" for d in result.diagnostics)
+    assert not list(result.ontology.subjects(RDF.type, OWL.NamedIndividual))
+    assert not list(result.ontology.triples((None, OWL.oneOf, None)))
+    assert not list(result.ontology.subjects(RDF.type, OWL.AllDifferent))
+
+
+_NON_ENUM_LITERAL_CASES = [
+    ("non_array_object", lambda lit: copy.deepcopy(lit), "non_enum_literals_non_array"),
+    ("non_array_string", lambda _lit: "BAD_LITERALS_SENTINEL", "non_enum_literals_non_array"),
+    ("non_array_zero", lambda _lit: 0, "non_enum_literals_non_array"),
+    ("non_array_false", lambda _lit: False, "non_enum_literals_non_array"),
+    ("non_object_null_entry", lambda _lit: [None], "non_enum_literals_invalid_entry"),
+    ("non_object_string_entry", lambda _lit: ["BAD_LITERAL_ENTRY"], "non_enum_literals_invalid_entry"),
+    ("non_literal_class_entry", lambda _lit: [{"id": "fakeLitClass", "name": "Fake", "description": None, "type": "Class", "propertyAssignments": None}], "non_enum_literals_invalid_entry"),
+    ("unknown_type_entry", lambda _lit: [{"id": "fakeLitUnknown", "name": "Fake", "description": None, "type": "Diagram", "propertyAssignments": None}], "non_enum_literals_invalid_entry"),
+    ("missing_type_entry", lambda _lit: [{"id": "fakeLitMissing", "name": "Fake", "description": None, "propertyAssignments": None}], "non_enum_literals_invalid_entry"),
+    ("valid_literal_entry", lambda lit: [copy.deepcopy(lit)], "non_enum_literals_disallowed_literal"),
+    ("mixed_valid_literal_and_invalid_entry", lambda lit: [None, copy.deepcopy(lit)], "non_enum_literals_invalid_entry"),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("class_kind", [
+    "kind", "custom_datatype", "primitive_datatype", "abstract", "null_stereotype", "custom_stereotype",
+])
+@pytest.mark.parametrize("case,builder,expected_fact", _NON_ENUM_LITERAL_CASES, ids=[item[0] for item in _NON_ENUM_LITERAL_CASES])
+def test_non_enumeration_class_literals_rejects_non_array_and_entries(
+        run, source_json, tmp_path, input_policy, class_kind, case, builder, expected_fact):
+    """Rules: DK-CLS-01, DK-CLS-11, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-DIAG-13; §3.2. RD-02 Alternative 4A."""
+    document = source_json("classes/enumerations")
+    valid_lit = copy.deepcopy(source_element(document, "vPending"))
+    valid_lit.update(id="vDisallowed", name="DisallowedValue")
+    # Keep only cOwner (as a clean independent survivor) plus cTarget.
+    owner = source_element(document, "cOwner")
+    owner["properties"][0].update(id="pSurviving", name="survivingAttr", propertyType=None)
+    document["model"]["contents"] = [owner]
+    target, stereotype_policy = _configure_non_enum_target(document, class_kind)
+    target["literals"] = builder(valid_lit)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id",
+                 input_policy=input_policy, stereotype_policy=stereotype_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code in {"UNKNOWN_INFORMATION", "ENUMERATION_VALUES_UNAVAILABLE", "UNTRANSFORMABLE_ENUMERATION_VALUE"}
+                   for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and expected_fact in d.facts
+        and (
+            {"cTarget", "vDisallowed", "fakeLitClass", "fakeLitUnknown", "fakeLitMissing"} & set(d.identified_sources)
+            or any(s.path.startswith("$.model.contents[1].literals") for s in d.raw.sources)
+        )
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert (BASE.cOwner, RDF.type, OWL.Class) in graph
+    assert (BASE.pSurviving, RDF.type, OWL.DatatypeProperty) in graph
+    if class_kind == "primitive_datatype":
+        assert not any(BASE.cTarget in triple for triple in graph)
+    else:
+        assert (BASE.cTarget, RDF.type, OWL.Class) in graph
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    assert not list(graph.triples((None, OWL.oneOf, None)))
+    assert not list(graph.subjects(RDF.type, OWL.AllDifferent))
+    for omitted in (BASE.vDisallowed, BASE.fakeLitClass, BASE.fakeLitUnknown, BASE.fakeLitMissing):
+        assert not any(omitted in triple for triple in graph)
+    for omitted_id in ("vDisallowed", "fakeLitClass", "fakeLitUnknown", "fakeLitMissing"):
+        assert not list(graph.subjects(DCTERMS.identifier, Literal(omitted_id)))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_valid_literal_id",
+    "duplicate_valid_literal_after_null_entry",
+    "rejected_owner_null_stereotype_with_valid_literal",
+    "rejected_owner_custom_stereotype_with_valid_literal",
+    "rejected_owner_stereotype_with_non_array_literals",
+    "invalid_owner_id_with_valid_literal",
+])
+def test_non_enumeration_class_literals_respect_diagnostic_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-CLS-01, DK-CLS-11, DK-DIAG-05, DK-DIAG-06; §3.4 opaque source IDs and duplicate IDs. RD-02 Alternative 4A."""
+    document = source_json("classes/enumerations")
+    valid_lit = copy.deepcopy(source_element(document, "vPending"))
+    valid_lit.update(id="vDisallowed", name="DisallowedValue")
+    owner = source_element(document, "cOwner")
+    owner["properties"] = None
+    document["model"]["contents"] = [owner]
+    target, _ = _configure_non_enum_target(document, "kind")
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = True
+
+    if condition == "duplicate_valid_literal_id":
+        valid_lit["id"] = "cOwner"
+        target["literals"] = [valid_lit]
+        expected_kind = "duplicate_id"
+    elif condition == "duplicate_valid_literal_after_null_entry":
+        valid_lit["id"] = "cOwner"
+        target["literals"] = [None, valid_lit]
+        expected_kind = "duplicate_id"
+    elif condition == "rejected_owner_null_stereotype_with_valid_literal":
+        target["stereotype"] = None
+        target["literals"] = [valid_lit]
+        options["stereotype_policy"] = "require-known"
+        expected_kind = "missing_stereotype"
+    elif condition == "rejected_owner_custom_stereotype_with_valid_literal":
+        target["stereotype"] = "customNonEnum"
+        target["literals"] = [valid_lit]
+        options["stereotype_policy"] = "allow-missing"
+        expected_kind = "unrecognized_stereotype"
+    elif condition == "rejected_owner_stereotype_with_non_array_literals":
+        target["stereotype"] = None
+        target["literals"] = "bad"
+        options["stereotype_policy"] = "require-known"
+        expected_kind = "missing_stereotype"
+    else:
+        target["id"] = ""
+        target["literals"] = [valid_lit]
+        expected_kind = "invalid_id"
+        always_abort = False
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == "ERROR" and d.kind == expected_kind for d in result.diagnostics), result.diagnostics
+    if expected_kind == "duplicate_id":
+        assert any(d.code == "DUPLICATE_SOURCE_ID" and {"competing_declarations", "conversion_aborted"} <= d.facts
+                   for d in result.diagnostics if d.kind == "duplicate_id")
+
+    if always_abort or input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        assert (BASE.cOwner, RDF.type, OWL.Class) in result.ontology
+        assert not list(result.ontology.subjects(RDF.type, OWL.NamedIndividual))
+        assert not any(BASE.vDisallowed in triple for triple in result.ontology)
+

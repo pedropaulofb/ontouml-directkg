@@ -206,7 +206,11 @@ def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_f
     assert produced_records <= expected_records, "CLI presentation/delivery discarded produced diagnostics"
     payload = json.loads(report_path.read_bytes())
     assert _cli_json_report_contract(payload) == (native.outcome, expected_records)
-    expected_outcome = "completed-with-errors" if scenario == "partial" else "aborted" if scenario in {"unprocess", "metadata_failure", "duplicate_abort"} else "completed"
+    expected_outcome = (
+        "completed-with-errors" if scenario == "partial"
+        else "aborted" if scenario in {"unprocess", "metadata_failure", "duplicate_abort", "untyped_location"}
+        else "completed"
+    )
     assert native.outcome == process.observation.outcome == expected_outcome
     assert process.returncode == {"completed": 0, "completed-with-errors": 1, "aborted": 3}[expected_outcome]
     allowed = {"info": {"INFO", "WARNING", "ERROR"}, "warning": {"WARNING", "ERROR"}, "error": {"ERROR"}}[console_level]
@@ -216,7 +220,7 @@ def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_f
     else:
         assert len(Graph().parse(destination, format="turtle")) > 0
     events = payload["diagnostics"]
-    if scenario in {"partial", "unprocess", "metadata_failure", "duplicate_abort"}:
+    if scenario in {"partial", "unprocess", "metadata_failure", "duplicate_abort", "untyped_location"}:
         assert any(event["severity"] == "ERROR" for event in events)
     if scenario == "clean":
         assert events == []
@@ -2446,4 +2450,170 @@ def test_relation_properties_container_adds_no_new_cli_or_python_controls(invoke
     assert set(surface.cli) == {
         flag for flag, *_ in CONTROLS
     } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
+
+
+def _declaration_container_cli_document(case):
+    document = load_json("shared/core_model")
+    if case == "root_package_non_object_entry":
+        document["model"]["contents"].insert(1, None)
+    elif case == "nested_package_missing_type_entry":
+        document["model"]["contents"].insert(1, {
+            "id": "pNested", "name": "Nested", "description": None,
+            "type": "Package", "propertyAssignments": None,
+            "contents": [{"id": "uBad", "name": "Bad", "description": None, "propertyAssignments": None}],
+        })
+    elif case == "root_package_misplaced_property":
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced.update(id="pMisplaced", name="misplacedAttr")
+        document["model"]["contents"].append(misplaced)
+    elif case == "root_package_misplaced_literal":
+        document["model"]["contents"].append({
+            "id": "vMisplaced", "name": "MisplacedLiteral", "description": None,
+            "type": "Literal", "propertyAssignments": None,
+        })
+    elif case == "root_package_unknown_string_type":
+        document["model"]["contents"].append({
+            "id": "uDiagram", "name": "UNKNOWN_DIAGRAM_SENTINEL", "description": None,
+            "type": "Diagram", "propertyAssignments": None,
+        })
+    elif case == "class_properties_non_array":
+        source_element(document, "cOrg")["properties"] = {"id": "notList"}
+    elif case == "class_properties_non_property_entry":
+        source_element(document, "cPerson")["properties"].insert(
+            1, {"id": "fakeProp", "name": "FakeProp", "description": None, "type": "Diagram", "propertyAssignments": None}
+        )
+    elif case == "non_enum_literals_valid_literal":
+        source_element(document, "cOrg")["literals"] = [
+            {"id": "vBadLit", "name": "BadLit", "description": None, "type": "Literal", "propertyAssignments": None}
+        ]
+    elif case == "non_enum_literals_non_array":
+        source_element(document, "cOrg")["literals"] = "BAD_LITERALS_SENTINEL"
+    else:
+        raise AssertionError(f"Unlisted CLI declaration-container case: {case}")
+    return document
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", [
+    "root_package_non_object_entry",
+    "nested_package_missing_type_entry",
+    "root_package_misplaced_property",
+    "root_package_misplaced_literal",
+    "root_package_unknown_string_type",
+    "class_properties_non_array",
+    "class_properties_non_property_entry",
+    "non_enum_literals_valid_literal",
+    "non_enum_literals_non_array",
+])
+def test_declaration_containers_and_misplaced_entries_cli_python_parity(invoke, tmp_path, case, input_policy):
+    """Rules: DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-04, DK-DIAG-05; §3.2, §15. RD-02 Alts 1A+2A+3A+4A."""
+    document = _declaration_container_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    if case == "root_package_unknown_string_type":
+        if input_policy == "strict":
+            outcome, expected_code, delivered_expected = "aborted", 3, False
+        else:
+            outcome, expected_code, delivered_expected = "completed", 0, True
+    elif input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    expected_fact = {
+        "root_package_non_object_entry": "package_contents_non_object_entry",
+        "nested_package_missing_type_entry": "package_contents_invalid_type",
+        "root_package_misplaced_property": "package_contents_misplaced_declaration",
+        "root_package_misplaced_literal": "package_contents_misplaced_declaration",
+        "root_package_unknown_string_type": None,
+        "class_properties_non_array": "class_properties_non_array",
+        "class_properties_non_property_entry": "class_properties_invalid_entry",
+        "non_enum_literals_valid_literal": "non_enum_literals_disallowed_literal",
+        "non_enum_literals_non_array": "non_enum_literals_non_array",
+    }[case]
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        if case == "root_package_unknown_string_type":
+            expected_sev = "ERROR" if input_policy == "strict" else "WARNING"
+            assert any(event.code == "UNKNOWN_INFORMATION" and event.severity == expected_sev for event in events), events
+        else:
+            assert not any(event.code == "UNKNOWN_INFORMATION" for event in events), events
+            assert any(
+                event.severity == "ERROR"
+                and expected_fact in event.facts
+                and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+                for event in events
+            ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        assert (BASE.cPerson, RDF.type, OWL.Class) in delivered_graph
+        assert (BASE.cOrg, RDF.type, OWL.Class) in delivered_graph
+        assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in delivered_graph
+        assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in delivered_graph
+        assert not list(delivered_graph.subjects(RDF.type, OWL.NamedIndividual))
+        for absent in (BASE.uBad, BASE.pMisplaced, BASE.vMisplaced, BASE.uDiagram, BASE.fakeProp, BASE.vBadLit):
+            assert not any(absent in triple for triple in delivered_graph)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+@pytest.mark.parametrize("case,expected_fact", [
+    ("root_package_misplaced_property", "package_contents_misplaced_declaration"),
+    ("class_properties_non_property_entry", "class_properties_invalid_entry"),
+    ("non_enum_literals_valid_literal", "non_enum_literals_disallowed_literal"),
+])
+def test_declaration_containers_and_misplaced_entries_report_failure_takes_precedence(
+        invoke, tmp_path, input_policy, case, expected_fact):
+    """Rules: DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence. RD-02 Alts 1A+2A+3A+4A."""
+    document = _declaration_container_cli_document(case)
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert any(
+        event.severity == "ERROR"
+        and expected_fact in event.facts
+        and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in process.observation.diagnostics
+    ), process.observation.diagnostics
+
 

@@ -11,8 +11,11 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
                                package_contents_document, source_element, source_elements, write_input)
 from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
+                                      class_properties_container_diagnostic,
                                       diagnostic_signatures,
                                       malformed_package_contents_diagnostic,
+                                      non_enum_literals_diagnostic,
+                                      package_contents_entry_diagnostic,
                                       relation_properties_container_diagnostic)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
@@ -750,7 +753,11 @@ def test_shared_json_contract_python_export_preserves_required_fields_and_actual
     """
     source, options = _json_contract_source(source_json, tmp_path, scenario)
     result = invoke.convert(source, options=options, workdir=tmp_path)
-    expected = "completed-with-errors" if scenario == "partial" else "aborted" if scenario in {"unprocess", "metadata_failure", "duplicate_abort"} else "completed"
+    expected = (
+        "completed-with-errors" if scenario == "partial"
+        else "aborted" if scenario in {"unprocess", "metadata_failure", "duplicate_abort", "untyped_location"}
+        else "completed"
+    )
     assert result.outcome == expected and result.diagnostics_exports == ()
     before = _native_report_records(invoke.report_content(result))
     graph = None if result.ontology is None else Graph() + result.ontology
@@ -767,7 +774,7 @@ def test_shared_json_contract_python_export_preserves_required_fields_and_actual
         assert observed_graph is not None
         assert_graph_equal(observed_graph, graph)
     events = payload["diagnostics"]
-    if scenario in {"partial", "unprocess", "metadata_failure", "duplicate_abort"}:
+    if scenario in {"partial", "unprocess", "metadata_failure", "duplicate_abort", "untyped_location"}:
         assert any(event["severity"] == "ERROR" for event in events)
     if scenario == "clean":
         assert events == []
@@ -1250,4 +1257,360 @@ def test_relation_properties_container_json_diagnostics_export_contract(
         assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in observed_graph
         assert not any(BASE.rWorks in triple or BASE.eSource in triple or BASE.eTarget in triple
                        for triple in observed_graph)
+
+
+_PKG_ENTRY_CASES = [
+    ("non_object_null", None, "package_contents_non_object_entry"),
+    ("non_object_string", "BAD_ENTRY_SENTINEL", "package_contents_non_object_entry"),
+    ("non_object_number", 0, "package_contents_non_object_entry"),
+    ("non_object_boolean", False, "package_contents_non_object_entry"),
+    ("non_object_array", [], "package_contents_non_object_entry"),
+    ("missing_type", {"id": "uBad", "name": "Bad", "description": None, "propertyAssignments": None}, "package_contents_invalid_type"),
+    ("null_type", {"id": "uBad", "name": "Bad", "description": None, "type": None, "propertyAssignments": None}, "package_contents_invalid_type"),
+    ("number_type", {"id": "uBad", "name": "Bad", "description": None, "type": 42, "propertyAssignments": None}, "package_contents_invalid_type"),
+    ("empty_type", {"id": "uBad", "name": "Bad", "description": None, "type": "", "propertyAssignments": None}, "package_contents_invalid_type"),
+    ("whitespace_type", {"id": "uBad", "name": "Bad", "description": None, "type": " \t\n", "propertyAssignments": None}, "package_contents_invalid_type"),
+    ("misplaced_project", "project", "package_contents_misplaced_declaration"),
+    ("misplaced_property", "property", "package_contents_misplaced_declaration"),
+    ("misplaced_literal", "literal", "package_contents_misplaced_declaration"),
+]
+
+
+def _pkg_entry_document(scope, entry_spec):
+    document = load_json("shared/core_model")
+    if entry_spec == "project":
+        entry = {
+            "id": "projInner", "name": "InnerProject", "description": None, "type": "Project",
+            "model": {
+                "id": "projInner_root", "name": None, "description": None, "type": "Package",
+                "propertyAssignments": None,
+                "contents": [copy.deepcopy(source_element(document, "cOrg"))],
+            },
+            "diagrams": None,
+        }
+        entry["model"]["contents"][0].update(id="cInsideProject", name="InsideProject")
+    elif entry_spec == "property":
+        entry = copy.deepcopy(source_element(document, "aAge"))
+        entry.update(id="pMisplaced", name="misplacedAttr", cardinality="1")
+    elif entry_spec == "literal":
+        entry = {
+            "id": "vMisplaced", "name": "MisplacedLiteral", "description": None,
+            "type": "Literal", "propertyAssignments": None,
+        }
+    else:
+        entry = copy.deepcopy(entry_spec)
+
+    if scope == "root":
+        document["model"]["contents"].insert(1, entry)
+        target_path = "$.model.contents[1]"
+        pkg_id = document["model"]["id"]
+    else:
+        nested_cls = copy.deepcopy(source_element(document, "cOrg"))
+        nested_cls.update(id="cNestedSibling", name="NestedSibling")
+        nested_pkg = {
+            "id": "pNested", "name": "NestedPkg", "description": None,
+            "type": "Package", "propertyAssignments": None,
+            "contents": [nested_cls, entry],
+        }
+        document["model"]["contents"].insert(1, nested_pkg)
+        target_path = "$.model.contents[1].contents[1]"
+        pkg_id = "pNested"
+    return document, target_path, pkg_id
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scope", ["root", "nested"])
+@pytest.mark.parametrize("case,entry_spec,expected_fact", _PKG_ENTRY_CASES, ids=[item[0] for item in _PKG_ENTRY_CASES])
+def test_package_contents_invalid_entries_and_misplaced_declarations_follow_policy(
+        run, tmp_path, input_policy, scope, case, entry_spec, expected_fact):
+    """Rules: DK-GEN-06, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §3.2, §3.4. RD-02 Alternatives 1A + 2A."""
+    document, target_path, pkg_id = _pkg_entry_document(scope, entry_spec)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and expected_fact in d.facts
+        and d.code not in {"INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION"}
+        and (
+            any(s.path.startswith(target_path) or s.identifier in {pkg_id, "projInner", "pMisplaced", "vMisplaced", "uBad"}
+                for s in d.raw.sources)
+        )
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    control_doc = load_json("shared/core_model")
+    if scope == "nested":
+        nested_cls = copy.deepcopy(source_element(control_doc, "cOrg"))
+        nested_cls.update(id="cNestedSibling", name="NestedSibling")
+        control_doc["model"]["contents"].insert(1, {
+            "id": "pNested", "name": "NestedPkg", "description": None,
+            "type": "Package", "propertyAssignments": None,
+            "contents": [nested_cls],
+        })
+    control = run(path=write_input(tmp_path, control_doc, "control.json"),
+                  iri_strategy="id", input_policy=input_policy)
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
+    assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+    assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+    assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in result.ontology
+    assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in result.ontology
+    if scope == "nested":
+        assert (BASE.cNestedSibling, RDF.type, OWL.Class) in result.ontology
+    assert not list(result.ontology.subjects(RDF.type, OWL.NamedIndividual))
+    for omitted in (BASE.projInner, BASE.cInsideProject, BASE.pMisplaced, BASE.vMisplaced, BASE.uBad):
+        assert not any(omitted in triple for triple in result.ontology)
+    for omitted_id in ("projInner", "cInsideProject", "pMisplaced", "vMisplaced", "uBad"):
+        assert not list(result.ontology.subjects(DCTERMS.identifier, Literal(omitted_id)))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scope", ["root", "nested"])
+@pytest.mark.parametrize("unknown_type", ["Diagram", "CustomNode"])
+def test_package_contents_unknown_string_type_retains_unknown_information(
+        run, source_json, tmp_path, input_policy, scope, unknown_type):
+    """Rules: DK-GEN-06, DK-DIAG-04, DK-DIAG-05; §3.2. RD-02 Alternative 2A boundary."""
+    document = source_json("shared/core_model")
+    foreign = {
+        "id": "unknownCustom", "name": "UNKNOWN_CUSTOM_SENTINEL",
+        "description": None, "type": unknown_type, "propertyAssignments": None,
+    }
+    if scope == "root":
+        document["model"]["contents"].append(foreign)
+    else:
+        document["model"]["contents"].append({
+            "id": "pNested", "name": "Nested", "description": None,
+            "type": "Package", "propertyAssignments": None,
+            "contents": [foreign],
+        })
+    assert fixture_issues(document) == {"unknown_element"}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    unknown_events = [d for d in result.diagnostics if d.kind == "unknown_information" and d.code == "UNKNOWN_INFORMATION"]
+    assert unknown_events
+    assert not any(d.kind == "invalid_package_contents_entry" for d in result.diagnostics)
+    if input_policy == "strict":
+        assert result.outcome == "aborted" and result.ontology is None
+        assert all(d.severity == "ERROR" for d in unknown_events)
+    else:
+        assert result.outcome == "completed"
+        assert all(d.severity == "WARNING" for d in unknown_events)
+        assert not any(d.severity == "ERROR" for d in result.diagnostics)
+        assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+        assert not any(BASE.unknownCustom in triple for triple in result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_misplaced_property_id",
+    "duplicate_misplaced_literal_id",
+    "duplicate_misplaced_property_after_non_object",
+    "rejected_misplaced_property_stereotype",
+    "accepted_custom_misplaced_property_stereotype",
+    "missing_misplaced_property_id",
+    "invalid_misplaced_property_id",
+])
+def test_package_contents_entries_respect_diagnostic_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-GEN-06, DK-DIAG-05, DK-DIAG-06; §3.4 opaque source IDs and duplicate IDs. RD-02 Alternatives 1A + 2A."""
+    document = source_json("shared/core_model")
+    misplaced_prop = copy.deepcopy(source_element(document, "aAge"))
+    misplaced_prop.update(id="pMisplaced", name="misplacedAttr")
+    misplaced_lit = {
+        "id": "vMisplaced", "name": "MisplacedLit", "description": None,
+        "type": "Literal", "propertyAssignments": None,
+    }
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = True
+
+    if condition == "duplicate_misplaced_property_id":
+        misplaced_prop["id"] = "cOrg"
+        document["model"]["contents"].append(misplaced_prop)
+        expected_kind = "duplicate_id"
+    elif condition == "duplicate_misplaced_literal_id":
+        misplaced_lit["id"] = "cOrg"
+        document["model"]["contents"].append(misplaced_lit)
+        expected_kind = "duplicate_id"
+    elif condition == "duplicate_misplaced_property_after_non_object":
+        misplaced_prop["id"] = "cOrg"
+        document["model"]["contents"].extend([None, misplaced_prop])
+        expected_kind = "duplicate_id"
+    elif condition == "rejected_misplaced_property_stereotype":
+        misplaced_prop["stereotype"] = "customProp"
+        document["model"]["contents"].append(misplaced_prop)
+        options["stereotype_policy"] = "allow-missing"
+        expected_kind = "unrecognized_stereotype"
+    elif condition == "accepted_custom_misplaced_property_stereotype":
+        misplaced_prop["stereotype"] = "customProp"
+        document["model"]["contents"].append(misplaced_prop)
+        options["stereotype_policy"] = "allow-custom"
+        expected_kind = "unrecognized_stereotype"
+        always_abort = False
+    elif condition == "missing_misplaced_property_id":
+        misplaced_prop.pop("id", None)
+        document["model"]["contents"].append(misplaced_prop)
+        expected_kind = "missing_id"
+        always_abort = False
+    else:
+        misplaced_prop["id"] = ""
+        document["model"]["contents"].append(misplaced_prop)
+        expected_kind = "invalid_id"
+        always_abort = False
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    if condition == "accepted_custom_misplaced_property_stereotype":
+        assert any(d.severity == "WARNING" and d.kind == "unrecognized_stereotype" and "pMisplaced" in d.identified_sources
+                   for d in result.diagnostics), result.diagnostics
+        assert any(d.severity == "ERROR" and "package_contents_misplaced_declaration" in d.facts
+                   for d in result.diagnostics), result.diagnostics
+    else:
+        assert any(d.severity == "ERROR" and d.kind == expected_kind for d in result.diagnostics), result.diagnostics
+        if expected_kind == "duplicate_id":
+            assert any(d.code == "DUPLICATE_SOURCE_ID" and {"competing_declarations", "conversion_aborted"} <= d.facts
+                       for d in result.diagnostics if d.kind == "duplicate_id")
+
+    if always_abort or input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+        assert not any(BASE.pMisplaced in triple for triple in result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,expected_fact", [
+    ("package_non_object_entry", "package_contents_non_object_entry"),
+    ("package_missing_type_entry", "package_contents_invalid_type"),
+    ("package_misplaced_property", "package_contents_misplaced_declaration"),
+    ("package_misplaced_literal", "package_contents_misplaced_declaration"),
+    ("package_misplaced_project", "package_contents_misplaced_declaration"),
+    ("class_properties_non_array", "class_properties_non_array"),
+    ("class_properties_non_property", "class_properties_invalid_entry"),
+    ("non_enum_literals_non_array", "non_enum_literals_non_array"),
+    ("non_enum_literals_non_literal", "non_enum_literals_invalid_entry"),
+    ("non_enum_literals_valid_literal", "non_enum_literals_disallowed_literal"),
+])
+def test_declaration_containers_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy, case, expected_fact):
+    """Rules: DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-04, DK-DIAG-05; §15 Python JSON export. RD-02 Alts 1A+2A+3A+4A."""
+    document = source_json("shared/core_model")
+    if case == "package_non_object_entry":
+        document["model"]["contents"].append(None)
+    elif case == "package_missing_type_entry":
+        document["model"]["contents"].append({"id": "uBad", "name": "Bad", "description": None, "propertyAssignments": None})
+    elif case == "package_misplaced_property":
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced["id"] = "pMisplaced"
+        document["model"]["contents"].append(misplaced)
+    elif case == "package_misplaced_literal":
+        document["model"]["contents"].append({"id": "vMisplaced", "name": "Misplaced", "description": None, "type": "Literal", "propertyAssignments": None})
+    elif case == "package_misplaced_project":
+        document["model"]["contents"].append({
+            "id": "projInner", "name": "Inner", "description": None, "type": "Project",
+            "model": {"id": "projInner_root", "name": None, "description": None, "type": "Package", "propertyAssignments": None, "contents": []},
+            "diagrams": None,
+        })
+    elif case == "class_properties_non_array":
+        source_element(document, "cOrg")["properties"] = {"id": "notList"}
+    elif case == "class_properties_non_property":
+        source_element(document, "cOrg")["properties"] = [{"id": "customEntry", "type": "CustomNode"}]
+    elif case == "non_enum_literals_non_array":
+        source_element(document, "cOrg")["literals"] = "bad"
+    elif case == "non_enum_literals_non_literal":
+        source_element(document, "cOrg")["literals"] = [{"id": "notLit", "type": "Class"}]
+    else:
+        source_element(document, "cOrg")["literals"] = [
+            {"id": "vBadLit", "name": "BadLit", "description": None, "type": "Literal", "propertyAssignments": None}
+        ]
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "container_report.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    if case.startswith("package_"):
+        reader = lambda msg, srcs: package_contents_entry_diagnostic(msg, srcs)
+    elif case.startswith("class_properties_"):
+        reader = lambda msg, _srcs: class_properties_container_diagnostic(msg)
+    else:
+        reader = lambda msg, _srcs: non_enum_literals_diagnostic(msg)
+
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] not in {"INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION",
+                                   "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID",
+                                   "REQUIRED_PROVENANCE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY"}
+        and event["message"]
+        and event["effect"]
+        and expected_fact in reader(event["message"], [type("Loc", (), s)() for s in event["sources"]])
+    ]
+    assert matching, payload["diagnostics"]
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+        assert (BASE.cPerson, RDF.type, OWL.Class) in observed_graph
+        assert (BASE.cOrg, RDF.type, OWL.Class) in observed_graph
+        assert not list(observed_graph.subjects(RDF.type, OWL.NamedIndividual))
+
+
+def test_declaration_container_entry_readers_require_affirmative_conditions():
+    """Harness only: verify affirmative container/entry readers reject guard, negated, and unrelated wording."""
+    assert "package_contents_non_object_entry" in package_contents_entry_diagnostic(
+        "Package.contents entry at $.model.contents[1] must be a JSON object, got NoneType."
+    )
+    assert "package_contents_invalid_type" in package_contents_entry_diagnostic(
+        "Package.contents entry at $.model.contents[1] lacks a valid nonempty string 'type'."
+    )
+    assert "package_contents_misplaced_declaration" in package_contents_entry_diagnostic(
+        "Misplaced Property declaration 'pMisplaced' is not permitted in Package.contents."
+    )
+    assert not package_contents_entry_diagnostic("Malformed declaration-container recovery is outside BI-W1")
+    assert not package_contents_entry_diagnostic("Recovery of misplaced declarations is outside BI-W1")
+    assert not package_contents_entry_diagnostic("If Package.contents has a misplaced Property, conversion aborts.")
+    assert not package_contents_entry_diagnostic("Class.properties entry is not a Property.")
+
+    assert "class_properties_non_array" in class_properties_container_diagnostic(
+        "Class 'cOrg' properties container is not a JSON array."
+    )
+    assert "class_properties_invalid_entry" in class_properties_container_diagnostic(
+        "Class 'cOrg' properties entry at $.model.contents[0].properties[0] is not a Property object."
+    )
+    assert not class_properties_container_diagnostic("Relation 'r0' properties container is not a JSON array.")
+    assert not class_properties_container_diagnostic("Class 'cOrg' properties container is valid.")
+    assert not class_properties_container_diagnostic("Not implemented for Class.properties.")
+
+    assert "non_enum_literals_non_array" in non_enum_literals_diagnostic(
+        "Non-enumeration Class 'cOrg' literals must be a JSON array or null."
+    )
+    assert "non_enum_literals_invalid_entry" in non_enum_literals_diagnostic(
+        "Non-enumeration Class 'cOrg' literals entry is not a Literal object."
+    )
+    assert "non_enum_literals_disallowed_literal" in non_enum_literals_diagnostic(
+        "Literal declaration 'vBad' is not permitted on non-enumeration Class 'cOrg'."
+    )
+    assert not non_enum_literals_diagnostic("Enumeration literals must be a collection of source Literal elements.")
+    assert not non_enum_literals_diagnostic("Literal declarations outside enumerations have no assigned baseline mapping")
+    assert not non_enum_literals_diagnostic("Class 'eStatus' is an enumeration with valid literals.")
+
 
