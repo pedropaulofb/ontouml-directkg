@@ -6,14 +6,14 @@ from pathlib import Path
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from .annotations import TextAnnotations
+from .annotations import TextAnnotations, validate_project_languages, validate_textual_carriers
 from .classifiers import allocate_resources, baseline_classes, emit_classes, emit_stereotype_disjointness
 from .chains import emit_material_chains
 from .diagnostics import Diagnostic, DiagnosticCollector, Outcome, _AbortConversion, export_report
 from .dkgm import DKGM, DKGM_MODES, emit_dkgm
 from .enumerations import collect_enumerations, emit_enumerations
 from .generalizations import emit_generalizations, emit_relation_generalizations
-from .identity import ConfigurationError, is_absolute_iri, select_base
+from .identity import ConfigurationError, is_absolute_iri, is_valid_language_tag, select_base
 from .inverses import allocate_inverses
 from .metadata import emit_metadata, read_metadata
 from . import provenance as execution_provenance
@@ -21,7 +21,7 @@ from .provenance import ProvenanceRecord
 from .properties import PropertyExpressions, collect_attributes, emit_attributes, emit_property_references, property_candidates
 from .relation_axioms import emit_relation_axioms
 from .relations import collect_relations, emit_relations, relation_names
-from .source import apply_identifier_policy, check_stereotypes, index_project, read_project, validate_containers
+from .source import SourceElement, apply_identifier_policy, check_stereotypes, index_project, read_project, validate_containers
 
 
 @dataclass
@@ -118,13 +118,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         raise ConfigurationError("omit_identifiers must be a boolean")
     if type(no_stereotype_relation_naming) is not bool:
         raise ConfigurationError("no_stereotype_relation_naming must be a boolean")
-    if language is not None:
-        try:
-            if not isinstance(language, str) or not language:
-                raise ValueError("Expected one nonempty language tag")
-            Literal("", lang=language)
-        except ValueError as exc:
-            raise ConfigurationError("language must be one valid language tag") from exc
+    if language is not None and not is_valid_language_tag(language):
+        raise ConfigurationError("language must be one valid language tag")
     if metadata_file is not None:
         if not isinstance(metadata_file, (str, Path)) or Path(metadata_file).name != "metadata.yaml":
             raise ConfigurationError("metadata_file must explicitly identify a file named metadata.yaml")
@@ -154,6 +149,21 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         relations, groundings, omitted = collect_relations(index, classes, diagnostics, input_policy)
         stage = "collect_attributes"
         attributes, omitted_attributes = collect_attributes(index, classes, diagnostics, input_policy)
+        stage = "validate_textual_carriers"
+        project_languages = validate_project_languages(project, diagnostics, input_policy)
+        validate_textual_carriers(SourceElement(project, "$"), diagnostics, input_policy)
+        for element in index.elements:
+            if element.data["type"] == "Class":
+                validate_textual_carriers(element, diagnostics, input_policy)
+        for enumeration in enumerations:
+            for literal in enumeration.values:
+                validate_textual_carriers(literal, diagnostics, input_policy)
+        for relation in relations:
+            validate_textual_carriers(relation.source, diagnostics, input_policy)
+            validate_textual_carriers(relation.source_end, diagnostics, input_policy)
+            validate_textual_carriers(relation.target_end, diagnostics, input_policy)
+        for attribute in attributes:
+            validate_textual_carriers(attribute.source, diagnostics, input_policy)
         stage = "relation_names"
         names, lexical = relation_names(relations, groundings, iri_strategy, relation_labels,
                                        no_stereotype_relation_naming, diagnostics)
@@ -170,7 +180,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         inverses = allocate_inverses(relations, resources, base, iri_strategy, inverse_properties, claims)
         resources.update(inverses)
         stage = "TextAnnotations"
-        text = TextAnnotations(project, language, diagnostics)
+        text = TextAnnotations(project, language, diagnostics, project_languages)
         stage = "ontology initialization"
         graph = Graph(bind_namespaces="none")
         for prefix, namespace in (("", base), ("rdf", RDF), ("rdfs", RDFS), ("owl", OWL),

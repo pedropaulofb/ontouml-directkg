@@ -8,6 +8,7 @@ import string
 import unicodedata
 
 DEFAULT_BASE = "https://example.org/directkg#"
+_LANGUAGE_TAG_RE = re.compile(r"[a-zA-Z]+(?:-[a-zA-Z0-9]+)*")
 
 # RFC 3987 section 2.2: private characters are permitted only in queries.
 # Validate original characters; never trim, normalize, resolve or repair a base.
@@ -124,30 +125,45 @@ def check_id_candidate_collisions(candidates: Iterable[tuple[str, str]]) -> None
         claims[candidate] = identifier
 
 
+def is_valid_language_tag(value: object) -> bool:
+    """Validate nonempty tags against the simplified lexical rule (RD-02)."""
+    return isinstance(value, str) and _LANGUAGE_TAG_RE.fullmatch(value) is not None
+
+
+def valid_textual_value(value: object) -> str | dict[str, str] | None:
+    """Retain only supported plain-string or valid languageString entries."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return {
+            key: text
+            for key, text in value.items()
+            if isinstance(key, str) and (key == "" or is_valid_language_tag(key)) and isinstance(text, str)
+        }
+    return None
+
+
 def naming_text(value: object) -> str | None:
     """Select original localized text using DK-IRI-10's original-key ordering."""
-    if isinstance(value, str):
-        return value if normalize_name(value) else None
-    if value is None:
+    cleaned = valid_textual_value(value)
+    if cleaned is None:
         return None
-    if not isinstance(value, dict) or not all(isinstance(k, str) and isinstance(v, str)
-                                              for k, v in value.items()):
-        raise NotImplementedError("Malformed textual-carrier recovery is outside BI-W1")
+    if isinstance(cleaned, str):
+        return cleaned if normalize_name(cleaned) else None
     lower_ascii = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
-    candidates = [(key.translate(lower_ascii), text) for key, text in value.items()
+    candidates = [(key.translate(lower_ascii), text) for key, text in cleaned.items()
                   if normalize_name(text)]
     return min(candidates)[1] if candidates else None
 
 
 def missing_name(value: object) -> bool:
     """Missing descriptive text is distinct from unusable ASCII naming text."""
-    if value is None:
+    cleaned = valid_textual_value(value)
+    if cleaned is None:
         return True
-    if isinstance(value, str):
-        return not value.strip()
-    if isinstance(value, dict) and all(isinstance(v, str) for v in value.values()):
-        return not any(v.strip() for v in value.values())
-    raise NotImplementedError("Malformed name-carrier recovery is outside BI-W1")
+    if isinstance(cleaned, str):
+        return not cleaned.strip()
+    return not any(v.strip() for v in cleaned.values())
 
 
 def class_name_candidate(identifier: str, name: object) -> str:
