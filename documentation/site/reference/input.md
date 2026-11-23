@@ -72,6 +72,8 @@ Missing and invalid IDs follow the existing [structural-error policies](diagnost
 
 Other structural failures follow their applicable recovery rules. `best-effort` does not authorize inventing missing information or delivering syntactically invalid RDF. It also does not authorize continuation after a stereotype condition rejected by the separate stereotype policy. See [Controls](controls.md#control-boundaries) for the policy boundaries.
 
+On any indexed `Class`, `Relation`, or `Property` (including classifier-owned attributes, valid `Property` entries in `Relation.properties`, and indexed misplaced `Property` entries in `Package.contents`), any `stereotype` value that is neither `null`/absent nor a string with at least one non-whitespace character (specifically non-`null`, non-string JSON values and empty or whitespace-only strings) triggers a structural **ERROR** under `DK-DIAG-05` regardless of `--stereotype-policy`: `strict` and `tolerant` abort, while `best-effort` applies hybrid recovery (omitting affected `Class` or `Relation` elements together with their owned `properties`/`literals` descendants at element level, and omitting only the malformed `stereotype` field on surviving `Property` elements). See [Malformed stereotype values](diagnostics.md#malformed-stereotype-values) for policy outcomes, precedence, and current `NotImplementedError` / `UNRECOGNIZED_STEREOTYPE` implementation status in `source.py`.
+
 An explicit attribute `propertyType: null` is supported as [unspecified typing](../mapping/attributes-and-datatypes.md#untyped-and-void); it is not automatically a structural failure. Likewise, an explicit `cardinality: null` on supported attributes and ordinary relation ends is accepted without substituting a multiplicity or producing a diagnostic solely for null. An absent cardinality field instead has the accepted warning-and-continuation fallback. See [Multiplicity parsing and recovery](diagnostics.md#multiplicity-parsing-and-recovery) for the detailed rules and [Policies and precedence](diagnostics.md#policies-and-precedence) for continuation and abortion.
 
 ### Package contents
@@ -125,7 +127,9 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-06–08, 12; DK-CLS-01, 08–09, 11; DK-ATT-01; DK-PROP-03; DK-HO-04; DK-REL-02–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02, 05; DK-DIAG-01, 03, 05–06, 09, 12–14, 19; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-06–08, 12; DK-CLS-01, 08–09, 11; DK-ATT-01; DK-PROP-03, 06; DK-HO-04; DK-REL-02–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02, 05; DK-DIAG-01, 03, 05–06, 09, 12–14, 19; baseline consolidated: **2026-11-23**; repository commit: `6d0636c78092491200ffd3b1776bf8a000d4da88`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/6d0636c78092491200ffd3b1776bf8a000d4da88/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed `stereotype` values on `Class`, `Relation`, and `Property` (Alternative 1C + Sub-option 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 

@@ -78,7 +78,7 @@ If both association ends carry covered stereotypes, preserve both occurrences. P
 
 These comments **preserve boundary-stereotype declarations without enforcing temporal semantics**. They introduce no additional logical axioms or temporal validation. Naming, property kind, range, cardinality, and inverse mappings remain unchanged. In particular, an [untyped attribute](attributes-and-datatypes.md#untyped-and-void) retains its datatype-property, owner-domain, and applicable cardinality mappings without a guessed range.
 
-Do not infer either stereotype from names, supply a missing `begin`/`end` counterpart, or reconstruct stereotype information discarded by the exporter. Preserve only the recognized stereotype explicitly supplied in supported input.
+Do not infer either stereotype from names, supply a missing `begin`/`end` counterpart, or reconstruct stereotype information discarded by the exporter. Preserve only the recognized stereotype explicitly supplied in supported input. Malformed `Property.stereotype` values (non-`null`, non-string values or empty/whitespace-only strings) trigger a structural **ERROR** under `DK-DIAG-05` regardless of `--stereotype-policy`: `strict` and `tolerant` abort, while `best-effort` omits only the malformed `stereotype` field (producing no `begin`/`end` comment under `DK-PROP-06`) and preserves the otherwise valid attribute, association end, and enclosing `Relation`. See [Malformed stereotype values](../reference/diagnostics.md#malformed-stereotype-values) for full policy outcomes, precedence, and current implementation status.
 
 This **specification illustration** assumes an attribute explicitly carrying `begin` and shows only its generated comment. The wording is illustrative, and no converter execution is claimed:
 
@@ -104,7 +104,9 @@ Derived status, both true and false, has its distinct [cross-cutting comment map
 
 ---
 
-Governing rules: §§3.3–3.4; DK-ATT-01; DK-PROP-03–06; DK-REL-01, 04, 19; DK-GEN-02, 06; DK-INV-04; DK-DIAG-01–03, 05, 18; baseline consolidated: **2026-11-23**; repository commit: `c87a6a2cd83f6da675018edb1b0af81f86ad7013`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c87a6a2cd83f6da675018edb1b0af81f86ad7013/documentation/specification/transformation-specification.md).
+Governing rules: §§3.3–3.4; DK-ATT-01; DK-PROP-03–06; DK-REL-01, 04, 19; DK-GEN-02, 06; DK-INV-04; DK-DIAG-01–03, 05–06, 18; baseline consolidated: **2026-11-23**; repository commit: `6d0636c78092491200ffd3b1776bf8a000d4da88`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/6d0636c78092491200ffd3b1776bf8a000d4da88/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed `stereotype` values on `Class`, `Relation`, and `Property` (Alternative 1C + Sub-option 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Declaration containers, malformed entries, and misplaced declarations (`Package.contents`, `Class.properties`, non-enumeration `Class.literals`; Alternatives 1A + 2A + 3A + 4A)** (project-owner formalization included in the cited consolidation).
 

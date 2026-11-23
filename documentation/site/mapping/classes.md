@@ -4,7 +4,7 @@ This page describes **accepted intended mappings**, not verified converter outpu
 
 ## Classes and disjointness
 
-A supported OntoUML domain classifier becomes an `owl:Class`. Before that mapping, a `datatype` classifier is classified as a supported primitive, recognized `void`, or custom datatype. Supported primitives and `void` generate no local class; a custom datatype becomes a reified class. Enumerations also become classes. See [Attributes and datatypes](attributes-and-datatypes.md).
+A supported OntoUML domain classifier becomes an `owl:Class`. Before that mapping, a `datatype` classifier is classified as a supported primitive, recognized `void`, or custom datatype. Supported primitives and `void` generate no local class; a custom datatype becomes a reified class. Enumerations also become classes. See [Attributes and datatypes](attributes-and-datatypes.md). A `Class` with a malformed `stereotype` value (non-`null`, non-string JSON value or empty/whitespace-only string) triggers a structural **ERROR** under `DK-DIAG-05` (`strict`/`tolerant` abort; `best-effort` omits the `Class` and its owned `properties`/`literals` descendants at element level). See [Malformed stereotype values](../reference/diagnostics.md#malformed-stereotype-values).
 
 A class-to-class generalization generates `Specific rdfs:subClassOf General`. DirectKG need not materialize the transitive subclass closure. It does not validate the semantic appropriateness of stereotypes or repair contradictory axioms before emitting the accepted mappings.
 
@@ -108,6 +108,8 @@ Explicit `isDerived` values have the separate cross-cutting [derived-status comm
 
 ---
 
-Governing rules: §3.4; DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05, 12; DK-HO-04; DK-DIAG-05–06, 12–17; baseline consolidated: **2026-11-23**; repository commit: `c87a6a2cd83f6da675018edb1b0af81f86ad7013`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c87a6a2cd83f6da675018edb1b0af81f86ad7013/documentation/specification/transformation-specification.md).
+Governing rules: §3.4; DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05, 12; DK-HO-04; DK-DIAG-05–06, 12–17; baseline consolidated: **2026-11-23**; repository commit: `6d0636c78092491200ffd3b1776bf8a000d4da88`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/6d0636c78092491200ffd3b1776bf8a000d4da88/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed `stereotype` values on `Class`, `Relation`, and `Property` (Alternative 1C + Sub-option 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Non-enumeration `Class.literals` container and entry validation (Alternative 4A)** (project-owner formalization included in the cited consolidation).
