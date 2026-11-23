@@ -50,6 +50,10 @@ The override changes literal tagging; it does not select or reorder the original
 
 This extension adds no package-local language declarations, general newer-schema support, or new metadata mappings. Custom `propertyAssignments`, even keys named `language`, `lang`, or `locale`, never supply language information.
 
+Nonempty explicit language tags in supported `languageString` keys, `Project.languages` array elements, and `--language` must satisfy a full-string match against `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$` (without trailing newline characters), matching RDF 1.1 Turtle `LANGTAG` lexical syntax. This pattern is explicitly a **simplified lexical validation rule**—not a complete BCP 47 validator or IANA language-subtag registry check. In `languageString`, `""` remains a valid unknown-language key; absent `Project.languages`, `Project.languages: null`, and `Project.languages: []` remain accepted as no declared project languages without a diagnostic.
+
+On covered elements (`Project`, `Class` [including `«datatype»` `name`], `Relation`, surviving `Property`, and surviving `Literal`; excluding intentionally omitted text under `DK-GEN-06–07` and `DK-INS-02`), a wrong whole-field `name`/`description` type, an invalid `languageString` entry (non-string value or invalid nonempty lexical tag, including whitespace-only keys), or a malformed `Project.languages` carrier emits a structural **ERROR** regardless of `--language` or `--iri-strategy id` (`strict` and `tolerant` abort; `best-effort` omits only the malformed field, invalid `languageString` entry, or whole `Project.languages` carrier without inventing a single-language tag or triggering `DK-DIAG-19`). See [Malformed textual and language-tag carriers](diagnostics.md#malformed-textual-and-language-tag-carriers) for the policy table, precedence, and current `NotImplementedError` implementation status in `annotations.py`, `identity.py`, and `conversion.py`.
+
 See [Labels, comments, and language](text.md) for the text targets and exclusions, and [Multilingual naming](identifiers.md#multilingual-naming) for the separate deterministic selection of naming input.
 
 ## Structural requirements
@@ -121,7 +125,9 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; DK-GEN-06–07, 12; DK-CLS-01, 08–09, 11; DK-ATT-01; DK-PROP-03; DK-HO-04; DK-REL-15–16, 20; DK-INS-01–02; DK-LBL-02; DK-IRI-10; DK-DAT-02; DK-DIAG-03, 05–06, 09, 12–14, 19; baseline consolidated: **2026-11-23**; repository commit: `c87a6a2cd83f6da675018edb1b0af81f86ad7013`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/c87a6a2cd83f6da675018edb1b0af81f86ad7013/documentation/specification/transformation-specification.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-06–08, 12; DK-CLS-01, 08–09, 11; DK-ATT-01; DK-PROP-03; DK-HO-04; DK-REL-02–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02, 05; DK-DIAG-01, 03, 05–06, 09, 12–14, 19; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Declaration containers, malformed entries, and misplaced declarations (`Package.contents`, `Class.properties`, non-enumeration `Class.literals`; Alternatives 1A + 2A + 3A + 4A)** (project-owner formalization included in the cited consolidation).
 

@@ -54,9 +54,11 @@ Recognized carriers are the explicit user language override, explicit local keys
 3. Otherwise apply exactly one applicable declared project language.
 4. Otherwise preserve an untagged literal.
 
-The override accepts one language tag, not a list. Without it, preserve applicable explicitly localized versions independently with their respective tags. The empty key denotes unknown language and supplies no explicit local tag; its value can still use a qualifying override or single project language.
+The override accepts one language tag, not a list. Nonempty explicit language tags in `languageString` keys, `Project.languages` array elements, and `--language` must satisfy a full-string match against `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$` (without trailing newline characters), matching RDF 1.1 Turtle `LANGTAG` lexical syntax; this is a **simplified lexical validation rule**, not a complete BCP 47 validator or IANA language-subtag registry check. Without an override, preserve applicable explicitly localized versions independently with their respective tags. The empty key denotes unknown language and supplies no explicit local tag; its value can still use a qualifying override or single project language.
 
 Multiple applicable project languages do not authorize choosing one arbitrarily. A source value with neither override nor explicit local language remains untagged and produces the nonfatal ambiguity warning under DK-DIAG-19. Avoid unnecessary repetition for individual literals; the warning may be consolidated for the affected project/conversion. Explicitly localized values or values covered by an override do not trigger that ambiguity warning. Several explicit local languages are not themselves ambiguous.
+
+Supplying `--language` does not mask invalid `languageString` entries or malformed `Project.languages`. Under `best-effort`, a malformed `Project.languages` carrier is omitted as a whole—supplying no declared project languages, without triggering `DK-DIAG-19`—and otherwise untagged source text falls back to untagged literals unless `--language` is supplied; malformed whole-field `name`/`description` values or invalid `languageString` entries are omitted individually while valid siblings are retained. See [Malformed textual and language-tag carriers](diagnostics.md#malformed-textual-and-language-tag-carriers) for covered carriers, policy outcomes, precedence, and current `NotImplementedError` / `--language` implementation status in `annotations.py`, `identity.py`, and `conversion.py`.
 
 Plain VP-plugin strings remain untagged unless an override or single applicable project language supplies a tag. Do not infer language from lexical content, locale, editor defaults, or the exporter's internal English default. Custom assignments such as `language`, `lang`, or `locale` are not language carriers; no VP tagged-value convention or package-local declaration is introduced.
 
@@ -99,6 +101,8 @@ Produced INFO and warnings remain accessible/exportable under the diagnostic con
 
 ---
 
-Governing rules: DK-LBL-01–02; DK-REL-01–06; DK-GEN-05, 08; DK-IRI-04, 08–10; DK-DIAG-01, 04, 16, 19; baseline consolidated: **2026-11-20**; repository commit: `283f9b01361830c2dfb1e96b08111e1f8f849b31`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/283f9b01361830c2dfb1e96b08111e1f8f849b31/documentation/specification/transformation-specification.md).
+Governing rules: §3.2; §15; DK-LBL-01–02; DK-REL-01–06; DK-GEN-05, 08; DK-IRI-03–04, 08–10; DK-DAT-02, 05; DK-INV-05–06, 08; DK-DIAG-01, 04–05, 16, 19; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Datatype-valued ordinary binary relations (`Alternative B + Q1–Q7 + Conflicts A–I`)** (project-owner formalization included in the cited consolidation).

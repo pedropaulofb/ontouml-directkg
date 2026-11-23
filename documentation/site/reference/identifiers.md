@@ -114,11 +114,13 @@ Do not additionally attach the association's ID to generated relation properties
 
 ## Multilingual naming
 
-Lexical selection and literal language tagging are separate. For a supported `languageString`, consider only values that yield a nonempty candidate under name normalization **before collision handling**, then choose the first under this ordering:
+Lexical selection and literal language tagging are separate. For a supported `languageString`, consider **only valid entries** under `DK-LBL-02` (JSON string values whose key is `""` or satisfies `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$` without trailing newline characters) that yield a nonempty candidate under name normalization **before collision handling**, then choose the first under this ordering:
 
 1. Compare language keys lexicographically after changing ASCII uppercase letters to lowercase. The empty key sorts first.
 2. For equally comparing language keys, compare the original text values lexicographically by Unicode code points.
 3. Identical text needs no further tie-break.
+
+Invalid `languageString` entries must not participate in or pollute `DK-IRI-10` selection and are not masked by `--language` (or `--iri-strategy id`). Under `best-effort`, invalid entries are omitted with **ERROR** retained while valid localized siblings remain eligible; if zero valid usable entries remain (including after whole-field omission of a wrong `name` type), apply the affected resource's accepted unnamed/fallback rules (`DK-IRI-04`, `DK-REL-02–05`, `DK-INV-05–06/08`). In the current implementation at [`ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/src/ontouml_directkg/identity.py#L135-L150), `naming_text` and `missing_name` in `identity.py` still raise `NotImplementedError` on malformed carriers and `naming_text` does not yet filter out invalid lexical tags; see [Malformed textual and language-tag carriers](diagnostics.md#malformed-textual-and-language-tag-carriers).
 
 Use the selected **original text** as input to applicable naming rules. Existing field precedence, normalization, synthesis, and collisions still apply. If no candidate is usable, apply the affected resource's accepted fallback/diagnostic rules; the selector adds no new fallback for unspecified cases.
 
@@ -147,7 +149,9 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 
 ---
 
-Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; baseline consolidated: **2026-11-18**; repository commit: `a919e64df8555227270d1f8b3b82ac4ef8c4edc5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/a919e64df8555227270d1f8b3b82ac4ef8c4edc5/documentation/specification/transformation-specification.md).
+Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; DK-LBL-02; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted clarification: **RD-02 — Minimal opaque source identifiers, Alternative A** (project-owner formalization included in the cited consolidation).
 

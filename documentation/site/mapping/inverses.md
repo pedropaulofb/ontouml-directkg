@@ -14,7 +14,7 @@ Instantiation declarations, covered derivation connectors, unsupported resolved 
 
 The inverse-facing end is the **source association end**: for primary `A → B`, its classifier `A` is the inverse's range. Under `informed`, `*` and `0..*` qualify as non-null multiplicities even though no numeric restriction results. Explicit null and an absent cardinality field do not qualify; a role can independently trigger generation. Field absence retains its own warning.
 
-A role is present when it contains a non-whitespace character. In supported localized text, **any** such value is sufficient; successful ASCII normalization is not an extra eligibility condition. Lexical selection for naming and [language tagging](../reference/text.md#language-resolution) remain separate.
+A role is present when it contains a non-whitespace character. In supported localized text, **any valid entry** (after `DK-LBL-02` carrier validation and `best-effort` omission of invalid entries; see [Malformed textual and language-tag carriers](../reference/diagnostics.md#malformed-textual-and-language-tag-carriers)) meeting that condition is sufficient; successful ASCII normalization is not an extra eligibility condition. Lexical selection for naming and [language tagging](../reference/text.md#language-resolution) remain separate.
 
 ## Direction and anonymous inverses
 
@@ -52,9 +52,9 @@ These uses apply only to `owl:ObjectProperty` relations; datatype-valued relatio
 
 ### Role and structural fallback
 
-In name mode, only the inverse-facing role supplies the preferred role-based candidate. Select supported localized role text using [Multilingual naming](../reference/identifiers.md#multilingual-naming). Under either IRI strategy, retain applicable original role labels. With no role, do not synthesize an inverse label, including when generated primary-relation labels are enabled.
+In name mode, only the inverse-facing role supplies the preferred role-based candidate. Select supported localized role text using [Multilingual naming](../reference/identifiers.md#multilingual-naming), subject to `DK-LBL-02` carrier validation and `best-effort` omission of invalid entries. Under either IRI strategy, retain applicable valid original role labels. With no role, do not synthesize an inverse label, including when generated primary-relation labels are enabled.
 
-When the inverse-facing role is absent, or is present but yields no usable naming candidate, the name-strategy fallback is `inverseOf<ResolvedPrimaryPropertyLocalName>`; for example, resolved primary `employs` yields `inverseOfEmploys`. It uses the resolved primary name, not a new inverse role.
+When the inverse-facing role is absent, or is present but yields no usable naming candidate (including when `best-effort` omission of malformed field types or invalid `languageString` entries leaves zero valid usable entries), the name-strategy fallback is `inverseOf<ResolvedPrimaryPropertyLocalName>`; for example, resolved primary `employs` yields `inverseOfEmploys`. It uses the resolved primary name, not a new inverse role.
 
 An unusable naming candidate does not make a present role absent. Keep its applicable original role labels and any applicable source-end description; the structural fallback supplies no invented label. An absent role still receives no synthetic label.
 
@@ -68,7 +68,7 @@ Resolve **all source-backed candidates and final IRIs first**. Enabling auxiliar
 
 1. Keep a unique role-derived inverse candidate unchanged.
 2. If it collides with a source-backed resource, a source-backed candidate claim, or another inverse candidate, **every** colliding inverse abandons that role candidate for its own primary-based `inverseOf<ResolvedPrimaryPropertyLocalName>` fallback. Its role label remains unchanged; inverses are not merged.
-3. If the primary-based fallback collides, further qualify only the inverse as `inverseOf<ResolvedPrimaryPropertyLocalName>_<InverseDomain>`. The inverse domain is the primary range. Use its normalized name when usable, with the original-text selector for supported localized names. Otherwise use `unnamedClass_<escaped-domain-class-id>`, based on that **domain classifier's own ID** and the established [technical escaping](../reference/identifiers.md#technical-source-id-escaping). Reuse this fallback candidate before classifier collision handling; do not include subsequently assigned classifier collision suffixes.
+3. If the primary-based fallback collides, further qualify only the inverse as `inverseOf<ResolvedPrimaryPropertyLocalName>_<InverseDomain>`. The inverse domain is the primary range. Use its normalized name when usable, with the original-text selector for supported localized names (subject to `DK-LBL-02` carrier validation and `best-effort` entry omission). Otherwise use `unnamedClass_<escaped-domain-class-id>`, based on that **domain classifier's own ID** and the established [technical escaping](../reference/identifiers.md#technical-source-id-escaping). Reuse this fallback candidate before classifier collision handling; do not include subsequently assigned classifier collision suffixes.
 4. If that qualified candidate collides with a source-backed candidate claim, a final source-backed local name, or another remaining inverse candidate, apply [numeric allocation](#numeric-allocation). A unique candidate without such collisions stays unchanged.
 
 ### Numeric allocation
@@ -117,7 +117,9 @@ This required mirroring is specific to relation generalizations. UML `subsets` a
 
 ---
 
-Governing rules: DK-INV-01–12; DK-ATT-01; DK-REL-01, 09, 14–15, 20; DK-PROP-03; DK-LBL-02; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01, 03, 05; baseline consolidated: **2026-11-20**; repository commit: `08abccac8a6923c587cf351a5137f1e140e44a17`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/08abccac8a6923c587cf351a5137f1e140e44a17/documentation/specification/transformation-specification.md). The A1.1, A1.2 and revised A1.3 inverse-naming resolutions are recorded in the [2 November 2026 specification](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
+Governing rules: DK-INV-01–12; DK-ATT-01; DK-REL-01, 09, 14–15, 20; DK-PROP-03; DK-LBL-02; DK-IRI-05–07, 10; DK-CONF-02; DK-DIAG-01, 03, 05; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md). The A1.1, A1.2 and revised A1.3 inverse-naming resolutions are recorded in the [2 November 2026 specification](https://github.com/pedropaulofb/ontouml-directkg/blob/0328ae1300e99eafbce7d5f32d2476c4aa5db71f/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Non-binary (`len != 2`) and absent/null/malformed `Relation.properties` association-end containers (Alternative A)** (project-owner formalization included in the cited consolidation).
 
