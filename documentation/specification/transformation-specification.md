@@ -88,6 +88,8 @@ The current VP association extraction path emits two association ends. N-ary rel
 
 Validation of declaration containers and entries—specifically valid `Package.contents` arrays (root and nested), `Class.properties`, and non-enumeration `Class.literals`—as well as misplaced declarations of known OntoUML types not permitted in `Package.contents` (`Project`, `Property`, `Literal`) and `UNKNOWN_INFORMATION` retention for valid unrecognized element-type strings inside `Package.contents`, is governed by DK-GEN-06, DK-ATT-01, DK-CLS-11, and DK-DIAG-05 (RD-02, Alternatives 1A + 2A + 3A + 4A).
 
+Validation and `best-effort` recovery for malformed `name`, `description`, `languageString`, and `Project.languages` carriers—together with the simplified lexical language-tag validation rule (`^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`, which is not a complete BCP 47 validator)—are governed by DK-LBL-02, DK-IRI-10, DK-DAT-02, and DK-DIAG-05 (RD-02, Alternatives 1A + 2A).
+
 For binary relations with an endpoint whose `propertyType` resolves to another source `Relation`, DK-REL-08 (RD-16 / RD-17) governs recognized material–relator and material–mode derivations; DK-REL-18 (RD-17) governs recognized comparative–quality derivations; and DK-REL-17 (RD-16) governs other resolved relation-valued endpoint patterns without an accepted mapping. A null, malformed, or unresolved endpoint remains a structural failure.
 
 ### 3.3 Output scope
@@ -415,7 +417,7 @@ This rule introduces no custom-metadata preservation mechanism, whitelist, or us
 
 DirectKG MUST preserve a nonempty top-level `Project.name` as `rdfs:label` on the generated ontology resource. The label MUST follow the accepted RD-27 lexical-preservation and language-resolution rules under DK-LBL-02, including supported multilingual values and the explicit user language override.
 
-When the project name is absent, null, or empty, DirectKG MUST emit no ontology label and no diagnostic solely for that condition. DirectKG MUST NOT manufacture an ontology label from the filename, ontology IRI, or root-package name.
+When the project name is absent, null, or empty, DirectKG MUST emit no ontology label and no diagnostic solely for that condition. DirectKG MUST NOT manufacture an ontology label from the filename, ontology IRI, or root-package name. Malformed `Project.name` carriers (wrong whole-field types or invalid `languageString` entries) follow DK-LBL-02 and DK-DIAG-05 (RD-02, Alternative 1A): `strict` and `tolerant` abort, while `best-effort` retains `ERROR` severity, omits only the malformed field or invalid entries, retains valid localized siblings, and emits no ontology label if zero valid nonempty entries remain.
 
 The project name MUST NOT affect ontology identity, generated entity IRIs, namespaces, or logical mappings. This mapping MUST NOT create a separate project resource or introduce a project-ID annotation under RD-28 / DK-IRI-09.
 
@@ -1134,7 +1136,7 @@ Selection for primitive recognition MUST be the same under the `name` and `id` I
 
 The nine-entry primitive registry and its mappings remain unchanged. Existing normalization rules and their normative strength remain unchanged; this selection registers no additional aliases or XSD mappings.
 
-DirectKG MUST NOT introduce additional diagnostics or conflict handling for multilingual primitive recognition. Existing diagnostics, including applicable naming warnings, `void` warnings, and input errors, remain unchanged. Existing label rules continue to apply where their output targets exist.
+DirectKG MUST NOT introduce additional diagnostics or conflict handling for multilingual primitive recognition. Existing diagnostics, including applicable naming warnings, `void` warnings, and input errors, remain unchanged. Existing label rules continue to apply where their output targets exist. Malformed `Class.name` carriers and invalid `languageString` entries on `«datatype»` classifiers follow DK-LBL-02 and DK-DIAG-05 (RD-02, Alternative 1A): invalid `languageString` entries (non-string values or invalid nonempty lexical language tags) MUST NOT participate in `DK-IRI-10` selection for primitive recognition and MUST NOT be masked by `--language`; under `best-effort`, omitting invalid entries (or a wrong whole-field `name` type) retains valid localized siblings for primitive recognition or leaves no usable name so custom-datatype treatment applies under DK-DAT-05 if otherwise eligible.
 
 **Rationale and examples (non-normative):** Reusing the selector avoids additional recognition and conflict logic for a variation absent from the inspected catalog.
 
@@ -1359,7 +1361,7 @@ A named source property or relation that generates a property resource MUST pres
 
 For every successfully transformed source-backed non-property resource whose source element has a name, DirectKG MUST emit an `rdfs:label` preserving that source name. This requirement applies under every IRI strategy, including when the resource IRI is derived from the same name. The label value MUST follow the established literal and language-handling rules, including DK-LBL-02 (RD-27 / ODI-CONTROLS).
 
-Selecting one localized naming input under DK-IRI-10 MUST NOT discard other applicable source-authored labels under this rule and DK-LBL-02.
+Selecting one localized naming input under DK-IRI-10 MUST NOT discard other applicable source-authored labels under this rule and DK-LBL-02. Malformed `name` carriers and invalid `languageString` entries follow DK-LBL-02 and DK-DIAG-05 (RD-02, Alternative 1A): under `best-effort`, only the malformed field or invalid entries are omitted, while valid localized siblings remain preserved for labels and naming selection (and unnamed/fallback rules apply if zero valid nonempty entries remain).
 
 DirectKG MUST NOT treat the IRI local name as a substitute for the required label.
 
@@ -1442,7 +1444,7 @@ DirectKG MUST recognize language information only from:
 - explicit local language information in the `languageString` structures defined by `ontouml-schema` and implemented by `ontouml-js`; and
 - the corresponding schema-defined project language field, `Project.languages`.
 
-A `languageString` represents localized text through language-tag keys and their associated lexical values. Its empty key denotes unknown language and MUST NOT be treated as an explicit local language tag.
+A `languageString` represents localized text through language-tag keys and their associated lexical values. Its empty key denotes unknown language and MUST NOT be treated as an explicit local language tag. Validation and `best-effort` recovery for malformed `name`, `description`, `languageString`, and `Project.languages` carriers follow the simplified lexical language-tag rule and recovery clauses below.
 
 These carrier rules apply to textual fields supported by the transformation. They do not independently establish mappings for additional metadata fields. References to project/high-level language information in the language-resolution policy mean the recognized project language carrier specified here.
 
@@ -1477,7 +1479,23 @@ For supported VP-plugin 0.5.3 JSON strings without explicit language information
 
 These rules apply within the supported input contract, including the bounded language enrichment expressly established in §3.2 (RD-27 / RD-01). The multilingual and project/high-level language provisions use the supported `languageString` representation and top-level `Project.languages` field; they MUST NOT broaden the input contract beyond that extension. DirectKG MUST NOT introduce package-local language declarations unless separately established by the supported input contract. Recognition of these language carriers does not authorize general support for unrelated schema constructs or arbitrary `ontouml-js` output structures. RD-28 source-ID annotations under DK-IRI-09 MUST remain untagged and are not subject to this language policy, including the user override. External YAML text under DK-GEN-09 MUST remain untagged; neither the user override nor `Project.languages` propagates to it. The language override control is specified in §15.
 
-**Rationale and example (non-normative):** Explicit language information can be preserved without guessing the language of plain strings. Without an override, localized names such as `"en": "Person"` and `"pt-BR": "Pessoa"` produce separate labels `"Person"@en` and `"Pessoa"@pt-BR`.
+#### Simplified lexical language-tag validation and carrier recovery (RD-02, Alternatives 1A + 2A)
+
+1. **Simplified lexical language-tag validation rule:** Nonempty explicit language tags in supported `languageString` keys, `Project.languages` array elements, and `--language` MUST satisfy a full-string match against `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$` (without trailing newline characters), matching RDF 1.1 Turtle `LANGTAG` lexical syntax. This pattern is explicitly a **simplified lexical validation rule**—it is **NOT a complete BCP 47 validator** or an IANA language-subtag registry check.
+2. **Supported `name` and `description` carriers (Alternative 1A):**
+   - **Covered scope:** Validation applies to supported elements whose `name` or `description` is used in transformation: `Project`, `Class` (including `«datatype»` `name` evaluated under DK-DAT-02), `Relation`, `Property` (surviving attributes and association ends of surviving relations), and `Literal` (surviving enumeration values). Intentionally omitted text under DK-GEN-06–07 and DK-INS-02—packages, diagrams, `propertyAssignments`, `Generalization`, `GeneralizationSet`, and `«instantiation»` relations—is excluded.
+   - **Permitted values:** Absent fields, explicit `null`, plain JSON strings (with empty strings ignored without error and whitespace-only strings governed by existing naming/missing-name/role-presence rules), and `languageString` JSON objects whose keys are `""` (valid unknown-language key) or valid tags under the simplified lexical rule above and whose values are JSON strings (with empty string values ignored without error) retain their existing behavior.
+   - **Wrong whole-field type:** Any non-`null`, non-string, non-object `name` or `description` value on a covered element MUST emit a structural `ERROR` under DK-DIAG-05. Under `strict` and `tolerant`, conversion MUST abort (`aborted` outcome, no ontology delivered). Under `best-effort`, DirectKG MUST retain `ERROR` severity, omit only the malformed field, and preserve the owning element under existing unnamed/fallback rules (`DK-GEN-08`, `DK-IRI-04`, `DK-DAT-05`, `DK-REL-02–05`, `DK-INV-05–06`, or omitting the description `rdfs:comment`).
+   - **Per-entry `languageString` validation:** Within a `languageString` object on a covered element, DirectKG MUST validate every `(key, value)` entry independently regardless of whether `--language` (or its Python equivalent) or `--iri-strategy id` is active. Any entry whose value is not a JSON string OR whose nonempty key fails the simplified lexical rule `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$` (including whitespace-only keys) MUST emit a structural `ERROR` under DK-DIAG-05. Under `strict` and `tolerant`, conversion MUST abort (`aborted` outcome, no ontology delivered). Under `best-effort`, DirectKG MUST retain `ERROR` severity, omit only the invalid entry or entries, and retain all valid localized siblings in that `languageString` for labels and comments (`DK-GEN-08`, `DK-LBL-01–02`), `DK-IRI-10` naming selection (`DK-IRI-03–04`, `DK-REL-02–05`, `DK-INV-05–06/08`), `DK-DAT-02` primitive recognition, and `DK-INV-05` role presence; if zero valid nonempty entries remain, existing unnamed/fallback rules apply. Invalid `languageString` entries MUST NOT participate in or pollute `DK-IRI-10` or `DK-DAT-02` selection and MUST NOT be masked by `--language`.
+3. **`Project.languages` carrier (Alternative 2A):**
+   - Absent `Project.languages`, explicit `Project.languages: null`, and `Project.languages: []` MUST be accepted as no declared project languages without a diagnostic.
+   - Any non-null, non-array `Project.languages` value, or a `Project.languages` array containing any non-string element, empty or whitespace-only string, or invalid simplified lexical language tag (failing `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`), MUST emit a structural `ERROR` under DK-DIAG-05, regardless of whether `--language` is supplied. Under `strict` and `tolerant`, conversion MUST abort (`aborted` outcome, no ontology delivered). Under `best-effort`, DirectKG MUST retain `ERROR` severity, omit `Project.languages` as a whole—without salvaging individual array elements to invent a single-language tag and without triggering `DK-DIAG-19`—and continue conversion with untagged fallback for otherwise untagged source text unless `--language` is supplied.
+4. **Precedence and scope boundaries:**
+   - Established `DUPLICATE_SOURCE_ID` (§3.4), `DK-DIAG-06`, `§3.4` declaration-ID validity, and declaration-container checks (`Package.contents`, `Class.properties`, `Class.literals`, `Relation.properties`) retain precedence before textual and language validation.
+   - Elements omitted before textual/language processing (such as omitted relations—including `«instantiation»`, malformed/non-binary `Relation.properties`, failed relations, and `«derivation»`/unsupported connectors—omitted attributes, misplaced declarations, or invalid/disallowed container entries) do not trigger textual errors after omission, while surviving and owning elements remain subject to validation.
+   - This rule selects no new stable diagnostic identifier (`DK-DIAG-04`'s eight-code first-release core remains unchanged), introduces no new CLI or Python configuration option, and does not expand scope into unrelated scalar or flag validation.
+
+**Rationale and example (non-normative):** Explicit language information can be preserved without guessing the language of plain strings. Without an override, localized names such as `"en": "Person"` and `"pt-BR": "Pessoa"` produce separate labels `"Person"@en` and `"Pessoa"@pt-BR`. Under `best-effort`, a malformed sibling entry such as `{"bad tag": "Zebra", "en": "Person"}` emits a structural `ERROR`, omits `"bad tag"`, preserves `"Person"@en`, and selects `"Person"` under DK-IRI-10 rather than letting the invalid key pollute naming or be hidden by `--language`.
 
 ## 10. Primary binary-relation transformation
 
@@ -1743,7 +1761,7 @@ Under the name strategy, with stereotype-derived naming enabled, the direct prop
 4. synthesized `<source>_<target>`;
 5. deterministic collision resolution.
 
-Supported localized relation names and target-end role names follow DK-IRI-10. Its selected original text feeds the applicable naming rule without changing this field precedence.
+Supported localized relation names and target-end role names follow DK-IRI-10, subject to DK-LBL-02 carrier validation and `best-effort` entry omission (RD-02, Alternative 1A). Its selected original text feeds the applicable naming rule without changing this field precedence (if zero valid usable entries remain after omitting invalid entries, the next naming-precedence step applies).
 
 The source-end role MUST NOT name the forward property. Generic prefixes such as `has`, `relatedTo`, or `isRelatedTo` MUST NOT be invented unless present in the source or an adopted stereotype mapping.
 
@@ -1765,7 +1783,7 @@ The source-target fallback is:
 lowerFirst(normalize(source.name)) + "_" + lowerFirst(normalize(target.name))
 ```
 
-For supported localized endpoint names, DK-IRI-10 selects each original source text before normalization.
+For supported localized endpoint names, DK-IRI-10 selects each original source text before normalization, following DK-LBL-02 carrier validation and `best-effort` entry omission (RD-02, Alternative 1A).
 
 `lowerFirst` changes only the first character. It MUST NOT lowercase the entire classifier name. Unnamed endpoints first receive their synthetic identifiers, which MAY then supply fallback components.
 
@@ -1864,7 +1882,7 @@ When a usable grounding relator name exists, the candidate is:
 lowerFirst(normalize(relator.name))
 ```
 
-For a supported localized relator name, DK-IRI-10 selects the original text used in this construction. No `has` prefix is added. The property continues to connect the material relation's source and target; it does not point to a relator individual. Successful relator-based naming SHOULD produce an informational provenance diagnostic and MUST NOT produce a warning merely because this naming path succeeded.
+For a supported localized relator name, DK-IRI-10 selects the original text used in this construction, following DK-LBL-02 carrier validation and `best-effort` entry omission (RD-02, Alternative 1A); if zero valid usable entries remain, unavailable-relator fallback applies. No `has` prefix is added. The property continues to connect the material relation's source and target; it does not point to a relator individual. Successful relator-based naming SHOULD produce an informational provenance diagnostic and MUST NOT produce a warning merely because this naming path succeeded.
 
 If no usable grounding relator can be resolved, DirectKG MUST warn and continue to the source-target fallback. The initial diagnostics need not distinguish absence, ambiguity, an unnamed target, or an unusable target; all MAY be reported as an unavailable grounding relator.
 
@@ -2333,7 +2351,7 @@ The permission for anonymous inverse expressions established here covers materia
 
 ### DK-INV-05 — Inverse-facing role and label
 
-A role is present when it is non-null and contains at least one non-whitespace character. A multilingual role MUST count as present when any of its values contains a non-whitespace character; successful ASCII normalization MUST NOT be an additional condition for inverse eligibility. Under the name strategy, only the inverse-facing end's role may name the inverse. Supported localized role names follow DK-IRI-10 for the IRI naming input; all applicable source-authored labels remain subject to DK-LBL-01–02.
+A role is present when it is non-null and contains at least one non-whitespace character. A multilingual role MUST count as present when any of its valid entries (after DK-LBL-02 carrier validation and `best-effort` omission of invalid entries under RD-02, Alternative 1A) contains a non-whitespace character; successful ASCII normalization MUST NOT be an additional condition for inverse eligibility. Under the name strategy, only the inverse-facing end's role may name the inverse. Supported localized role names follow DK-IRI-10 for the IRI naming input; all applicable source-authored labels remain subject to DK-LBL-01–02.
 
 When present:
 
@@ -2348,7 +2366,7 @@ Source-end descriptions MUST be preserved on the corresponding generated named i
 
 ### DK-INV-06 — Name-strategy structural fallback
 
-When no inverse-facing role is present, or a present role yields no usable naming candidate under DK-IRI-03 and DK-IRI-10, DirectKG MUST derive the inverse candidate from the resolved primary-property local name:
+When no inverse-facing role is present, or a present role yields no usable naming candidate under DK-IRI-03, DK-IRI-10, and DK-LBL-02 (including when `best-effort` omission of malformed field types or invalid `languageString` entries leaves zero valid usable entries), DirectKG MUST derive the inverse candidate from the resolved primary-property local name:
 
 ```text
 inverseOf<ResolvedPrimaryPropertyLocalName>
@@ -2386,7 +2404,7 @@ If the primary-based fallback collides, only the generated inverse is further qu
 inverseOf<ResolvedPrimaryPropertyLocalName>_<InverseDomain>
 ```
 
-When the inverse-domain classifier has a usable name, its normalized name supplies this component; supported localized names follow DK-IRI-10. When that classifier has no usable normalized name, DirectKG MUST use its DK-IRI-04 fallback candidate as the qualifier:
+When the inverse-domain classifier has a usable name, its normalized name supplies this component; supported localized names follow DK-IRI-10, subject to DK-LBL-02 carrier validation and `best-effort` entry omission. When that classifier has no usable normalized name, DirectKG MUST use its DK-IRI-04 fallback candidate as the qualifier:
 
 ```text
 unnamedClass_<escaped-domain-class-id>
@@ -2620,7 +2638,7 @@ When name-based naming rules and applicable type-specific fallbacks yield no usa
 
 ### DK-IRI-03 — Name normalization
 
-For a supported localized name, DK-IRI-10 selects the original source text used as input to this normalization.
+For a supported localized name, DK-IRI-10 selects the original source text used as input to this normalization, following DK-LBL-02 carrier validation and `best-effort` entry omission (RD-02, Alternative 1A).
 
 Name-based local names MUST use deterministic lexical normalization:
 
@@ -2647,7 +2665,7 @@ Established naming rules and applicable type-specific fallbacks MUST retain prio
 
 For this rule, a usable source ID is a source identifier valid under §3.4's minimal opaque identifier definitions (RD-02, Alternative A).
 
-When no localized naming candidate is usable under DK-IRI-10, DirectKG MUST apply the applicable fallback and diagnostic rules for the affected resource type, including this generic policy where its prerequisites hold.
+When no localized naming candidate is usable under DK-IRI-10 (including when `best-effort` omission of a malformed `name` carrier or invalid `languageString` entries under DK-LBL-02 leaves zero valid usable entries), DirectKG MUST apply the applicable fallback and diagnostic rules for the affected resource type, including this generic policy where its prerequisites hold.
 
 An unnamed or unusably named class in name mode MUST use:
 
@@ -2799,7 +2817,7 @@ Existing IRI construction, collision handling, relation-direction identity rules
 
 This rule specifies lexical selection from supported `languageString` fields when names or role names supply IRI naming components or generated lexical naming candidates. Plain-string names retain their existing treatment. For supported multilingual datatype names, the same selector also supplies the original source text used for primitive recognition under DK-DAT-02 (RD-27, option A).
 
-For a naming field represented as a `languageString`, DirectKG MUST consider the values that yield a nonempty naming candidate under DK-IRI-03's normalization before collision handling. It MUST select the first value under this ordering:
+For a naming field represented as a `languageString`, DirectKG MUST consider only valid entries under DK-LBL-02 (RD-02, Alternative 1A) whose values yield a nonempty naming candidate under DK-IRI-03's normalization before collision handling. Invalid `languageString` entries (non-string values or invalid nonempty lexical language tags failing `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`) MUST NOT participate in or pollute `DK-IRI-10` selection and MUST NOT be masked by `--language`; under `best-effort`, they are omitted with `ERROR` retained while valid localized siblings remain eligible (and if zero valid usable entries remain, existing unnamed/fallback rules apply). DirectKG MUST select the first eligible value under this ordering:
 
 1. Compare language keys lexicographically after converting ASCII uppercase letters to lowercase. The empty key sorts first.
 2. If language keys compare equally, compare their original text values lexicographically by Unicode code points.
@@ -2851,7 +2869,9 @@ For duplicate source-element IDs within §3.4's scope, DK-DIAG-05 requires abort
 | Absence of an RDF origin marker for primary-relation fallback labels | No diagnostic or configuration control solely for that absence under DK-LBL-01 (RD-26, option A); existing naming and other applicable diagnostics remain unchanged | No solely for this condition |
 | Multiple localized naming values alone | No additional diagnostic under DK-IRI-10; other applicable diagnostics remain unchanged | No solely for this condition |
 | Multilingual primitive recognition under DK-DAT-02 | No additional diagnostic or multilingual-conflict handling; existing naming warnings, `void` warnings, and input errors remain applicable | No additional fatality solely for multilingual primitive recognition |
-| Multiple applicable project/high-level languages for supported source-authored text without an explicit local language or user override | Leave the value untagged; nonfatal WARNING under DK-DIAG-19; avoid unnecessary repetition for individual literals | No |
+| Multiple applicable project/high-level languages for supported source-authored text without an explicit local language or user override | Leave the value untagged; nonfatal WARNING under DK-DIAG-19; avoid unnecessary repetition for individual literals; malformed `Project.languages` omitted under `best-effort` does not trigger DK-DIAG-19 | No |
+| Wrong whole-field type (`name` or `description` non-`null`, non-string, non-object) or invalid `languageString` entry (non-string value or nonempty key failing `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`) on a covered element (`Project`, `Class` [including `«datatype»` `name`], `Relation`, `Property`, `Literal`) | Structural ERROR under DK-LBL-02 and DK-DIAG-05 (RD-02, Alternative 1A), regardless of `--language` override or IRI strategy; `strict` and `tolerant` abort; `best-effort` retains ERROR severity, omits only the malformed field or invalid entry, retains valid localized siblings for labels/comments, `DK-IRI-10`, `DK-DAT-02`, and `DK-INV-05`, and applies unnamed/fallback rules if zero valid entries remain; `DUPLICATE_SOURCE_ID`, `DK-DIAG-06`, §3.4 declaration-ID, container-check, and omitted-element precedence retained | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
+| Malformed `Project.languages` carrier (non-null non-array, or array containing non-string, empty/whitespace string, or key failing `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`) | Structural ERROR under DK-LBL-02 and DK-DIAG-05 (RD-02, Alternative 2A), regardless of `--language`; `strict` and `tolerant` abort; `best-effort` retains ERROR severity, omits `Project.languages` as a whole without inventing a single-language tag or triggering DK-DIAG-19, and continues with untagged fallback unless `--language` is supplied; absent, `null`, and `[]` remain accepted without diagnostic | Yes under `strict` and `tolerant`; `best-effort` continues with error severity retained |
 | Absent, null, or empty supported source description, including `Project.description` | No description annotation or diagnostic solely for this condition under DK-LBL-02 | No solely for this condition |
 | `isOrdered: true` occurrence preserved under DK-PROP-05 | Required INFO for each preserved occurrence under DK-DIAG-18 identifies the source attribute or relation end and explains that ordering is documented but value order is not represented; no warning solely for this limitation | No solely for this limitation |
 | `isOrdered: false`, absent, or null | No ordering comment or ordering-loss INFO under DK-PROP-05 | No solely for this condition |
@@ -3239,6 +3259,12 @@ Under DK-GEN-06, DK-ATT-01, DK-CLS-11, and this rule (RD-02, Alternatives 1A + 2
 - **Non-enumeration `Class.literals`:** For a `Class` without `stereotype == "enumeration"`, absent, `null`, and `[]` remain accepted as empty; any non-null, non-array value, non-object/non-`Literal` entry, or valid `Literal` entry emits a structural ERROR under this rule (`strict` and `tolerant` abort; `best-effort` retains ERROR severity, omits those `literals` without generating `owl:NamedIndividual`s, and retains the owning `Class` and independent mappings).
 - **Precedence:** Valid `Property` objects inside `Class.properties`, valid `Literal` objects inside `Class.literals`, and indexed misplaced declarations in `Package.contents` with valid IDs retain fatal `DUPLICATE_SOURCE_ID` (§3.4) and `DK-DIAG-06` stereotype-policy precedence (as well as §3.4 missing/invalid declaration-ID precedence) before container or entry omission.
 
+Under DK-LBL-02, DK-GEN-08, DK-DAT-02, DK-IRI-10, DK-INV-05, and this rule (RD-02, Alternatives 1A + 2A), textual and language-tag carriers follow these policies using the simplified lexical language-tag rule `^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$` (which is not a complete BCP 47 validator):
+
+- **Covered `name` and `description` carriers (`Project`, `Class` [including `«datatype»` `name`], `Relation`, `Property`, `Literal`):** Absent, `null`, plain strings, and `languageString` objects with `""` or valid simplified lexical tags and string values retain existing behavior (empty string values ignored without error; intentionally omitted text under DK-GEN-06–07 and DK-INS-02 excluded). A wrong whole-field type (`name` or `description` non-`null`, non-string, non-object) or an invalid `languageString` entry (non-string value or nonempty key failing the simplified lexical rule) emits a structural ERROR under this rule regardless of `--language` override (`strict` and `tolerant` abort; `best-effort` retains ERROR severity, omits only the malformed field or invalid entry, retains all valid localized siblings for labels/comments, `DK-IRI-10` selection, `DK-DAT-02` primitive recognition, and `DK-INV-05` role presence, and applies unnamed/fallback rules if zero valid entries remain).
+- **`Project.languages`:** Absent, explicit `null`, and `[]` remain accepted as no declared project languages without diagnostic. A non-null, non-array value or an array containing any non-string, empty/whitespace string, or invalid simplified lexical language tag emits a structural ERROR under this rule regardless of `--language` (`strict` and `tolerant` abort; `best-effort` retains ERROR severity, omits `Project.languages` as a whole without inventing a single-language tag or triggering DK-DIAG-19, and continues with untagged fallback unless `--language` is supplied).
+- **Precedence:** Established `DUPLICATE_SOURCE_ID` (§3.4), `DK-DIAG-06`, §3.4 declaration-ID validity, and declaration-container checks retain precedence before textual and language validation; elements omitted earlier before textual/language processing do not trigger textual errors after omission, while surviving and owning elements do.
+
 These rules establish policy-dependent continuation, subject to the duplicate-ID abort rule above. No recovery behavior is defined beyond the explicit recovery rules in this specification. The input-policy argument and default are specified in §15.
 
 **Non-normative rationale and examples:**
@@ -3450,7 +3476,7 @@ For `isOrdered: false`, or when the field is absent or null, DirectKG MUST NOT g
 
 ### DK-DIAG-19 — Unresolved project/high-level language assignment (RD-27)
 
-Language declarations for this rule MUST come from the recognized carriers in DK-LBL-02; VP custom metadata does not participate.
+Language declarations for this rule MUST come from the recognized carriers in DK-LBL-02; VP custom metadata does not participate. When a malformed `Project.languages` carrier is omitted as a whole under `best-effort` (DK-LBL-02, RD-02 Alternative 2A), it supplies no declared project languages and MUST NOT trigger this ambiguity warning.
 
 When multiple applicable project/high-level languages are declared and a supported source-authored textual value has neither an explicit local language nor a user override, DirectKG MUST leave the value untagged and emit a nonfatal WARNING explaining that language assignment was unresolved because multiple applicable project/high-level languages were available.
 
@@ -3500,7 +3526,7 @@ RD-12 inverse specialization follows the existing inverse-generation setting; no
 
 DirectKG MUST expose the CLI control `--relation-labels {source-only,generated}`, with default `source-only`. The Python interface MUST expose the semantically equivalent control as `relation_labels="source-only"` or `relation_labels="generated"`, also defaulting to `"source-only"`. Both interfaces MUST expose the same values, default, and transformation semantics under DK-LBL-01 (RD-26 / ODI-CONTROLS).
 
-DirectKG MUST provide `--language LANG`, accepting exactly one language tag, not a list. It is an explicit override, not merely a default language. The Python interface MUST expose a semantically equivalent control; both interfaces MUST implement the same override behavior under DK-LBL-02 (RD-27 / ODI-CONTROLS). This decision establishes no particular Python parameter name. Neither the override nor `Project.languages` selects or reorders naming candidates or primitive-recognition input; DK-IRI-10 and DK-DAT-02 use the original source language keys.
+DirectKG MUST provide `--language LANG`, accepting exactly one language tag matching DK-LBL-02's simplified lexical language-tag rule (`^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`, not a complete BCP 47 validator), not a list. It is an explicit override, not merely a default language. The Python interface MUST expose a semantically equivalent control; both interfaces MUST implement the same override behavior under DK-LBL-02 (RD-27 / ODI-CONTROLS). This decision establishes no particular Python parameter name. Neither the override nor `Project.languages` selects or reorders naming candidates or primitive-recognition input; DK-IRI-10 and DK-DAT-02 use the original source language keys. Supplying `--language` MUST NOT mask invalid `languageString` entries or malformed `Project.languages` under DK-LBL-02 (RD-02, Alternatives 1A + 2A).
 
 DirectKG MUST provide the boolean CLI flag `--omit-identifiers`. When supplied, it MUST suppress only the source-ID `dcterms:identifier` annotations introduced by DK-IRI-09 (RD-28). The Python interface MUST expose a semantically equivalent boolean control, disabled by default, with the same behavior; no Python parameter name is prescribed. The flag MUST be accepted under both IRI strategies and is a valid no-op under `id`.
 
@@ -3522,7 +3548,7 @@ The following transformation, diagnostic-delivery, and CLI presentation controls
 | `--console-level info\|warning\|error` | Established by RD-04 / CONSOLE-LEVEL; default `info`; console presentation only under DK-DIAG-04; diagnostic collection, JSON export, Python access, transformation behavior, output eligibility, and exit-code selection remain unchanged |
 | `--iri-strategy name\|id` | Established; default `name`; RD-28 identifier annotations follow DK-IRI-09 |
 | `--omit-identifiers` | Established by RD-28 / ODI-CONTROLS; boolean opt-out, disabled by default; suppresses only RD-28 source-ID annotations under `name`; accepted no-op under `id`; equivalent Python boolean required, parameter name unspecified |
-| `--language LANG` | Established by RD-27 / ODI-CONTROLS; exactly one language tag; overrides input language information for supported source-authored text under DK-LBL-02; equivalent Python control required, parameter name unspecified; excludes generated fallback labels |
+| `--language LANG` | Established by RD-27 / ODI-CONTROLS; exactly one language tag matching DK-LBL-02's simplified lexical rule (`^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$`, not a complete BCP 47 validator); overrides input language information for supported source-authored text under DK-LBL-02 without masking invalid `languageString` entries or malformed `Project.languages` (RD-02, Alternatives 1A + 2A); equivalent Python control required, parameter name unspecified; excludes generated fallback labels |
 | `--no-stereotype-relation-naming` | Established; stereotype naming otherwise enabled |
 | `--relation-labels source-only\|generated` | Established by RD-26 / ODI-CONTROLS; default `source-only`; Python `relation_labels` exposes the same values and default; primary-relation label selection under DK-LBL-01 applies under either IRI strategy; RDF origin markers solely distinguishing fallback labels from source-authored labels are prohibited; absence of a marker alone adds no diagnostic or control |
 | `--inverse-properties all\|informed\|named\|none` | Established by ODI-CONTROLS; controls separately named inverse properties for inverse-eligible relations under DK-INV-01; default `all`; does not independently cause a compatibility ERROR on datatype-valued relations (which are not inverse-eligible under DK-INV-02); does not prohibit anonymous inverse expressions for object-property relations in material-property chains or those required for reverse-side cardinality restrictions under DK-REL-09, property subsetting/redefinition under DK-PROP-03 (RD-14), or aligned characterization–external-dependence disjointness under DK-REL-01 (RD-17) |
