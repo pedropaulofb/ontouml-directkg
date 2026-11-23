@@ -34,10 +34,9 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
         if kind in {"Project", "Package", "Generalization", "GeneralizationSet", "Relation", "Property"}:
             continue
         if kind == "Literal":
-            owner = index.declarations.get(element.owner)
-            if owner is not None and owner.data.get("stereotype") == "enumeration":
-                continue
-            raise NotImplementedError("Literal declarations outside enumerations have no assigned baseline mapping")
+            # Valid enumeration Literals are handled by collect_enumerations;
+            # misplaced or non-enumeration Literals are already diagnosed and omitted.
+            continue
         if kind != "Class":
             raise NotImplementedError(f"{kind} transformation belongs to a later baseline wave")
         identifier = data.get("id")

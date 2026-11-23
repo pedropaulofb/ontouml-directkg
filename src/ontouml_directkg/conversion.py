@@ -21,7 +21,7 @@ from .provenance import ProvenanceRecord
 from .properties import PropertyExpressions, collect_attributes, emit_attributes, emit_property_references, property_candidates
 from .relation_axioms import emit_relation_axioms
 from .relations import collect_relations, emit_relations, relation_names
-from .source import apply_identifier_policy, check_stereotypes, index_project, read_project
+from .source import apply_identifier_policy, check_stereotypes, index_project, read_project, validate_containers
 
 
 @dataclass
@@ -144,6 +144,8 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         check_stereotypes(index, diagnostics, stereotype_policy)
         stage = "apply_identifier_policy"
         index = apply_identifier_policy(index, diagnostics, input_policy)
+        stage = "validate_containers"
+        validate_containers(index, diagnostics, input_policy)
         stage = "baseline_classes"
         classes = baseline_classes(index)
         stage = "collect_enumerations"

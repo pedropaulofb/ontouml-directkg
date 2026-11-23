@@ -77,6 +77,8 @@ class SourceIndex:
     project: dict
     elements: tuple[SourceElement, ...]
     declarations: dict[str, SourceElement]
+    container_errors: tuple[tuple[tuple[SourceLocation, ...], str, str, str], ...] = ()
+    omitted_paths: tuple[str, ...] = ()
 
     def resolve(self, reference: dict) -> SourceElement:
         """Resolve an exact decoded ID and declared type, without guessing a target.
@@ -137,6 +139,7 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
     """Traverse declared containers, retaining all competing IDs before lookup."""
     elements: list[SourceElement] = []
     declarations: dict[str, list[SourceElement]] = {}
+    container_errors: list[tuple[tuple[SourceLocation, ...], str, str, str]] = []
 
     def unknown(message: str, source: SourceElement) -> None:
         fatal = input_policy == "strict"
@@ -172,6 +175,151 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
             children = value.get(field)
             if children is None:
                 continue
+            if kind == "Package" and field == "contents":
+                if not isinstance(children, list):
+                    id_text = f" {identifier!r}" if isinstance(identifier, str) else ""
+                    if path == "$.model":
+                        diagnostics.add(
+                            "ERROR", "UNPROCESSABLE_DOCUMENT",
+                            f"Root model Package{id_text} contents must be a JSON array or null (got {type(children).__name__}).",
+                            "Conversion aborted; no ontology is delivered.",
+                            (element.location,),
+                        )
+                        raise _AbortConversion
+                    container_errors.append((
+                        (element.location,),
+                        "MALFORMED_PACKAGE_CONTENTS",
+                        f"Package{id_text} contents at {path}.contents must be a JSON array or null (got {type(children).__name__}).",
+                        "Affected nested package contents omitted; independently transformable elements retained.",
+                    ))
+                    continue
+                for number, child in enumerate(children):
+                    child_path = f"{path}.contents[{number}]"
+                    if not isinstance(child, dict):
+                        container_errors.append((
+                            (SourceLocation(child_path, None, None),),
+                            "INVALID_PACKAGE_CONTENTS_ENTRY",
+                            f"Package.contents entry at {child_path} must be a JSON object, got {type(child).__name__}.",
+                            "Affected Package.contents entry omitted; valid siblings and independent mappings retained.",
+                        ))
+                        continue
+                    child_kind = child.get("type")
+                    child_id = child.get("id")
+                    child_loc = SourceLocation(
+                        child_path,
+                        child_id if isinstance(child_id, str) else None,
+                        child_kind if isinstance(child_kind, str) else None,
+                    )
+                    if not isinstance(child_kind, str) or not child_kind.strip():
+                        container_errors.append((
+                            (child_loc,),
+                            "INVALID_PACKAGE_CONTENTS_ENTRY",
+                            f"Package.contents entry at {child_path} lacks a valid nonempty string 'type'.",
+                            "Affected Package.contents entry omitted; valid siblings and independent mappings retained.",
+                        ))
+                        continue
+                    if child_kind not in _FIELDS:
+                        unknown(f"Unrecognized element type {child_kind!r} at {child_path}.",
+                                SourceElement(child, child_path, None))
+                        continue
+                    if child_kind in {"Project", "Property", "Literal"}:
+                        child_id_text = f" {child_id!r}" if isinstance(child_id, str) else ""
+                        container_errors.append((
+                            (child_loc,),
+                            "MISPLACED_PACKAGE_DECLARATION",
+                            f"Misplaced {child_kind} declaration{child_id_text} is not permitted in Package.contents.",
+                            "Affected misplaced declaration omitted; valid siblings and independent mappings retained.",
+                        ))
+                        if child_kind != "Project":
+                            child_element = SourceElement(child, child_path, None)
+                            elements.append(child_element)
+                            extra_child = sorted(set(child) - _FIELDS[child_kind])
+                            if extra_child:
+                                unknown(f"Unrecognized input fields on {child_kind}: {', '.join(extra_child)}.",
+                                        child_element)
+                            if _identifier_problem(child) is None:
+                                declarations.setdefault(child_id, []).append(child_element)
+                        continue
+                    visit(child, child_path, None)
+                continue
+
+            if kind == "Class" and field == "properties":
+                id_text = f" {identifier!r}" if isinstance(identifier, str) else ""
+                if not isinstance(children, list):
+                    container_errors.append((
+                        (element.location,),
+                        "MALFORMED_CLASS_PROPERTIES",
+                        f"Class{id_text} properties container at {path}.properties must be a JSON array or null (got {type(children).__name__}).",
+                        "Malformed Class.properties container omitted; owning Class and independent mappings retained.",
+                    ))
+                    continue
+                for number, child in enumerate(children):
+                    child_path = f"{path}.properties[{number}]"
+                    if not isinstance(child, dict) or child.get("type") != "Property":
+                        if isinstance(child, dict):
+                            child_id = child.get("id")
+                            child_kind = child.get("type")
+                            child_loc = SourceLocation(
+                                child_path,
+                                child_id if isinstance(child_id, str) else None,
+                                child_kind if isinstance(child_kind, str) else None,
+                            )
+                            sources = (child_loc, element.location)
+                        else:
+                            sources = (SourceLocation(child_path, None, None), element.location)
+                        container_errors.append((
+                            sources,
+                            "INVALID_CLASS_PROPERTY_ENTRY",
+                            f"Class{id_text} properties entry at {child_path} is not a Property object.",
+                            "Invalid Class.properties entry omitted; owning Class, valid Property siblings, and independent mappings retained.",
+                        ))
+                        continue
+                    visit(child, child_path, identifier, "Property")
+                continue
+
+            if kind == "Class" and field == "literals" and value.get("stereotype") != "enumeration":
+                id_text = f" {identifier!r}" if isinstance(identifier, str) else ""
+                if not isinstance(children, list):
+                    container_errors.append((
+                        (element.location,),
+                        "MALFORMED_NON_ENUM_LITERALS",
+                        f"Non-enumeration Class{id_text} literals container at {path}.literals must be a JSON array or null (got {type(children).__name__}).",
+                        "Malformed Class.literals container omitted; owning Class and independent mappings retained.",
+                    ))
+                    continue
+                for number, child in enumerate(children):
+                    child_path = f"{path}.literals[{number}]"
+                    if not isinstance(child, dict) or child.get("type") != "Literal":
+                        if isinstance(child, dict):
+                            child_id = child.get("id")
+                            child_kind = child.get("type")
+                            child_loc = SourceLocation(
+                                child_path,
+                                child_id if isinstance(child_id, str) else None,
+                                child_kind if isinstance(child_kind, str) else None,
+                            )
+                            sources = (child_loc, element.location)
+                        else:
+                            sources = (SourceLocation(child_path, None, None), element.location)
+                        container_errors.append((
+                            sources,
+                            "INVALID_NON_ENUM_LITERALS_ENTRY",
+                            f"Non-enumeration Class{id_text} literals entry at {child_path} is not a Literal object.",
+                            "Invalid Class.literals entry omitted; owning Class and independent mappings retained.",
+                        ))
+                        continue
+                    child_id = child.get("id")
+                    child_loc = SourceLocation(child_path, child_id if isinstance(child_id, str) else None, "Literal")
+                    lit_text = f" {child_id!r}" if isinstance(child_id, str) else ""
+                    container_errors.append((
+                        (child_loc, element.location),
+                        "DISALLOWED_NON_ENUM_LITERAL",
+                        f"Literal declaration{lit_text} at {child_path} is not permitted on non-enumeration Class{id_text}.",
+                        "Disallowed Class.literals entry omitted without generating owl:NamedIndividual; owning Class and independent mappings retained.",
+                    ))
+                    visit(child, child_path, identifier, "Literal")
+                continue
+
             enumeration_values = (kind == "Class" and value.get("stereotype") == "enumeration"
                                   and field == "literals")
             relation_ends = (kind == "Relation" and field == "properties")
@@ -199,7 +347,8 @@ def index_project(project: dict, diagnostics: DiagnosticCollector, input_policy:
                             tuple(item.location for item in competing))
             raise _AbortConversion
 
-    return SourceIndex(project, tuple(elements), {key: values[0] for key, values in declarations.items()})
+    return SourceIndex(project, tuple(elements), {key: values[0] for key, values in declarations.items()},
+                       tuple(container_errors))
 
 
 def apply_identifier_policy(index: SourceIndex, diagnostics: DiagnosticCollector,
@@ -233,7 +382,17 @@ def apply_identifier_policy(index: SourceIndex, diagnostics: DiagnosticCollector
     retained_paths = {element.path for element in retained}
     return SourceIndex(index.project, tuple(retained),
                        {key: element for key, element in index.declarations.items()
-                        if element.path in retained_paths})
+                        if element.path in retained_paths},
+                       index.container_errors, tuple(omitted))
+
+
+def validate_containers(index: SourceIndex, diagnostics: DiagnosticCollector, input_policy: str) -> None:
+    """Emit structural container/entry errors after duplicate, stereotype, and ID precedence."""
+    for sources, code, message, recovery in index.container_errors:
+        primary_path = sources[0].path
+        if any(primary_path == path or primary_path.startswith(path + ".") for path in index.omitted_paths):
+            continue
+        input_error(diagnostics, input_policy, code, message, sources, recovery)
 
 
 def check_stereotypes(index: SourceIndex, diagnostics: DiagnosticCollector, policy: str) -> None:

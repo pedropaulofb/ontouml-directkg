@@ -38,7 +38,9 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
         if owner is not None and owner.data["type"] == "Relation":
             continue
         if owner is None or owner.data["type"] != "Class":
-            raise NotImplementedError("Attribute ownership cannot be resolved under the decided baseline")
+            if isinstance(data.get("id"), str):
+                omitted_attributes.add(data["id"])
+            continue
         if element.owner not in generated_classes:
             owner_key = datatype_key(owner.data.get("name")) if owner.data.get("stereotype") == "datatype" else None
             owner_kind = (
