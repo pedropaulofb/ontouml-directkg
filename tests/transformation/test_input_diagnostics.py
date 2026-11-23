@@ -2049,7 +2049,7 @@ def test_malformed_stereotype_default_input_policy_aborts(run, source_json, tmp_
     "surviving_end_retains_downstream_invalid_end_id",
     "surviving_end_retains_downstream_non_binary_relation_error",
     "surviving_misplaced_property_retains_downstream_misplaced_error",
-    "surviving_misplaced_property_retains_downstream_invalid_id_and_misplaced_error",
+    "surviving_misplaced_property_retains_downstream_invalid_id_precedence",
 ])
 def test_malformed_stereotype_respects_duplicate_id_and_downstream_precedence(
         run, source_json, tmp_path, input_policy, condition):
@@ -2115,7 +2115,7 @@ def test_malformed_stereotype_respects_duplicate_id_and_downstream_precedence(
         document["model"]["contents"].append(misplaced)
     else:
         misplaced = copy.deepcopy(source_element(document, "aAge"))
-        misplaced.update(id="", stereotype=0)
+        misplaced.update(id="", name="misplacedAttr", stereotype=0)
         document["model"]["contents"].append(misplaced)
 
     result = run(path=write_input(tmp_path, document), **options)
@@ -2173,7 +2173,13 @@ def test_malformed_stereotype_respects_duplicate_id_and_downstream_precedence(
         assert not any(BASE.pMisplaced in triple for triple in result.ontology)
     else:
         assert any(d.severity == "ERROR" and d.kind == "invalid_id" for d in result.diagnostics)
-        assert any(d.severity == "ERROR" and "package_contents_misplaced_declaration" in d.facts for d in result.diagnostics)
+        assert not any("package_contents_misplaced_declaration" in d.facts for d in result.diagnostics)
+        assert not any(
+            d.severity == "ERROR" and d.kind not in {"malformed_stereotype", "invalid_id"}
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert not list(result.ontology.subjects(RDFS.label, Literal("misplacedAttr")))
+        assert not any("misplacedAttr" in str(term) for triple in result.ontology for term in triple)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
