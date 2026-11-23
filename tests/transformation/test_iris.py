@@ -531,3 +531,60 @@ def test_generic_fallback_collisions_do_not_merge_source_backed_resources(run, s
     assert (generated_class, RDF.type, OWL.Class) in first.ontology
     for identifier in ("aFallback", "cClaim"):
         assert one_subject(first.ontology, DCTERMS.identifier, Literal(identifier)) == one_subject(again.ontology, DCTERMS.identifier, Literal(identifier))
+
+
+_IRI_RECOVERY_CASES = [
+    ("class_sibling_non_pollution", "cPerson", {"a_": "WrongLocal", "nl": "Persoon"}, "Persoon", "invalid_language_string_entry"),
+    ("class_empty_key_survives", "cPerson", {"": "Unknown", "a_": "WrongLocal"}, "Unknown", "invalid_language_string_entry"),
+    ("class_zero_valid_fallback", "cPerson", {"a_": "WrongLocal", "en": 42}, "unnamedClass_cPerson", "invalid_language_string_entry"),
+    ("class_wrong_type_fallback", "cPerson", 123, "unnamedClass_cPerson", "malformed_textual_carrier"),
+    ("attribute_sibling_non_pollution", "aAge", {"a_": "WrongLocal", "nl": "Leeftijd"}, "Leeftijd_Person", "invalid_language_string_entry"),
+    ("attribute_zero_valid_fallback", "aAge", {"a_": "WrongLocal", "en": 42}, "aAge", "invalid_language_string_entry"),
+    ("literal_sibling_non_pollution", "vPending", {"a_": "WrongLocal", "nl": "Wachtend"}, "Status_Wachtend", "invalid_language_string_entry"),
+    ("literal_zero_valid_fallback", "vPending", 123, "vPending", "malformed_textual_carrier"),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,identifier,payload,expected_local,expected_fact", _IRI_RECOVERY_CASES,
+                         ids=[row[0] for row in _IRI_RECOVERY_CASES])
+def test_multilingual_selector_excludes_invalid_language_string_entries_and_falls_back(
+        run, source_json, tmp_path, input_policy, case, identifier, payload, expected_local, expected_fact):
+    """Rules: DK-IRI-03, DK-IRI-04, DK-IRI-08, DK-IRI-10, DK-LBL-01, DK-LBL-02, DK-DIAG-01, DK-DIAG-05; §§3.2, 15. RD-02 Alt 1A."""
+    document = source_json("shared/source_text")
+    if identifier == "aAge" and case == "attribute_sibling_non_pollution":
+        peer = copy.deepcopy(source_element(document, "aAge"))
+        peer.update(id="pPeer", name={"en": "Leeftijd"})
+        source_element(document, "cOrg")["properties"] = [peer]
+    source_element(document, identifier)["name"] = copy.deepcopy(payload)
+
+    result = run(path=write_input(tmp_path, document), input_policy=input_policy, language="fr")
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == "ERROR" and expected_fact in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    resource = one_subject(result.ontology, DCTERMS.identifier, Literal(identifier))
+    assert resource == BASE[expected_local]
+    assert not any("WrongLocal" in str(term) for triple in result.ontology for term in triple)
+
+    if case == "class_sibling_non_pollution":
+        assert set(result.ontology.objects(resource, RDFS.label)) == {Literal("Persoon", lang="fr")}
+    elif case == "class_empty_key_survives":
+        assert set(result.ontology.objects(resource, RDFS.label)) == {Literal("Unknown", lang="fr")}
+    elif case == "attribute_sibling_non_pollution":
+        assert set(result.ontology.objects(resource, RDFS.label)) == {Literal("Leeftijd", lang="fr")}
+    elif case == "literal_sibling_non_pollution":
+        assert set(result.ontology.objects(resource, RDFS.label)) == {Literal("Wachtend", lang="fr")}
+    else:
+        assert not list(result.ontology.objects(resource, RDFS.label))
+        if identifier == "cPerson":
+            assert any(d.kind == "missing_name" and d.severity == "WARNING" and "cPerson" in d.source_ids
+                       for d in result.diagnostics)
+        else:
+            assert any(d.kind == "generic_id_fallback" and d.severity == "WARNING" and identifier in d.identified_sources
+                       for d in result.diagnostics)
+

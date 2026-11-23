@@ -1983,3 +1983,27 @@ conditionals, hedges, negations, `UNKNOWN_INFORMATION`, and unrelated subjects.
 This TEST CHANGE awaits independent Test Reviewer review; no
 production-correctness claim is made.
 
+## RD-02 malformed textual and language-tag carriers
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** (`Findings: None`) for
+[`ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`](https://github.com/pedropaulofb/ontouml-directkg/commit/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b).
+The [scoped inventory](coverage.md#rd-02-malformed-textual-and-language-tag-carriers--alternatives-1a--2a)
+records the 719 new behavioral nodes and 1 harness reader check across
+`tests/transformation/test_labels.py`, `tests/transformation/test_iris.py`,
+`tests/transformation/test_attributes_datatypes.py`,
+`tests/transformation/test_relations.py`, `tests/transformation/test_inverses.py`,
+`tests/transformation/test_input_diagnostics.py`, and `tests/cli/test_cli.py`,
+reusing existing shared fixtures with explicit runtime mutations and inline
+assertions.
+
+`tests/support/invocation.py` binds `AMBIGUOUS_PROJECT_LANGUAGE` and
+`UNSUPPORTED_RELATION_CONNECTOR` from the inspected native emitters and adds
+affirmative semantic diagnostic readers `_textual_carrier_facts` /
+`textual_carrier_diagnostic` and `_project_languages_facts` /
+`project_languages_diagnostic` (without fixing provisional diagnostic codes),
+rejecting BI-W1 internal-guard wording, conditionals, hedges, negations,
+`AMBIGUOUS_PROJECT_LANGUAGE`, and unrelated carrier subjects. This TEST CHANGE
+awaits independent Test Reviewer review; no production-correctness claim is
+made.
+

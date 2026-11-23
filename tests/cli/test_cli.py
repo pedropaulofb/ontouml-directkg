@@ -2617,3 +2617,203 @@ def test_declaration_containers_and_misplaced_entries_report_failure_takes_prece
     ), process.observation.diagnostics
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_language", [
+    "", "   ", "123", "en_US", "en--US", "-en", "en-", "en bad", "en@latn", "en\n", "en\r\n",
+], ids=[
+    "empty", "whitespace", "leading_digit", "underscore", "double_hyphen",
+    "leading_hyphen", "trailing_hyphen", "interior_space", "at_sign", "trailing_newline", "trailing_crlf",
+])
+def test_invalid_language_override_rejected_before_conversion_in_cli_and_python(
+        invoke, tmp_path, input_policy, bad_language):
+    """Rules: DK-LBL-02, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-02 simplified lexical rule."""
+    source = fixture_path("shared/base_iri")
+    cli_dir, python_dir = tmp_path / "cli", tmp_path / "python"
+    cli_dir.mkdir()
+    python_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "report.json"
+    options = {"base_iri": str(BASE), "language": bad_language, "input_policy": input_policy}
+
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    assert process.returncode == 2
+    assert process.conversion_started is False
+    assert process.observation is None
+    assert not destination.exists() and not report.exists()
+    assert process.stdout or process.stderr
+
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert python.configuration_error is not None
+    assert python.conversion_started is False
+    assert python.outcome is None
+    assert python.ontology is None
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+
+@pytest.mark.parametrize("tag", ["qqq", "en-123456789"])
+def test_simplified_lexical_language_override_accepted_in_cli_and_python(invoke, tmp_path, tag):
+    """Rules: DK-LBL-01, DK-LBL-02; §§3.2, 15. RD-02 simplified lexical rule."""
+    source = fixture_path("shared/base_iri")
+    cli_dir, python_dir = tmp_path / "cli", tmp_path / "python"
+    cli_dir.mkdir()
+    python_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "language": tag, "provenance": "none"}
+
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.returncode == 0
+    assert invoke.read_outcome(python) == "completed"
+    delivered = load_graph(destination)
+    assert_graph_equal(delivered, invoke.read_ontology(python))
+    assert (BASE.C17, RDFS.label, Literal("Person", lang=tag)) in delivered
+
+
+def _textual_carrier_cli_document(case):
+    document = load_json("shared/source_text")
+    for item in source_elements(document):
+        for field in ("name", "description"):
+            if item.get("id") not in {"cPerson", "rWorks", "projectOne"} and isinstance(item.get(field), str) and item[field]:
+                item[field] = {"en": item[field]}
+    if case == "project_name_wrong_type":
+        document["name"] = 123
+    elif case == "class_description_wrong_type":
+        source_element(document, "cPerson")["description"] = ["bad"]
+    elif case == "class_name_invalid_tag_with_language_override":
+        source_element(document, "cPerson")["name"] = {"bad tag": "WrongName", "en": "Person"}
+    elif case == "relation_name_invalid_value":
+        source_element(document, "rWorks")["name"] = {"en": 42, "pt-BR": "trabalhaEm"}
+    elif case == "project_languages_non_array":
+        document["languages"] = "en"
+    elif case == "project_languages_invalid_entry_with_language_override":
+        document["languages"] = ["en", "bad tag"]
+    elif case == "project_languages_multi_invalid_entry_no_dk_diag_19":
+        document["languages"] = ["en", "pt-BR", 42]
+    else:
+        raise AssertionError(f"Unlisted CLI textual case: {case}")
+    return document
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", [
+    "project_name_wrong_type",
+    "class_description_wrong_type",
+    "class_name_invalid_tag_with_language_override",
+    "relation_name_invalid_value",
+    "project_languages_non_array",
+    "project_languages_invalid_entry_with_language_override",
+    "project_languages_multi_invalid_entry_no_dk_diag_19",
+])
+def test_textual_and_project_languages_cli_python_parity(invoke, tmp_path, case, input_policy):
+    """Rules: DK-LBL-01, DK-LBL-02, DK-GEN-08, DK-IRI-04, DK-IRI-10, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-DIAG-19; §§3.2, 15. RD-02 Alts 1A+2A."""
+    document = _textual_carrier_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+    if case in {"class_name_invalid_tag_with_language_override", "project_languages_invalid_entry_with_language_override"}:
+        options["language"] = "nl"
+
+    if input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    expected_fact = {
+        "project_name_wrong_type": "malformed_textual_carrier",
+        "class_description_wrong_type": "malformed_textual_carrier",
+        "class_name_invalid_tag_with_language_override": "invalid_language_string_entry",
+        "relation_name_invalid_value": "invalid_language_string_entry",
+        "project_languages_non_array": "project_languages_non_array",
+        "project_languages_invalid_entry_with_language_override": "project_languages_invalid_entry",
+        "project_languages_multi_invalid_entry_no_dk_diag_19": "project_languages_invalid_entry",
+    }[case]
+
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        assert not any(event.code == "UNKNOWN_INFORMATION" for event in events)
+        assert not any(event.code == "AMBIGUOUS_PROJECT_LANGUAGE" or event.kind == "ambiguous_language" for event in events)
+        assert any(
+            event.severity == "ERROR"
+            and expected_fact in event.facts
+            and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+            for event in events
+        ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        assert (BASE.cPerson, RDF.type, OWL.Class) in delivered_graph
+        if case == "project_name_wrong_type":
+            assert not list(delivered_graph.objects(ONTOLOGY, RDFS.label))
+        elif case == "class_name_invalid_tag_with_language_override":
+            assert set(delivered_graph.objects(BASE.cPerson, RDFS.label)) == {Literal("Person", lang="nl")}
+            assert not any("WrongName" in str(term) for triple in delivered_graph for term in triple)
+        elif case == "relation_name_invalid_value":
+            assert set(delivered_graph.objects(BASE.eTarget, RDFS.label)) == {Literal("trabalhaEm", lang="pt-BR")}
+        elif case == "project_languages_invalid_entry_with_language_override":
+            assert set(delivered_graph.objects(BASE.cPerson, RDFS.label)) == {Literal("Person", lang="nl")}
+        elif case == "project_languages_multi_invalid_entry_no_dk_diag_19":
+            assert set(delivered_graph.objects(BASE.cPerson, RDFS.label)) == {Literal("Person")}
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+@pytest.mark.parametrize("case,expected_fact", [
+    ("class_name_invalid_tag_with_language_override", "invalid_language_string_entry"),
+    ("project_languages_non_array", "project_languages_non_array"),
+])
+def test_textual_and_project_languages_report_failure_takes_precedence(invoke, tmp_path, input_policy, case, expected_fact):
+    """Rules: DK-LBL-02, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence. RD-02 Alts 1A+2A."""
+    document = _textual_carrier_cli_document(case)
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": input_policy}
+    if case == "class_name_invalid_tag_with_language_override":
+        options["language"] = "nl"
+
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert any(
+        event.severity == "ERROR"
+        and expected_fact in event.facts
+        and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in process.observation.diagnostics
+    ), process.observation.diagnostics
+
+
+

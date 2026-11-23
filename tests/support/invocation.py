@@ -1126,6 +1126,8 @@ _DIAGNOSTIC_KINDS = {
     "UNRESOLVED_ATTRIBUTE_TYPE": "unresolved_attribute_type",
     "UNRESOLVED_PROPERTY_REFERENCE": "unresolved_property_reference",
     "INVALID_PROPERTY_REFERENCES": "invalid_property_references",
+    "AMBIGUOUS_PROJECT_LANGUAGE": "ambiguous_language",
+    "UNSUPPORTED_RELATION_CONNECTOR": "unsupported_connector",
 }
 
 
@@ -2505,6 +2507,147 @@ def non_enum_literals_diagnostic(message: str) -> frozenset[str]:
     return frozenset(_non_enum_literals_facts(message))
 
 
+def _normalize_textual_message(message: str) -> str:
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside bi-w1|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return ""
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    wording = re.sub(r"\bproject\.languages\b", "project languages", wording)
+    wording = re.sub(r"\blanguages\[\d+\]", "languages entry", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(name|description|languagestring|languages|project languages|project|class|relation|property|literal|null|string|object|array|list)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    return " ".join(wording.split())
+
+
+def _textual_carrier_facts(message: str, sources: tuple = ()) -> set[str]:
+    """Read affirmative RD-02 malformed name/description/languageString ERROR wording."""
+    wording = _normalize_textual_message(message)
+    if not wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:name|description|languagestring|language\s+tag|entry|carrier|field)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:invalid|malformed|non[- ]?string|non[- ]?object|erroneous)\b",
+        r"\b(?:project\s+languages|package\.contents|class\.properties|class\.literals|relation\.properties|generalizations|cardinality|stereotype)\b",
+        r"\bmultiple\s+project\s+languages\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    has_text_context = (
+        bool(re.search(r"\b(?:name|description|languagestring)\b", wording))
+        or any(
+            (getattr(src, "path", "") or "").endswith((".name", ".description"))
+            or ".name[" in (getattr(src, "path", "") or "")
+            or ".description[" in (getattr(src, "path", "") or "")
+            for src in sources
+        )
+    )
+    if not has_text_context:
+        return set()
+
+    field = r"(?:name|description)(?:\s+(?:field|carrier|value))?"
+    whole_type = r"(?:non[- ]?(?:string|object|dict(?:ionary)?)|int(?:eger)?|float|number|bool(?:ean)?|array|list)"
+    whole_field_patterns = (
+        re.compile(rf"\b{field}\b[^.!?;]*\b(?:is|was)\s+(?:(?:a|an)\s+)?(?:{whole_type}|malformed|invalid(?:\s+type)?|not\s+(?:a|an)\s+(?:json\s+)?(?:string|object|languagestring))\b"),
+        re.compile(rf"\b{field}\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\s+(?:a|an)\s+(?:(?:json\s+)?string|languagestring|object)"),
+        re.compile(rf"\b(?:malformed|invalid|wrong)\s+(?:whole[- ]?field\s+)?(?:type\s+(?:for|on|of)\s+)?{field}\b"),
+        re.compile(rf"\b{field}\b[^.!?;]*\b(?:has|had)\s+(?:an?\s+)?(?:invalid|wrong|unsupported)\s+(?:whole[- ]?field\s+)?type\b"),
+    )
+    entry_patterns = (
+        re.compile(r"\blanguagestring\b[^.!?;]*\b(?:invalid|malformed|non[- ]?string|empty|blank|whitespace)\b"),
+        re.compile(r"\b(?:invalid|malformed|empty|blank|whitespace(?:-only)?)\s+(?:explicit\s+)?(?:language\s+tag|languagestring\s+(?:key|entry|value))\b"),
+        re.compile(r"\b(?:language\s+tag|languagestring\s+key|localized\s+key)\b[^.!?;]*\b(?:is|was)?\s*(?:invalid|malformed|fails?|must\s+match|does\s+not\s+match)\b"),
+        re.compile(r"\b(?:languagestring|localized)\s+(?:entry|value)\b[^.!?;]*\b(?:is|was|must\s+be|should\s+be|expected\s+to\s+be|got)\b[^.!?;]*\b(?:non[- ]?string|string|int(?:eger)?|float|number|bool(?:ean)?|null|array|list|object|dict)\b"),
+        re.compile(r"\bnon[- ]?string\s+(?:localized\s+|languagestring\s+)?value\b"),
+    )
+
+    facts: set[str] = set()
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|permitted|allowed|accepted)\b", clause) and not re.search(r"\bnot\s+(?:valid|permitted|allowed|accepted)\b", clause):
+            continue
+        if any(p.search(clause) for p in entry_patterns):
+            facts.add("invalid_language_string_entry")
+        elif any(p.search(clause) for p in whole_field_patterns):
+            facts.add("malformed_textual_carrier")
+    return facts
+
+
+def textual_carrier_diagnostic(message: str, sources: tuple = ()) -> frozenset[str]:
+    """Return recognized RD-02 malformed textual-carrier / languageString facts for harness checks."""
+    return frozenset(_textual_carrier_facts(message, sources))
+
+
+def _project_languages_facts(message: str) -> set[str]:
+    """Read affirmative RD-02 malformed Project.languages ERROR wording."""
+    wording = _normalize_textual_message(message)
+    if not wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:languages?|tag|entry|entries|array|list)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:invalid|malformed|non[- ]?array|non[- ]?string|empty|blank)\b",
+        r"\bmultiple\s+project\s+languages\b",
+        r"\bassignment\s+is\s+unresolved\b",
+        r"\b(?:languagestring|package\.contents|class\.properties|class\.literals|relation\.properties|generalizations)\b",
+        r"\b(?:name|description)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    if not ("project" in wording and "languages" in wording):
+        return set()
+
+    non_array_type = r"(?:non[- ]?array(?:\s+(?:value|container|type))?|object|dict(?:ionary)?|string|str|int(?:eger)?|number|float|bool(?:ean)?)"
+    non_array_patterns = (
+        re.compile(rf"\blanguages(?:\s+(?:field|container|value|carrier))?\b[^.!?;]*\b(?:is|was)\s+(?:(?:a|an)\s+)?(?:{non_array_type}|not\s+(?:a|an)\s+(?:json\s+)?(?:array|list))\b"),
+        re.compile(r"\b(?:malformed|invalid|non[- ]?array)\s+project\s+languages\b"),
+        re.compile(r"\blanguages(?:\s+(?:field|container|value|carrier))?\b[^.!?;]*(?:expected|must\s+be|should\s+be)\s+(?:a|an)\s+(?:json\s+)?(?:array|list)\b"),
+        re.compile(r"\b(?:has|had|with)\s+(?:a|an)?\s*non[- ]?array\s+(?:project\s+)?languages\b"),
+    )
+    invalid_entry_patterns = (
+        re.compile(r"\blanguages(?:\s+(?:entry|entries|element|elements|item|items))?\b[^.!?;]*\b(?:contains?|has|had)\b[^.!?;]*\b(?:non[- ]?string|empty|blank|whitespace(?:-only)?|invalid|malformed|null|int(?:eger)?|bool(?:ean)?|object|dict|array|list)\b"),
+        re.compile(r"\b(?:project\s+)?languages\s+(?:entry|entries|element|elements|item|items)\b[^.!?;]*\b(?:must|should|expected(?:\s+to)?|is|was)\b[^.!?;]*\b(?:non[- ]?empty|string|valid|non[- ]?string|empty|blank|whitespace(?:-only)?|invalid|malformed|got)\b"),
+        re.compile(r"\b(?:invalid|malformed|empty|blank|whitespace(?:-only)?|non[- ]?string)\s+(?:explicit\s+)?(?:language\s+tag|entry|entries|element|elements)\b[^.!?;]*\blanguages\b"),
+        re.compile(r"\blanguage\s+tag\b[^.!?;]*\blanguages\b[^.!?;]*\b(?:is|was)?\s*(?:invalid|malformed|empty|blank|fails?|must\s+match)\b"),
+    )
+
+    facts: set[str] = set()
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|permitted|allowed|accepted)\b", clause) and not re.search(r"\bnot\s+(?:valid|permitted|allowed|accepted)\b", clause):
+            continue
+        if any(p.search(clause) for p in invalid_entry_patterns):
+            facts.add("project_languages_invalid_entry")
+        elif any(p.search(clause) for p in non_array_patterns):
+            facts.add("project_languages_non_array")
+    return facts
+
+
+def project_languages_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized RD-02 Project.languages ERROR facts for harness checks."""
+    return frozenset(_project_languages_facts(message))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2571,7 +2714,7 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
         _structural_skip = {
             "INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION", "DUPLICATE_SOURCE_ID",
             "MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE", "MISSING_SOURCE_ID",
-            "INVALID_SOURCE_ID", "UNPROCESSABLE_DOCUMENT",
+            "INVALID_SOURCE_ID", "UNPROCESSABLE_DOCUMENT", "AMBIGUOUS_PROJECT_LANGUAGE",
         }
         if event.severity == "ERROR" and event.code not in _structural_skip:
             cls_prop_facts = _class_properties_container_facts(event.message)
@@ -2589,6 +2732,16 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.update(pkg_entry_facts)
                 if kind is None:
                     kind = "invalid_package_contents_entry"
+            proj_lang_facts = _project_languages_facts(event.message)
+            if proj_lang_facts:
+                facts.update(proj_lang_facts)
+                if kind is None:
+                    kind = "malformed_project_languages"
+            textual_facts = _textual_carrier_facts(event.message, event.sources)
+            if textual_facts:
+                facts.update(textual_facts)
+                if kind is None:
+                    kind = "malformed_textual_carrier"
         if kind is None:
             if (event.severity == "ERROR" and
                     (re.search(r"\bpackage\b", event.message, re.I)
@@ -2689,6 +2842,14 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.add("discarded_characteristics")
             if "no association or property resource" in eff or "not materialized" in eff:
                 facts.add("association_data_not_materialized")
+        if event.code == "AMBIGUOUS_PROJECT_LANGUAGE":
+            if "multiple project languages" in wording:
+                facts.add("multiple_project_languages")
+            if "unresolved" in wording:
+                facts.add("language_unresolved")
+        if event.code == "UNSUPPORTED_RELATION_CONNECTOR":
+            if "no accepted mapping" in wording:
+                facts.add("no_accepted_endpoint_mapping")
         ids = tuple(source.identifier for source in event.sources if source.identifier is not None)
         observed.append(Diagnostic(
             event.severity, kind, event.message + " " + event.effect,

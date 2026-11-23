@@ -1347,3 +1347,52 @@ def test_class_properties_container_and_entries_respect_diagnostic_precedence(
         else:
             assert not any(BASE.pSibling in triple for triple in result.ontology)
 
+
+_DATATYPE_CARRIER_CASES = [
+    ('invalid_earlier_int_does_not_beat_float', {'a_': 'int', 'en': 'float'}, 'float', 'invalid_language_string_entry'),
+    ('invalid_earlier_custom_keeps_int', {'a_': 'Ganzzahl', 'en': 'int'}, 'int', 'invalid_language_string_entry'),
+    ('invalid_earlier_int_keeps_void', {'a_': 'int', 'en': 'void'}, 'void', 'invalid_language_string_entry'),
+    ('zero_valid_langstring_entries_become_custom', {'a_': 'int', 'en': 42}, 'custom', 'invalid_language_string_entry'),
+    ('wrong_whole_field_type_becomes_custom', 123, 'custom', 'malformed_textual_carrier'),
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['name', 'id'])
+@pytest.mark.parametrize('case,name_value,expected_kind,expected_fact', _DATATYPE_CARRIER_CASES,
+                         ids=[row[0] for row in _DATATYPE_CARRIER_CASES])
+def test_datatype_name_carrier_validation_and_primitive_selection_under_policy(
+        run, source_json, tmp_path, input_policy, iri_strategy, case, name_value, expected_kind, expected_fact):
+    """Rules: DK-DAT-02, DK-DAT-04, DK-DAT-05, DK-ATT-01, DK-IRI-04, DK-IRI-10, DK-LBL-01, DK-LBL-02, DK-DIAG-01, DK-DIAG-05; §§3.2, 15. RD-02 Alt 1A."""
+    document = source_json('attributes_datatypes/value_types')
+    document['languages'] = ['de']
+    source_element(document, 'dValue')['name'] = copy.deepcopy(name_value)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy,
+                 input_policy=input_policy, language='nl')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == 'ERROR' and expected_fact in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    owner = BASE.cOwner if iri_strategy == 'id' else BASE.Owner
+    prop = BASE.pFocus if iri_strategy == 'id' else one_subject(result.ontology, DCTERMS.identifier, Literal('pFocus'))
+    if expected_kind in {'int', 'float'}:
+        _focus(result.ontology, OWL.DatatypeProperty, XSD[expected_kind], owner, prop)
+        assert not list(result.ontology.subjects(DCTERMS.identifier, Literal('dValue')))
+    elif expected_kind == 'void':
+        _focus(result.ontology, OWL.DatatypeProperty, None, owner, prop)
+        assert any(d.kind == 'void_datatype' and d.severity == 'WARNING' for d in result.diagnostics)
+        assert not list(result.ontology.subjects(DCTERMS.identifier, Literal('dValue')))
+    else:
+        custom = BASE.dValue if iri_strategy == 'id' else BASE.unnamedClass_dValue
+        _focus(result.ontology, OWL.ObjectProperty, custom, owner, prop)
+        assert (custom, RDF.type, OWL.Class) in result.ontology
+        assert not list(result.ontology.objects(custom, RDFS.label))
+        assert any(d.kind == 'missing_name' and d.severity == 'WARNING' and 'dValue' in d.source_ids
+                   for d in result.diagnostics)
+
+

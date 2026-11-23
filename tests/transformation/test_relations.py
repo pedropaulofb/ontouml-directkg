@@ -4990,4 +4990,89 @@ def test_relation_properties_container_reader_requires_affirmative_conditions():
         assert not relation_properties_container_diagnostic(message), message
 
 
+_RELATION_TEXT_CASES = [
+    (
+        'relation_wrong_type_falls_back_to_target_role',
+        123,
+        'employers',
+        'employers',
+        'employers',
+        None,
+        'malformed_textual_carrier',
+    ),
+    (
+        'relation_invalid_only_falls_back_to_target_role',
+        {'bad tag': 'WrongRel'},
+        'employers',
+        'employers',
+        'employers',
+        None,
+        'invalid_language_string_entry',
+    ),
+    (
+        'relation_sibling_survives_for_naming_and_label',
+        {'a_': 'WrongRel', 'en': 'worksFor'},
+        'employers',
+        'worksFor',
+        'worksFor',
+        'en',
+        'invalid_language_string_entry',
+    ),
+    (
+        'target_role_sibling_survives_when_relation_unnamed',
+        None,
+        {'a_': 'WrongRole', 'en': 'employers'},
+        'employers',
+        'employers',
+        'en',
+        'invalid_language_string_entry',
+    ),
+    (
+        'both_malformed_fall_back_to_endpoint_synthesis',
+        {'bad tag': 'WrongRel'},
+        123,
+        'hTTPServer_xMLNode',
+        None,
+        None,
+        'invalid_language_string_entry',
+    ),
+]
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('relation_labels', ['source-only', 'generated'])
+@pytest.mark.parametrize('case,rel_name,end_name,expected_local,expected_label,expected_lang,expected_fact',
+                         _RELATION_TEXT_CASES, ids=[row[0] for row in _RELATION_TEXT_CASES])
+def test_relation_and_target_end_textual_carrier_recovery(
+        run, source_json, tmp_path, input_policy, relation_labels,
+        case, rel_name, end_name, expected_local, expected_label, expected_lang, expected_fact):
+    """Rules: DK-REL-01, DK-REL-02, DK-REL-03, DK-REL-05, DK-REL-06, DK-LBL-01, DK-LBL-02, DK-IRI-10, DK-DIAG-01, DK-DIAG-05; §3.2. RD-02 Alt 1A."""
+    document = source_json('shared/binary_relation')
+    source_element(document, 'rFocus')['name'] = copy.deepcopy(rel_name)
+    source_element(document, 'tFocus')['name'] = copy.deepcopy(end_name)
+
+    result = run(path=write_input(tmp_path, document), input_policy=input_policy,
+                 relation_labels=relation_labels, inverse_properties='none')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == 'ERROR' and expected_fact in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    primary = one_subject(result.ontology, DCTERMS.identifier, Literal('tFocus'))
+    assert primary == BASE[expected_local]
+    assert (primary, RDF.type, OWL.ObjectProperty) in result.ontology
+    assert not any(term for triple in result.ontology for term in triple
+                   if isinstance(term, Literal) and str(term) in {'WrongRel', 'WrongRole'})
+    if expected_label is not None:
+        assert set(result.ontology.objects(primary, RDFS.label)) == {Literal(expected_label, lang=expected_lang)}
+    elif relation_labels == 'source-only':
+        assert not list(result.ontology.objects(primary, RDFS.label))
+    else:
+        assert set(result.ontology.objects(primary, RDFS.label)) == {Literal('hTTPServer_xMLNode')}
+
+
+
 

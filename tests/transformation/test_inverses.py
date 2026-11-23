@@ -637,3 +637,100 @@ def test_rdf_helper_inverse_requires_explicit_reversed_domains_and_one_directed_
     with pytest.raises(AssertionError):_inverse(graph,BASE.sFocus,BASE.tFocus)
     graph.remove((BASE.tFocus,RDFS.range,BASE.cB))
     with pytest.raises(AssertionError):_inverse(graph,BASE.sFocus,BASE.tFocus)
+
+
+_INVERSE_TEXT_CASES = [
+    ('wrong_type_role', 123, False, 'inverseOfWorksFor', None, None, 'malformed_textual_carrier'),
+    ('invalid_only_role', {'bad tag': 'workers'}, False, 'inverseOfWorksFor', None, None, 'invalid_language_string_entry'),
+    ('valid_sibling_role', {'a_': 'wrongWorkers', 'en': 'workers'}, True, 'workers', 'workers', 'en', 'invalid_language_string_entry'),
+    ('valid_unicode_role', {'bad tag': 'wrongWorkers', 'en': '東京'}, True, 'inverseOfWorksFor', '東京', 'en', 'invalid_language_string_entry'),
+]
+
+
+@pytest.mark.parametrize('input_policy', ['strict', 'tolerant', 'best-effort'])
+@pytest.mark.parametrize('inverse_mode', ['named', 'all'])
+@pytest.mark.parametrize('case,role_value,role_present,expected_local,expected_label,expected_lang,expected_fact',
+                         _INVERSE_TEXT_CASES, ids=[row[0] for row in _INVERSE_TEXT_CASES])
+def test_inverse_role_carrier_validation_affects_presence_naming_and_fallback(
+        run, source_json, tmp_path, input_policy, inverse_mode,
+        case, role_value, role_present, expected_local, expected_label, expected_lang, expected_fact):
+    """Rules: DK-INV-01, DK-INV-02, DK-INV-05, DK-INV-06, DK-LBL-01, DK-LBL-02, DK-IRI-10, DK-DIAG-05; §3.2. RD-02 Alt 1A."""
+    document = source_json('shared/binary_relation')
+    source_element(document, 'sFocus')['name'] = copy.deepcopy(role_value)
+    result = run(path=write_input(tmp_path, document), inverse_properties=inverse_mode, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == 'ERROR' and expected_fact in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert not any('wrongWorkers' in str(term) for triple in result.ontology for term in triple)
+    assert (BASE.worksFor, RDF.type, OWL.ObjectProperty) in result.ontology
+    if inverse_mode == 'named' and not role_present:
+        assert not list(result.ontology.triples((None, OWL.inverseOf, None)))
+        return
+    inverse = BASE[expected_local]
+    _inverse(result.ontology, inverse, BASE.worksFor)
+    if expected_label is not None:
+        assert set(result.ontology.objects(inverse, RDFS.label)) == {Literal(expected_label, lang=expected_lang)}
+    else:
+        assert not list(result.ontology.objects(inverse, RDFS.label))
+
+
+@pytest.mark.parametrize('input_policy', ['strict', 'tolerant', 'best-effort'])
+def test_inverse_domain_qualification_fallback_when_domain_name_malformed(run, source_json, tmp_path, input_policy):
+    """Rules: DK-INV-06, DK-INV-08, DK-IRI-04, DK-LBL-02, DK-DIAG-05; §3.2. RD-02 Alt 1A."""
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB')['name'] = 123
+    source_element(document, 'sFocus')['name'] = None
+    blocker = copy.deepcopy(source_element(document, 'cA'))
+    blocker.update(id='cBlocker', name='inverseOfWorksFor')
+    document['model']['contents'].append(blocker)
+
+    result = run(path=write_input(tmp_path, document), inverse_properties='all', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == 'ERROR' and 'malformed_textual_carrier' in d.facts for d in result.diagnostics)
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert (BASE.unnamedClass_cB, RDF.type, OWL.Class) in result.ontology
+    inverse = BASE.inverseOfWorksFor_unnamedClass_cB
+    _inverse(result.ontology, inverse, BASE.worksFor)
+    assert set(result.ontology.objects(inverse, RDFS.domain)) == {BASE.unnamedClass_cB}
+
+
+@pytest.mark.parametrize('input_policy', ['strict', 'tolerant', 'best-effort'])
+@pytest.mark.parametrize('case,role_value,expect_warning,expected_fact', [
+    ('invalid_only_omits_role_warning', {'bad tag': 'workers'}, False, 'invalid_language_string_entry'),
+    ('valid_sibling_keeps_role_warning', {'bad tag': 'wrong', 'en': 'workers'}, True, 'invalid_language_string_entry'),
+], ids=['invalid_only', 'valid_sibling'])
+def test_datatype_relation_source_end_role_carrier_recovery_and_warning(
+        run, source_json, tmp_path, input_policy, case, role_value, expect_warning, expected_fact):
+    """Rules: DK-REL-01, DK-INV-02, DK-INV-05, DK-LBL-02, DK-DIAG-01, DK-DIAG-05; §3.2. RD-02 Alt 1A."""
+    document = source_json('shared/binary_relation')
+    source_element(document, 'cB').update(name='int', stereotype='datatype')
+    source_element(document, 'sFocus').update(name=copy.deepcopy(role_value), cardinality='*')
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties='all', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == 'ERROR' and expected_fact in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert (BASE.tFocus, RDF.type, OWL.DatatypeProperty) in result.ontology
+    assert not list(result.ontology.subject_objects(OWL.inverseOf))
+    role_warnings = [d for d in result.diagnostics if 'unrepresentable_source_role' in d.facts]
+    if expect_warning:
+        assert role_warnings and all(d.severity == 'WARNING' for d in role_warnings)
+    else:
+        assert not role_warnings
+

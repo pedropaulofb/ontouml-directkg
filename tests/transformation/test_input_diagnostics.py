@@ -16,7 +16,9 @@ from tests.support.invocation import (attribute_owner_without_local_class_diagno
                                       malformed_package_contents_diagnostic,
                                       non_enum_literals_diagnostic,
                                       package_contents_entry_diagnostic,
-                                      relation_properties_container_diagnostic)
+                                      project_languages_diagnostic,
+                                      relation_properties_container_diagnostic,
+                                      textual_carrier_diagnostic)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
 
@@ -1612,5 +1614,301 @@ def test_declaration_container_entry_readers_require_affirmative_conditions():
     assert not non_enum_literals_diagnostic("Enumeration literals must be a collection of source Literal elements.")
     assert not non_enum_literals_diagnostic("Literal declarations outside enumerations have no assigned baseline mapping")
     assert not non_enum_literals_diagnostic("Class 'eStatus' is an enumeration with valid literals.")
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case", [
+    "package_and_diagram",
+    "property_assignments",
+    "generalization_and_set",
+    "instantiation_relation",
+    "derivation_relation",
+    "unsupported_relation_connector",
+])
+def test_excluded_and_omitted_elements_do_not_emit_textual_carrier_errors(run, source_json, tmp_path, input_policy, case):
+    """Rules: DK-GEN-06, DK-GEN-07, DK-INS-02, DK-LBL-02, DK-REL-08, DK-REL-17, DK-DIAG-05; §3.2. RD-02 Alts 1A+2A."""
+    if case == "package_and_diagram":
+        document = source_json("ontology/organization")
+        document["model"]["name"] = 123
+        document["model"]["description"] = {"bad tag": "IgnoredPkg"}
+        for item in source_elements(document):
+            if item.get("type") == "Package":
+                item["name"] = {"en": 42}
+                item["description"] = ["bad"]
+        for diagram in document.get("diagrams") or []:
+            diagram["name"] = 999
+            diagram["description"] = {"bad tag": "IgnoredDiagram"}
+    elif case == "property_assignments":
+        document = source_json("shared/core_model")
+        document["model"]["propertyAssignments"] = {"language": 123, "name": {"bad tag": "IgnoredPA"}}
+        source_element(document, "cPerson")["propertyAssignments"] = {"description": ["bad"]}
+    elif case == "generalization_and_set":
+        document = source_json("shared/categorizers")
+        source_element(document, "gOne")["name"] = 123
+        source_element(document, "gOne")["description"] = {"bad tag": "IgnoredGen"}
+        source_element(document, "gsFirst")["name"] = ["bad"]
+        source_element(document, "gsFirst")["description"] = {"en": 42}
+    elif case == "instantiation_relation":
+        document = source_json("shared/instantiation")
+        inst = next(item for item in source_elements(document)
+                    if item.get("type") == "Relation" and item.get("stereotype") == "instantiation")
+        inst["name"] = 123
+        inst["description"] = {"bad tag": "IgnoredInst"}
+        inst["properties"][0]["name"] = {"bad tag": "IgnoredInstEnd"}
+        inst["properties"][1]["description"] = 456
+    elif case == "derivation_relation":
+        document = source_json("relations/material_naming")
+        deriv = next(item for item in source_elements(document)
+                     if item.get("type") == "Relation" and item.get("stereotype") == "derivation")
+        deriv["name"] = 123
+        deriv["description"] = {"bad tag": "IgnoredDeriv"}
+        deriv["properties"][0]["name"] = {"en": 42}
+        deriv["properties"][1]["description"] = ["bad"]
+    else:
+        document = source_json("shared/omitted_connector")
+        conn = source_element(document, "rConnector")
+        conn["name"] = 123
+        conn["description"] = {"bad tag": "IgnoredConnector"}
+        conn["properties"][0]["name"] = {"bad tag": "IgnoredEnd"}
+        conn["properties"][1]["description"] = 456
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert result.outcome == "completed"
+    assert not any(
+        d.severity == "ERROR" or "malformed_textual_carrier" in d.facts or "invalid_language_string_entry" in d.facts
+        for d in result.diagnostics
+    ), result.diagnostics
+
+
+@pytest.mark.parametrize("case", [
+    "failed_relation_null_endpoint",
+    "malformed_non_binary_relation",
+    "primitive_owned_attribute",
+    "misplaced_package_property",
+    "unknown_information_element",
+    "non_enum_disallowed_literal",
+    "untransformable_enum_literal_id",
+])
+def test_elements_omitted_before_textual_validation_do_not_add_textual_errors(run, source_json, tmp_path, case):
+    """Rules: DK-LBL-02, DK-DIAG-03, DK-DIAG-05, DK-ATT-01, DK-GEN-06, DK-CLS-11, DK-DIAG-13; §3.2. RD-02 Alt 1A."""
+    if case == "failed_relation_null_endpoint":
+        document = source_json("shared/binary_relation")
+        source_element(document, "tFocus")["propertyType"] = None
+        source_element(document, "rFocus")["name"] = 123
+        source_element(document, "sFocus")["name"] = {"bad tag": "OmittedEnd"}
+        allowed_codes = {"FAILED_RELATION"}
+    elif case == "malformed_non_binary_relation":
+        document = source_json("shared/binary_relation")
+        source_element(document, "rFocus")["name"] = 123
+        source_element(document, "rFocus")["properties"] = [source_element(document, "rFocus")["properties"][0]]
+        allowed_codes = set()
+    elif case == "primitive_owned_attribute":
+        document = source_json("attributes_datatypes/value_types")
+        prop = copy.deepcopy(source_element(document, "pFocus"))
+        prop.update(id="pOmittedAttr", name=123, description={"bad tag": "OmittedAttr"})
+        source_element(document, "dValue")["properties"] = [prop]
+        allowed_codes = set()
+    elif case == "misplaced_package_property":
+        document = source_json("shared/core_model")
+        misplaced = copy.deepcopy(source_element(document, "aAge"))
+        misplaced.update(id="pMisplaced", name=123, description={"bad tag": "OmittedMisplaced"})
+        document["model"]["contents"].append(misplaced)
+        allowed_codes = set()
+    elif case == "unknown_information_element":
+        document = source_json("shared/core_model")
+        document["model"]["contents"].append({
+            "id": "uCustom", "name": 123, "description": {"bad tag": "OmittedUnknown"},
+            "type": "CustomNode", "propertyAssignments": None,
+        })
+        allowed_codes = {"UNKNOWN_INFORMATION"}
+    elif case == "non_enum_disallowed_literal":
+        document = source_json("shared/core_model")
+        source_element(document, "cOrg")["literals"] = [{
+            "id": "vDisallowed", "name": 123, "description": {"bad tag": "OmittedLit"},
+            "type": "Literal", "propertyAssignments": None,
+        }]
+        allowed_codes = set()
+    else:
+        document = source_json("classes/enumerations")
+        source_element(document, "vPending").update(id="", name=123)
+        allowed_codes = {"UNTRANSFORMABLE_ENUMERATION_VALUE"}
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    expected_outcome = "completed" if case == "unknown_information_element" else "completed-with-errors"
+    assert result.outcome == expected_outcome
+    assert not any(
+        "malformed_textual_carrier" in d.facts or "invalid_language_string_entry" in d.facts
+        for d in result.diagnostics
+    ), result.diagnostics
+    if allowed_codes:
+        assert any(d.code in allowed_codes for d in result.diagnostics), result.diagnostics
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_id_with_malformed_text_and_languages",
+    "rejected_missing_stereotype_with_malformed_text",
+    "rejected_custom_stereotype_with_malformed_languages",
+    "invalid_class_id_with_malformed_name",
+    "invalid_attribute_id_with_malformed_name",
+    "invalid_relation_id_with_malformed_name",
+    "owning_class_with_malformed_properties_and_malformed_name",
+])
+def test_textual_and_project_languages_respect_diagnostic_precedence(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-LBL-02, DK-DIAG-05, DK-DIAG-06, DK-GEN-06, DK-ATT-01; §§3.2, 3.4. RD-02 Alts 1A+2A."""
+    document = source_json("shared/core_model")
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = True
+
+    if condition == "duplicate_id_with_malformed_text_and_languages":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup.update(id="cPerson", name=123)
+        document["model"]["contents"].append(dup)
+        document["languages"] = "en"
+        expected_kinds = {"duplicate_id"}
+    elif condition == "rejected_missing_stereotype_with_malformed_text":
+        source_element(document, "cPerson").update(stereotype=None, name={"bad tag": "Bad"})
+        options["stereotype_policy"] = "require-known"
+        expected_kinds = {"missing_stereotype"}
+    elif condition == "rejected_custom_stereotype_with_malformed_languages":
+        source_element(document, "cPerson")["stereotype"] = "customKind"
+        document["languages"] = ["en", 42]
+        options["stereotype_policy"] = "allow-missing"
+        expected_kinds = {"unrecognized_stereotype"}
+    elif condition in {"invalid_class_id_with_malformed_name", "invalid_attribute_id_with_malformed_name", "invalid_relation_id_with_malformed_name"}:
+        target_id = {"invalid_class_id_with_malformed_name": "cOrg",
+                     "invalid_attribute_id_with_malformed_name": "aAge",
+                     "invalid_relation_id_with_malformed_name": "rWorks"}[condition]
+        source_element(document, target_id).update(id="", name=123)
+        expected_kinds = {"invalid_id"}
+        always_abort = False
+    else:
+        source_element(document, "cOrg").update(name=123, properties="bad")
+        expected_kinds = {"malformed_class_properties", "malformed_textual_carrier"}
+        always_abort = False
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+
+    for kind in expected_kinds:
+        if kind == "malformed_class_properties":
+            assert any(d.severity == "ERROR" and "class_properties_non_array" in d.facts for d in result.diagnostics)
+        elif kind == "malformed_textual_carrier":
+            if input_policy == "best-effort":
+                assert any(d.severity == "ERROR" and "malformed_textual_carrier" in d.facts for d in result.diagnostics)
+        else:
+            assert any(d.severity == "ERROR" and d.kind == kind for d in result.diagnostics), result.diagnostics
+
+    if condition in {"invalid_class_id_with_malformed_name", "invalid_attribute_id_with_malformed_name", "invalid_relation_id_with_malformed_name"}:
+        assert not any(
+            "malformed_textual_carrier" in d.facts or "invalid_language_string_entry" in d.facts
+            for d in result.diagnostics
+        ), result.diagnostics
+
+    if always_abort or input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors"
+        assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,expected_fact", [
+    ("whole_field_class_name", "malformed_textual_carrier"),
+    ("whole_field_property_description", "malformed_textual_carrier"),
+    ("invalid_langstring_tag_relation", "invalid_language_string_entry"),
+    ("invalid_langstring_value_literal", "invalid_language_string_entry"),
+    ("project_languages_non_array", "project_languages_non_array"),
+    ("project_languages_invalid_entry", "project_languages_invalid_entry"),
+])
+def test_textual_and_project_languages_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy, case, expected_fact):
+    """Rules: DK-LBL-02, DK-GEN-08, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 Python JSON export. RD-02 Alts 1A+2A."""
+    document = source_json("shared/source_text")
+    if case == "whole_field_class_name":
+        source_element(document, "cPerson")["name"] = 123
+    elif case == "whole_field_property_description":
+        source_element(document, "aAge")["description"] = ["bad"]
+    elif case == "invalid_langstring_tag_relation":
+        source_element(document, "rWorks")["name"] = {"bad tag": "WrongRel", "en": "worksFor"}
+    elif case == "invalid_langstring_value_literal":
+        source_element(document, "vPending")["name"] = {"en": 42}
+    elif case == "project_languages_non_array":
+        document["languages"] = "en"
+    else:
+        document["languages"] = ["en", "bad tag"]
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "textual_report.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    reader = (lambda msg, _srcs: project_languages_diagnostic(msg)) if case.startswith("project_languages_") else (
+        lambda msg, srcs: textual_carrier_diagnostic(msg, srcs)
+    )
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] not in {"INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION",
+                                   "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID",
+                                   "REQUIRED_PROVENANCE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY"}
+        and event["message"]
+        and event["effect"]
+        and expected_fact in reader(event["message"], [type("Loc", (), s)() for s in event["sources"]])
+    ]
+    assert matching, payload["diagnostics"]
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+        assert (BASE.cOrg, RDF.type, OWL.Class) in observed_graph
+
+
+def test_textual_and_project_languages_readers_require_affirmative_conditions():
+    """Harness only: verify affirmative textual/language readers reject guard, negated, and unrelated wording."""
+    assert "malformed_textual_carrier" in textual_carrier_diagnostic(
+        "Class 'cPerson' name must be a string, languageString object, or null, got int."
+    )
+    assert "invalid_language_string_entry" in textual_carrier_diagnostic(
+        "Invalid language tag 'bad tag' in Class 'cPerson' name languageString."
+    )
+    assert "invalid_language_string_entry" in textual_carrier_diagnostic(
+        "Class 'cPerson' description languageString entry 'en' must be a string, got int."
+    )
+    assert not textual_carrier_diagnostic("Malformed textual-carrier recovery is outside BI-W1")
+    assert not textual_carrier_diagnostic("Malformed name-carrier recovery is outside BI-W1")
+    assert not textual_carrier_diagnostic("If a languageString entry is invalid, conversion aborts.")
+    assert not textual_carrier_diagnostic("Class 'cPerson' name is valid.")
+    assert not textual_carrier_diagnostic("Project.languages must be a JSON array or null, got str.")
+
+    assert "project_languages_non_array" in project_languages_diagnostic(
+        "Project.languages must be a JSON array or null, got str."
+    )
+    assert "project_languages_invalid_entry" in project_languages_diagnostic(
+        "Invalid language tag 'bad tag' in Project.languages."
+    )
+    assert "project_languages_invalid_entry" in project_languages_diagnostic(
+        "Project.languages entry must be a nonempty string language tag, got int."
+    )
+    assert not project_languages_diagnostic("Malformed project-language recovery is outside BI-W1")
+    assert not project_languages_diagnostic("Language assignment is unresolved because multiple project languages are declared.")
+    assert not project_languages_diagnostic("Project.languages is valid.")
+    assert not project_languages_diagnostic("Invalid language tag 'bad tag' in Class 'cPerson' name languageString.")
+
 
 

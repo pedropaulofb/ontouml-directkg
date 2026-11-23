@@ -3,15 +3,16 @@
 import copy
 
 import pytest
-from rdflib import Literal, Namespace
+from rdflib import Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, source_elements, write_input
-from tests.support.invocation import diagnostic_signatures
-from tests.support.rdf import assert_selected_equal
+from tests.support.invocation import diagnostic_record_counts, diagnostic_signatures
+from tests.support.rdf import assert_graph_equal, assert_selected_equal, one_subject
 
 
 BASE = Namespace("https://example.test/model#")
+ONTOLOGY = URIRef("https://example.test/model")
 POLICIES = ["strict", "tolerant", "best-effort"]
 TEXT_TARGETS = [
     ("class_name", "cPerson", "name", RDFS.label, BASE.cPerson),
@@ -288,3 +289,332 @@ def test_language_override_does_not_propagate_to_generated_comments_or_identifie
         assert all((c.subject, RDFS.comment, c.literal) in result.ontology for c in result.comments)
     assert overridden_comments == ordinary_comments
     assert (BASE.cPerson, RDFS.label, Literal("Person", lang="nl")) in overridden.ontology
+
+
+_SIMPLIFIED_LEXICAL_TAGS = [
+    pytest.param("qqq", True, id="non_iana_alpha"),
+    pytest.param("en-123456789", True, id="long_alnum_subtag"),
+    pytest.param("a-0", True, id="short_alnum_subtag"),
+    pytest.param("Z-0-aB9", True, id="mixed_case_multi_subtag"),
+    pytest.param("en\n", False, id="trailing_newline"),
+    pytest.param("123", False, id="leading_digit"),
+    pytest.param("en_US", False, id="underscore"),
+    pytest.param("en ", False, id="trailing_space"),
+    pytest.param(" en", False, id="leading_space"),
+    pytest.param("en--US", False, id="double_hyphen"),
+    pytest.param("-en", False, id="leading_hyphen"),
+    pytest.param("en-", False, id="trailing_hyphen"),
+    pytest.param("en@latn", False, id="at_sign"),
+    pytest.param("bad tag", False, id="interior_space"),
+    pytest.param("   ", False, id="whitespace_only"),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("carrier_kind", ["language_string", "project_languages"])
+@pytest.mark.parametrize("tag,valid", _SIMPLIFIED_LEXICAL_TAGS)
+def test_simplified_lexical_language_tags_accept_turtle_langtag_and_reject_invalid_tags(
+        run, source_json, tmp_path, input_policy, carrier_kind, tag, valid):
+    """Rules: DK-LBL-02, DK-LBL-01, DK-GEN-08, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §3.2. RD-02 Alts 1A+2A."""
+    document = source_json("shared/source_text")
+    _localize_other_text(document)
+    if carrier_kind == "language_string":
+        source_element(document, "cPerson")["name"] = {tag: "Person"}
+        expected_fact = "invalid_language_string_entry"
+    else:
+        document["languages"] = [tag]
+        source_element(document, "cPerson")["name"] = "Person"
+        expected_fact = "project_languages_invalid_entry"
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" for d in result.diagnostics), result.diagnostics
+
+    if valid:
+        assert result.outcome == "completed"
+        assert not any(d.severity == "ERROR" for d in result.diagnostics)
+        assert (BASE.cPerson, RDFS.label, Literal("Person", lang=tag)) in result.ontology
+        return
+
+    assert any(d.severity == "ERROR" and expected_fact in d.facts for d in result.diagnostics), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+    if carrier_kind == "language_string":
+        assert not list(result.ontology.objects(BASE.cPerson, RDFS.label))
+    else:
+        assert set(result.ontology.objects(BASE.cPerson, RDFS.label)) == {Literal("Person")}
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_empty_string_values_and_empty_key_in_language_string_keep_existing_behavior(
+        run, source_json, tmp_path, input_policy):
+    """Rules: DK-LBL-01, DK-LBL-02, DK-DIAG-05; §3.2. RD-02 Alternative 1A."""
+    document = source_json("shared/source_text")
+    _localize_other_text(document)
+    source_element(document, "cPerson")["name"] = {"": "Person", "en": ""}
+    source_element(document, "cPerson")["description"] = {"en": "", "fr": ""}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "completed"
+    assert not any(d.severity == "ERROR" for d in result.diagnostics)
+    assert set(result.ontology.objects(BASE.cPerson, RDFS.label)) == {Literal("Person")}
+    assert not [v for v in result.ontology.objects(BASE.cPerson, RDFS.comment)
+                if "Description" in str(v) or str(v) == ""]
+
+
+_CARRIER_TARGETS = [
+    ("project_name", "projectOne", "name", RDFS.label, ONTOLOGY),
+    ("project_description", "projectOne", "description", RDFS.comment, ONTOLOGY),
+    ("class_name", "cPerson", "name", RDFS.label, BASE.cPerson),
+    ("class_description", "cPerson", "description", RDFS.comment, BASE.cPerson),
+    ("custom_datatype_name", "cAddress", "name", RDFS.label, BASE.cAddress),
+    ("custom_datatype_description", "cAddress", "description", RDFS.comment, BASE.cAddress),
+    ("attribute_name", "aAge", "name", RDFS.label, BASE.aAge),
+    ("attribute_description", "aAge", "description", RDFS.comment, BASE.aAge),
+    ("relation_name", "rWorks", "name", RDFS.label, BASE.eTarget),
+    ("relation_description", "rWorks", "description", RDFS.comment, BASE.eTarget),
+    ("target_end_name", "eTarget", "name", RDFS.label, BASE.eTarget),
+    ("source_end_description", "eSource", "description", RDFS.comment, BASE.eSource),
+    ("literal_name", "vPending", "name", RDFS.label, BASE.vPending),
+    ("literal_description", "vPending", "description", RDFS.comment, BASE.vPending),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_value", [123, True, ["bad"]], ids=["int", "bool", "array"])
+@pytest.mark.parametrize("case,identifier,field,predicate,target", _CARRIER_TARGETS,
+                         ids=[row[0] for row in _CARRIER_TARGETS])
+def test_malformed_textual_carrier_whole_field_types_follow_policy(
+        run, source_json, tmp_path, input_policy, bad_value,
+        case, identifier, field, predicate, target):
+    """Rules: DK-LBL-01, DK-LBL-02, DK-GEN-08, DK-IRI-04, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-02 Alt 1A."""
+    document = source_json("shared/source_text")
+    _localize_other_text(document)
+    if case == "relation_name":
+        source_element(document, "eTarget")["name"] = None
+    elif case == "target_end_name":
+        source_element(document, "rWorks")["name"] = None
+    elif case == "relation_description":
+        source_element(document, "eTarget")["description"] = None
+
+    source_element(document, identifier)[field] = copy.deepcopy(bad_value)
+    use_override = bad_value == 123
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    if use_override:
+        options["language"] = "nl"
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR" and "malformed_textual_carrier" in d.facts
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+    assert (BASE.cOrg, RDFS.label, Literal("Organization", lang="nl" if use_override else "en")) in result.ontology
+    if identifier != "projectOne":
+        assert any(target in triple for triple in result.ontology)
+    if predicate == RDFS.label:
+        assert not list(result.ontology.objects(target, RDFS.label))
+    else:
+        if identifier == "projectOne":
+            assert not [v for v in result.ontology.objects(ONTOLOGY, RDFS.comment) if "Project" in str(v)]
+        elif identifier == "cPerson":
+            assert not [v for v in result.ontology.objects(target, RDFS.comment)
+                        if "Description cPerson" in str(v) or str(v) == str(bad_value)]
+        else:
+            assert not list(result.ontology.objects(target, RDFS.comment))
+
+
+_LANGSTRING_MUTATIONS = [
+    ("sibling_invalid_key", {"bad tag": "WrongSibling", "en": "ValidSibling"}, "ValidSibling", "en"),
+    ("sibling_non_string_value", {"en": 42, "pt-BR": "TextoValido"}, "TextoValido", "pt-BR"),
+    ("zero_valid_invalid_key", {"bad tag": "OnlyWrong"}, None, None),
+]
+
+_ZERO_VALID_EDGE_MUTATIONS = [
+    ("newline_key", {"en\n": "NewlineWrong"}),
+    ("blank_key", {"   ": "BlankWrong"}),
+    ("non_string_and_empty", {"en": 42, "fr": ""}),
+    ("null_value", {"en": None}),
+    ("bool_value", {"en": True}),
+    ("list_value", {"en": ["nested"]}),
+    ("dict_value", {"en": {"nested": "bad"}}),
+]
+
+_REPRESENTATIVE_CARRIERS = [
+    ("project_name", "projectOne", "name", RDFS.label, ONTOLOGY),
+    ("project_description", "projectOne", "description", RDFS.comment, ONTOLOGY),
+    ("class_name", "cPerson", "name", RDFS.label, BASE.cPerson),
+    ("custom_datatype_description", "cAddress", "description", RDFS.comment, BASE.cAddress),
+    ("attribute_name", "aAge", "name", RDFS.label, BASE.aAge),
+    ("relation_name", "rWorks", "name", RDFS.label, BASE.eTarget),
+    ("source_end_description", "eSource", "description", RDFS.comment, BASE.eSource),
+    ("literal_name", "vPending", "name", RDFS.label, BASE.vPending),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("iri_strategy", ["name", "id"])
+@pytest.mark.parametrize("entry_case,payload,surviving_text,surviving_lang", _LANGSTRING_MUTATIONS,
+                         ids=[row[0] for row in _LANGSTRING_MUTATIONS])
+@pytest.mark.parametrize("target_case,identifier,field,predicate,id_target", _REPRESENTATIVE_CARRIERS,
+                         ids=[row[0] for row in _REPRESENTATIVE_CARRIERS])
+def test_invalid_language_string_entries_follow_policy_and_preserve_siblings(
+        run, source_json, tmp_path, input_policy, iri_strategy,
+        entry_case, payload, surviving_text, surviving_lang,
+        target_case, identifier, field, predicate, id_target):
+    """Rules: DK-LBL-01, DK-LBL-02, DK-GEN-08, DK-IRI-04, DK-IRI-08, DK-IRI-10, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-02 Alt 1A."""
+    for use_override in (False, True):
+        document = source_json("shared/source_text")
+        _localize_other_text(document)
+        if target_case == "relation_name":
+            source_element(document, "eTarget")["name"] = None
+        source_element(document, identifier)[field] = copy.deepcopy(payload)
+        options = {"iri_strategy": iri_strategy, "input_policy": input_policy}
+        if use_override:
+            options["language"] = "nl"
+
+        result = run(path=write_input(tmp_path, document, f"{use_override}.json"), **options)
+        assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+        assert not any(d.code == "UNKNOWN_INFORMATION" for d in result.diagnostics), result.diagnostics
+        assert any(
+            d.severity == "ERROR" and "invalid_language_string_entry" in d.facts
+            for d in result.diagnostics
+        ), result.diagnostics
+
+        if input_policy != "best-effort":
+            assert result.outcome == "aborted" and result.ontology is None
+            continue
+
+        assert result.outcome == "completed-with-errors"
+        if identifier == "projectOne":
+            target = ONTOLOGY
+        elif iri_strategy == "id":
+            target = id_target
+        else:
+            target = one_subject(result.ontology, DCTERMS.identifier, Literal(identifier))
+
+        for bad_val in ("WrongSibling", "OnlyWrong"):
+            assert not any(bad_val in str(term) for triple in result.ontology for term in triple)
+
+        expected_lang = "nl" if use_override else surviving_lang
+        if surviving_text is not None:
+            assert Literal(surviving_text, lang=expected_lang) in set(result.ontology.objects(target, predicate))
+        else:
+            if predicate == RDFS.label:
+                assert not list(result.ontology.objects(target, RDFS.label))
+            elif identifier == "projectOne":
+                assert not [v for v in result.ontology.objects(ONTOLOGY, RDFS.comment) if "Project" in str(v)]
+            else:
+                assert not list(result.ontology.objects(target, RDFS.comment))
+            if field == "name" and identifier == "cPerson" and iri_strategy == "name":
+                assert target == BASE.unnamedClass_cPerson
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("entry_case,payload", _ZERO_VALID_EDGE_MUTATIONS,
+                         ids=[row[0] for row in _ZERO_VALID_EDGE_MUTATIONS])
+def test_invalid_language_string_edge_values_and_keys_follow_policy(
+        run, source_json, tmp_path, input_policy, entry_case, payload):
+    """Rules: DK-LBL-01, DK-LBL-02, DK-IRI-04, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-02 Alt 1A."""
+    document = source_json("shared/source_text")
+    _localize_other_text(document)
+    source_element(document, "cPerson")["name"] = copy.deepcopy(payload)
+    result = run(path=write_input(tmp_path, document), iri_strategy="name", input_policy=input_policy, language="nl")
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(d.severity == "ERROR" and "invalid_language_string_entry" in d.facts for d in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+    assert result.outcome == "completed-with-errors"
+    assert (BASE.unnamedClass_cPerson, RDF.type, OWL.Class) in result.ontology
+    assert not list(result.ontology.objects(BASE.unnamedClass_cPerson, RDFS.label))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("form", ["absent", "null", "empty"])
+def test_empty_project_languages_representations_are_accepted(run, invoke, source_json, tmp_path, input_policy, form):
+    """Rules: DK-LBL-02, DK-DIAG-05, DK-DIAG-19; §3.2. RD-02 Alternative 2A."""
+    control_doc = source_json("shared/source_text")
+    control_doc.pop("languages", None)
+    document = source_json("shared/source_text")
+    if form == "absent":
+        document.pop("languages", None)
+    elif form == "null":
+        document["languages"] = None
+    else:
+        document["languages"] = []
+
+    baseline = run(path=write_input(tmp_path, control_doc, "control.json"), iri_strategy="id", input_policy=input_policy)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert baseline.outcome == result.outcome == "completed"
+    assert_graph_equal(baseline.ontology, result.ontology)
+    assert diagnostic_record_counts(invoke.report_content(result).events) == diagnostic_record_counts(
+        invoke.report_content(baseline).events)
+    assert not any(d.severity == "ERROR" or d.kind == "ambiguous_language" for d in result.diagnostics)
+    assert (BASE.cPerson, RDFS.label, Literal("Person")) in result.ontology
+
+
+_MALFORMED_PROJECT_LANGUAGES = [
+    ("non_array_string", "en", "project_languages_non_array"),
+    ("non_array_int", 123, "project_languages_non_array"),
+    ("non_array_object", {"en": True}, "project_languages_non_array"),
+    ("non_array_bool", True, "project_languages_non_array"),
+    ("entry_non_string_int", ["en", 42], "project_languages_invalid_entry"),
+    ("entry_non_string_null", ["en", None], "project_languages_invalid_entry"),
+    ("entry_empty_string", ["en", ""], "project_languages_invalid_entry"),
+    ("entry_whitespace_string", ["en", "   "], "project_languages_invalid_entry"),
+    ("entry_invalid_tag_space", ["en", "bad tag"], "project_languages_invalid_entry"),
+    ("entry_invalid_tag_underscore", ["en", "en_US"], "project_languages_invalid_entry"),
+    ("entry_invalid_tag_newline", ["en", "en\n"], "project_languages_invalid_entry"),
+    ("multi_plus_non_string", ["en", "pt-BR", 42], "project_languages_invalid_entry"),
+    ("multi_plus_invalid_tag", ["en", "pt-BR", "bad tag"], "project_languages_invalid_entry"),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("use_override", [False, True], ids=["no_override", "with_override"])
+@pytest.mark.parametrize("case,languages_value,expected_fact", _MALFORMED_PROJECT_LANGUAGES,
+                         ids=[row[0] for row in _MALFORMED_PROJECT_LANGUAGES])
+def test_malformed_project_languages_follows_policy_and_omits_as_a_whole(
+        run, source_json, tmp_path, input_policy, use_override, case, languages_value, expected_fact):
+    """Rules: DK-LBL-02, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-DIAG-19; §§3.2, 15. RD-02 Alternative 2A."""
+    document = source_json("shared/source_text")
+    _localize_other_text(document)
+    document["languages"] = copy.deepcopy(languages_value)
+    source_element(document, "cPerson")["name"] = "Person"
+    source_element(document, "cOrg")["description"] = {"": "Unknown org description"}
+    source_element(document, "cAddress")["description"] = {"fr": "Adresse"}
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    if use_override:
+        options["language"] = "nl"
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR" and expected_fact in d.facts
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    assert not any(d.kind == "ambiguous_language" or d.code == "AMBIGUOUS_PROJECT_LANGUAGE" for d in result.diagnostics)
+    expected_untagged_lang = "nl" if use_override else None
+    assert set(result.ontology.objects(BASE.cPerson, RDFS.label)) == {Literal("Person", lang=expected_untagged_lang)}
+    assert set(result.ontology.objects(BASE.cOrg, RDFS.comment)) == {Literal("Unknown org description", lang=expected_untagged_lang)}
+    assert set(result.ontology.objects(BASE.cAddress, RDFS.comment)) == {Literal("Adresse", lang="nl" if use_override else "fr")}
+
