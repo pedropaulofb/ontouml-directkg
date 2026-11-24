@@ -10,7 +10,7 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import source_element, write_input, fixture_issues
 from tests.support.invocation import _observed_diagnostics, diagnostic_signatures, unusable_categorizer_diagnostic
-from tests.support.rdf import assert_contains, assert_selected_equal, load_graph, one_object, rdf_list
+from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, one_object, rdf_list
 
 
 BASE = Namespace("https://example.test/model#")
@@ -1391,4 +1391,132 @@ def test_categorizer_class_malformed_stereotype_triggers_unusable_categorizer(
     )
     assert not any(BASE.cCategorizer in triple for triple in result.ontology)
 
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_value", [
+    pytest.param("true", id="str_true"),
+    pytest.param(1, id="int_one"),
+    pytest.param(0, id="int_zero"),
+    pytest.param([], id="list"),
+    pytest.param({}, id="dict"),
+])
+def test_class_malformed_is_powertype_omits_extension_and_preserves_ordinary_categorizer_and_siblings(
+        run, source_json, tmp_path, input_policy, bad_value):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-01, DK-CLS-06, DK-CLS-07, DK-GEN-05, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-17; §3.2. RD-02 Alternative 1."""
+    document = source_json("shared/categorizers")
+    categorizer = source_element(document, "cCategorizer")
+    categorizer.update(isAbstract=True, isDerived=True, isExtensional=True, isPowertype=bad_value)
+    source_element(document, "gsFirst").update(isComplete=True, isDisjoint=True)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "cCategorizer").pop("isPowertype", None)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_boolean_flag" in d.facts
+        and "cCategorizer" in d.identified_sources
+        and d.code and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"), iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert (BASE.cCategorizer, RDF.type, OWL.Class) in graph
+    assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == {BASE.cOne, BASE.cTwo}
+    for non_explicit in (BASE.cBase, BASE.cOutside, BASE.cDeep):
+        assert (non_explicit, RDF.type, BASE.cCategorizer) not in graph
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert ((BASE.cOne, OWL.disjointWith, BASE.cTwo) in graph or (BASE.cTwo, OWL.disjointWith, BASE.cOne) in graph)
+    unions = [node for node in graph.objects(BASE.cBase, RDFS.subClassOf) if isinstance(node, BNode)]
+    assert len(unions) == 1
+    assert set(rdf_list(graph, one_object(graph, unions[0], OWL.unionOf))) == {BASE.cOne, BASE.cTwo}
+
+    for kind in ("abstractness", "derived_status", "extensionality"):
+        assert any(d.kind == kind and d.severity == "INFO" for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_value", [pytest.param("false", id="str_false"), pytest.param(1, id="int_one")])
+def test_standalone_class_malformed_is_powertype_validates_and_preserves_class(
+        run, source_json, tmp_path, input_policy, bad_value):
+    """Rules: DK-HO-03, DK-CLS-01, DK-GEN-05, DK-DIAG-05, DK-DIAG-16; §3.2. RD-02 Alternative 1."""
+    document = source_json("classes/flags")
+    focus = source_element(document, "cFocus")
+    focus.update(isDerived=True, isPowertype=bad_value)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "cFocus").pop("isPowertype", None)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert any(
+        d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "cFocus" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"), iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+    assert (BASE.cFocus, RDF.type, OWL.Class) in result.ontology
+    assert any(d.kind == "derived_status" and d.severity == "INFO" and "cFocus" in d.identified_sources
+               for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("malformed_flag", ["isComplete", "isDisjoint"])
+def test_categorized_class_set_malformed_boolean_flags_preserve_categorizer_and_powertype(
+        run, source_json, tmp_path, input_policy, malformed_flag):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-HO-04, DK-CLS-06, DK-CLS-07, DK-DIAG-05; §3.2. RD-02 Alternative 1."""
+    document = source_json("shared/categorizers")
+    source_element(document, "cCategorizer")["isPowertype"] = True
+    gs = source_element(document, "gsFirst")
+    gs.update(isComplete=True, isDisjoint=True)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "gsFirst").pop(malformed_flag, None)
+    gs[malformed_flag] = "true" if malformed_flag == "isComplete" else 1
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert any(
+        d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "gsFirst" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"), iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == {
+        BASE.cOne, BASE.cTwo, BASE.cBase, BASE.cOutside, BASE.cDeep
+    }
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    if malformed_flag == "isComplete":
+        assert not [node for node in graph.objects(BASE.cBase, RDFS.subClassOf) if isinstance(node, BNode)]
+        assert ((BASE.cOne, OWL.disjointWith, BASE.cTwo) in graph or (BASE.cTwo, OWL.disjointWith, BASE.cOne) in graph)
+    else:
+        assert ((BASE.cOne, OWL.disjointWith, BASE.cTwo) not in graph
+                and (BASE.cTwo, OWL.disjointWith, BASE.cOne) not in graph)
+        unions = [node for node in graph.objects(BASE.cBase, RDFS.subClassOf) if isinstance(node, BNode)]
+        assert len(unions) == 1
+        assert set(rdf_list(graph, one_object(graph, unions[0], OWL.unionOf))) == {BASE.cOne, BASE.cTwo}
 

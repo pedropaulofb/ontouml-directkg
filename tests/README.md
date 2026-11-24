@@ -2031,3 +2031,28 @@ fixing provisional diagnostic codes, rejecting BI-W1 internal-guard wording,
 incompatibility wording, conditionals, hedges, negations, bare expectations, and
 unrelated subjects. This TEST CHANGE awaits independent Test Reviewer review; no
 production-correctness claim is made.
+
+## RD-02 malformed Boolean flags on `Class`, `Relation`, `Property`, and `GeneralizationSet`
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** (`Findings: None`) for
+[`15eff98eb9dfeed69694ff81f099e0b9785e700f`](https://github.com/pedropaulofb/ontouml-directkg/commit/15eff98eb9dfeed69694ff81f099e0b9785e700f).
+The [scoped inventory](coverage.md#rd-02-malformed-boolean-flags-on-class-relation-property-and-generalizationset-alternative-1--uniform-field-level-omission)
+records the 855 behavioral nodes and 1 harness reader check across
+`tests/transformation/test_input_diagnostics.py`,
+`tests/transformation/test_classes.py`,
+`tests/transformation/test_higher_order.py`,
+`tests/transformation/test_attributes_datatypes.py`,
+`tests/transformation/test_properties.py`,
+`tests/transformation/test_relations.py`, and `tests/cli/test_cli.py`, reusing
+existing shared and topical fixtures with explicit runtime mutations and inline
+assertions.
+
+`tests/support/invocation.py` adds the affirmative semantic diagnostic reader
+`_malformed_boolean_flag_facts` / `malformed_boolean_flag_diagnostic` (wired into
+`_observed_diagnostics` for `ERROR` events outside `_structural_skip`) without
+fixing provisional diagnostic codes, rejecting BI-W1 internal-guard wording,
+`UNKNOWN_INFORMATION` unrecognized-field wording, valid/null/absent/true/false
+wording, conditionals, hedges, negations, bare expectations, and unrelated
+subjects. This TEST CHANGE awaits independent Test Reviewer review; no
+production-correctness claim is made.

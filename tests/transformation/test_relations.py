@@ -5279,3 +5279,183 @@ def test_relation_end_malformed_stereotype_omits_field_and_preserves_relation_an
     expected_val = 'end' if end_side == 'source_end' else 'begin'
     boundary = invoke.read_property_stereotype_comments(result)
     assert {(c.subject, c.context, c.value) for c in boundary} == {(BASE.tFocus, expected_ctx, expected_val)}
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('malformed_flag', ['isAbstract', 'isDerived'])
+@pytest.mark.parametrize('scenario', [
+    'ordinary_object_all_inverses',
+    'ordinary_object_no_inverses_name_strategy',
+    'mereology_component',
+    'material_chain',
+    'datatype_valued',
+])
+def test_ordinary_relation_malformed_boolean_flag_omits_only_flag_and_preserves_siblings(
+        run, source_json, tmp_path, input_policy, malformed_flag, scenario):
+    """Rules: DK-CLS-01, DK-GEN-05, DK-REL-01, DK-REL-07, DK-REL-19, DK-GEN-04, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16; §3.2. RD-02 Alternative 1."""
+    extra_options = {}
+    if scenario == 'material_chain':
+        document = source_json('shared/material_pattern')
+        _grounding(document, 'relator')
+        target_rel_id, target_prop_id = 'rMaterial', 'tMaterial'
+        extra_options['material_property_chains'] = 'omit-conflicting-constraints'
+        strategy, inv_mode = 'id', 'all'
+    else:
+        document = source_json('shared/binary_relation')
+        for cid in ('cA', 'cB'):
+            source_element(document, cid).pop('isAbstract', None)
+        target_rel_id, target_prop_id = 'rFocus', 'tFocus'
+        rel = source_element(document, 'rFocus')
+        source_element(document, 'sFocus').update(cardinality='1', isDerived=True, isReadOnly=True, isOrdered=True)
+        source_element(document, 'tFocus').update(cardinality='2..5', isDerived=True, isReadOnly=True, isOrdered=True)
+        if scenario == 'mereology_component':
+            rel['stereotype'] = 'componentOf'
+            source_element(document, 'sFocus')['aggregationKind'] = 'COMPOSITE'
+            extra_options['dkgm_vocabulary'] = 'none'
+            strategy, inv_mode = 'id', 'all'
+        elif scenario == 'datatype_valued':
+            d_int = copy.deepcopy(source_element(document, 'cB'))
+            d_int.update(id='dInt', name='int', stereotype='datatype')
+            document['model']['contents'].append(d_int)
+            rel['stereotype'] = 'material'
+            source_element(document, 'sFocus').update(name=None, cardinality=None)
+            source_element(document, 'tFocus')['propertyType'] = {'id': 'dInt', 'type': 'Class'}
+            strategy, inv_mode = 'id', 'all'
+        elif scenario == 'ordinary_object_no_inverses_name_strategy':
+            strategy, inv_mode = 'name', 'none'
+        else:
+            strategy, inv_mode = 'id', 'all'
+
+    target_rel = source_element(document, target_rel_id)
+    target_rel.update(isAbstract=True, isDerived=True)
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, target_rel_id).pop(malformed_flag, None)
+    target_rel[malformed_flag] = 'true' if malformed_flag == 'isAbstract' else 1
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=strategy,
+                 inverse_properties=inv_mode, input_policy=input_policy, **extra_options)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_boolean_flag' in d.facts and target_rel_id in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy=strategy, inverse_properties=inv_mode, input_policy='tolerant', **extra_options)
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    primary = _primary(result, target_prop_id, strategy)
+    expected_kind = OWL.DatatypeProperty if scenario == 'datatype_valued' else OWL.ObjectProperty
+    assert (primary, RDF.type, expected_kind) in graph
+    if scenario == 'mereology_component':
+        assert (primary, RDFS.subPropertyOf, DKGM.componentOf) in graph
+        assert (primary, RDF.type, OWL.AsymmetricProperty) in graph
+    elif scenario == 'material_chain':
+        assert property_chains(graph, primary)
+
+    rel_abstract = [d for d in result.diagnostics if d.kind == 'abstractness' and target_rel_id in d.identified_sources]
+    rel_derived = [d for d in result.diagnostics if d.kind == 'derived_status' and target_rel_id in d.identified_sources]
+    assert bool(rel_abstract) == (malformed_flag != 'isAbstract')
+    assert bool(rel_derived) == (malformed_flag != 'isDerived')
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('scenario', [
+    'multi_object_malformed_disjoint_keeps_complete',
+    'multi_object_malformed_complete_keeps_disjoint',
+    'multi_object_both_malformed',
+    'singleton_object_malformed_complete_omits_reverse_and_info',
+    'singleton_object_malformed_disjoint_keeps_reverse_and_info',
+    'multi_datatype_malformed_disjoint_keeps_complete',
+    'singleton_datatype_malformed_complete_omits_reverse_and_info',
+])
+def test_relation_generalization_set_malformed_boolean_flags_recover_only_malformed_flag(
+        run, source_json, tmp_path, input_policy, mode, scenario):
+    """Rules: DK-REL-14, DK-REL-15, DK-REL-16, DK-REL-20, DK-INV-12, DK-DIAG-05, DK-DIAG-14; §3.2. RD-02 Alternative 1."""
+    document = source_json('relations/hierarchy')
+    is_datatype = 'datatype' in scenario
+    if is_datatype:
+        d_int = copy.deepcopy(source_element(document, 'cB'))
+        d_int.update(id='dInt', name='int', stereotype='datatype')
+        document['model']['contents'].append(d_int)
+        for key in ('General', 'Middle', 'Leaf', 'Sibling'):
+            source_element(document, 'r' + key)['stereotype'] = 'material'
+            source_element(document, 's' + key).update(name=None, cardinality=None)
+            source_element(document, 't' + key)['propertyType'] = {'id': 'dInt', 'type': 'Class'}
+
+    gs = source_element(document, 'gsRelations')
+    if scenario in {'multi_object_malformed_disjoint_keeps_complete', 'multi_datatype_malformed_disjoint_keeps_complete'}:
+        gs.update(isComplete=True, isDisjoint='true')
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, 'gsRelations').pop('isDisjoint')
+    elif scenario == 'multi_object_malformed_complete_keeps_disjoint':
+        gs.update(isComplete=1, isDisjoint=True)
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, 'gsRelations').pop('isComplete')
+    elif scenario == 'multi_object_both_malformed':
+        gs.update(isComplete='false', isDisjoint=0)
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, 'gsRelations').pop('isComplete')
+        source_element(baseline_doc, 'gsRelations').pop('isDisjoint')
+    elif scenario in {'singleton_object_malformed_complete_omits_reverse_and_info', 'singleton_datatype_malformed_complete_omits_reverse_and_info'}:
+        gs.update(isComplete='true', isDisjoint=True, generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}])
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, 'gsRelations').pop('isComplete')
+    else:
+        gs.update(isComplete=True, isDisjoint=1, generalizations=[{'id': 'gMiddle', 'type': 'Generalization'}])
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, 'gsRelations').pop('isDisjoint')
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 inverse_properties=mode, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_boolean_flag' in d.facts and 'gsRelations' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy='id', inverse_properties=mode, input_policy='tolerant')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    prefixes = ('t', 's') if (mode == 'all' and not is_datatype) else ('t',)
+    base_edges = [('Middle', 'General'), ('Leaf', 'Middle'), ('Sibling', 'General')]
+    if scenario == 'singleton_object_malformed_disjoint_keeps_reverse_and_info':
+        base_edges.append(('General', 'Middle'))
+    assert _edges(graph) == {(BASE[p + a], BASE[p + b]) for p in prefixes for a, b in base_edges}
+    assert not list(graph.triples((None, OWL.equivalentProperty, None)))
+
+    if scenario == 'multi_object_malformed_complete_keeps_disjoint':
+        assert _pairs(graph) == {frozenset((BASE[p + 'Middle'], BASE[p + 'Sibling'])) for p in prefixes}
+    else:
+        assert not _pairs(graph)
+
+    completeness_warnings = [d for d in result.diagnostics if d.kind == 'relation_set_completeness']
+    if scenario in {'multi_object_malformed_disjoint_keeps_complete', 'multi_datatype_malformed_disjoint_keeps_complete'}:
+        assert any(d.severity == 'WARNING' and 'gsRelations' in d.identified_sources and 'coverage_not_represented' in d.facts
+                   for d in completeness_warnings)
+    else:
+        assert not completeness_warnings
+
+    singleton_infos = [d for d in result.diagnostics if d.kind == 'singleton_completeness']
+    if scenario == 'singleton_object_malformed_disjoint_keeps_reverse_and_info':
+        assert any(d.severity == 'INFO' and {'gsRelations', 'rGeneral', 'rMiddle'} <= set(d.identified_sources)
+                   for d in singleton_infos)
+    else:
+        assert not singleton_infos
+

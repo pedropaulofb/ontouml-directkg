@@ -1168,3 +1168,215 @@ def test_class_malformed_stereotype_omits_element_and_descendants_while_retainin
         ), result.diagnostics
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("field,kind", [
+    ("isAbstract", "abstractness"),
+    ("isDerived", "derived_status"),
+    ("isExtensional", "extensionality"),
+], ids=["isAbstract", "isDerived", "isExtensional"])
+@pytest.mark.parametrize("bad_value", [pytest.param("true", id="str_true"), pytest.param(1, id="int_one")])
+def test_class_malformed_boolean_flag_omits_only_flag_and_preserves_siblings_and_class(
+        run, source_json, tmp_path, input_policy, field, kind, bad_value):
+    """Rules: DK-CLS-01, DK-CLS-05, DK-GEN-05, DK-LBL-02, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-17; §3.2. RD-02 Alternative 1."""
+    document = source_json("classes/flags")
+    focus = source_element(document, "cFocus")
+    focus.update(description="Focus desc", order="2", isAbstract=True, isDerived=True, isExtensional=True)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "cFocus").pop(field, None)
+    focus[field] = bad_value
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "cFocus" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"), iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+    assert (BASE.cFocus, RDF.type, OWL.Class) in result.ontology
+    comments = set(result.ontology.objects(BASE.cFocus, RDFS.comment))
+    assert Literal("Focus desc") in comments
+    assert Literal("OntoUML classifier order: 2.", lang="en") in comments
+    assert not any(d.kind == kind for d in result.diagnostics), result.diagnostics
+    for sibling_field, sibling_kind in (("isAbstract", "abstractness"), ("isDerived", "derived_status"), ("isExtensional", "extensionality")):
+        if sibling_field != field:
+            assert any(d.kind == sibling_kind and d.severity == "INFO" for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_class_malformed_is_abstract_preserves_abstract_stereotype_comment_info_and_disjointness(
+        run, source_json, tmp_path, input_policy):
+    """Rules: DK-CLS-01, DK-CLS-04, DK-DIAG-05, DK-DIAG-15. RD-02 Alternative 1."""
+    document = source_json("classes/flags")
+    focus = source_element(document, "cFocus")
+    focus.update(stereotype="abstract", isAbstract=1)
+    other = copy.deepcopy(focus)
+    other.update(id="cEvent", name="Event", stereotype="event")
+    other.pop("isAbstract", None)
+    document["model"]["contents"].append(other)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "cFocus").pop("isAbstract", None)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert any(
+        d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "cFocus" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"), iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+    assert _pairs(result.ontology) == {frozenset((BASE.cFocus, BASE.cEvent))}
+    events = [d for d in result.diagnostics if d.kind == "abstractness"]
+    assert events and all(d.severity == "INFO" for d in events)
+    assert any({"preserved_as_annotation", "not_logically_enforced"} <= d.facts for d in events)
+    assert not any("stereotype_disjointness_omitted" in d.facts for d in events)
+
+
+@pytest.mark.parametrize("kind", ["primitive", "void"])
+@pytest.mark.parametrize("flag", ["isAbstract", "isDerived", "isExtensional", "isPowertype"])
+@pytest.mark.parametrize("state", [
+    pytest.param("absent", id="valid_absent"),
+    pytest.param(None, id="valid_null"),
+    pytest.param(True, id="valid_true"),
+    pytest.param(False, id="valid_false"),
+    pytest.param("true", id="malformed_str_true"),
+    pytest.param(1, id="malformed_int_one"),
+])
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_surviving_primitive_and_void_class_boolean_flags_valid_and_malformed(
+        run, source_json, tmp_path, kind, flag, state, input_policy):
+    """Rules: DK-CLS-01, DK-GEN-05, DK-DAT-02, DK-DAT-04, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-17; §3.2. RD-02 Alternative 1."""
+    document = source_json("classes/enumerations")
+    owner = source_element(document, "cOwner")
+    owner["properties"] = None
+    target = source_element(document, "eStatus")
+    for item in (owner, target):
+        for existing_flag in ("isAbstract", "isDerived", "isExtensional", "isPowertype"):
+            item.pop(existing_flag, None)
+    target.update(stereotype="datatype", name="int" if kind == "primitive" else "void",
+                  properties=None, literals=None)
+    document["model"]["contents"] = [owner, target]
+    if state == "absent":
+        target.pop(flag, None)
+    else:
+        target[flag] = state
+
+    malformed = state is not None and state != "absent" and type(state) is not bool
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+
+    if not malformed:
+        assert result.outcome == "completed"
+        assert not any(d.severity in {"WARNING", "ERROR"} for d in result.diagnostics)
+        assert not any(d.kind in {"abstractness", "derived_status", "extensionality"} for d in result.diagnostics)
+        assert not any(BASE.eStatus in triple for triple in result.ontology)
+        assert not list(result.ontology.objects(XSD.int, RDFS.comment))
+        assert set(result.ontology.subjects(RDF.type, OWL.Class)) == {BASE.cOwner}
+        return
+
+    assert any(
+        d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "eStatus" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    assert not any(d.kind in {"abstractness", "derived_status", "extensionality"} for d in result.diagnostics)
+    assert not any(BASE.eStatus in triple for triple in result.ontology)
+    assert not list(result.ontology.objects(XSD.int, RDFS.comment))
+    assert set(result.ontology.subjects(RDF.type, OWL.Class)) == {BASE.cOwner}
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scenario", [
+    "multi_malformed_complete_keeps_disjoint",
+    "multi_malformed_disjoint_keeps_complete_and_stereotype_disjointness",
+    "multi_both_malformed",
+    "singleton_malformed_complete_omits_reverse_and_info",
+    "singleton_malformed_disjoint_keeps_reverse_and_info",
+])
+def test_class_generalization_set_malformed_boolean_flags_recover_only_malformed_flag(
+        run, source_json, tmp_path, input_policy, scenario):
+    """Rules: DK-CLS-02, DK-CLS-03, DK-CLS-06, DK-CLS-07, DK-CLS-08, DK-DIAG-05, DK-DIAG-14; §3.2. RD-02 Alternative 1."""
+    document = source_json("classes/generalization_sets")
+    gs = source_element(document, "gsMain")
+
+    if scenario == "multi_malformed_complete_keeps_disjoint":
+        gs.update(isComplete="true", isDisjoint=True)
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, "gsMain").pop("isComplete")
+    elif scenario == "multi_malformed_disjoint_keeps_complete_and_stereotype_disjointness":
+        for cid in ("cB", "cC"):
+            source_element(document, cid)["stereotype"] = "kind"
+        gs.update(isComplete=True, isDisjoint=0)
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, "gsMain").pop("isDisjoint")
+    elif scenario == "multi_both_malformed":
+        gs.update(isComplete="false", isDisjoint=[])
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, "gsMain").pop("isComplete")
+        source_element(baseline_doc, "gsMain").pop("isDisjoint")
+    elif scenario == "singleton_malformed_complete_omits_reverse_and_info":
+        gs.update(isComplete=1, isDisjoint=True, generalizations=gs["generalizations"][:1])
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, "gsMain").pop("isComplete")
+    else:
+        gs.update(isComplete=True, isDisjoint="false", generalizations=gs["generalizations"][:1])
+        baseline_doc = copy.deepcopy(document)
+        source_element(baseline_doc, "gsMain").pop("isDisjoint")
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "gsMain" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"), iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+    assert (BASE.cB, RDFS.subClassOf, BASE.cA) in result.ontology
+    assert (BASE.cC, RDFS.subClassOf, BASE.cA) in result.ontology
+    assert (BASE.cD, RDFS.subClassOf, BASE.cA) in result.ontology
+
+    if scenario == "multi_malformed_complete_keeps_disjoint":
+        assert not list(result.ontology.triples((None, OWL.unionOf, None)))
+        assert _pairs(result.ontology) == _pair_set([BASE.cB, BASE.cC, BASE.cD])
+    elif scenario == "multi_malformed_disjoint_keeps_complete_and_stereotype_disjointness":
+        assert _pairs(result.ontology) == {frozenset((BASE.cB, BASE.cC))}
+        head = one_object(result.ontology, BASE.cA, RDFS.subClassOf)
+        assert set(rdf_list(result.ontology, one_object(result.ontology, head, OWL.unionOf))) == {BASE.cB, BASE.cC, BASE.cD}
+    elif scenario == "multi_both_malformed":
+        assert not list(result.ontology.triples((None, OWL.unionOf, None)))
+        assert not _pairs(result.ontology)
+        assert len([d for d in result.diagnostics if d.severity == "ERROR" and "malformed_boolean_flag" in d.facts]) == 2
+    elif scenario == "singleton_malformed_complete_omits_reverse_and_info":
+        assert (BASE.cA, RDFS.subClassOf, BASE.cB) not in result.ontology
+        assert not any(d.kind == "singleton_completeness" for d in result.diagnostics)
+    else:
+        assert (BASE.cA, RDFS.subClassOf, BASE.cB) in result.ontology
+        events = [d for d in result.diagnostics if d.kind == "singleton_completeness"]
+        assert events and all(d.severity == "INFO" for d in events)
+        assert any({"gsMain", "cA", "cB"} <= set(d.identified_sources) for d in events)
+

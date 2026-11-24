@@ -1546,4 +1546,190 @@ def test_best_effort_cleanly_omits_property_references_involving_relation_omitte
         assert any((prop, RDF.type, kind) in graph for kind in (OWL.ObjectProperty, OWL.DatatypeProperty))
 
 
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('malformed_flag', ['isDerived', 'isReadOnly', 'isOrdered'])
+@pytest.mark.parametrize('bad_value', [pytest.param('true', id='str_true'), pytest.param(1, id='int_one')])
+def test_attribute_malformed_boolean_flag_omits_only_flag_and_preserves_siblings_and_inclusions(
+        run, invoke, source_json, tmp_path, input_policy, malformed_flag, bad_value):
+    """Rules: DK-GEN-05, DK-PROP-03, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-ATT-01, DK-ATT-03, DK-DIAG-05, DK-DIAG-16, DK-DIAG-18; §3.2. RD-02 Alternative 1."""
+    document = source_json('properties/references')
+    child = source_element(document, 'pChild')
+    child.update(
+        cardinality='2..5',
+        stereotype='begin',
+        isDerived=True,
+        isReadOnly=True,
+        isOrdered=True,
+        subsettedProperties=[_reference('t0')],
+    )
+    source_element(document, 'pThird')['redefinedProperties'] = [_reference('pBase')]
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, 'pChild').pop(malformed_flag, None)
+    child[malformed_flag] = bad_value
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_boolean_flag' in d.facts and 'pChild' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy='id', input_policy='tolerant', inverse_properties='all')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert (BASE.pChild, RDF.type, OWL.ObjectProperty) in graph
+    assert _hierarchy(graph) == {(BASE.pChild, BASE.t0), (BASE.pThird, BASE.pBase)}
+    assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.pChild)} == {('min', 2), ('max', 5)}
+    _boundary_annotations(invoke, result, {(BASE.pChild, 'attribute', 'begin')})
+
+    derived_events = [d for d in result.diagnostics if d.kind == 'derived_status' and 'pChild' in d.identified_sources]
+    ordering_events = [d for d in result.diagnostics if d.kind == 'ordering' and 'pChild' in d.identified_sources]
+    assert bool(derived_events) == (malformed_flag != 'isDerived')
+    assert bool(ordering_events) == (malformed_flag != 'isOrdered')
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('mode', ['all', 'none'])
+@pytest.mark.parametrize('target_id,malformed_flag', [
+    ('rFlag', 'isAbstract'),
+    ('rFlag', 'isDerived'),
+    ('sFlag', 'isDerived'),
+    ('sFlag', 'isReadOnly'),
+    ('sFlag', 'isOrdered'),
+    ('tFlag', 'isDerived'),
+    ('tFlag', 'isReadOnly'),
+    ('tFlag', 'isOrdered'),
+], ids=[
+    'relation-isAbstract', 'relation-isDerived',
+    'source_end-isDerived', 'source_end-isReadOnly', 'source_end-isOrdered',
+    'target_end-isDerived', 'target_end-isReadOnly', 'target_end-isOrdered',
+])
+def test_relation_and_end_malformed_boolean_flag_omits_only_flag_and_preserves_siblings(
+        run, invoke, source_json, tmp_path, input_policy, mode, target_id, malformed_flag):
+    """Rules: DK-CLS-01, DK-GEN-05, DK-PROP-04, DK-PROP-05, DK-PROP-06, DK-REL-01, DK-REL-09, DK-REL-10, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-18; §3.2. RD-02 Alternative 1."""
+    document = source_json('properties/source_flags')
+    for cid in ('cOwner', 'cOther'):
+        source_element(document, cid).pop('isAbstract', None)
+    source_element(document, 'rFlag').update(isAbstract=True, isDerived=True, description='REL_DESC')
+    source_element(document, 'sFlag').update(
+        isDerived=True, isReadOnly=True, isOrdered=True,
+        aggregationKind='SHARED', stereotype='begin', cardinality='1',
+    )
+    source_element(document, 'tFlag').update(
+        isDerived=True, isReadOnly=True, isOrdered=True,
+        aggregationKind='COMPOSITE', stereotype='end', cardinality='2..5',
+    )
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, target_id).pop(malformed_flag, None)
+    source_element(document, target_id)[malformed_flag] = 'true' if malformed_flag != 'isOrdered' else 1
+
+    input_path = write_input(tmp_path, document)
+    result = run(path=input_path, iri_strategy='id', input_policy=input_policy, inverse_properties=mode)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_boolean_flag' in d.facts and target_id in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy='id', input_policy='tolerant', inverse_properties=mode)
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert (BASE.tFlag, RDF.type, OWL.ObjectProperty) in graph
+    assert ((BASE.sFlag, RDF.type, OWL.ObjectProperty) in graph) == (mode == 'all')
+    assert Literal('REL_DESC') in set(graph.objects(BASE.tFlag, RDFS.comment))
+    assert {(kind, n) for kind, n, _, _ in cardinality_facts(graph, BASE.cOwner, BASE.tFlag)} == {('min', 2), ('max', 5)}
+    _boundary_annotations(invoke, result, {(BASE.tFlag, 'source_end', 'begin'), (BASE.tFlag, 'target_end', 'end')})
+    agg_comments = invoke.read_relation_aggregation_comments(result, input_path)
+    assert {(c.subject, c.context, c.value) for c in agg_comments} == {
+        (BASE.tFlag, 'source_end', 'SHARED'),
+        (BASE.tFlag, 'target_end', 'COMPOSITE'),
+    }
+
+    abstract_events = [d for d in result.diagnostics if d.kind == 'abstractness' and 'rFlag' in d.identified_sources]
+    assert bool(abstract_events) != (target_id == 'rFlag' and malformed_flag == 'isAbstract')
+    for occ_id in ('rFlag', 'sFlag', 'tFlag'):
+        occ_derived = [d for d in result.diagnostics if d.kind == 'derived_status' and occ_id in d.identified_sources]
+        assert bool(occ_derived) != (target_id == occ_id and malformed_flag == 'isDerived')
+    for end_id in ('sFlag', 'tFlag'):
+        occ_ordered = [d for d in result.diagnostics if d.kind == 'ordering' and end_id in d.identified_sources]
+        assert bool(occ_ordered) != (target_id == end_id and malformed_flag == 'isOrdered')
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('target_id,malformed_flag', [
+    ('sFlag', 'isDerived'),
+    ('sFlag', 'isReadOnly'),
+    ('sFlag', 'isOrdered'),
+    ('tFlag', 'isDerived'),
+    ('tFlag', 'isReadOnly'),
+    ('tFlag', 'isOrdered'),
+], ids=[
+    'source_end-isDerived', 'source_end-isReadOnly', 'source_end-isOrdered',
+    'target_end-isDerived', 'target_end-isReadOnly', 'target_end-isOrdered',
+])
+def test_datatype_valued_relation_end_malformed_boolean_flag_omits_only_flag_and_preserves_primary(
+        run, source_json, tmp_path, input_policy, target_id, malformed_flag):
+    """Rules: DK-REL-01, DK-GEN-05, DK-CLS-01, DK-PROP-04, DK-PROP-05, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-18; §3.2. RD-02 Alternative 1."""
+    document = source_json('properties/source_flags')
+    for cid in ('cOwner', 'cOther'):
+        source_element(document, cid).pop('isAbstract', None)
+    source_element(document, 'rFlag').update(name='flagLink', stereotype='material', isAbstract=True, isDerived=True)
+    source_element(document, 'sFlag').update(
+        name=None, isDerived=True, isReadOnly=True, isOrdered=True, aggregationKind='SHARED')
+    source_element(document, 'tFlag').update(
+        name='targetFlag', propertyType={'id': 'dValue', 'type': 'Class'},
+        isDerived=True, isReadOnly=True, isOrdered=True, aggregationKind='COMPOSITE')
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, target_id).pop(malformed_flag, None)
+    source_element(document, target_id)[malformed_flag] = 0
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_boolean_flag' in d.facts and target_id in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy='id', input_policy='tolerant', inverse_properties='all')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert (BASE.tFlag, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(BASE.tFlag, RDFS.domain)) == {BASE.cOwner}
+    assert set(graph.objects(BASE.tFlag, RDFS.range)) == {XSD.int}
+    assert not any(BASE.sFlag in triple for triple in graph)
+    assert any(d.kind == 'abstractness' and 'rFlag' in d.identified_sources for d in result.diagnostics)
+    for end_id in ('sFlag', 'tFlag'):
+        occ_derived = [d for d in result.diagnostics if d.kind == 'derived_status' and end_id in d.identified_sources]
+        occ_ordered = [d for d in result.diagnostics if d.kind == 'ordering' and end_id in d.identified_sources]
+        assert bool(occ_derived) != (target_id == end_id and malformed_flag == 'isDerived')
+        assert bool(occ_ordered) != (target_id == end_id and malformed_flag == 'isOrdered')
 

@@ -2753,6 +2753,96 @@ def malformed_stereotype_diagnostic(message: str, sources: tuple = ()) -> frozen
     return frozenset(_malformed_stereotype_facts(message, sources))
 
 
+_BOOLEAN_FLAG_NAMES = (
+    "isabstract", "isderived", "isextensional", "ispowertype",
+    "isreadonly", "isordered", "iscomplete", "isdisjoint",
+)
+
+
+def _malformed_boolean_flag_facts(message: str, sources: tuple = ()) -> set[str]:
+    """Read affirmative RD-02 malformed Boolean-flag ERROR wording.
+
+    Rejects internal/deferred guard wording, conditionals, hedges, negations,
+    bare expectations, valid/null/absent/true/false statements, UNKNOWN_INFORMATION
+    unrecognized-field wording, and unrelated carrier/container subjects.
+    """
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside bi-w1|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"(?<!\w)(?:''|\"\"|'\s+'|\"\s+\")(?=$|[\s.,;:)!?])", "<blank_quoted>", wording)
+    wording = re.sub(
+        rf"""(?<!\w)(['"])({'|'.join(_BOOLEAN_FLAG_NAMES)}|class|relation|property|generalizationset|null|bool|boolean)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    flag_alt = "|".join(_BOOLEAN_FLAG_NAMES)
+    global_disqualifiers = (
+        rf"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:{flag_alt}|boolean|flag)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:malformed|invalid|non[- ]?bool(?:ean)?)\b",
+        rf"\b(?:{flag_alt}|boolean\s+(?:flag|field)|flag)(?:\s+(?:field|value))?\s+(?:is|was)\s+(?:explicitly\s+)?(?<!non-)(?<!non )(?:null|none|absent|missing|omitted|true|false|valid|allowed|accepted|preserved)\b",
+        r"\b(?:null|absent|missing|valid)\s+or\s+(?:malformed|invalid|non[- ]?bool(?:ean)?)\b",
+        r"\b(?:malformed|invalid|non[- ]?bool(?:ean)?)\s+or\s+(?:null|absent|missing|valid)\b",
+        r"\b(?:unrecognized|unknown|unexpected|undefined|unsupported)\s+(?:input\s+)?fields?\b",
+        r"\bnot\s+(?:a\s+)?(?:defined|recognized|supported)\s+(?:boolean\s+)?(?:flag|field)\b",
+        r"\bpreserved as an annotation\b",
+        r"\b(?:stereotype|name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype|package\.contents|class\.properties|class\.literals|relation\.properties)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in global_disqualifiers):
+        return set()
+
+    has_flag_context = (
+        bool(re.search(rf"\b(?:{flag_alt})\b", wording))
+        or bool(re.search(r"\bboolean\s+(?:flag|field)\b", wording))
+        or any(
+            (getattr(src, "path", "") or "").casefold().endswith(tuple("." + f for f in _BOOLEAN_FLAG_NAMES))
+            for src in sources
+        )
+    )
+    if not has_flag_context:
+        return set()
+
+    flag_subj = rf"(?:(?:{flag_alt})(?:\s+(?:boolean\s+)?(?:flag|field|value))?|boolean\s+(?:flag|field)(?:\s+value)?)"
+    bad_adj = r"(?:malformed|invalid(?:\s+type)?|non[- ]?bool(?:ean)?(?:\s+value)?)"
+    bad_type = r"(?:str(?:ing)?|int(?:eger)?|float|number|array|list|object|dict(?:ionary)?|<blank_quoted>|<quoted>|<value>)"
+    patterns = (
+        re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)\b{bad_adj}\s+(?:or\s+{bad_adj}\s+)?{flag_subj}\b"),
+        re.compile(rf"\b{flag_subj}(?:\s+(?:<quoted>|<value>))?\s+(?:is|was)\s+(?:(?:a|an)\s+)?(?:{bad_adj}|{bad_type}|not\s+(?:a|an)\s+(?:valid\s+)?(?:json\s+)?bool(?:ean)?)\b"),
+        re.compile(rf"\b(?:has|had|with)\s+(?:a|an)?\s*{bad_adj}(?:\s+or\s+{bad_adj})?\s+{flag_subj}\b"),
+        re.compile(rf"\b{flag_subj}\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\b[^.!?;]*(?:got|found|received)\s+(?!null\b|none\b|bool(?:ean)?\b|true\b|false\b)\S+"),
+        re.compile(rf"\b{flag_subj}\b[^.!?;]*\b(?:cannot|must\s+not)\s+be\s+(?:{bad_adj}|{bad_type})\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|allowed|accepted|preserved)\b", clause) and not re.search(r"\bnot\s+(?:valid|allowed|accepted|preserved)\b", clause):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"malformed_boolean_flag"}
+    return set()
+
+
+def malformed_boolean_flag_diagnostic(message: str, sources: tuple = ()) -> frozenset[str]:
+    """Return recognized RD-02 malformed-boolean-flag ERROR facts for harness checks."""
+    return frozenset(_malformed_boolean_flag_facts(message, sources))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -2852,6 +2942,11 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.update(stereo_facts)
                 if kind is None:
                     kind = "malformed_stereotype"
+            flag_facts = _malformed_boolean_flag_facts(event.message, event.sources)
+            if flag_facts:
+                facts.update(flag_facts)
+                if kind is None:
+                    kind = "malformed_boolean_flag"
         if kind is None:
             if (event.severity == "ERROR" and
                     (re.search(r"\bpackage\b", event.message, re.I)

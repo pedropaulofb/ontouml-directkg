@@ -1501,3 +1501,92 @@ def test_attribute_referencing_or_owned_by_malformed_stereotype_class_follows_po
         assert not any(BASE.pOwned in triple for triple in graph)
         assert not any(d.kind == 'attribute_owner_without_local_class' for d in result.diagnostics)
 
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('iri_strategy', ['id', 'name'])
+@pytest.mark.parametrize('value_kind', ['primitive', 'custom', 'enumeration', 'untyped'])
+@pytest.mark.parametrize('malformed_flag', ['isDerived', 'isReadOnly', 'isOrdered'])
+def test_attribute_malformed_boolean_flag_preserves_value_kind_mapping_and_siblings(
+        run, source_json, tmp_path, input_policy, iri_strategy, value_kind, malformed_flag):
+    """Rules: DK-ATT-01, DK-ATT-03, DK-DAT-01, DK-DAT-03, DK-DAT-05, DK-CLS-10, DK-GEN-03, DK-GEN-05, DK-PROP-04, DK-PROP-05, DK-DIAG-05, DK-DIAG-16, DK-DIAG-18; §3.2. RD-02 Alternative 1."""
+    document = source_json('attributes_datatypes/value_types')
+    focus = source_element(document, 'pFocus')
+    focus.update(cardinality='2..5', isDerived=True, isReadOnly=True, isOrdered=True)
+    value_cls = source_element(document, 'dValue')
+    if value_kind == 'untyped':
+        focus['propertyType'] = None
+        prop_kind, expected_range = OWL.DatatypeProperty, None
+    elif value_kind == 'primitive':
+        prop_kind, expected_range = OWL.DatatypeProperty, XSD.int
+    elif value_kind == 'custom':
+        value_cls['name'] = 'StructuredValue'
+        prop_kind = OWL.ObjectProperty
+        expected_range = BASE.dValue if iri_strategy == 'id' else BASE.StructuredValue
+    else:
+        value_cls.update(
+            name='Status', stereotype='enumeration',
+            literals=[{'id': 'vOne', 'name': 'One', 'description': None, 'type': 'Literal', 'propertyAssignments': None}],
+        )
+        prop_kind = OWL.ObjectProperty
+        expected_range = BASE.dValue if iri_strategy == 'id' else BASE.Status
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, 'pFocus').pop(malformed_flag, None)
+    focus[malformed_flag] = 'true' if malformed_flag != 'isOrdered' else 1
+
+    result = run(path=write_input(tmp_path, document), iri_strategy=iri_strategy, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and 'malformed_boolean_flag' in d.facts and 'pFocus' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy=iri_strategy, input_policy='tolerant')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    owner = BASE.cOwner if iri_strategy == 'id' else BASE.Owner
+    prop = BASE.pFocus if iri_strategy == 'id' else one_subject(graph, DCTERMS.identifier, Literal('pFocus'))
+    _focus(graph, prop_kind, expected_range, owner, prop)
+    _counts(graph, owner, prop, {('min', 2), ('max', 5)}, expected_range)
+    assert (prop, RDFS.label, Literal('focus')) in graph
+    assert bool([d for d in result.diagnostics if d.kind == 'derived_status' and 'pFocus' in d.identified_sources]) == (malformed_flag != 'isDerived')
+    assert bool([d for d in result.diagnostics if d.kind == 'ordering' and 'pFocus' in d.identified_sources]) == (malformed_flag != 'isOrdered')
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('owner_kind', ['primitive', 'void'])
+def test_attribute_owned_by_class_without_local_class_precedes_malformed_boolean_flag(
+        run, source_json, tmp_path, input_policy, owner_kind):
+    """Rules: DK-ATT-01, DK-DIAG-05; §3.2. RD-02 Alternative 1."""
+    document = source_json('attributes_datatypes/value_types')
+    owner_cls = source_element(document, 'dValue')
+    if owner_kind == 'void':
+        owner_cls['name'] = 'void'
+        source_element(document, 'pFocus')['propertyType'] = None
+    bad_attr = copy.deepcopy(source_element(document, 'pFocus'))
+    bad_attr.update(id='pOwnedByNoClass', name='ownedByNoClass', isDerived='true', isReadOnly=1, isOrdered=[])
+    owner_cls['properties'] = [bad_attr]
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and d.kind == 'attribute_owner_without_local_class'
+        and 'pOwnedByNoClass' in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any('malformed_boolean_flag' in d.facts for d in result.diagnostics), result.diagnostics
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+    else:
+        assert result.outcome == 'completed-with-errors'
+        _focus(result.ontology, OWL.DatatypeProperty, None if owner_kind == 'void' else XSD.int, BASE.cOwner, BASE.pFocus)
+        assert not any(BASE.pOwnedByNoClass in triple or BASE.dValue in triple for triple in result.ontology)

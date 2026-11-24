@@ -2952,3 +2952,165 @@ def test_malformed_stereotype_adds_no_new_cli_or_python_controls(invoke):
         flag for flag, *_ in CONTROLS
     } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
 
+
+def _malformed_boolean_flag_cli_document(case):
+    if case == "class_is_abstract":
+        document = load_json("shared/core_model")
+        source_element(document, "cOrg").update(isAbstract="true", isDerived=True)
+        return document, "cOrg"
+    if case == "class_is_powertype":
+        document = load_json("shared/categorizers")
+        source_element(document, "cCategorizer")["isPowertype"] = 1
+        source_element(document, "gsFirst")["isComplete"] = True
+        return document, "cCategorizer"
+    if case == "relation_is_derived":
+        document = load_json("shared/core_model")
+        source_element(document, "rWorks").update(isAbstract=True, isDerived=1)
+        return document, "rWorks"
+    if case == "attribute_is_ordered":
+        document = load_json("shared/core_model")
+        source_element(document, "aAge").update(isOrdered="true", isReadOnly=True)
+        return document, "aAge"
+    if case == "relation_end_is_read_only":
+        document = load_json("shared/core_model")
+        source_element(document, "eTarget").update(isReadOnly=0, isOrdered=True)
+        return document, "eTarget"
+    if case == "class_gs_is_complete":
+        document = load_json("classes/generalization_sets")
+        source_element(document, "gsMain").update(isComplete="true", isDisjoint=True)
+        return document, "gsMain"
+    if case == "relation_gs_is_disjoint":
+        document = load_json("relations/hierarchy")
+        source_element(document, "gsRelations").update(isDisjoint=1, isComplete=True)
+        return document, "gsRelations"
+    raise AssertionError(f"Unlisted CLI malformed boolean-flag case: {case}")
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", [
+    "class_is_abstract",
+    "class_is_powertype",
+    "relation_is_derived",
+    "attribute_is_ordered",
+    "relation_end_is_read_only",
+    "class_gs_is_complete",
+    "relation_gs_is_disjoint",
+])
+def test_malformed_boolean_flag_cli_python_parity(invoke, tmp_path, input_policy, case):
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-GEN-05, DK-CLS-01, DK-CLS-06, DK-CLS-07, DK-HO-02, DK-HO-03, DK-PROP-04, DK-PROP-05, DK-REL-01, DK-REL-15, DK-REL-16; §§3.2, 15. RD-02 Alternative 1."""
+    document, target_id = _malformed_boolean_flag_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    if input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        assert not any(event.code == "UNKNOWN_INFORMATION" for event in events)
+        assert any(
+            event.severity == "ERROR"
+            and "malformed_boolean_flag" in event.facts
+            and target_id in event.identified_sources
+            and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+            for event in events
+        ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        if case == "class_is_abstract":
+            assert (BASE.cOrg, RDF.type, OWL.Class) in delivered_graph
+            assert any(d.kind == "derived_status" and "cOrg" in d.identified_sources
+                       for d in process.observation.diagnostics)
+            assert not any(d.kind == "abstractness" and "cOrg" in d.identified_sources
+                           for d in process.observation.diagnostics)
+        elif case == "class_is_powertype":
+            assert set(delivered_graph.subjects(RDF.type, BASE.cCategorizer)) == {BASE.cOne, BASE.cTwo}
+        elif case == "relation_is_derived":
+            assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in delivered_graph
+            assert any(d.kind == "abstractness" and "rWorks" in d.identified_sources
+                       for d in process.observation.diagnostics)
+            assert not any(d.kind == "derived_status" and "rWorks" in d.identified_sources
+                           for d in process.observation.diagnostics)
+        elif case == "attribute_is_ordered":
+            assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in delivered_graph
+            assert not any(d.kind == "ordering" and "aAge" in d.identified_sources
+                           for d in process.observation.diagnostics)
+        elif case == "relation_end_is_read_only":
+            assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in delivered_graph
+            assert any(d.kind == "ordering" and "eTarget" in d.identified_sources
+                       for d in process.observation.diagnostics)
+        elif case == "class_gs_is_complete":
+            assert not list(delivered_graph.triples((None, OWL.unionOf, None)))
+            assert (BASE.cB, OWL.disjointWith, BASE.cC) in delivered_graph or (BASE.cC, OWL.disjointWith, BASE.cB) in delivered_graph
+        else:
+            assert not list(delivered_graph.triples((None, OWL.propertyDisjointWith, None)))
+            assert any(d.kind == "relation_set_completeness" and "gsRelations" in d.identified_sources
+                       for d in process.observation.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+@pytest.mark.parametrize("case", ["class_is_powertype", "attribute_is_ordered"])
+def test_malformed_boolean_flag_report_failure_takes_precedence(invoke, tmp_path, input_policy, case):
+    """Rules: DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence. RD-02 Alternative 1."""
+    document, target_id = _malformed_boolean_flag_cli_document(case)
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert any(
+        event.severity == "ERROR"
+        and "malformed_boolean_flag" in event.facts
+        and target_id in event.identified_sources
+        and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in process.observation.diagnostics
+    ), process.observation.diagnostics
+
+
+def test_malformed_boolean_flag_adds_no_new_cli_or_python_controls(invoke):
+    """Rules: DK-DIAG-05; §15 configuration surface boundary. RD-02 Alternative 1."""
+    surface = invoke.inspect_controls()
+    assert set(surface.python) == set(DEFAULTS)
+    assert set(surface.cli) == {
+        flag for flag, *_ in CONTROLS
+    } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}

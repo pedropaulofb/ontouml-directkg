@@ -14,6 +14,7 @@ from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_jso
 from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
                                       class_properties_container_diagnostic,
                                       diagnostic_signatures,
+                                      malformed_boolean_flag_diagnostic,
                                       malformed_package_contents_diagnostic,
                                       malformed_stereotype_diagnostic,
                                       non_enum_literals_diagnostic,
@@ -2330,4 +2331,563 @@ def test_malformed_stereotype_reader_requires_affirmative_conditions():
     )
     for message in rejected:
         assert not malformed_stereotype_diagnostic(message), message
+
+
+_MALFORMED_BOOLEAN_VALUES = [
+    pytest.param("true", id="str_true"),
+    pytest.param("false", id="str_false"),
+    pytest.param(1, id="int_one"),
+    pytest.param(0, id="int_zero"),
+    pytest.param(1.5, id="float"),
+    pytest.param([], id="list"),
+    pytest.param({}, id="dict"),
+]
+
+_DEFINED_BOOLEAN_TARGETS = [
+    ("class", "isAbstract"),
+    ("class", "isDerived"),
+    ("class", "isExtensional"),
+    ("class", "isPowertype"),
+    ("relation", "isAbstract"),
+    ("relation", "isDerived"),
+    ("attribute", "isDerived"),
+    ("attribute", "isReadOnly"),
+    ("attribute", "isOrdered"),
+    ("source_end", "isDerived"),
+    ("source_end", "isReadOnly"),
+    ("source_end", "isOrdered"),
+    ("target_end", "isDerived"),
+    ("target_end", "isReadOnly"),
+    ("target_end", "isOrdered"),
+    ("class_gs", "isComplete"),
+    ("class_gs", "isDisjoint"),
+    ("relation_gs", "isComplete"),
+    ("relation_gs", "isDisjoint"),
+]
+
+
+def _prepare_malformed_boolean_flag_target(target_role, flag, value):
+    if target_role in {"class", "relation", "attribute", "source_end", "target_end"}:
+        document = load_json("shared/core_model")
+        element_id = {
+            "class": "cOrg",
+            "relation": "rWorks",
+            "attribute": "aAge",
+            "source_end": "eSource",
+            "target_end": "eTarget",
+        }[target_role]
+        source_element(document, element_id)[flag] = copy.deepcopy(value)
+        return document, element_id
+    if target_role == "class_gs":
+        document = load_json("classes/generalization_sets")
+        source_element(document, "gsMain")[flag] = copy.deepcopy(value)
+        return document, "gsMain"
+    if target_role == "relation_gs":
+        document = load_json("relations/hierarchy")
+        source_element(document, "gsRelations")[flag] = copy.deepcopy(value)
+        return document, "gsRelations"
+    raise AssertionError(f"Unlisted malformed boolean-flag target: {target_role}")
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("target_role,flag", _DEFINED_BOOLEAN_TARGETS,
+                         ids=[f"{role}-{flag}" for role, flag in _DEFINED_BOOLEAN_TARGETS])
+@pytest.mark.parametrize("value", [pytest.param("true", id="str_true"), pytest.param(1, id="int_one")])
+def test_malformed_boolean_flags_defined_per_element_type_emit_structural_error(
+        run, tmp_path, input_policy, target_role, flag, value):
+    """Rules: DK-DIAG-05, DK-GEN-05, DK-CLS-01, DK-CLS-06, DK-CLS-07, DK-HO-03, DK-HO-04, DK-PROP-04, DK-PROP-05, DK-REL-01, DK-REL-15, DK-REL-16, DK-DIAG-04; §§3.2, 15. RD-02 Alternative 1."""
+    document, target_id = _prepare_malformed_boolean_flag_target(target_role, flag, value)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(
+        d.code == "UNKNOWN_INFORMATION" or d.kind == "unknown_information"
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_boolean_flag" in d.facts
+        and target_id in d.identified_sources
+        and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted"
+        assert result.ontology is None
+        assert result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert graph is not None
+    if target_role in {"class", "relation", "attribute", "source_end", "target_end"}:
+        assert (BASE.cPerson, RDF.type, OWL.Class) in graph
+        assert (BASE.cOrg, RDF.type, OWL.Class) in graph
+        assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in graph
+        assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in graph
+        assert (BASE.eSource, RDF.type, OWL.ObjectProperty) in graph
+    elif target_role == "class_gs":
+        assert (BASE.cB, RDFS.subClassOf, BASE.cA) in graph
+        assert (BASE.cC, RDFS.subClassOf, BASE.cA) in graph
+    else:
+        assert (BASE.tMiddle, RDFS.subPropertyOf, BASE.tGeneral) in graph
+        assert (BASE.tSibling, RDFS.subPropertyOf, BASE.tGeneral) in graph
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("target_role,flag", [
+    ("class", "isAbstract"),
+    ("relation", "isDerived"),
+    ("attribute", "isOrdered"),
+    ("class_gs", "isComplete"),
+], ids=["class-isAbstract", "relation-isDerived", "attribute-isOrdered", "class_gs-isComplete"])
+@pytest.mark.parametrize("value", _MALFORMED_BOOLEAN_VALUES)
+def test_malformed_boolean_flag_value_kinds_across_element_types(
+        run, tmp_path, input_policy, target_role, flag, value):
+    """Rules: DK-DIAG-05, DK-GEN-05, DK-CLS-01, DK-CLS-07, DK-PROP-05, DK-DIAG-04; §3.2. RD-02 Alternative 1."""
+    document, target_id = _prepare_malformed_boolean_flag_target(target_role, flag, value)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_boolean_flag" in d.facts
+        and target_id in d.identified_sources
+        and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors" and result.ontology is not None
+
+
+@pytest.mark.parametrize("target_role,flag", [
+    ("class", "isAbstract"),
+    ("relation", "isDerived"),
+    ("attribute", "isReadOnly"),
+    ("target_end", "isOrdered"),
+    ("class_gs", "isComplete"),
+    ("relation_gs", "isDisjoint"),
+], ids=["class-isAbstract", "relation-isDerived", "attribute-isReadOnly",
+        "target_end-isOrdered", "class_gs-isComplete", "relation_gs-isDisjoint"])
+@pytest.mark.parametrize("value", [pytest.param("true", id="str_true"), pytest.param(1, id="int_one")])
+def test_malformed_boolean_flag_default_input_policy_aborts(run, tmp_path, target_role, flag, value):
+    """Rules: DK-DIAG-05, DK-DIAG-04; §15 default input-policy. RD-02 Alternative 1."""
+    document, target_id = _prepare_malformed_boolean_flag_target(target_role, flag, value)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id")
+    assert result.outcome == "aborted"
+    assert result.ontology is None
+    assert any(
+        d.severity == "ERROR"
+        and "malformed_boolean_flag" in d.facts
+        and target_id in d.identified_sources
+        and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("target_role,extra_field,value", [
+    ("relation", "isReadOnly", True),
+    ("relation", "isReadOnly", "true"),
+    ("relation", "isOrdered", True),
+    ("relation", "isOrdered", 1),
+    ("relation", "isExtensional", True),
+    ("relation", "isPowertype", True),
+    ("relation", "isComplete", True),
+    ("relation", "isDisjoint", True),
+    ("attribute", "isAbstract", True),
+    ("attribute", "isAbstract", "true"),
+    ("attribute", "isExtensional", True),
+    ("attribute", "isPowertype", True),
+    ("attribute", "isComplete", True),
+    ("attribute", "isDisjoint", True),
+    ("source_end", "isAbstract", True),
+    ("source_end", "isAbstract", "true"),
+    ("target_end", "isAbstract", 1),
+    ("class", "isReadOnly", True),
+    ("class", "isOrdered", "true"),
+    ("class", "isComplete", True),
+    ("class", "isDisjoint", True),
+    ("class_gs", "isAbstract", True),
+    ("class_gs", "isDerived", "true"),
+    ("class_gs", "isReadOnly", True),
+    ("class_gs", "isOrdered", True),
+    ("project", "isAbstract", True),
+    ("package", "isDerived", "true"),
+    ("generalization", "isDisjoint", True),
+    ("literal", "isDerived", 1),
+], ids=[
+    "relation-isReadOnly-bool", "relation-isReadOnly-str",
+    "relation-isOrdered-bool", "relation-isOrdered-int",
+    "relation-isExtensional", "relation-isPowertype",
+    "relation-isComplete", "relation-isDisjoint",
+    "attribute-isAbstract-bool", "attribute-isAbstract-str",
+    "attribute-isExtensional", "attribute-isPowertype",
+    "attribute-isComplete", "attribute-isDisjoint",
+    "source_end-isAbstract-bool", "source_end-isAbstract-str",
+    "target_end-isAbstract-int",
+    "class-isReadOnly", "class-isOrdered",
+    "class-isComplete", "class-isDisjoint",
+    "class_gs-isAbstract", "class_gs-isDerived",
+    "class_gs-isReadOnly", "class_gs-isOrdered",
+    "project-isAbstract", "package-isDerived",
+    "generalization-isDisjoint", "literal-isDerived",
+])
+def test_unrecognized_boolean_flag_fields_outside_element_type_use_unknown_information(
+        run, source_json, tmp_path, input_policy, target_role, extra_field, value):
+    """Rules: DK-DIAG-05, DK-PROP-04, DK-PROP-05, DK-CLS-01, DK-REL-01, DK-DIAG-04; §3.2. RD-02 Alternative 1."""
+    if target_role == "class_gs":
+        document = source_json("classes/generalization_sets")
+        target = source_element(document, "gsMain")
+        target_id = "gsMain"
+    elif target_role == "generalization":
+        document = source_json("classes/generalization_sets")
+        target = source_element(document, "gB")
+        target_id = "gB"
+    elif target_role == "literal":
+        document = source_json("classes/enumerations")
+        target = source_element(document, "vPending")
+        target_id = "vPending"
+    else:
+        document = source_json("shared/core_model")
+        if target_role == "project":
+            target = document
+            target_id = document["id"]
+        elif target_role == "package":
+            target = document["model"]
+            target_id = target["id"]
+        else:
+            target_id = {
+                "relation": "rWorks",
+                "attribute": "aAge",
+                "source_end": "eSource",
+                "target_end": "eTarget",
+                "class": "cOrg",
+            }[target_role]
+            target = source_element(document, target_id)
+    target[extra_field] = value
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any("malformed_boolean_flag" in d.facts for d in result.diagnostics), result.diagnostics
+    expected_severity = "ERROR" if input_policy == "strict" else "WARNING"
+    assert any(
+        d.code == "UNKNOWN_INFORMATION"
+        and d.severity == expected_severity
+        and target_id in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy == "strict":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed" and result.ontology is not None
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_class_id_with_malformed_flag",
+    "duplicate_relation_id_with_malformed_flag",
+    "duplicate_attribute_id_with_malformed_flag",
+    "duplicate_gs_id_with_malformed_flag",
+    "rejected_missing_stereotype_class_with_malformed_flag",
+    "rejected_custom_stereotype_relation_with_malformed_flag",
+    "malformed_stereotype_class_omitted_suppresses_flag_error",
+    "malformed_stereotype_relation_omitted_suppresses_flag_error",
+    "surviving_property_after_malformed_stereotype_still_validates_flag",
+    "invalid_class_id_with_malformed_flag",
+    "invalid_attribute_id_with_malformed_flag",
+    "invalid_gs_id_with_malformed_flag",
+    "malformed_class_properties_entry_suppresses_flag_error",
+    "non_enum_class_literals_suppresses_flag_error",
+    "non_binary_relation_properties_suppresses_end_flag_error",
+    "gs_empty_generalizations_precedes_gs_flag_validation",
+    "gs_null_generalizations_precedes_gs_flag_validation",
+    "instantiation_relation_with_malformed_flags",
+    "unsupported_connector_with_malformed_flags",
+    "material_derivation_connector_with_malformed_flags",
+    "attribute_owner_without_local_class_suppresses_flag_error",
+])
+def test_malformed_boolean_flag_respects_precedence_and_omitted_element_boundaries(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-DIAG-05, DK-DIAG-06, DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-03, DK-DIAG-12, DK-INS-01, DK-INS-02, DK-REL-08, DK-REL-17; §§3.2, 3.4. RD-02 Alternative 1."""
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = False
+
+    if condition in {
+        "duplicate_class_id_with_malformed_flag",
+        "duplicate_relation_id_with_malformed_flag",
+        "duplicate_attribute_id_with_malformed_flag",
+        "rejected_missing_stereotype_class_with_malformed_flag",
+        "rejected_custom_stereotype_relation_with_malformed_flag",
+        "malformed_stereotype_class_omitted_suppresses_flag_error",
+        "malformed_stereotype_relation_omitted_suppresses_flag_error",
+        "surviving_property_after_malformed_stereotype_still_validates_flag",
+        "invalid_class_id_with_malformed_flag",
+        "invalid_attribute_id_with_malformed_flag",
+        "malformed_class_properties_entry_suppresses_flag_error",
+        "non_enum_class_literals_suppresses_flag_error",
+        "non_binary_relation_properties_suppresses_end_flag_error",
+        "attribute_owner_without_local_class_suppresses_flag_error",
+    }:
+        document = source_json("shared/core_model")
+    elif condition in {
+        "duplicate_gs_id_with_malformed_flag",
+        "invalid_gs_id_with_malformed_flag",
+        "gs_empty_generalizations_precedes_gs_flag_validation",
+        "gs_null_generalizations_precedes_gs_flag_validation",
+    }:
+        document = source_json("classes/generalization_sets")
+    elif condition == "instantiation_relation_with_malformed_flags":
+        document = source_json("shared/instantiation")
+    elif condition == "unsupported_connector_with_malformed_flags":
+        document = source_json("shared/omitted_connector")
+    else:
+        document = source_json("shared/material_pattern")
+
+    if condition == "duplicate_class_id_with_malformed_flag":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup["isAbstract"] = "true"
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "duplicate_relation_id_with_malformed_flag":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup["id"] = "rWorks"
+        source_element(document, "rWorks")["isDerived"] = 1
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "duplicate_attribute_id_with_malformed_flag":
+        dup = copy.deepcopy(source_element(document, "aAge"))
+        dup["isReadOnly"] = "true"
+        source_element(document, "cOrg")["properties"] = [dup]
+        always_abort = True
+    elif condition == "duplicate_gs_id_with_malformed_flag":
+        dup = copy.deepcopy(source_element(document, "gsMain"))
+        dup["isComplete"] = "true"
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "rejected_missing_stereotype_class_with_malformed_flag":
+        options["stereotype_policy"] = "require-known"
+        source_element(document, "cOrg").update(stereotype=None, isAbstract="true", isExtensional=1)
+        always_abort = True
+    elif condition == "rejected_custom_stereotype_relation_with_malformed_flag":
+        options["stereotype_policy"] = "allow-missing"
+        source_element(document, "rWorks").update(stereotype="customRel", isDerived=1)
+        always_abort = True
+    elif condition == "malformed_stereotype_class_omitted_suppresses_flag_error":
+        bad = copy.deepcopy(source_element(document, "cOrg"))
+        bad.update(id="cMalformed", stereotype=True, isAbstract="true", isPowertype=1)
+        document["model"]["contents"].append(bad)
+    elif condition == "malformed_stereotype_relation_omitted_suppresses_flag_error":
+        rel = source_element(document, "rWorks")
+        rel.update(stereotype="", isAbstract="true", isDerived=1)
+        rel["properties"][0].update(isReadOnly="true", isOrdered=0)
+    elif condition == "surviving_property_after_malformed_stereotype_still_validates_flag":
+        source_element(document, "aAge").update(stereotype=False, isReadOnly="true")
+    elif condition == "invalid_class_id_with_malformed_flag":
+        bad = copy.deepcopy(source_element(document, "cOrg"))
+        bad.update(id="", isAbstract="true", isDerived=1)
+        document["model"]["contents"].append(bad)
+    elif condition == "invalid_attribute_id_with_malformed_flag":
+        source_element(document, "aAge").update(id="", isOrdered="true")
+    elif condition == "invalid_gs_id_with_malformed_flag":
+        source_element(document, "gsMain").update(id="", isComplete="true", isDisjoint=1)
+    elif condition == "malformed_class_properties_entry_suppresses_flag_error":
+        bad_entry = copy.deepcopy(source_element(document, "cOrg"))
+        bad_entry.update(id="cNotAProp", isAbstract="true", isDerived=1)
+        source_element(document, "cOrg")["properties"] = [bad_entry]
+    elif condition == "non_enum_class_literals_suppresses_flag_error":
+        lit = {"id": "vDisallowed", "name": "Disallowed", "description": None,
+               "type": "Literal", "propertyAssignments": None}
+        source_element(document, "cOrg")["literals"] = [lit]
+    elif condition == "non_binary_relation_properties_suppresses_end_flag_error":
+        rel = source_element(document, "rWorks")
+        rel.update(isAbstract="true")
+        rel["properties"][0].update(isReadOnly="true")
+        rel["properties"] = rel["properties"][:1]
+    elif condition == "gs_empty_generalizations_precedes_gs_flag_validation":
+        source_element(document, "gsMain").update(generalizations=[], isComplete="true", isDisjoint=1)
+    elif condition == "gs_null_generalizations_precedes_gs_flag_validation":
+        source_element(document, "gsMain").update(generalizations=None, isComplete="true", isDisjoint=1)
+    elif condition == "instantiation_relation_with_malformed_flags":
+        rel = source_element(document, "rInstantiation")
+        rel.update(isAbstract="true", isDerived=1)
+        rel["properties"][0].update(isDerived="true", isReadOnly=1, isOrdered=[])
+        rel["properties"][1].update(isDerived=0, isReadOnly="false", isOrdered={})
+    elif condition == "unsupported_connector_with_malformed_flags":
+        rel = source_element(document, "rConnector")
+        rel.update(isAbstract="true", isDerived=1)
+        rel["properties"][0].update(isDerived="true", isReadOnly=1, isOrdered=[])
+        rel["properties"][1].update(isDerived=0, isReadOnly="false", isOrdered={})
+    elif condition == "material_derivation_connector_with_malformed_flags":
+        rel = source_element(document, "rDerivation")
+        rel.update(isAbstract="true", isDerived=1)
+        rel["properties"][0].update(isDerived="true", isReadOnly=1, isOrdered=[])
+        rel["properties"][1].update(isDerived=0, isReadOnly="false", isOrdered={})
+    else:
+        attr = copy.deepcopy(source_element(document, "aAge"))
+        attr.update(id="aPrimBad", name="primBad", isDerived="true", isReadOnly=1, isOrdered=[])
+        source_element(document, "dInt")["properties"] = [attr]
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+
+    if condition in {
+        "instantiation_relation_with_malformed_flags",
+        "unsupported_connector_with_malformed_flags",
+        "material_derivation_connector_with_malformed_flags",
+    }:
+        assert result.outcome == "completed"
+        assert not any("malformed_boolean_flag" in d.facts for d in result.diagnostics)
+        assert not any(d.severity == "ERROR" for d in result.diagnostics)
+        if condition == "instantiation_relation_with_malformed_flags":
+            assert any(d.kind == "discarded_instantiation_data" and d.severity == "WARNING"
+                       for d in result.diagnostics)
+        elif condition == "unsupported_connector_with_malformed_flags":
+            assert any(d.kind == "unsupported_connector" and d.severity == "WARNING"
+                       for d in result.diagnostics)
+        return
+
+    if always_abort:
+        assert result.outcome == "aborted" and result.ontology is None
+        assert not any("malformed_boolean_flag" in d.facts for d in result.diagnostics)
+        if condition.startswith("duplicate_"):
+            assert any(d.code == "DUPLICATE_SOURCE_ID" and d.severity == "ERROR" for d in result.diagnostics)
+        elif condition == "rejected_missing_stereotype_class_with_malformed_flag":
+            assert any(d.code == "MISSING_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+        else:
+            assert any(d.code == "UNRECOGNIZED_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+        return
+
+    if condition == "surviving_property_after_malformed_stereotype_still_validates_flag":
+        assert any(d.severity == "ERROR" and "malformed_stereotype" in d.facts for d in result.diagnostics)
+        if input_policy != "best-effort":
+            assert result.outcome == "aborted" and result.ontology is None
+            assert not any("malformed_boolean_flag" in d.facts for d in result.diagnostics)
+        else:
+            assert result.outcome == "completed-with-errors"
+            assert any(
+                d.severity == "ERROR" and "malformed_boolean_flag" in d.facts and "aAge" in d.identified_sources
+                for d in result.diagnostics
+            ), result.diagnostics
+            assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in result.ontology
+        return
+
+    assert not any("malformed_boolean_flag" in d.facts for d in result.diagnostics), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors" and result.ontology is not None
+
+    if condition == "attribute_owner_without_local_class_suppresses_flag_error":
+        assert any(
+            d.severity == "ERROR" and d.kind == "attribute_owner_without_local_class" and "aPrimBad" in d.identified_sources
+            for d in result.diagnostics
+        ), result.diagnostics
+        if input_policy == "best-effort":
+            assert not any(BASE.aPrimBad in triple or BASE.dInt in triple for triple in result.ontology)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,target_kind,target_id", [
+    ("class_str", "Class", "cOrg"),
+    ("relation_int", "Relation", "rWorks"),
+    ("attribute_list", "Property", "aAge"),
+    ("source_end_dict", "Property", "eSource"),
+    ("target_end_str", "Property", "eTarget"),
+    ("class_gs_int", "GeneralizationSet", "gsMain"),
+    ("relation_gs_str", "GeneralizationSet", "gsRelations"),
+])
+def test_malformed_boolean_flag_json_diagnostics_export_contract(
+        invoke, tmp_path, input_policy, case, target_kind, target_id):
+    """Rules: DK-DIAG-04, DK-DIAG-05; §15 Python JSON export. RD-02 Alternative 1."""
+    case_map = {
+        "class_str": ("class", "isAbstract", "true"),
+        "relation_int": ("relation", "isDerived", 1),
+        "attribute_list": ("attribute", "isOrdered", ["true"]),
+        "source_end_dict": ("source_end", "isReadOnly", {"value": True}),
+        "target_end_str": ("target_end", "isDerived", "false"),
+        "class_gs_int": ("class_gs", "isComplete", 1),
+        "relation_gs_str": ("relation_gs", "isDisjoint", "true"),
+    }
+    target_role, flag, bad_value = case_map[case]
+    document, _ = _prepare_malformed_boolean_flag_target(target_role, flag, bad_value)
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "malformed_boolean_flag.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] not in _STABLE_DIAGNOSTIC_CODES
+        and event["message"]
+        and event["effect"]
+        and "malformed_boolean_flag" in malformed_boolean_flag_diagnostic(
+            event["message"], [type("Loc", (), s)() for s in event["sources"]]
+        )
+    ]
+    assert matching, payload["diagnostics"]
+    reported_sources = {
+        (source_loc["element_type"], source_loc["identifier"])
+        for event in matching for source_loc in event["sources"]
+    }
+    assert (target_kind, target_id) in reported_sources
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+
+
+def test_malformed_boolean_flag_reader_requires_affirmative_conditions():
+    """Harness only: verify affirmative malformed-boolean-flag reader rejects guard, unknown-field, null/valid, negated, and unrelated wording."""
+    accepted = (
+        "Class 'cPerson' isAbstract must be a boolean or null, got str.",
+        "Malformed boolean flag isDerived on Relation 'rWorks': expected bool or null, got int.",
+        "Property 'aAge' has a non-boolean isOrdered value (got list).",
+        "Invalid isReadOnly value 'true' on Property 'eSource'.",
+        "GeneralizationSet 'gsMain' isComplete is not a JSON boolean (got dict).",
+        "Class 'cPerson' isPowertype must be a boolean or null, got int.",
+        "GeneralizationSet 'gsRelations' isDisjoint is malformed.",
+        "Property 'eTarget' isDerived cannot be non-boolean.",
+    )
+    for message in accepted:
+        assert "malformed_boolean_flag" in malformed_boolean_flag_diagnostic(message), message
+
+    rejected = (
+        "Malformed class-flag recovery is outside the decided baseline",
+        "Malformed relation/end flag recovery remains unspecified",
+        "Unexpected internal failure while validating isAbstract.",
+        "Unrecognized input fields on Relation: isReadOnly.",
+        "Unrecognized input field isAbstract on Property.",
+        "Class 'cPerson' isAbstract is null.",
+        "Class 'cPerson' isAbstract is absent.",
+        "Class 'cPerson' isAbstract is true.",
+        "Class 'cPerson' isAbstract is false.",
+        "Explicit isAbstract=true is preserved as an annotation; its meaning is not additionally enforced.",
+        "Class 'cPerson' isAbstract is valid.",
+        "Class 'cPerson' isAbstract is not malformed.",
+        "If isAbstract is non-boolean, conversion aborts.",
+        "Class 'cPerson' isDerived may be malformed.",
+        "Class 'cPerson' isAbstract is null or malformed.",
+        "Class 'cPerson' isAbstract must be a boolean or null.",
+        "Class 'cPerson' stereotype must be a nonempty string or null, got int.",
+    )
+    for message in rejected:
+        assert not malformed_boolean_flag_diagnostic(message), message
+
 
