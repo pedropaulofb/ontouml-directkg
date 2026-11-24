@@ -1976,21 +1976,39 @@ def unresolved_attribute_type_diagnostic(message: str) -> bool:
     return bool(_unresolved_attribute_type_facts(message))
 
 
+_DIAGNOSTIC_ID_TOKEN = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]+`|[\w-]+)"""
+
+
+def _diagnostic_identifier(token: str) -> str:
+    """Read a source ID without case folding or discarding quoted content."""
+    if token.startswith(("'", '"')):
+        try:
+            return literal_eval(token)
+        except (SyntaxError, ValueError):
+            return token[1:-1]
+    return token.removeprefix("`").removesuffix("`")
+
+
+def _absent_attribute_property_type_claim(message: str):
+    """Return an affirmative claim match, retaining its optional explicit subject."""
+    wording = message.strip().removesuffix(".")
+    attribute = rf"(?:class )?attribute(?: (?P<subject>{_DIAGNOSTIC_ID_TOKEN}))?"
+    field = r"(?:the )?(?:propertytype|'propertytype'|\"propertytype\"|`propertytype`)(?: field| carrier)?"
+    absent = r"(?:absent|missing|not (?:present|provided|supplied))"
+    for pattern in (
+        rf"{attribute} (?:has no {field}|lacks (?:a )?(?:required )?{field}|has (?:an? )?(?:absent|missing) {field}|(?:is missing|is lacking) (?:a |the )?(?:required )?{field}|{field} (?:is|was) {absent})",
+        rf"(?:absent|missing) {field} (?:on|for|in) {attribute}",
+        rf"{field} (?:is|was) {absent} (?:on|for|in) {attribute}",
+    ):
+        match = re.fullmatch(pattern, wording, re.IGNORECASE)
+        if match:
+            return match
+    return None
+
+
 def absent_attribute_property_type_diagnostic(message: str) -> bool:
     """Read an affirmative claim of an absent attribute propertyType field."""
-    wording = message.casefold().replace("`", "")
-    wording = re.sub(r"['\"]propertytype['\"]", "propertytype", wording)
-    wording = re.sub(r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")""", "<quoted>", wording)
-    wording = " ".join(wording.split()).removesuffix(".")
-    attribute = r"(?:class )?attribute(?: <quoted>| [a-z0-9_-]+)?"
-    field = r"(?:the )?propertytype(?: field| carrier)?"
-    absent = r"(?:absent|missing|not (?:present|provided|supplied))"
-    return bool(re.fullmatch(
-        rf"{attribute} (?:has no {field}|lacks (?:a )?(?:required )?{field}|has (?:an? )?(?:absent|missing) {field}|(?:is missing|is lacking) (?:a |the )?(?:required )?{field}|{field} (?:is|was) {absent})"
-        rf"|(?:absent|missing) {field} (?:on|for|in) {attribute}"
-        rf"|{field} (?:is|was) {absent} (?:on|for|in) {attribute}",
-        wording,
-    ))
+    return _absent_attribute_property_type_claim(message) is not None
 
 
 def absent_attribute_property_type_error(event, identifier):
@@ -1999,9 +2017,45 @@ def absent_attribute_property_type_error(event, identifier):
         "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
         "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
     }
-    return (event.severity == "ERROR" and bool(event.code) and event.code not in stable_codes
+    # Observed display text combines native reason and effect; only the
+    # native reason establishes the condition and its explicit subject.
+    claim = _absent_attribute_property_type_claim(getattr(event.raw, "message", event.message))
+    subject = claim.group("subject") if claim else None
+    return (claim is not None and (subject is None or _diagnostic_identifier(subject) == identifier)
+            and event.severity == "ERROR" and bool(event.code) and event.code not in stable_codes
             and identifier in event.identified_sources
             and "absent_attribute_property_type" in event.facts)
+
+
+def unresolved_property_reference_between(event, referencing, field, referenced):
+    """Read direction from the reported reference, not the order or count of locators.
+
+    Native unresolved-reference reasons identify the field and reference value.
+    The source locator identifies the referencing property; an explicit subject
+    in the reason must agree with it. A target locator may also be present.
+    """
+    if (event.severity != "ERROR" or event.kind != "unresolved_property_reference"
+            or referencing not in event.identified_sources):
+        return False
+    match = re.search(
+        rf"\b(?:property|attribute)(?: (?P<subject>{_DIAGNOSTIC_ID_TOKEN}))? "
+        rf"{re.escape(field)} reference(?: (?:to|targeting))? "
+        rf"(?P<target>\{{[^{{}}]*\}}|{_DIAGNOSTIC_ID_TOKEN})(?![\w-])",
+        getattr(event.raw, "message", event.message), re.IGNORECASE,
+    )
+    if not match:
+        return False
+    subject = match.group("subject")
+    if subject is not None and _diagnostic_identifier(subject) != referencing:
+        return False
+    target = match.group("target")
+    if target.startswith("{"):
+        try:
+            reference = literal_eval(target)
+        except (SyntaxError, ValueError):
+            return False
+        return isinstance(reference, dict) and reference.get("id") == referenced
+    return _diagnostic_identifier(target) == referenced
 
 
 def _attribute_owner_without_local_class_facts(message: str, effect: str = "") -> set[str]:

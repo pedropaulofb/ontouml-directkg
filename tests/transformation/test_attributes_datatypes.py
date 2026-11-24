@@ -7,7 +7,8 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import assert_dkgm_vocabulary
-from tests.support.invocation import (absent_attribute_property_type_diagnostic,
+from tests.support.invocation import (_observed_diagnostics,
+                                      absent_attribute_property_type_diagnostic,
                                       absent_attribute_property_type_error,
                                       attribute_owner_without_local_class_diagnostic,
                                       class_properties_container_diagnostic,
@@ -263,7 +264,9 @@ def test_absent_attribute_property_type_is_distinct_from_explicit_null(
 
 
 def test_absent_attribute_property_type_reader_requires_affirmative_absence():
-    """Rules: DK-ATT-01, DK-DIAG-05. Harness only: distinguish absent field from null or other errors."""
+    """Rules: DK-ATT-01, DK-DIAG-04, DK-DIAG-05. Harness: affirmative absence and agreeing subject."""
+    from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
+
     for message in (
         "Attribute 'aAge' is missing the required propertyType field.",
         "Attribute 'aAge' propertyType is absent.",
@@ -282,6 +285,27 @@ def test_absent_attribute_property_type_reader_requires_affirmative_absence():
         "Attribute value-type reference cannot be resolved.",
     ):
         assert not absent_attribute_property_type_diagnostic(message), message
+
+    locations = (SourceLocation("$.model.contents[0].properties[0]", "aAge", "Property"),
+                 SourceLocation("$.model.contents[0].properties[1]", "aNote", "Property"))
+    for message, expected in (
+        ("Attribute 'aAge' is missing propertyType.", True),
+        ('Attribute "aAge" is missing the `propertyType` field.', True),
+        ("Attribute aAge propertyType is absent.", True),
+        ("Missing propertyType field on class attribute `aAge`.", True),
+        ("Attribute is missing propertyType.", True),
+        ("Attribute 'aNote' is missing propertyType.", False),
+        ('Attribute "aNote" has no propertyType.', False),
+        ("Missing propertyType on attribute aNote.", False),
+        ("Attribute 'aage' is missing propertyType.", False),
+        ("Attribute 'aAge' propertyType is absent or null.", False),
+    ):
+        # The contradictory explicit subject cannot be repaired by including
+        # the expected ID in either a single locator or a multiple-locator list.
+        for sources in ((locations[0],), locations):
+            native = Diagnostic("ERROR", "PROVISIONAL_PROBE", message, "Affected attribute omitted.", sources)
+            event, = _observed_diagnostics((native,), retain_unclassified=True)
+            assert absent_attribute_property_type_error(event, "aAge") == expected, message
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

@@ -69,7 +69,8 @@ from rdflib import BNode, Graph
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.rdf import (assert_selected_equal, cardinality_facts,
                                necessary_restrictions, property_expression)
-from tests.support.invocation import absent_attribute_property_type_error, diagnostic_signatures
+from tests.support.invocation import (_observed_diagnostics, absent_attribute_property_type_error,
+                                      diagnostic_signatures, unresolved_property_reference_between)
 from tests.support.rdf import assert_graph_equal, rooted_graph, one_object
 
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -258,17 +259,41 @@ def test_absent_attribute_property_type_retains_only_applicable_reference_diagno
     assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
     incoming = [event for event in result.diagnostics if event.kind == "unresolved_property_reference"]
     if direction in {"towards_omitted", "both"}:
-        assert any(event.severity == "ERROR" and "aNote" in event.identified_sources
-                   and field.casefold() in event.message.casefold()
-                   and "aAge" in event.message for event in incoming)
+        assert incoming
+        assert all(unresolved_property_reference_between(event, "aNote", field, "aAge")
+                   for event in incoming)
     else:
         assert not incoming
-    assert not any("aAge" in event.identified_sources for event in incoming)
     assert _hierarchy(result.ontology) == {(BASE.aNote, BASE.aPeer)}
     assert not any(BASE.aAge in triple for triple in result.ontology)
     for prop in (BASE.aNote, BASE.aPeer):
         assert (prop, RDF.type, OWL.DatatypeProperty) in result.ontology
         assert (prop, RDFS.domain, BASE.cPerson) in result.ontology
+
+
+def test_absent_attribute_property_type_reference_reader_distinguishes_direction():
+    """Rules: DK-PROP-03, DK-DIAG-04, DK-DIAG-05. Harness: permit relevant target locators."""
+    from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
+
+    note, age, peer = (SourceLocation(f"$.model.contents[0].properties[{index}]", identifier, "Property")
+                       for index, identifier in enumerate(("aNote", "aAge", "aPeer")))
+    for field in REFERENCE_FIELDS:
+        incoming = f"Property {field} reference {{'id': 'aAge', 'type': 'Property'}} cannot supply a property expression."
+        outgoing = f"Property {field} reference {{'id': 'aPeer', 'type': 'Property'}} cannot supply a property expression."
+        for message, sources, expected in (
+            (incoming, (note,), True),
+            (incoming, (note, age), True),
+            (incoming, (age, note), True),
+            (f"Property 'aNote' {field} reference to 'aAge' is unresolved.", (note, age), True),
+            (incoming, (age,), False),
+            (outgoing, (age, peer), False),
+            (outgoing, (note, age, peer), False),
+            (f"Property 'aAge' {field} reference to 'aAge' is unresolved.", (note, age), False),
+            (f"Property {field} reference to 'aAgeOther' is unresolved.", (note, age), False),
+        ):
+            native = Diagnostic("ERROR", "UNRESOLVED_PROPERTY_REFERENCE", message, "Affected inclusion omitted.", sources)
+            event, = _observed_diagnostics((native,))
+            assert unresolved_property_reference_between(event, "aNote", field, "aAge") == expected, message
 
 
 @pytest.mark.parametrize('input_policy', POLICIES)
