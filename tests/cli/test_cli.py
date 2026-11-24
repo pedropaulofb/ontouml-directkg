@@ -15,7 +15,8 @@ from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_path, fixture_issues, load_json, package_contents_document, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
-from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, console_covers_diagnostic_records,
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, absent_attribute_property_type_error,
+                                      console_covers_diagnostic_records,
                                       diagnostic_record_counts, diagnostic_signatures,
                                       diagnostics_report_write_error, dkgm_chain_facts, escaped_id_collision_diagnostic,
                                       malformed_package_contents_diagnostic, ontology_serialization_error,
@@ -660,6 +661,83 @@ def _assert_cli_json_and_console(invoke, process, path):
     # Code equality is checked only when the observed console record displays it.
     assert console_covers_diagnostic_records(process.console, delivered.events)
     return delivered
+
+
+@pytest.mark.parametrize("carrier", ["absent", "null"])
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_absent_attribute_property_type_cli_python_parity(invoke, tmp_path, carrier, input_policy):
+    """Rules: DK-ATT-01, DK-DAT-03, DK-DIAG-04, DK-DIAG-05; §15."""
+    document = load_json("shared/core_model")
+    focus = source_element(document, "aAge")
+    if carrier == "absent":
+        del focus["propertyType"]
+    else:
+        focus["propertyType"] = None
+    assert not fixture_issues(document)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar",
+               "input_policy": input_policy}
+    expected = ("completed" if carrier == "null" else
+                "completed-with-errors" if input_policy == "best-effort" else "aborted")
+    eligible = expected != "aborted"
+    destination, report = tmp_path / "out.ttl", tmp_path / "cli.json"
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=tmp_path)
+    assert process.conversion_started
+    assert process.returncode == {"completed": 0, "completed-with-errors": 1, "aborted": 3}[expected]
+    assert invoke.read_outcome(python) == expected
+    exported = _assert_native_json_mirror(invoke, python, tmp_path / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == expected
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        if carrier == "absent":
+            assert any(absent_attribute_property_type_error(event, "aAge") for event in events)
+        else:
+            assert not any(event.severity == "ERROR" or "absent_attribute_property_type" in event.facts
+                           for event in events)
+    assert (invoke.read_ontology(python) is not None) == eligible
+    assert (invoke.read_provenance(python) is not None) == eligible
+    assert destination.is_file() == eligible
+    assert destination.with_name("out.provenance.ttl").is_file() == eligible
+    if eligible:
+        graph = load_graph(destination)
+        assert_graph_equal(graph, invoke.read_ontology(python))
+        assert (BASE.aNote, RDF.type, OWL.DatatypeProperty) in graph
+        if carrier == "null":
+            assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in graph
+            assert (BASE.aAge, RDFS.domain, BASE.cPerson) in graph
+            assert not list(graph.objects(BASE.aAge, RDFS.range))
+        else:
+            assert not any(BASE.aAge in triple for triple in graph)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_absent_attribute_property_type_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-ATT-01, DK-DIAG-04, DK-DIAG-05; §15 exit code 4."""
+    document = load_json("shared/core_model")
+    del source_element(document, "aAge")["propertyType"]
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar",
+               "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    assert process.returncode == 4
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    eligible = input_policy == "best-effort"
+    assert converted.outcome == delivered.outcome == ("completed-with-errors" if eligible else "aborted")
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert any(absent_attribute_property_type_error(event, "aAge") for event in process.observation.diagnostics)
+    assert destination.is_file() == eligible
+    assert destination.with_name("out.provenance.ttl").is_file() == eligible
 
 
 @pytest.mark.parametrize("scope", ["root", "nested"])

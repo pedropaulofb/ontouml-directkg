@@ -1976,6 +1976,34 @@ def unresolved_attribute_type_diagnostic(message: str) -> bool:
     return bool(_unresolved_attribute_type_facts(message))
 
 
+def absent_attribute_property_type_diagnostic(message: str) -> bool:
+    """Read an affirmative claim of an absent attribute propertyType field."""
+    wording = message.casefold().replace("`", "")
+    wording = re.sub(r"['\"]propertytype['\"]", "propertytype", wording)
+    wording = re.sub(r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")""", "<quoted>", wording)
+    wording = " ".join(wording.split()).removesuffix(".")
+    attribute = r"(?:class )?attribute(?: <quoted>| [a-z0-9_-]+)?"
+    field = r"(?:the )?propertytype(?: field| carrier)?"
+    absent = r"(?:absent|missing|not (?:present|provided|supplied))"
+    return bool(re.fullmatch(
+        rf"{attribute} (?:has no {field}|lacks (?:a )?(?:required )?{field}|has (?:an? )?(?:absent|missing) {field}|(?:is missing|is lacking) (?:a |the )?(?:required )?{field}|{field} (?:is|was) {absent})"
+        rf"|(?:absent|missing) {field} (?:on|for|in) {attribute}"
+        rf"|{field} (?:is|was) {absent} (?:on|for|in) {attribute}",
+        wording,
+    ))
+
+
+def absent_attribute_property_type_error(event, identifier):
+    """Check the actual source locator, severity and provisional error meaning."""
+    stable_codes = {
+        "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+        "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+    }
+    return (event.severity == "ERROR" and bool(event.code) and event.code not in stable_codes
+            and identifier in event.identified_sources
+            and "absent_attribute_property_type" in event.facts)
+
+
 def _attribute_owner_without_local_class_facts(message: str, effect: str = "") -> set[str]:
     """Read affirmative ERROR wording for an attribute owned by a Class without a local owl:Class."""
     combined = f"{message} {effect}".strip()
@@ -2882,6 +2910,11 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 kind = "unresolved_attribute_type"
         elif kind == "unresolved_attribute_type":
             facts.add("unresolved_attribute_type")
+        if (event.severity == "ERROR" and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
+                and absent_attribute_property_type_diagnostic(event.message)):
+            facts.add("absent_attribute_property_type")
+            if kind is None:
+                kind = "absent_attribute_property_type"
         owner_missing_facts = (_attribute_owner_without_local_class_facts(event.message, event.effect)
                                if event.severity == "ERROR" and event.code != "INTERNAL_TRANSFORMATION_FAILURE"
                                else set())

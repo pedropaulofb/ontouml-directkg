@@ -69,7 +69,7 @@ from rdflib import BNode, Graph
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.rdf import (assert_selected_equal, cardinality_facts,
                                necessary_restrictions, property_expression)
-from tests.support.invocation import diagnostic_signatures
+from tests.support.invocation import absent_attribute_property_type_error, diagnostic_signatures
 from tests.support.rdf import assert_graph_equal, rooted_graph, one_object
 
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -230,6 +230,45 @@ def test_every_reference_is_independent_deduplicated_and_not_transitively_closed
     assert _hierarchy(result.ontology) == {(BASE.pChild,BASE.pThird),(BASE.pChild,BASE.t0),(BASE.pThird,BASE.pBase)}
     assert not any(d.kind == 'duplicate_id' or d.severity == 'ERROR' for d in result.diagnostics)
     assert not list(result.ontology.triples((None,OWL.equivalentProperty,None)))
+
+
+@pytest.mark.parametrize("field", REFERENCE_FIELDS, ids=["subsets", "redefines"])
+@pytest.mark.parametrize("direction", ["towards_omitted", "from_omitted", "both"])
+def test_absent_attribute_property_type_retains_only_applicable_reference_diagnostics(
+        run, source_json, tmp_path, field, direction):
+    """Rules: DK-ATT-01, DK-PROP-03, DK-DIAG-05. RD-02 Alternative A."""
+    document = source_json("shared/core_model")
+    owner = source_element(document, "cPerson")
+    focus = source_element(document, "aAge")
+    del focus["propertyType"]
+    peer = copy.deepcopy(source_element(document, "aNote"))
+    peer.update(id="aPeer", name="peer")
+    owner["properties"].append(peer)
+
+    note = source_element(document, "aNote")
+    note[field] = [_reference("aPeer")]
+    if direction in {"towards_omitted", "both"}:
+        note[field].append(_reference("aAge"))
+    if direction in {"from_omitted", "both"}:
+        focus[field] = [_reference("aPeer")]
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert any(absent_attribute_property_type_error(event, "aAge") for event in result.diagnostics)
+    assert result.outcome == "completed-with-errors"
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    incoming = [event for event in result.diagnostics if event.kind == "unresolved_property_reference"]
+    if direction in {"towards_omitted", "both"}:
+        assert any(event.severity == "ERROR" and "aNote" in event.identified_sources
+                   and field.casefold() in event.message.casefold()
+                   and "aAge" in event.message for event in incoming)
+    else:
+        assert not incoming
+    assert not any("aAge" in event.identified_sources for event in incoming)
+    assert _hierarchy(result.ontology) == {(BASE.aNote, BASE.aPeer)}
+    assert not any(BASE.aAge in triple for triple in result.ontology)
+    for prop in (BASE.aNote, BASE.aPeer):
+        assert (prop, RDF.type, OWL.DatatypeProperty) in result.ontology
+        assert (prop, RDFS.domain, BASE.cPerson) in result.ontology
 
 
 @pytest.mark.parametrize('input_policy', POLICIES)

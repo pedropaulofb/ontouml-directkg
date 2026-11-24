@@ -7,7 +7,9 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.dkgm import assert_dkgm_vocabulary
-from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
+from tests.support.invocation import (absent_attribute_property_type_diagnostic,
+                                      absent_attribute_property_type_error,
+                                      attribute_owner_without_local_class_diagnostic,
                                       class_properties_container_diagnostic,
                                       diagnostic_record_counts,
                                       diagnostic_signatures,
@@ -211,6 +213,98 @@ def test_attribute_kind_range_and_no_local_value_type_restriction(run, source_js
     else:
         assert not any(d.kind == 'void_datatype' for d in result.diagnostics)
     assert not any(d.severity == 'ERROR' for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "tolerant", "best-effort"])
+@pytest.mark.parametrize("iri_strategy", ["id", "name"])
+@pytest.mark.parametrize("carrier", ["absent", "null"])
+def test_absent_attribute_property_type_is_distinct_from_explicit_null(
+        run, source_json, tmp_path, input_policy, iri_strategy, carrier):
+    """Rules: DK-ATT-01, DK-ATT-03, DK-DAT-03, DK-GEN-03, DK-DIAG-05. RD-02 Alternative A."""
+    document = source_json("shared/core_model")
+    focus = source_element(document, "aAge")
+    focus.update(description="FOCUS_DESCRIPTION_SENTINEL", cardinality="1")
+    if carrier == "absent":
+        del focus["propertyType"]
+    else:
+        focus["propertyType"] = None
+    assert not fixture_issues(document)
+    options = {"iri_strategy": iri_strategy, "input_policy": input_policy}
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    if carrier == "null":
+        assert result.outcome == "completed"
+        assert not any(event.severity == "ERROR" or "absent_attribute_property_type" in event.facts
+                       for event in result.diagnostics)
+        prop = BASE.aAge if iri_strategy == "id" else one_subject(result.ontology, DCTERMS.identifier, Literal("aAge"))
+        owner = BASE.cPerson if iri_strategy == "id" else BASE.Person
+        _focus(result.ontology, OWL.DatatypeProperty, None, owner, prop)
+        _counts(result.ontology, owner, prop, {("exact", 1)})
+        assert (prop, RDFS.comment, Literal("FOCUS_DESCRIPTION_SENTINEL")) in result.ontology
+        return
+
+    assert any(absent_attribute_property_type_error(event, "aAge") for event in result.diagnostics), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        assert result.provenance is None
+        return
+    assert result.outcome == "completed-with-errors"
+    # The independent graph must be identical to removing only the bad attribute.
+    source_element(document, "cPerson")["properties"].remove(focus)
+    control = run(path=write_input(tmp_path, document, "control.json"), **options)
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
+    assert not any(BASE.aAge in triple for triple in result.ontology)
+    assert not any("FOCUS_DESCRIPTION_SENTINEL" in str(term) for triple in result.ontology for term in triple)
+    owner = BASE.cPerson if iri_strategy == "id" else BASE.Person
+    note = BASE.aNote if iri_strategy == "id" else one_subject(result.ontology, DCTERMS.identifier, Literal("aNote"))
+    assert (owner, RDF.type, OWL.Class) in result.ontology
+    _focus(result.ontology, OWL.DatatypeProperty, None, owner, note)
+
+
+def test_absent_attribute_property_type_reader_requires_affirmative_absence():
+    """Rules: DK-ATT-01, DK-DIAG-05. Harness only: distinguish absent field from null or other errors."""
+    for message in (
+        "Attribute 'aAge' is missing the required propertyType field.",
+        "Attribute 'aAge' propertyType is absent.",
+        "Missing propertyType field on class attribute 'aAge'.",
+        "Attribute 'aAge' has no propertyType.",
+        "Attribute 'aAge' is missing the required 'propertyType' field.",
+    ):
+        assert absent_attribute_property_type_diagnostic(message), message
+    for message in (
+        "Attribute 'aAge' has propertyType.",
+        "Attribute 'aAge' propertyType is null.",
+        "Attribute 'aAge' propertyType is not missing.",
+        "Attribute 'aAge' propertyType is absent or null.",
+        "Attribute 'aAge' propertyType is valid; the identifier is missing.",
+        "If an attribute lacks propertyType, it is omitted.",
+        "Attribute value-type reference cannot be resolved.",
+    ):
+        assert not absent_attribute_property_type_diagnostic(message), message
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", ["duplicate_id", "rejected_stereotype"])
+def test_absent_attribute_property_type_preserves_precedence(run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-ATT-01, DK-DIAG-05, DK-DIAG-06; §3.4. RD-02 Alternative A."""
+    document = source_json("shared/core_model")
+    focus = source_element(document, "aAge")
+    del focus["propertyType"]
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    if condition == "duplicate_id":
+        source_element(document, "aNote")["id"] = "aAge"
+    else:
+        focus["stereotype"] = "customProp"
+        options["stereotype_policy"] = "allow-missing"
+    result = run(path=write_input(tmp_path, document), **options)
+    assert result.outcome == "aborted" and result.ontology is None
+    expected_kind = "duplicate_id" if condition == "duplicate_id" else "unrecognized_stereotype"
+    assert any(event.severity == "ERROR" and event.kind == expected_kind for event in result.diagnostics)
+    if condition == "duplicate_id":
+        assert any(event.code == "DUPLICATE_SOURCE_ID" for event in result.diagnostics)
+    assert not any(event.code == "INTERNAL_TRANSFORMATION_FAILURE" or
+                   "absent_attribute_property_type" in event.facts for event in result.diagnostics)
 
 
 def test_recursive_custom_datatypes_keep_owned_properties_and_cycles(run, source_json, source_path, tmp_path):
