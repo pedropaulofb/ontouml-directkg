@@ -11,7 +11,7 @@ from .datatypes import PRIMITIVES, datatype_key
 from .diagnostics import DiagnosticCollector
 from .identity import class_name_candidate, escape_id, missing_name, naming_text, normalize_name
 from .multiplicity import emit_attribute_multiplicity, parse_attribute_multiplicity
-from .source import SourceElement, SourceIndex, input_error
+from .source import SourceElement, SourceIndex, input_error, validate_boolean_flags
 
 
 @dataclass(frozen=True)
@@ -68,9 +68,7 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
             identifier.encode("utf-8")
         except UnicodeError as exc:
             raise NotImplementedError("Invalid source-ID recovery requires the deferred Architect decision") from exc
-        for flag in ("isDerived", "isReadOnly", "isOrdered"):
-            if data.get(flag) is not None and type(data[flag]) is not bool:
-                raise NotImplementedError("Malformed attribute-flag recovery remains outside the decided baseline")
+        validate_boolean_flags(element, ("isDerived", "isReadOnly", "isOrdered"), diagnostics, policy)
         if "propertyType" not in data:
             raise NotImplementedError("Absent attribute propertyType carrier recovery remains outside the decided baseline")
         reference = data["propertyType"]

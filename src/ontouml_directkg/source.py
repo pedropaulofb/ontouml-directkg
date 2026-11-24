@@ -112,6 +112,29 @@ def input_error(diagnostics: DiagnosticCollector, policy: str, code: str,
         raise _AbortConversion
 
 
+def validate_boolean_flags(element: SourceElement, flags: tuple[str, ...],
+                           diagnostics: DiagnosticCollector, policy: str) -> None:
+    """Validate defined Boolean flags on a surviving element (RD-02 Alternative 1)."""
+    data = element.data
+    elem_type = data.get("type") or "Element"
+    identifier = data.get("id")
+    id_str = identifier if isinstance(identifier, str) else None
+    id_prefix = f"{id_str!r} " if id_str is not None else ""
+    for flag in flags:
+        value = data.get(flag)
+        if value is None or type(value) is bool:
+            continue
+        input_error(
+            diagnostics,
+            policy,
+            "MALFORMED_BOOLEAN_FLAG",
+            f"{elem_type} {id_prefix}{flag} must be a boolean or null, got {type(value).__name__}.",
+            (SourceLocation(f"{element.path}.{flag}", id_str, elem_type),),
+            f"Malformed {flag} field omitted; owning {elem_type} and independent mappings retained.",
+        )
+        data.pop(flag, None)
+
+
 def _non_json_constant(value: str) -> None:
     raise ValueError(f"{value} is not a JSON value")
 

@@ -8,7 +8,7 @@ from rdflib.collection import Collection
 from rdflib.namespace import OWL, RDF, RDFS
 
 from .diagnostics import DiagnosticCollector
-from .source import SourceElement, SourceIndex, input_error
+from .source import SourceElement, SourceIndex, input_error, validate_boolean_flags
 
 
 def _relation_generalization(index: SourceIndex, element: SourceElement) -> bool:
@@ -148,9 +148,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
                     "Generalization set has an explicitly empty generalizations array.", (element.location,),
                     "Empty set contributes no axioms; independently applicable mappings are retained.")
         return
-    for flag in ("isComplete", "isDisjoint"):
-        if data.get(flag) is not None and type(data[flag]) is not bool:
-            raise NotImplementedError("Malformed generalization-set flag recovery remains unspecified")
+    validate_boolean_flags(element, ("isComplete", "isDisjoint"), diagnostics, policy)
     seen = set()
     resolved = []
     complete = True
@@ -286,9 +284,7 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
         if data["type"] != "GeneralizationSet" or not _relation_set(index, element):
             continue
         members = data["generalizations"]
-        for flag in ("isComplete", "isDisjoint"):
-            if data.get(flag) is not None and type(data[flag]) is not bool:
-                raise NotImplementedError("Malformed generalization-set flag recovery remains unspecified")
+        validate_boolean_flags(element, ("isComplete", "isDisjoint"), diagnostics, policy)
         categorizer = data.get("categorizer")
         if categorizer is not None:
             input_error(

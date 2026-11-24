@@ -11,7 +11,7 @@ from .diagnostics import DiagnosticCollector
 from .enumerations import Enumeration
 from .identity import (check_id_candidate_collisions, class_name_candidate, escape_id,
                        missing_name, naming_text, normalize_name, resolve_name_collisions)
-from .source import SourceElement, SourceIndex
+from .source import SourceElement, SourceIndex, validate_boolean_flags
 
 _ULTIMATE = frozenset({"collective", "kind", "mode", "quality", "quantity", "relator", "type"})
 _GROUPS = (
@@ -21,7 +21,8 @@ _GROUPS = (
 )
 
 
-def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
+def baseline_classes(index: SourceIndex, diagnostics: DiagnosticCollector,
+                     policy: str) -> tuple[SourceElement, ...]:
     """Refuse later-wave constructs instead of silently omitting required output.
 
     NotImplementedError identifies unfinished implementation, not a new input
@@ -46,9 +47,8 @@ def baseline_classes(index: SourceIndex) -> tuple[SourceElement, ...]:
             identifier.encode("utf-8")
         except UnicodeError as exc:
             raise NotImplementedError("Invalid source-ID recovery requires the deferred Architect decision") from exc
-        for flag in ("isAbstract", "isDerived", "isExtensional", "isPowertype"):
-            if data.get(flag) is not None and type(data[flag]) is not bool:
-                raise NotImplementedError("Malformed class-flag recovery is outside the decided baseline")
+        validate_boolean_flags(element, ("isAbstract", "isDerived", "isExtensional", "isPowertype"),
+                               diagnostics, policy)
         order = data.get("order")
         if order is not None and (isinstance(order, bool) or not isinstance(order, (str, int, float))):
             raise NotImplementedError("Malformed classifier-order recovery is outside the decided baseline")

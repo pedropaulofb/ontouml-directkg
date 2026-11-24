@@ -15,7 +15,7 @@ from .multiplicity import (emit_attribute_multiplicity, parse_relation_multiplic
                            parse_relation_multiplicity_raw, report_invalid_multiplicity,
                            report_missing_multiplicity)
 from .properties import PropertyExpressions
-from .source import SourceElement, SourceIndex, input_error
+from .source import SourceElement, SourceIndex, input_error, validate_boolean_flags
 
 _REJECTED_DATATYPE_STEREOTYPES = frozenset({
     "componentOf", "memberOf", "subCollectionOf", "subQuantityOf",
@@ -193,10 +193,9 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
                                 "independent endpoint transformations retained.", (element.location,))
             omitted.add(identifier)
             continue
-        for source in (element,) + declarations:
-            for flag in ("isAbstract", "isDerived", "isReadOnly", "isOrdered"):
-                if source.data.get(flag) is not None and type(source.data[flag]) is not bool:
-                    raise NotImplementedError("Malformed relation/end flag recovery remains unspecified")
+        validate_boolean_flags(element, ("isAbstract", "isDerived"), diagnostics, policy)
+        for end in declarations:
+            validate_boolean_flags(end, ("isDerived", "isReadOnly", "isOrdered"), diagnostics, policy)
         source_cls, target_cls = endpoints
         if source_cls.data["id"] not in generated:
             input_error(

@@ -142,7 +142,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         stage = "validate_containers"
         validate_containers(index, diagnostics, input_policy)
         stage = "baseline_classes"
-        classes = baseline_classes(index)
+        classes = baseline_classes(index, diagnostics, input_policy)
         stage = "collect_enumerations"
         enumerations = collect_enumerations(classes, diagnostics, input_policy)
         stage = "collect_relations"
