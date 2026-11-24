@@ -691,6 +691,8 @@ def test_package_contents_cli_python_parity(invoke, tmp_path, scope, form, input
             package_id, package_path = ("binaryProjectRoot", "$.model") if scope == "root" else ("pNested", "$.model.contents[1]")
             assert any(malformed_package_contents_diagnostic(event, package_id, package_path) for event in events)
             assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+            if scope == "nested":
+                assert all(event.code != "UNPROCESSABLE_DOCUMENT" for event in events)
     assert (invoke.read_ontology(python) is not None) == eligible
     assert (invoke.read_provenance(python) is not None) == eligible
     assert destination.is_file() == eligible
@@ -724,6 +726,8 @@ def test_package_contents_report_failure_takes_precedence(invoke, tmp_path, scop
     package_id, package_path = ("binaryProjectRoot", "$.model") if scope == "root" else ("pNested", "$.model.contents[1]")
     assert any(malformed_package_contents_diagnostic(event, package_id, package_path)
                for event in process.observation.diagnostics)
+    if scope == "nested":
+        assert all(event.code != "UNPROCESSABLE_DOCUMENT" for event in process.observation.diagnostics)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

@@ -2284,18 +2284,46 @@ def relation_properties_container_diagnostic(message: str) -> frozenset[str]:
 
 def malformed_package_contents_diagnostic(event, package_id, package_path):
     """Identify the structural package-contents error using its native context."""
-    if event.severity != "ERROR" or event.code in {"INTERNAL_TRANSFORMATION_FAILURE", "UNKNOWN_INFORMATION"}:
+    stable_codes = {
+        "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+        "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+    }
+    root = package_path == "$.model"
+    if event.severity != "ERROR" or not event.code:
+        return False
+    if root and event.code != "UNPROCESSABLE_DOCUMENT":
+        return False
+    if not root and event.code in stable_codes:
         return False
     native = event.raw
-    reason = native.message.casefold()
-    return ("contents" in reason
-            and re.search(r"\b(?:malformed|invalid|non[- ](?:array|list)|not (?:an? )?(?:json )?(?:array|list)|(?:must|expected to) be (?:an? )?(?:json )?(?:array|list))\b", reason)
-            and (any(source.path in {package_path, package_path + ".contents"}
-                     or source.identifier == package_id for source in native.sources)
-                 or re.search(rf"(?<!\w){re.escape(package_id.casefold())}(?!\w)", reason)
-                 or re.search(rf"{re.escape(package_path.casefold())}(?![.\[\w])", reason)
-                 or re.search(rf"{re.escape(package_path.casefold())}\.contents(?![.\[\w])", reason)
-                 or (package_path == "$.model" and re.search(r"\broot (?:model|package)\b", reason))))
+    reason = " ".join(native.message.casefold().replace("`", "").split()).removesuffix(".")
+    identifier = re.escape(package_id.casefold())
+    path = re.escape(package_path.casefold())
+    locator = rf"(?:{identifier}|'{identifier}'|\"{identifier}\")"
+    path_locator = rf"{path}(?:\.contents)?(?![.\[\w])"
+    located = (
+        any(source.path in {package_path, package_path + ".contents"} or source.identifier == package_id
+            for source in native.sources)
+        or re.search(rf"(?<!\w){identifier}(?!\w)", reason)
+        or re.search(path_locator, reason)
+        or (root and reason.startswith(("root model ", "root package ")))
+    )
+    if not located:
+        return False
+
+    # Match the complete claim about the container, not unrelated adjectives
+    # or an error about one of its entries. An expected type alone is not proof.
+    prefix = r"(?:the )?(?:root model |root )?" if root else r"(?:the )?(?:nested )?"
+    package = rf"package(?: {locator})?"
+    field = rf"{prefix}{package}(?:\.|\s+)contents(?: (?:field|container|value))?(?: at {path_locator})?"
+    array_type = r"(?:a |an )?(?:json )?(?:array|list)"
+    actual = r"(?:an? )?(?:json )?(?:object|dict(?:ionary)?|string|str|number|int(?:eger)?|float|bool(?:ean)?|true|false|non[- ](?:array|list)(?: value)?)"
+    condition = (
+        rf"(?:is|are|was|were) (?:malformed|invalid|non[- ](?:array|list)|not {array_type}|{actual})"
+        rf"|(?:must|should|(?:is |are )?expected to) be {array_type}(?: or null)?"
+        rf"(?: \((?:got|found|received) {actual}\)|[,;:] (?:but )?(?:got|found|received) {actual})"
+    )
+    return bool(re.fullmatch(rf"{field} (?:{condition})|(?:malformed|invalid|non[- ](?:array|list)) {field}", reason))
 
 
 def _normalize_container_message(message: str) -> str:

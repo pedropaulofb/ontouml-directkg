@@ -3,6 +3,7 @@
 import copy
 import json
 from collections import Counter
+from types import SimpleNamespace
 
 import pytest
 from rdflib import Graph, Literal, Namespace, URIRef
@@ -309,6 +310,8 @@ def test_malformed_package_contents_follows_root_and_nested_policy(run, tmp_path
     if scope == "root":
         assert any(event.code == "UNPROCESSABLE_DOCUMENT" and event.severity == "ERROR"
                    for event in result.diagnostics)
+    else:
+        assert all(event.code != "UNPROCESSABLE_DOCUMENT" for event in result.diagnostics)
     if scope == "root" or input_policy != "best-effort":
         assert result.outcome == "aborted" and result.ontology is None
         assert result.provenance is None
@@ -328,6 +331,7 @@ def test_malformed_nested_package_contents_preserves_independent_output_and_repo
     assert result.outcome == "completed-with-errors"
     assert any(malformed_package_contents_diagnostic(event, "pNested", "$.model.contents[1]")
                for event in result.diagnostics)
+    assert all(event.code != "UNPROCESSABLE_DOCUMENT" for event in result.diagnostics)
     assert any(event.severity == "ERROR" and event.kind == "failed_relation"
                and "rDependent" in event.identified_sources for event in result.diagnostics)
     control = run(path=write_input(tmp_path, package_contents_document("nested", "empty"), "control.json"),
@@ -336,6 +340,51 @@ def test_malformed_nested_package_contents_preserves_independent_output_and_repo
     assert_graph_equal(result.ontology, control.ontology)
     assert not any(term in triple for triple in result.ontology
                    for term in (BASE.cLost, BASE.sDependent, BASE.tDependent))
+
+
+def test_package_contents_diagnostic_reader_requires_affirmative_condition_and_scope_code():
+    """Rules: DK-DIAG-04, DK-DIAG-05. Harness only: check native-shaped diagnostic evidence."""
+    def observed(message, code, package_id, path, severity="ERROR"):
+        source = SimpleNamespace(identifier=package_id, path=path, element_type="Package")
+        native = SimpleNamespace(message=message, sources=(source,))
+        return SimpleNamespace(severity=severity, code=code, raw=native)
+
+    nested_id, nested_path = "pNested", "$.model.contents[1]"
+    accepted = (
+        "Package contents container is malformed.",
+        "Package contents are not a JSON array.",
+        "Package 'pNested' contents at $.model.contents[1].contents must be a JSON array or null (got dict).",
+        "Package.contents expected to be an array, got boolean.",
+    )
+    rejected = (
+        "Package contents are not malformed.",
+        "Package contents are valid; the package identifier is malformed.",
+        "Package contents are a valid array; a child entry is invalid.",
+        "Package contents entry is invalid.",
+        "If Package contents are malformed, conversion aborts.",
+        "Package contents are malformed or absent.",
+        "Package contents must be a JSON array or null.",
+        "Package contents must be a JSON array or null (got null).",
+    )
+    for message in accepted:
+        for code in ("PROVISIONAL_CONTAINER_ERROR", "ANOTHER_PROVISIONAL_CODE"):
+            assert malformed_package_contents_diagnostic(
+                observed(message, code, nested_id, nested_path), nested_id, nested_path), message
+        assert not malformed_package_contents_diagnostic(
+            observed(message, "UNPROCESSABLE_DOCUMENT", nested_id, nested_path), nested_id, nested_path)
+    for message in rejected:
+        assert not malformed_package_contents_diagnostic(
+            observed(message, "PROVISIONAL_CONTAINER_ERROR", nested_id, nested_path), nested_id, nested_path), message
+
+    root_id, root_path = "binaryProjectRoot", "$.model"
+    root_reason = "Root model Package 'binaryProjectRoot' contents must be a JSON array or null (got int)."
+    assert malformed_package_contents_diagnostic(
+        observed(root_reason, "UNPROCESSABLE_DOCUMENT", root_id, root_path), root_id, root_path)
+    assert not malformed_package_contents_diagnostic(
+        observed(root_reason, "PROVISIONAL_CONTAINER_ERROR", root_id, root_path), root_id, root_path)
+    assert not malformed_package_contents_diagnostic(
+        observed(accepted[0], "PROVISIONAL_CONTAINER_ERROR", "anotherPackage", "$.model.contents[2]"),
+        nested_id, nested_path)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

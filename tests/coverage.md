@@ -10819,6 +10819,31 @@ rather than the required structural diagnostic or local recovery.
 All 210 selected existing regressions passed on both base and candidate.
 No full-suite execution. Pending independent Test Reviewer review.
 
+### F1–F2 correction after independent review of `3315610a65e927cc206fc934d97039ad18d76acc`
+
+- **F1.** Complete affirmative native claims about malformed contents containers
+  are bound to the reported package context. Negation, unrelated identifier or
+  entry errors, alternatives, and bare requirements do not establish the
+  condition. All three reviewer counterexamples reproduced on the base and
+  were rejected by the correction.
+- **F2.** Root-container unprocessability requires `UNPROCESSABLE_DOCUMENT`.
+  Local nested-container failure requires a nonempty provisional identifier,
+  and the existing nested outcome, dependent-reference and interface cases
+  exclude `UNPROCESSABLE_DOCUMENT`. The reviewer's incorrect nested stable-code
+  probe passed the base and was rejected by the correction.
+
+| Exact pytest node added | Authority | Case key and input | Assertion exercised |
+| --- | --- | --- | --- |
+| `tests/transformation/test_input_diagnostics.py::test_package_contents_diagnostic_reader_requires_affirmative_condition_and_scope_code` | DK-DIAG-04, DK-DIAG-05 | No stored fixture. Inline native-shaped diagnostic controls. | Affirmative malformed-container evidence, actual package locator and root-versus-nested code boundary; reject all reviewer counterexamples and allow different provisional nested codes. |
+
+Validation on `68b10bba5f3979cd4cf101c30a0ff1fba9136275` and the correction
+preserved all 8,182 base IDs and added one harness node (8,183 collected).
+All 58 assignment nodes passed on the current production implementation.
+All 322 selected existing regressions passed on both base and candidate,
+including the later declaration-container entry tests. The intervening
+assignments are preserved. No full-suite execution. Pending independent
+Test Reviewer review.
+
 ## RD-02 declaration containers, malformed entries, and misplaced declarations — Alternatives 1A + 2A + 3A + 4A
 
 **Authority.** Owner-approved registration at `c87a6a2cd83f6da675018edb1b0af81f86ad7013`
