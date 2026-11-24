@@ -64,6 +64,8 @@ A unique aggregation marker has a separate [lexical role in semantic naming](rel
 
 Comment preservation supports human inspection, without guaranteeing machine-readable reconstruction or round-tripping. DK-PROP-04 establishes no additional diagnostic solely for preserving these comments; ordering has its separate INFO rule below. Generated explanatory text does not acquire source-language propagation or the source-language override. See [Language resolution](../reference/text.md#language-resolution).
 
+`isReadOnly` is a defined Boolean flag on `Property` (surviving attributes and association ends of surviving ordinary relations). Any non-`null`, non-boolean value triggers a structural **ERROR** under `DK-DIAG-05` (`strict` and `tolerant` abort; `best-effort` retains **ERROR** severity, omits only the malformed `isReadOnly` field—producing no read-only comment—and preserves the owning `Property`, enclosing `Relation`, valid sibling flags/annotations, and independently applicable mappings). `isReadOnly` is not a defined field on `Relation`: an unexpected `isReadOnly` field on `Relation` remains governed by `UNKNOWN_INFORMATION`, not Boolean-flag validation. See [Malformed Boolean flags](../reference/diagnostics.md#malformed-boolean-flags) for policy outcomes and current `NotImplementedError` / `relations.py` over-check status.
+
 ## Boundary stereotype comments
 
 Preserve each explicitly supplied, recognized `begin` or `end` property stereotype through an **English `rdfs:comment` identifying the declared stereotype**, when its eligible property is successfully generated.
@@ -98,13 +100,15 @@ For each supported `isOrdered: true` occurrence, preserve an ordering-declaratio
 
 The declaration says values are ordered; **the generated property mapping does not preserve an actual value sequence**. Do not introduce RDF lists, sequence structures, properties, or inverses solely because of this flag. Range, cardinality, and inverse mappings remain independently applicable.
 
-Each successfully preserved `true` occurrence requires nonfatal INFO identifying the attribute/end and explaining the loss of actual value order (DK-DIAG-18). This limitation alone is not a warning. `false`, absent, and null values generate neither ordering comments nor ordering-loss INFO; do not infer `true` from other source features.
+Each successfully preserved `true` occurrence requires nonfatal INFO identifying the attribute/end and explaining the loss of actual value order (DK-DIAG-18). This limitation alone is not a warning. `false`, absent, and null values generate neither ordering comments nor ordering-loss INFO; do not infer `true` from other source features. Any non-`null`, non-boolean value for `Property.isOrdered` on a surviving attribute or association end triggers a structural **ERROR** under `DK-DIAG-05` (`strict` and `tolerant` abort; `best-effort` retains **ERROR** severity, omits only the malformed `isOrdered` field—producing no ordering comment and no `DK-DIAG-18` INFO—and preserves the owning `Property`, enclosing `Relation`, valid sibling flags/annotations, and independently applicable mappings). `isOrdered` is not a defined field on `Relation`: an unexpected `isOrdered` field on `Relation` remains governed by `UNKNOWN_INFORMATION`. See [Malformed Boolean flags](../reference/diagnostics.md#malformed-boolean-flags).
 
 Derived status, both true and false, has its distinct [cross-cutting comment mapping](../reference/text.md#derived-status-comments). Abstractness/extensionality belong to [Class declarations preserved as comments](classes.md#class-declarations-preserved-as-comments). Produced diagnostics remain accessible/exportable even when console filtering hides them; comments and diagnostics serve separate purposes.
 
 ---
 
-Governing rules: §§3.3–3.4; DK-ATT-01; DK-PROP-03–06; DK-REL-01, 04, 19; DK-GEN-02, 06; DK-INV-04; DK-DIAG-01–03, 05–06, 18; baseline consolidated: **2026-11-23**; repository commit: `6d0636c78092491200ffd3b1776bf8a000d4da88`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/6d0636c78092491200ffd3b1776bf8a000d4da88/documentation/specification/transformation-specification.md).
+Governing rules: §§3.3–3.4; DK-ATT-01; DK-PROP-03–06; DK-REL-01, 04, 19; DK-GEN-02, 05–06; DK-INV-04; DK-DIAG-01–03, 05–06, 18; baseline consolidated: **2026-11-24**; repository commit: `15eff98eb9dfeed69694ff81f099e0b9785e700f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/15eff98eb9dfeed69694ff81f099e0b9785e700f/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed Boolean flags (Alternative 1 — Uniform field-level omission)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Malformed `stereotype` values on `Class`, `Relation`, and `Property` (Alternative 1C + Sub-option 2A)** (project-owner formalization included in the cited consolidation).
 

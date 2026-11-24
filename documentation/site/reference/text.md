@@ -95,13 +95,17 @@ When no eligible local target exists, omit the comment. Do not create a resource
 
 `true` requires a nonfatal INFO **only when its derived-status comment is generated**, identifying the element and explaining that annotation preservation supplies no derivation rule. This limitation alone is not a warning. Do not claim an independently applicable explicit derivation mapping was omitted if it was applied. `false`, or a flag lacking an eligible target, produces no diagnostic solely for that condition; other independently required diagnostics remain.
 
+`isDerived` is a defined Boolean flag on `Class`, `Relation`, and `Property` (surviving attributes and association ends of surviving ordinary relations). Any non-`null`, non-boolean value (`type(val) is not bool`) on a surviving element triggers a structural **ERROR** under `DK-DIAG-05` (`strict` and `tolerant` abort; `best-effort` retains **ERROR** severity, omits only the malformed `isDerived` field—producing no derived-status comment and no `DK-DIAG-16` INFO for that field—and preserves the owning element, valid sibling flags, and independently applicable mappings). Elements omitted earlier (`«instantiation»`, `«derivation»`, unsupported connectors, or attributes whose owning `Class` lacks a generated local `owl:Class`) retain precedence before flag validation. See [Malformed Boolean flags](diagnostics.md#malformed-boolean-flags).
+
 Descriptions have their separate target rules above. Abstractness, extensionality, and order belong to [Class declarations preserved as comments](../mapping/classes.md#class-declarations-preserved-as-comments); read-only, aggregation, and ordering declarations belong to [Property features](../mapping/property-features.md).
 
 Produced INFO and warnings remain accessible/exportable under the diagnostic contract even when hidden by [console filtering](controls.md#presentation-and-persistence-do-not-change-transformation-outcomes). [Diagnostics and recovery](diagnostics.md#diagnostic-conditions-and-intentional-silence) owns the detailed diagnostic conditions.
 
 ---
 
-Governing rules: §3.2; §15; DK-LBL-01–02; DK-REL-01–06; DK-GEN-05, 08; DK-IRI-03–04, 08–10; DK-DAT-02, 05; DK-INV-05–06, 08; DK-DIAG-01, 04–05, 16, 19; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md).
+Governing rules: §3.2; §15; DK-LBL-01–02; DK-REL-01–06; DK-GEN-05, 08; DK-IRI-03–04, 08–10; DK-DAT-02, 05; DK-INV-05–06, 08; DK-DIAG-01, 04–05, 16, 19; baseline consolidated: **2026-11-24**; repository commit: `15eff98eb9dfeed69694ff81f099e0b9785e700f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/15eff98eb9dfeed69694ff81f099e0b9785e700f/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed Boolean flags (Alternative 1 — Uniform field-level omission)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 

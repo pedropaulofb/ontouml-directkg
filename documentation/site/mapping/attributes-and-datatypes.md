@@ -83,6 +83,8 @@ Absent `Class.properties`, explicit `Class.properties: null`, and `Class.propert
 
 `isDerived` does not suppress ordinary attribute transformation; its [comment mapping](../reference/text.md#derived-status-comments) is separate. Supported `isReadOnly: true` and `isOrdered: true` declarations also have comment mappings, with INFO for each preserved ordering occurrence. Those comments do not implement read-only enforcement or ordered property values. See [Property features](property-features.md#read-only-and-aggregation-comments) and its [ordering explanation](property-features.md#ordering-without-ordered-values).
 
+`isDerived`, `isReadOnly`, and `isOrdered` are the defined Boolean flags on `Property` (`isAbstract` is not a defined field on `Property` and remains governed by `UNKNOWN_INFORMATION`). On surviving attributes, any non-`null`, non-boolean value triggers a structural **ERROR** under `DK-DIAG-05` (`strict` and `tolerant` abort; `best-effort` omits only the malformed flag field and its comment or `DK-DIAG-16`/`18` INFO while preserving the attribute, valid sibling flags, and independent mappings), whereas attributes omitted earlier under [Attributes owned without a local OWL class](#attributes-owned-without-a-local-owl-class) (`DK-ATT-01`) retain precedence and do not trigger secondary Boolean-flag errors. See [Malformed Boolean flags](../reference/diagnostics.md#malformed-boolean-flags).
+
 Explicit recognized `begin` and `end` stereotypes have [boundary stereotype comment preservation](property-features.md#boundary-stereotype-comments). They do not select a temporal datatype or change the existing typing, range, or cardinality mapping.
 
 ## Primitive registry
@@ -174,7 +176,9 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01–02, 04–06, 09–11, 16, 18; DK-REL-01; §3.4; baseline consolidated: **2026-11-23**; repository commit: `ed7a0d1b1cb75f6ac764b8117c5385928f97f86b`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ed7a0d1b1cb75f6ac764b8117c5385928f97f86b/documentation/specification/transformation-specification.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01–02, 04–06, 09–11, 16, 18; DK-REL-01; §3.4; baseline consolidated: **2026-11-24**; repository commit: `15eff98eb9dfeed69694ff81f099e0b9785e700f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/15eff98eb9dfeed69694ff81f099e0b9785e700f/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-02 — Malformed Boolean flags (Alternative 1 — Uniform field-level omission)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 
