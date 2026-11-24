@@ -117,6 +117,8 @@ For example, `{"de":"Ganzzahl","en":"int"}` selects `Ganzzahl`, so existing cust
 
 An explicit `propertyType: null` means **unspecified typing**. Keep the datatype property, owner domain, and applicable explicit cardinality. Generate no range or value-type restriction; do not guess `rdfs:Literal`, `xsd:string`, or another datatype. Null typing is not automatically an input error (DK-DAT-03).
 
+An **absent `propertyType` field** on a class attribute is a structural ERROR (DK-ATT-01). Under `strict` and `tolerant`, conversion aborts. Under `best-effort`, omit the affected attribute and its dependent output while preserving independently transformable elements. See [Absent attribute property type](../reference/diagnostics.md#absent-attribute-property-type) for recovery, dependent references, and implementation status.
+
 The downloadable [classes-and-attributes example](../examples/index.md#classes-and-untyped-attributes) pairs a checked Catalog adaptation with a labelled Turtle illustration of two distinct untyped attributes and their owner domains.
 
 VP `void` (`stereotype == "datatype"`) means **an explicitly selected, recognized but unsupported type** (E02 / DK-DAT-04). This rangeless `owl:DatatypeProperty` and warning handling applies to **`void`-typed attributes only** (when owned by a class with a generated local `owl:Class`): keep the attribute as a datatype property, its domain, and applicable explicit cardinality, but supply no range or local value-type restriction from `void`. The datatype element creates neither a local class nor an OWL datatype. A nonfatal warning must identify the attribute, owner, `void`, and missing mapping/range where available. By contrast, an ordinary binary relation whose target resolves to `void` (`Class → void`) is a structural **ERROR** under [Datatype-valued relations](relations.md#datatype-valued-relations-and-compatibility) (`DK-REL-01`), and an attribute *owned by* `void` (or a registered primitive `datatype`) is a structural **ERROR** under [Attributes owned without a local OWL class](#attributes-owned-without-a-local-owl-class) (`DK-ATT-01`); neither generates a rangeless datatype property or domainless property.
@@ -176,7 +178,7 @@ Typed attributes keep their global range. DirectKG does not add local `owl:allVa
 
 ---
 
-Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01–02, 04–06, 09–11, 16, 18; DK-REL-01; §3.4; baseline consolidated: **2026-11-24**; repository commit: `15eff98eb9dfeed69694ff81f099e0b9785e700f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/15eff98eb9dfeed69694ff81f099e0b9785e700f/documentation/specification/transformation-specification.md).
+Governing rules: DK-ATT-01–04; DK-DAT-01–05; DK-GEN-03, 05; DK-CLS-01, 10–11; DK-INV-01–02; DK-PROP-01–06; DK-LBL-01–02; DK-IRI-02–05, 07, 09–10; DK-DIAG-01–02, 04–06, 09–11, 16, 18; DK-REL-01; §3.4; baseline consolidated: **2026-11-24**; repository commit: `001fd0f89cb4d6218e614d59e1e0ae730316a1f0`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/001fd0f89cb4d6218e614d59e1e0ae730316a1f0/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — Malformed Boolean flags (Alternative 1 — Uniform field-level omission)** (project-owner formalization included in the cited consolidation).
 
