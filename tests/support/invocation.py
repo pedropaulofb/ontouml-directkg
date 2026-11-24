@@ -2037,11 +2037,20 @@ def unresolved_property_reference_between(event, referencing, field, referenced)
     if (event.severity != "ERROR" or event.kind != "unresolved_property_reference"
             or referencing not in event.identified_sources):
         return False
-    match = re.search(
-        rf"\b(?:property|attribute)(?: (?P<subject>{_DIAGNOSTIC_ID_TOKEN}))? "
+    # IDs are opaque, not word tokens: punctuation can belong to the ID.
+    # Consume the entire value up to the whitespace separating it from the
+    # predicate. Native KeyError detail, when present, is a quoted string.
+    quoted = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")"""
+    token = rf"(?:{quoted}|`[^`]+`|[^\s'\"`]+)"
+    unresolved = (r"(?:is|was) unresolved|(?:cannot|could not) be resolved|"
+                  r"(?:cannot|could not) supply a property expression|"
+                  r"does not resolve to a property expression")
+    reason = getattr(event.raw, "message", event.message).strip().removesuffix(".")
+    match = re.fullmatch(
+        rf"(?:property|attribute)(?: (?P<subject>{token}))? "
         rf"{re.escape(field)} reference(?: (?:to|targeting))? "
-        rf"(?P<target>\{{[^{{}}]*\}}|{_DIAGNOSTIC_ID_TOKEN})(?![\w-])",
-        getattr(event.raw, "message", event.message), re.IGNORECASE,
+        rf"(?P<target>\{{.*\}}|{token}) (?:{unresolved})(?:: {quoted})?",
+        reason, re.IGNORECASE,
     )
     if not match:
         return False

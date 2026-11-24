@@ -272,7 +272,7 @@ def test_absent_attribute_property_type_retains_only_applicable_reference_diagno
 
 
 def test_absent_attribute_property_type_reference_reader_distinguishes_direction():
-    """Rules: DK-PROP-03, DK-DIAG-04, DK-DIAG-05. Harness: permit relevant target locators."""
+    """Rules: DK-PROP-03, DK-DIAG-04, DK-DIAG-05; §3.4. Harness: exact target and affirmative failure."""
     from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
 
     note, age, peer = (SourceLocation(f"$.model.contents[0].properties[{index}]", identifier, "Property")
@@ -285,15 +285,35 @@ def test_absent_attribute_property_type_reference_reader_distinguishes_direction
             (incoming, (note, age), True),
             (incoming, (age, note), True),
             (f"Property 'aNote' {field} reference to 'aAge' is unresolved.", (note, age), True),
+            (f"Property {field} reference to aAge cannot be resolved.", (note, age), True),
+            (f"Property {field} reference targeting `aAge` was unresolved.", (age, note), True),
+            (incoming.removesuffix(".") + ": 'Required underlying property transformation did not generate an expression'.", (note, age), True),
             (incoming, (age,), False),
             (outgoing, (age, peer), False),
             (outgoing, (note, age, peer), False),
             (f"Property 'aAge' {field} reference to 'aAge' is unresolved.", (note, age), False),
             (f"Property {field} reference to 'aAgeOther' is unresolved.", (note, age), False),
+            (f"Property {field} reference to aAge.other is unresolved.", (note, age), False),
+            (f"Property {field} reference to aAge/other is unresolved.", (note, age), False),
+            (f"Property {field} reference to aAge#other is unresolved.", (note, age), False),
+            (f"Property {field} reference to aage is unresolved.", (note, age), False),
+            (f"Property {field} reference to aAge is valid; a separate reference is unresolved.", (note, age), False),
+            (f"Property {field} reference to aAge is not unresolved.", (note, age), False),
+            (f"Property {field} reference to aAge is unresolved or valid.", (note, age), False),
+            (f"It is not true that Property {field} reference to aAge is unresolved.", (note, age), False),
+            (f"Property {field} reference to 'aAge' or 'aPeer' is unresolved.", (note, age), False),
         ):
             native = Diagnostic("ERROR", "UNRESOLVED_PROPERTY_REFERENCE", message, "Affected inclusion omitted.", sources)
             event, = _observed_diagnostics((native,))
             assert unresolved_property_reference_between(event, "aNote", field, "aAge") == expected, message
+
+        # The punctuation is part of an opaque ID, not a delimiter to strip.
+        for target in ("aAge.other", "aAge/other", "aAge#other", "aAge{other}"):
+            for value in (target, repr(target), repr({"id": target, "type": "Property"})):
+                message = f"Property {field} reference to {value} is unresolved."
+                native = Diagnostic("ERROR", "UNRESOLVED_PROPERTY_REFERENCE", message, "Affected inclusion omitted.", (note,))
+                event, = _observed_diagnostics((native,))
+                assert unresolved_property_reference_between(event, "aNote", field, target), message
 
 
 @pytest.mark.parametrize('input_policy', POLICIES)
