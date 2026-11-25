@@ -7,11 +7,11 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from .annotations import TextAnnotations
 from .datatypes import datatype_key
-from .diagnostics import DiagnosticCollector
+from .diagnostics import DiagnosticCollector, SourceLocation
 from .enumerations import Enumeration
 from .identity import (check_id_candidate_collisions, class_name_candidate, escape_id,
                        missing_name, naming_text, normalize_name, resolve_name_collisions)
-from .source import SourceElement, SourceIndex, validate_boolean_flags
+from .source import SourceElement, SourceIndex, input_error, validate_boolean_flags
 
 _ULTIMATE = frozenset({"collective", "kind", "mode", "quality", "quantity", "relator", "type"})
 _GROUPS = (
@@ -50,8 +50,16 @@ def baseline_classes(index: SourceIndex, diagnostics: DiagnosticCollector,
         validate_boolean_flags(element, ("isAbstract", "isDerived", "isExtensional", "isPowertype"),
                                diagnostics, policy)
         order = data.get("order")
-        if order is not None and (isinstance(order, bool) or not isinstance(order, (str, int, float))):
-            raise NotImplementedError("Malformed classifier-order recovery is outside the decided baseline")
+        if order is not None and not isinstance(order, str):
+            input_error(
+                diagnostics,
+                policy,
+                "MALFORMED_CLASS_ORDER",
+                f"Class {identifier!r} order must be a string or null, got {type(order).__name__}.",
+                (SourceLocation(f"{element.path}.order", identifier, "Class"),),
+                "Malformed order field omitted; owning Class and independent mappings retained.",
+            )
+            data.pop("order", None)
         if data.get("stereotype") == "datatype" and datatype_key(data.get("name")) is not None:
             continue
         classes.append(element)
@@ -175,8 +183,8 @@ def emit_classes(graph: Graph, classes: tuple[SourceElement, ...], resources: di
                                 "isExtensional=true is preserved as an annotation; its essential-parthood semantics are not enforced.",
                                 "Class and annotation retained without additional logical axioms.", (element.location,))
         order = data.get("order")
-        if order is not None:
-            value = "orderless (*)" if order == "*" else str(order)
+        if isinstance(order, str):
+            value = "orderless (*)" if order == "*" else order
             graph.add((subject, RDFS.comment, Literal(f"OntoUML classifier order: {value}.", lang="en")))
 
 
