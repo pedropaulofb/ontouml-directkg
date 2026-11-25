@@ -24,7 +24,7 @@ Treat the artifacts independently:
 
 The [console-level control](../reference/controls.md#established-controls) filters presentation: `info` shows INFO/WARNING/ERROR, `warning` shows WARNING/ERROR, and `error` shows ERROR. It changes neither diagnostic production/collection nor transformation behavior, output eligibility, outcome, or exit-code selection. Hidden events remain available through the requested report. This contract does not select stdout/stderr routing or console formatting.
 
-The report is a **mirror of produced diagnostics**, not an inventory of every possible loss. Export must not create extra transformation events, alter their severity, or turn deliberate silence into warnings. [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-collection-and-export) explains collection and content; the [shared JSON report contract](../reference/diagnostics.md#shared-json-report-contract) fixes required fields and types, empty/null context, and compatible extensions for both interfaces. The [eight stable diagnostic identifiers](../reference/diagnostics.md#stable-first-release-diagnostic-core) have fixed condition meanings for the first release; all other identifiers remain provisional without suppressing required reporting. The complete catalogue remains unresolved.
+The report is a **mirror of produced diagnostics**, not an inventory of every possible loss. Export must not create extra transformation events, alter their severity, or turn deliberate silence into warnings. [Diagnostics and recovery](../reference/diagnostics.md#diagnostic-collection-and-export) explains collection and content; the [shared JSON report contract](../reference/diagnostics.md#shared-json-report-contract) fixes required fields and types, empty/null context, and compatible extensions for both interfaces. Every produced diagnostic must populate `code` as a nonempty string; **only** the [eight stable diagnostic identifiers](../reference/diagnostics.md#stable-first-release-diagnostic-core) carry a normative first-release stability guarantee for their strings and condition meanings, while non-core identifiers remain implementation-defined / unguaranteed in the first release (without a separate v1 catalogue) and must not suppress required reporting.
 
 ## Exit codes and delivery failures
 
@@ -87,7 +87,9 @@ The [Python guide](python.md) explains equivalent transformation capabilities an
 
 ---
 
-Governing rules: §15; DK-DIAG-01, 04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-11-17**; repository commit: `e62454b98933a6ba6cb5890084fa7353d671c5a5`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/e62454b98933a6ba6cb5890084fa7353d671c5a5/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-DIAG-01, 04–05; DK-GEN-10; DK-IRI-01; baseline consolidated: **2026-11-25**; repository commit: `bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-04 — Condition-to-code catalogue boundary for v1 (Alternative A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 

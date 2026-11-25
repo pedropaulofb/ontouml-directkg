@@ -98,7 +98,7 @@ CLI diagnostics files and Python's separate JSON export use the same minimum str
 | Report | `outcome` | String: `"completed"`, `"completed-with-errors"`, or `"aborted"`, classified under the [outcome rules](#outcomes-and-output-eligibility). |
 | Report | `diagnostics` | Array of every produced diagnostic; `[]` when none were produced. Existing consolidation rules still apply. |
 | Diagnostic | `severity` | String: `"INFO"`, `"WARNING"`, or `"ERROR"`. |
-| Diagnostic | `code` | String identifying the diagnostic condition. |
+| Diagnostic | `code` | Nonempty string identifying the diagnostic condition (stabilized for the eight-code first-release core below; implementation-defined / unguaranteed otherwise). |
 | Diagnostic | `message` | String explaining the condition for a human reader. |
 | Diagnostic | `effect` | String explaining its effect on transformation or delivery. |
 | Diagnostic | `sources` | Array of relevant source-location objects; `[]` when none apply. |
@@ -111,7 +111,7 @@ CLI diagnostics files and Python's separate JSON export use the same minimum str
 
 Additional members may be added compatibly while required names, types, and meanings remain preserved. Consumers must ignore unrecognized members. No `schema_version` member is required.
 
-The [stable first-release diagnostic core](#stable-first-release-diagnostic-core) fixes eight identifiers and their condition meanings; all other identifiers remain provisional, and the complete condition-to-code catalogue remains unresolved. This contract adds no stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Python object representations, API names, signatures, and result/exception mechanisms remain outside this JSON contract.
+Every produced diagnostic must populate `code` as a nonempty string in the shared JSON report and in any CLI or Python diagnostic access. Only the eight identifiers and specified condition meanings in the [stable first-release diagnostic core](#stable-first-release-diagnostic-core) carry a normative first-release stability guarantee; exact identifier strings outside that core remain implementation-defined / unguaranteed in the first release and are not expanded by a separate v1 condition-to-code catalogue. This contract adds no stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Python object representations, API names, signatures, and result/exception mechanisms remain outside this JSON contract.
 
 The following is a **specification illustration**, not captured converter output. `PLACEHOLDER_BASE` belongs to the stable diagnostic core; the example wording remains illustrative:
 
@@ -143,7 +143,7 @@ The structure introduces no diagnostic event, outcome, control, or change to con
 
 ## Stable first-release diagnostic core
 
-The following eight diagnostic identifiers and their specified condition meanings are stable for the first release (DK-DIAG-04 / RD-04). They identify diagnostic conditions in the `code` field; they are separate from [CLI exit codes](../guides/cli.md#exit-codes-and-delivery-failures).
+For DirectKG's first release, **only** the following eight diagnostic identifier strings and their specified condition meanings carry a normative stability guarantee (DK-DIAG-04 / RD-04, Alternative A). They identify diagnostic conditions in the `code` field; they are separate from [CLI exit codes](../guides/cli.md#exit-codes-and-delivery-failures).
 
 | Stable identifier | Condition meaning |
 | --- | --- |
@@ -158,7 +158,7 @@ The following eight diagnostic identifiers and their specified condition meaning
 
 When a diagnostic is produced for one of these conditions, use the same identifier in CLI JSON exports, structured Python access, Python JSON exports, and any CLI presentation that displays the code. No additional console format is required. `UNKNOWN_INFORMATION` retains its identifier when the selected input policy changes its established severity or continuation behavior; the [policy rules](#policies-and-precedence) still apply.
 
-**All other identifiers remain provisional**, explicitly including `MISSING_CARDINALITY` and `INVALID_CARDINALITY`. They receive no first-release stability guarantee from this decision. Continue producing, exposing, and exporting their diagnostics under existing requirements; provisional status must not suppress required reporting. RD-04 remains partially unresolved: the complete catalogue and its other unresolved failure questions are not settled by this core.
+Every produced diagnostic must populate `code` as a nonempty string in the shared JSON report and in any CLI or Python diagnostic access. **Exact identifier strings outside this eight-code core remain implementation-defined / unguaranteed in the first release**, explicitly including `MISSING_CARDINALITY`, `INVALID_CARDINALITY`, and all other non-core condition codes; they receive no first-release stability guarantee and are not expanded by a separate v1 condition-to-code catalogue. DirectKG must continue to produce, expose, and export the corresponding diagnostics under all existing production, severity, consolidation, content-boundary, outcome, and export requirements; unguaranteed / provisional non-core identifier status must not suppress required reporting. This eight-code core closes RD-04's condition-to-code catalogue boundary for the first release (no further diagnostic codes are stabilized for v1); uncovered runtime and ontology-output delivery failures outside the resolved scope remain unresolved under RD-04.
 
 Stability covers only these strings and condition meanings. It adds no diagnostic events, report members, controls, or guarantee of exact message wording, diagnostic count, or ordering. Existing severity, consolidation, content boundaries, console filtering, recovery, outcomes, output eligibility, and exit-status rules remain unchanged. Identifier selection does not establish implementation or testing completion; the [unexpected-failure implementation limitation](#unexpected-internal-failures-during-transformation) remains explicit.
 
@@ -549,7 +549,9 @@ Contradictory nonnegative numeric bounds are transformable under every policy; d
 
 ---
 
-Governing rules: DK-DIAG-01–19; §§3.2–3.4; §15; DK-ATT-01; DK-CLS-01, 05–08, 11; DK-DAT-02–04; DK-GEN-03–06, 08–10, 12, including I1's recovery within list-valued metadata; DK-REL-01–07, 09–18, 20; DK-PROP-03–06; DK-LBL-01–02; DK-INV-01–02, 05–08, 10, 12; DK-INS-01–02; DK-HO-03–04; DK-IRI-03–05, 07, 10; baseline consolidated: **2026-11-25**; repository commit: `295fa5f296477924d60afa904ac451780e5e56eb`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/295fa5f296477924d60afa904ac451780e5e56eb/documentation/specification/transformation-specification.md).
+Governing rules: DK-DIAG-01–19; §§3.2–3.4; §15; DK-ATT-01; DK-CLS-01, 05–08, 11; DK-DAT-02–04; DK-GEN-03–06, 08–10, 12, including I1's recovery within list-valued metadata; DK-REL-01–07, 09–18, 20; DK-PROP-03–06; DK-LBL-01–02; DK-INV-01–02, 05–08, 10, 12; DK-INS-01–02; DK-HO-03–04; DK-IRI-03–05, 07, 10; baseline consolidated: **2026-11-25**; repository commit: `bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-04 — Condition-to-code catalogue boundary for v1 (Alternative A)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — `Class.order` validation and field-level recovery (V4 + R1)** (project-owner formalization included in the cited consolidation).
 
