@@ -9,7 +9,7 @@ from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import source_element, write_input, fixture_issues, mixed_hierarchy_document
-from tests.support.invocation import (_observed_diagnostics, diagnostic_signatures, mixed_hierarchy_error,
+from tests.support.invocation import (_observed_diagnostics, diagnostic_signatures, hierarchy_condition_error, mixed_hierarchy_error,
                                       nonclassifier_hierarchy_error, unusable_categorizer_diagnostic)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, one_object, rdf_list
 
@@ -36,6 +36,27 @@ def test_mixed_class_relation_set_omits_entire_set_not_homogeneous_partitions(ru
     affected["generalizations"] = affected["generalizations"][:partition_size] + [
         {"id": identifier, "type": "Generalization"} for identifier in ("gLeft", "gRight")[:partition_size]
     ]
+    _assert_mixed_set_omission(run, tmp_path, document, input_policy)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("carrier", ["absent", "null"])
+@pytest.mark.parametrize("flags", [False, True], ids=["neither_flag", "both_flags"])
+def test_mixed_class_relation_uncategorized_set_omits_entire_set(run, tmp_path, input_policy, carrier, flags):
+    """Rules: DK-GEN-12, DK-CLS-06, DK-CLS-07, DK-CLS-08, DK-REL-15, DK-REL-20, DK-DIAG-05."""
+    document = mixed_hierarchy_document()
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=flags, isDisjoint=flags)
+    if carrier == "absent":
+        affected.pop("categorizer")
+    else:
+        affected["categorizer"] = None
+    affected["generalizations"] += [{"id": identifier, "type": "Generalization"} for identifier in ("gLeft", "gRight")]
+    _assert_mixed_set_omission(run, tmp_path, document, input_policy)
+
+
+def _assert_mixed_set_omission(run, tmp_path, document, input_policy):
+    affected = source_element(document, "gsFirst")
     assert not fixture_issues(document)
     options = dict(iri_strategy="id", inverse_properties="all", input_policy=input_policy)
     result = run(path=write_input(tmp_path, document), **options)
@@ -64,7 +85,7 @@ def test_mixed_class_relation_set_omits_entire_set_not_homogeneous_partitions(ru
 
 @pytest.mark.parametrize("case", ["mixed_member", "omitted_relation", "partial_member"])
 def test_mixed_class_relation_set_detection_uses_resolved_declarations(run, tmp_path, case):
-    """Rules: DK-GEN-12, DK-CLS-09, DK-HO-04, DK-REL-14, DK-REL-20, DK-DIAG-05."""
+    """Rules: DK-GEN-12, DK-CLS-09, DK-HO-04, DK-REL-01, DK-REL-14, DK-REL-20, DK-DIAG-03, DK-DIAG-05."""
     document = mixed_hierarchy_document()
     source_element(document, "cCategorizer")["isPowertype"] = True
     affected = source_element(document, "gsFirst")
@@ -88,8 +109,13 @@ def test_mixed_class_relation_set_detection_uses_resolved_declarations(run, tmp_
     result = run(path=write_input(tmp_path, document), **options)
     assert result.outcome == "completed-with-errors"
     assert any(mixed_hierarchy_error(event, "gsFirst", is_set=True) for event in result.diagnostics)
-    assert any(event.severity == "ERROR" and set(event.identified_sources) & {"gLeft", "rLeft"}
-               for event in result.diagnostics)
+    condition, source_id, reference = {
+        "mixed_member": ("mixed_edge", "gLeft", None),
+        "omitted_relation": ("nonbinary_relation", "rLeft", None),
+        "partial_member": ("unresolved_general_reference", "gLeft", "missingParent"),
+    }[case]
+    assert any(hierarchy_condition_error(event, condition, source_id, reference=reference)
+               for event in result.diagnostics), result.diagnostics
     assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
     document["model"]["contents"].remove(affected)
     control = run(path=write_input(tmp_path, document, "no_set.json"), **options)
@@ -132,6 +158,7 @@ def test_mixed_class_relation_diagnostic_reader_requires_affirmative_condition()
         for reason, expected in (
             (f"{subject} '{identifier}' has mixed Class/Relation endpoints.", True),
             (f"{subject} '{identifier}' contains both Class and Relation classifiers.", True),
+            (f"{subject} '{identifier}' contains mixed Class/Relation membership.", True),
             (f"Mixed class/relation {subject} '{identifier}'.", True),
             (f"Mixed class/relation {subject} {'membership' if is_set else 'endpoints'}.", True),
             (f"{subject} '{identifier}' has no mixed Class/Relation endpoints.", False),
@@ -157,6 +184,79 @@ def test_mixed_class_relation_diagnostic_reader_requires_affirmative_condition()
         native = Diagnostic("ERROR", "PROVISIONAL_PROBE", reason, "Affected hierarchy omitted.", (source,))
         event, = _observed_diagnostics((native,), retain_unclassified=True)
         assert nonclassifier_hierarchy_error(event, "gInvalid") == expected, reason
+
+
+@pytest.mark.parametrize("condition,source_id,source_type,reference,reason,wrong_subject,negative", [
+    pytest.param("mixed_edge", "gLeft", "Generalization", None,
+                 "Generalization 'gLeft' connects a Relation and a Class.",
+                 "Generalization 'gOther' connects a Relation and a Class.",
+                 "Generalization 'gLeft' has no mixed Class/Relation endpoints.", id="mixed_member"),
+    pytest.param("nonbinary_relation", "rLeft", "Relation", None,
+                 "Non-instantiation relation 'rLeft' has non-binary properties array (length 0, expected 2).",
+                 "Relation 'rOther' has non-binary properties array.",
+                 "Relation 'rLeft' properties are not non-binary.", id="omitted_relation"),
+    pytest.param("unresolved_general_reference", "gLeft", "Generalization", "missingParent",
+                 "Relation generalization lacks both generated primary properties: general: 'Unresolved source reference'.",
+                 "Generalization 'gOther' has an unresolved general reference.",
+                 "Generalization 'gLeft' general reference to missingParent is not unresolved.", id="partial_member"),
+])
+def test_mixed_class_relation_independent_diagnostic_requires_affirmative_condition(
+        condition, source_id, source_type, reference, reason, wrong_subject, negative):
+    """Rules: DK-GEN-12, DK-DIAG-04, DK-DIAG-05, DK-DIAG-03, DK-REL-14. Harness: independent conditions."""
+    from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
+
+    gs = SourceLocation("$.model.contents[0]", "gsFirst", "GeneralizationSet")
+    independent = SourceLocation("$.model.contents[1]", source_id, source_type)
+    mixed = "Generalization set 'gsFirst' has mixed Class/Relation endpoints."
+
+    def observe(message, sources):
+        native = Diagnostic("ERROR", "PROVISIONAL_PROBE", message, "Affected contributions omitted.", sources)
+        event, = _observed_diagnostics((native,), retain_unclassified=True)
+        return event
+
+    # A single mixed-set error with both locators was the original false pass.
+    # Separate and genuinely consolidated diagnostics may both satisfy coverage.
+    for sources in ((gs, independent), (independent, gs)):
+        event = observe(mixed, sources)
+        assert mixed_hierarchy_error(event, "gsFirst", is_set=True)
+        assert not hierarchy_condition_error(event, condition, source_id, reference=reference)
+        for combined in (mixed + " " + reason, reason.removesuffix(".") + "; " + mixed):
+            event = observe(combined, sources)
+            assert mixed_hierarchy_error(event, "gsFirst", is_set=True)
+            assert hierarchy_condition_error(event, condition, source_id, reference=reference)
+        for not_evidence in (wrong_subject, negative, reason.removesuffix(".") + " or another condition."):
+            event = observe(mixed + " " + not_evidence, sources)
+            assert not hierarchy_condition_error(event, condition, source_id, reference=reference)
+    event = observe(reason, (independent,))
+    assert hierarchy_condition_error(event, condition, source_id, reference=reference)
+    assert not mixed_hierarchy_error(event, "gsFirst", is_set=True)
+    assert not hierarchy_condition_error(observe(reason, (gs,)), condition, source_id, reference=reference)
+
+    # A subjectless affirmative claim with two equally plausible subjects
+    # cannot establish which declaration caused the independent diagnostic.
+    other = SourceLocation("$.model.contents[3]", "other", source_type)
+    subjectless = {"mixed_edge": "Generalization connects a Class and a Relation.",
+                   "nonbinary_relation": "Relation has empty properties array.",
+                   "unresolved_general_reference": "Relation generalization has an unresolved general reference."}[condition]
+    assert hierarchy_condition_error(observe(subjectless, (independent, gs)), condition, source_id, reference=reference)
+    assert not hierarchy_condition_error(observe(subjectless, (independent, gs, other)), condition, source_id, reference=reference)
+
+    if condition == "nonbinary_relation":
+        edge = SourceLocation("$.model.contents[2]", "gLeft", "Generalization")
+        event = observe(mixed + " " + reason + " Relation generalization 'gLeft' lacks both generated primary properties.",
+                        (edge, independent, gs))
+        assert mixed_hierarchy_error(event, "gsFirst", is_set=True)
+        assert hierarchy_condition_error(event, condition, source_id)
+
+    if condition == "unresolved_general_reference":
+        for message, expected in (
+            ("Generalization 'gLeft' has an unresolved general reference to missingParent.", True),
+            ("Generalization 'gLeft' general endpoint reference to 'missingParent' cannot be resolved.", True),
+            ("Generalization 'gLeft' general reference to missingParent.other is unresolved.", False),
+            ("Generalization 'gLeft' has an unresolved specific reference.", False),
+            ("Relation generalization lacks both generated primary properties.", False),
+        ):
+            assert hierarchy_condition_error(observe(message, (gs, independent)), condition, source_id, reference=reference) == expected
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

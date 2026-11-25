@@ -2072,7 +2072,7 @@ def _mixed_hierarchy_claim(message):
     token = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]+`|[^\s'\"`]+)"""
     subject = rf"(?P<construct>generalization(?:[ -]?set)?)(?: (?P<identifier>{token}))??"
     kinds = r"(?:(?:a )?class(?:es)? (?:and|to|with) (?:a )?relations?|(?:a )?relations? (?:and|to|with) (?:a )?class(?:es)?|class\s*/\s*relation|relation\s*/\s*class)"
-    members = r"(?: endpoint(?:s| kinds)?| member(?:s| endpoints|hip)?| classifier(?:s| kinds| types)?| declaration(?:s| kinds| types)?| generalizations?)?"
+    members = r"(?: endpoint(?:s| kinds)?| member(?:s| endpoints|ship)?| classifier(?:s| kinds| types)?| declaration(?:s| kinds| types)?| generalizations?)?"
     reason = message.strip().removesuffix(".")
     for pattern in (
         rf"{subject} (?:connects|mixes|combines|contains|has|groups) (?:both |mixed )?(?:resolved )?{kinds}{members}",
@@ -2086,18 +2086,89 @@ def _mixed_hierarchy_claim(message):
     return None
 
 
-def mixed_hierarchy_error(event, identifier, *, is_set=False):
-    """Require observed structural meaning and source identity, not a provisional code."""
-    claim = _mixed_hierarchy_claim(getattr(event.raw, "message", event.message))
-    if not claim or event.severity != "ERROR" or identifier not in event.identified_sources:
-        return False
-    subject = claim.group("identifier")
-    return (claim.group("construct").casefold().endswith("set") == is_set
-            and (subject is None or _diagnostic_identifier(subject) == identifier)
-            and bool(event.code) and event.code not in {
+def _independent_hierarchy_claim(message):
+    """Read an asserted arity error or unresolved general endpoint, not merely failed output."""
+    token = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]+`|[^\s'\"`]+)"""
+    relation = rf"(?:non[- ]?instantiation )?relation(?: (?P<identifier>{token}))??"
+    generalization = rf"(?:relation )?generalization(?: (?P<identifier>{token}))??"
+    reason = message.strip().removesuffix(".")
+    patterns = (
+        ("nonbinary_relation", rf"{relation} (?:has|contains) (?:a |an )?(?:non[- ]?binary properties(?: array| list| container)?(?: \(length 0, expected 2\))?|empty properties (?:array|list)|(?:0|zero) (?:association )?ends)"),
+        ("nonbinary_relation", rf"{relation} (?:properties(?: array| list)? (?:is|was|are|were) (?:non[- ]?binary|empty))"),
+        ("unresolved_general_reference", rf"{generalization} lacks both generated primary properties: general: ['\"]Unresolved source reference['\"]"),
+        ("unresolved_general_reference", rf"{generalization} has (?:an? )?unresolved (?:general (?:endpoint )?|classifier |endpoint )?reference(?: (?:to )?(?P<target>{token}))?"),
+        ("unresolved_general_reference", rf"{generalization} has (?:an? )?invalid or unresolved (?:general (?:endpoint )?|classifier |endpoint )?reference: ['\"]Unresolved source reference['\"]"),
+        ("unresolved_general_reference", rf"{generalization} (?:general (?:endpoint )?reference|reference to (?:its )?general endpoint)(?: (?:to )?(?P<target>{token}))? (?:is unresolved|cannot be resolved|could not be resolved)"),
+        ("unavailable_relation_expression", rf"{generalization} lacks both generated primary properties"),
+    )
+    for condition, pattern in patterns:
+        match = re.fullmatch(pattern, reason, re.IGNORECASE)
+        if match:
+            return condition, match
+    return None
+
+
+def _hierarchy_condition_claims(message):
+    """Read separate affirmative claims, including explicitly consolidated diagnostics.
+
+    Try the complete reason first. A consolidated reason can contain separate
+    sentence/semicolon-delimited claims; never split punctuation inside a
+    quoted identifier or exception detail. Every clause must be recognized, so
+    a conditional, negated or contradictory fragment cannot supply evidence.
+    """
+    def read(clause):
+        mixed = _mixed_hierarchy_claim(clause)
+        if mixed:
+            return ("mixed_set" if mixed.group("construct").casefold().endswith("set") else "mixed_edge", mixed)
+        return _independent_hierarchy_claim(clause)
+
+    single = read(message)
+    if single:
+        return (single,)
+    clauses = []
+    start = 0
+    for match in re.finditer(r"""'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]+`|[.;](?=\s)""", message):
+        if match.group() in {".", ";"}:
+            clauses.append(message[start:match.start()].strip())
+            start = match.end()
+    clauses.append(message[start:].strip())
+    claims = tuple(read(clause) for clause in clauses)
+    return claims if all(claims) else ()
+
+
+def hierarchy_condition_error(event, condition, identifier, *, reference=None):
+    """Require affirmative condition and actual locator; permit a shared event for distinct claims."""
+    if (event.severity != "ERROR" or identifier not in event.identified_sources
+            or not event.code or event.code in {
                 "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
                 "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
-            })
+            }):
+        return False
+    for actual, claim in _hierarchy_condition_claims(getattr(event.raw, "message", event.message)):
+        if actual != condition:
+            continue
+        subject = claim.group("identifier")
+        target = claim.groupdict().get("target")
+        if subject is None:
+            # A subjectless clause may use the native source context, but
+            # multiple candidate subjects of the same type are ambiguous.
+            subject_type = {"mixed_set": "GeneralizationSet", "mixed_edge": "Generalization",
+                            "nonbinary_relation": "Relation", "unresolved_general_reference": "Generalization",
+                            "unavailable_relation_expression": "Generalization"}[actual]
+            candidates = {source.identifier for source in getattr(event.raw, "sources", ())
+                          if source.element_type in {None, subject_type}}
+            if candidates != {identifier}:
+                continue
+        elif _diagnostic_identifier(subject) != identifier:
+            continue
+        if target is None or _diagnostic_identifier(target) == reference:
+            return True
+    return False
+
+
+def mixed_hierarchy_error(event, identifier, *, is_set=False):
+    """Require observed structural meaning and source identity, not a provisional code."""
+    return hierarchy_condition_error(event, "mixed_set" if is_set else "mixed_edge", identifier)
 
 
 def _nonclassifier_hierarchy_claim(message):
@@ -3091,10 +3162,20 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
         wording = (event.message + " " + event.effect).casefold()
         facts = dkgm_chain_facts(event.message, event.effect)
         kind = _DIAGNOSTIC_KINDS.get(event.code)
-        if event.severity == "ERROR" and _mixed_hierarchy_claim(event.message):
-            facts.add("mixed_class_relation_hierarchy")
-            if kind is None:
-                kind = "mixed_class_relation_hierarchy"
+        if event.severity == "ERROR":
+            hierarchy_conditions = {condition for condition, _ in _hierarchy_condition_claims(event.message)}
+            if hierarchy_conditions & {"mixed_set", "mixed_edge"}:
+                facts.add("mixed_class_relation_hierarchy")
+                if kind is None:
+                    kind = "mixed_class_relation_hierarchy"
+            if "nonbinary_relation" in hierarchy_conditions:
+                facts.add("relation_properties_non_binary")
+                if kind is None:
+                    kind = "failed_relation"
+            if "unresolved_general_reference" in hierarchy_conditions:
+                facts.add("unresolved_general_reference")
+                if kind is None:
+                    kind = "failed_relation_generalization"
         if event.severity == "ERROR" and _nonclassifier_hierarchy_claim(event.message):
             facts.add("nonclassifier_hierarchy_endpoint")
             if kind is None:
