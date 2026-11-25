@@ -115,42 +115,73 @@ flowchart TB
 
 **Completion.** The Coordinator's consolidated report distinguishes assessment and assignment status from actual remediation and review completion, and identifies pending decisions, investigations, deferrals and limitations. The owner checks that no remediation is necessary or all applicable assignments have been closed by their corresponding independent Reviewer OK, with no unresolved material findings requiring further action within the current audit scope, outstanding material decisions or investigations, blockers or unresolved material audit limitations, including material follow-up discovered during remediation. Legitimately pending development work requiring no additional action within the current audit scope does not by itself prevent completion. Explicit owner-directed closure with deferred material findings or acknowledged limitations is distinct from successful completion. Completing the current cycle does not claim repository-wide conformance or require the four auditors to run again; any subsequent audit is separately initiated by the owner.
 
-## Execution and acceptance
+## Regular design workflow
 
-For assignments introducing, modifying or implementing a registered architectural decision, preserve this logical workflow and each role's independent review; downstream execution has no cross-agent sign-off gates:
+This workflow applies to an owner-selected architectural decision or explicitly assigned correction of the authoritative specification or non-normative open-design-issues record. It preserves independent review of the Architect's registration and all three downstream assessments. For new normative behavior, obtain explicit owner acceptance before registration; an already accepted decision or authorized non-normative record correction does not require a new design-acceptance ceremony.
 
 ```mermaid
-flowchart TB
-    subgraph architecture["1. Architecture"]
-        direction LR
-        A["Architect"] -->|Submit| AR["Architect Reviewer"]
-        AR -->|NOT OK: revise| A
+flowchart TD
+    Start([Start]) --> Scope{"Owner selects architectural assignment"}
+
+    subgraph Architecture["1. Architectural decision and registration"]
+        Scope -->|Design question| Propose["Architect investigates governing specifications, relevant primary sources and repository evidence; proposes a decision"]
+        Propose --> Accept{"Owner explicitly accepts decision?"}
+        Accept -->|Clarify or revise| Propose
+        Accept -->|Defer without a registration assignment| Deferred([Design work deferred])
+        Accept -->|Accepted| Assess
+        Scope -->|Accepted decision or authorized record correction| Assess["Architect refreshes target revision and assesses specification and open issues independently"]
+        Assess --> Applicability{"Registration disposition?"}
+        Applicability -->|UPDATE| Register["Architect consolidates accepted state; preserves exact predecessors and publishes changes atomically; verifies revision"]
+        Applicability -->|NO CHANGE| ArchNoChange["Architect records evidence and inspected full SHA; no empty commit"]
+        Applicability -->|BLOCKED| ArchBlock["Owner coordinates resolution of the blocker or clarifies the assignment"]
+        ArchBlock --> Assess
+        Register --> ArchSubmit["Owner forwards Architect review handoff"]
+        ArchNoChange --> ArchSubmit
+        ArchSubmit --> ArchReview{"Architect Reviewer independently verifies exact revision, scope, registration and archival evidence"}
+        ArchReview -->|NOT OK| ArchFeedback["Owner relays findings; Architect resolves defects or blockers and seeks clarification where necessary"]
+        ArchFeedback --> Assess
+        ArchReview -->|OK| Unified["Architect prepares completed unified downstream handoff with verdict and exact reviewed revision"]
     end
 
-    subgraph preparation["2. Documentation and testing (parallel)"]
+    Unified --> Relay["Owner forwards unified handoff unchanged to all three engineers"]
+
+    subgraph Downstream["2. Independent downstream execution and review"]
         direction TB
-        subgraph documentation["Documentation"]
-            direction LR
-            D["Documentation Engineer"] -->|Submit| DR["Documentation Reviewer"]
-            DR -->|NOT OK: revise| D
+
+        subgraph Documentation["Documentation"]
+            D["Documentation Engineer: assess applicability; EDIT with validation and publication, or justify NO CHANGE"]
+            D -->|Owner relays handoff when ready| DR{"Documentation Reviewer independently reviews submitted revision and scope"}
+            DR -->|NOT OK: owner relays findings| D
+            DR -->|OK| DDone["Documentation assignment closed"]
         end
-        subgraph testing["Testing"]
-            direction LR
-            T["Test Engineer"] -->|Submit| TR["Test Reviewer"]
-            TR -->|NOT OK: revise| T
+
+        subgraph Testing["Testing"]
+            T["Test Engineer: assess applicability; TEST CHANGE with validation and publication, or justify NO TEST CHANGE"]
+            T -->|Owner relays handoff when ready| TR{"Test Reviewer independently reviews submitted revision and scope"}
+            TR -->|NOT OK: owner relays findings| T
+            TR -->|OK| TDone["Test assignment closed"]
+        end
+
+        subgraph Implementation["Implementation"]
+            I["Implementation Engineer: assess applicability; IMPLEMENT with validation and publication, or justify NO CODE CHANGE"]
+            I -->|Owner relays handoff when ready| IR{"Implementation Reviewer independently reviews submitted revision and scope"}
+            IR -->|NOT OK: owner relays findings| I
+            IR -->|OK| IDone["Implementation assignment closed"]
         end
     end
 
-    subgraph implementation["3. Implementation"]
-        direction LR
-        I["Implementation Engineer"] -->|Submit| IR["Implementation Reviewer"]
-        IR -->|NOT OK: revise| I
-    end
-
-    architecture -->|Unified handoff after Architect review OK| preparation
-    architecture -->|Same unified handoff| implementation
-    preparation -.->|Available documentation and tests| implementation
+    Relay --> D & T & I
+    DDone & TDone & IDone --> Complete["Owner confirms all three downstream assignments are independently closed and any required follow-up is resolved"]
+    Complete --> End([Design increment completed])
 ```
+
+**Architectural work.** The Architect investigates the selected issue using proportionate primary-source and repository evidence, presents alternatives and recommendations as appropriate, and registers the accepted decision or authorized correction. Assess both authoritative documents independently, including whether only the non-normative issue record changes or neither document needs an update. Preserve the exact predecessor of each changed document and publish archival preservation and replacement atomically. An architectural NO CHANGE still requires independent Architect Reviewer approval. The Architect issues the completed unified handoff after the applicable OK, including when the specification itself did not change; downstream agents assess their own applicability rather than relying on a specification-change gate.
+
+**Downstream work.** Documentation and testing logically prepare implementation, but all three engineers can start independently from the same approved handoff. Implementation uses available documentation and tests without waiting for the other engineers or their reviewers. Each role assesses its assigned scope, makes only necessary authorized changes, performs proportionate validation (such as a Zensical build, targeted pytest or direct production checks, as applicable and feasible), and verifies the published revision, or submits a justified no-change disposition without an artificial commit. The owner forwards each review handoff and subsequent verdict. Reviewers independently verify the submitted full SHA, scope and evidence; neither a commit nor a successful check alone establishes acceptance.
+
+**Review, blockers and completion.** NOT OK, including a material verification blocker, returns the same assignment for correction or unblocking and resubmission; no fixed maximum number of review rounds applies. Work blocked before submission remains pending while the owner coordinates resolution. A substantive design question returns to the Architect and owner for the applicable decision and review procedure; it cannot be settled through reviewer feedback alone. Keep later assignments queued within each role while its current assignment awaits review. The three downstream OK dispositions are completion conditions, not prerequisites for starting another downstream agent. Resolve any required follow-up before claiming the design increment complete. The periodic auditors and Audit Coordinator are not additional review stages in this workflow.
+
+## Execution and acceptance
 
 For architectural decision implementation, Architect Reviewer OK remains required for the exact registered decision, scope and revision/disposition. The Architect then generates one self-contained handoff, copied unchanged to all three downstream engineers as their primary input. Documentation/testing logically prepare implementation, but each engineer proceeds independently without waiting for another downstream agent's completed work, disposition, reviewer OK or no-action confirmation. Each submission retains its own independent review: NOT OK returns it to its producing role for correction or resolution of the blocker and a current review disposition. An engineer's justified no-change result also retains its own review, without an artificial edit or empty commit or a separate OK/nothing-to-do message to unblock another engineer; eligible prior substantive review may be reused as below. BLOCKED is not completed work. An ordinary assignment does not waive architectural review. Other sequencing exceptions need an explicit task-specific owner instruction identifying the affected requirement and scope, carried in the handoff and checked by the reviewer; all unaffected gates remain required.
 
