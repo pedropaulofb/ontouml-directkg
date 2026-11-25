@@ -12,6 +12,8 @@ This reference explains **accepted intended output**. It does not claim that a w
 
 A conversion eligible for ontology delivery produces the RDF/OWL graph defined by its applicable mappings. The CLI and Python use RDF 1.1 Turtle when serializing that graph.
 
+Under [RDF 1.1 Concepts §3.3](https://www.w3.org/TR/rdf11-concepts/#section-Graph-Literal), RDF 1.1 language-tag conformance of emitted literals is conditional on the source-data provider or language-override caller supplying grammatically well-formed BCP 47 tags (DK-LBL-02, C1). Successful conversion or Turtle serialization, including acceptance by DirectKG's simplified lexical rule, does not establish grammatical well-formedness. See [Language resolution](text.md#language-resolution) for the responsibility boundary.
+
 The contract establishes no format-selection control. Separate provenance beside `hospital.ttl` uses `hospital.provenance.ttl`; no automatic sidecar filename is invented for stdout or an in-memory graph, and CLI `stdout` ontology streaming remains outside the first-release scope (`§15`, `DK-GEN-10`). `<output-stem>.provenance.ttl` is a protected output-artifact path only when `--provenance sidecar` is active (under `embedded` or `none`, targeting that path with `--diagnostics-file` is not rejected as an artifact alias). A new sidecar must not be delivered for an ontology file whose delivery failed.
 
 ## Ontology header
@@ -119,7 +121,7 @@ See [CLI exit codes and delivery failures](../guides/cli.md#exit-codes-and-deliv
 
 ---
 
-Governing rules: §3.2–3.3; DK-GEN-03–04, 08–11; DK-IRI-01, 09; DK-LBL-02; DK-PROP-03; DK-DIAG-04–05, 07; DK-REL-01, 07, 14–15, 20; §15; DK-CONF-01–03; baseline consolidated: **2026-11-25**; repository commit: `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/documentation/specification/transformation-specification.md).
+Governing rules: §3.2–3.3; DK-GEN-03–04, 08–11; DK-IRI-01, 09; DK-LBL-02; DK-PROP-03; DK-DIAG-04–05, 07; DK-REL-01, 07, 14–15, 20; §15; DK-CONF-01–03; baseline consolidated: **2026-11-25**; repository commit: `0523cc4f51356d7de75286ceb176493f714ef7f2`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0523cc4f51356d7de75286ceb176493f714ef7f2/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-04 Decision 2 — Runtime, configuration, and artifact-delivery failure contract (Q1-A, Q1 Adjustment residual exit code `7`, Q2-A, Q3-A, Q4-A)** (project-owner formalization included in the cited consolidation).
 

@@ -22,6 +22,8 @@ This pre-conversion rejection remains distinct from:
 
 The [base-IRI reference](../reference/identifiers.md#base-and-ontology-iris) owns base validation and delimiter rules; the [version-IRI reference](../reference/output.md#optional-ontology-version-iri) owns its separate validation boundary.
 
+For `--language`, lexical acceptance does not establish BCP 47 grammatical well-formedness. Supplying a grammatically well-formed and semantically correct override is the caller's responsibility; see [Language resolution](../reference/text.md#language-resolution).
+
 ## Files and console
 
 Treat the artifacts independently:
@@ -104,7 +106,7 @@ The [Python guide](python.md) explains equivalent transformation capabilities an
 
 ---
 
-Governing rules: §15; DK-DIAG-01, 04–05; DK-GEN-09–10; DK-IRI-01; DK-LBL-02; baseline consolidated: **2026-11-25**; repository commit: `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/documentation/specification/transformation-specification.md).
+Governing rules: §15; DK-DIAG-01, 04–05; DK-GEN-09–10; DK-IRI-01; DK-LBL-02; baseline consolidated: **2026-11-25**; repository commit: `0523cc4f51356d7de75286ceb176493f714ef7f2`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0523cc4f51356d7de75286ceb176493f714ef7f2/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-04 Decision 2 — Runtime, configuration, and artifact-delivery failure contract (Q1-A, Q1 Adjustment residual exit code `7`, Q2-A, Q3-A, Q4-A)** (project-owner formalization included in the cited consolidation).
 
