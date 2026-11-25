@@ -60,6 +60,9 @@ def test_cli_opaque_identifier_policy_and_report(invoke, tmp_path, input_policy,
     assert report_path.is_file()
     report = invoke.read_report(report_path)
     assert report.raw == json.loads(report_path.read_bytes())
+    _cli_json_report_contract(report.raw)
+    assert all(isinstance(d.code, str) and bool(d.code) for d in process.observation.diagnostics)
+    assert all(isinstance(d.code, str) and bool(d.code) for d in report.diagnostics)
     if condition == "whitespace":
         expected_outcome, expected_code = "completed", 0
     elif condition == "non_utf8" and input_policy == "best-effort":
@@ -112,6 +115,9 @@ LOGICAL={RDF.type,RDF.first,RDF.rest,RDFS.subClassOf,RDFS.subPropertyOf,RDFS.dom
 def _report(invoke,path,result):
     report=invoke.read_report(path)
     assert report.raw==json.loads(path.read_bytes()) and report.schema is not None
+    _cli_json_report_contract(report.raw)
+    assert all(isinstance(d.code, str) and bool(d.code) for d in result.diagnostics)
+    assert all(isinstance(d.code, str) and bool(d.code) for d in report.diagnostics)
     assert report.outcomes==(result.outcome,)
     assert diagnostic_signatures(report.diagnostics)==diagnostic_signatures(result.diagnostics)
     return report
@@ -129,6 +135,7 @@ def _cli_json_report_contract(payload):
         assert isinstance(event, dict)
         assert {"severity", "code", "message", "effect", "sources", "generated_iri"} <= event.keys()
         assert all(isinstance(event[name], str) for name in ("severity", "code", "message", "effect"))
+        assert event["code"]
         assert event["severity"] in {"INFO", "WARNING", "ERROR"}
         assert event["generated_iri"] is None or isinstance(event["generated_iri"], str)
         assert isinstance(event["sources"], list)
@@ -189,9 +196,11 @@ def _json_contract_cli_source(tmp_path, scenario):
 def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_filtering(invoke, tmp_path, console_level, scenario):
     """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 JSON export and console levels.
 
-    RD-04 alternative A at 37e68764202a2a18e0c54ac264df1536ff47e28c. All fields
-    are checked against actual native data captured within this CLI execution;
-    no fixed code catalogue, messages, or cross-execution ordering is required.
+    RD-04 alternative A at 37e68764202a2a18e0c54ac264df1536ff47e28c and v1
+    catalogue boundary at bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c. Every
+    produced diagnostic populates code as a nonempty string; only the eight
+    core identifiers carry v1 stability without a separate v1 catalogue, and
+    no fixed messages or cross-execution ordering are required.
     """
     source, options = _json_contract_cli_source(tmp_path, scenario)
     destination, report_path = tmp_path / "output.ttl", tmp_path / "diagnostics.json"
@@ -208,6 +217,8 @@ def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_f
     assert produced_records <= expected_records, "CLI presentation/delivery discarded produced diagnostics"
     payload = json.loads(report_path.read_bytes())
     assert _cli_json_report_contract(payload) == (native.outcome, expected_records)
+    assert all(isinstance(event.code, str) and bool(event.code) for event in process.observation.diagnostics)
+    assert all(event.code is None or (isinstance(event.code, str) and bool(event.code)) for event in process.console)
     expected_outcome = (
         "completed-with-errors" if scenario == "partial"
         else "aborted" if scenario in {"unprocess", "metadata_failure", "duplicate_abort", "untyped_location"}
@@ -217,6 +228,7 @@ def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_f
     assert process.returncode == {"completed": 0, "completed-with-errors": 1, "aborted": 3}[expected_outcome]
     allowed = {"info": {"INFO", "WARNING", "ERROR"}, "warning": {"WARNING", "ERROR"}, "error": {"ERROR"}}[console_level]
     assert Counter(event.severity for event in process.console) == Counter(event[0] for event in native.events if event[0] in allowed)
+    assert console_covers_diagnostic_records(process.console, [event for event in native.events if event[0] in allowed])
     if expected_outcome == "aborted":
         assert not destination.exists() and process.observation.ontology is None
     else:
@@ -247,6 +259,30 @@ def test_shared_json_contract_cli_export_mirrors_native_events_despite_console_f
         discarded = ("DISCARDED_ASSOCIATION_SENTINEL", "DISCARDED_DESCRIPTION_SENTINEL",
                      "DISCARDED_SOURCE_ROLE_SENTINEL", "DISCARDED_TARGET_ROLE_SENTINEL", "37..41", "43..47")
         assert not any(value in json.dumps(payload) for value in discarded)
+
+
+def test_cli_json_report_contract_and_console_reject_empty_diagnostic_code():
+    """Rules: DK-DIAG-04. Harness only: enforce nonempty code in CLI JSON and displayed console records."""
+    from tests.support.invocation import _observed_console
+
+    payload = {
+        "outcome": "completed",
+        "diagnostics": [{
+            "severity": "WARNING",
+            "code": "",
+            "message": "Placeholder base used.",
+            "effect": "Generated entities use placeholder base.",
+            "sources": [],
+            "generated_iri": None,
+        }],
+    }
+    with pytest.raises(AssertionError):
+        _cli_json_report_contract(payload)
+    console = _observed_console(b"", b"[WARNING] : Placeholder base used.\n")
+    assert len(console) == 1 and console[0].code == ""
+    assert not console_covers_diagnostic_records(
+        console, (("WARNING", "", "Placeholder base used.", "", (), None),)
+    )
 
 
 def _source(tmp_path,scenario):
@@ -903,7 +939,8 @@ def test_package_contents_report_failure_takes_precedence(invoke, tmp_path, scop
 def test_stable_diagnostic_core_matches_conditions_across_interfaces(invoke, tmp_path, case, expected_code, input_policy):
     """Rules: DK-DIAG-04, DK-DIAG-05, DK-IRI-01, DK-GEN-10; §3.2, §3.4, §15.
 
-    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5.
+    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5, and
+    closed v1 catalogue boundary at bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c.
     Native Python, separate JSON exports, actual CLI JSON and displayed codes
     must agree without fixing wording, diagnostic multiplicity or ordering.
     """
@@ -1319,9 +1356,11 @@ def test_stable_delivery_identifiers_match_across_interfaces(invoke, tmp_path, c
 def test_provisional_diagnostics_remain_reported_without_fixed_identifiers(invoke, tmp_path, case, kind, input_policy):
     """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-09, DK-DIAG-10, DK-DIAG-11.
 
-    RD-04 eight-code core, e62454b98933a6ba6cb5890084fa7353d671c5a5.
-    Require the actual provisional code and event to survive each interface;
-    deliberately do not assert its spelling or promise future stability.
+    RD-04 eight-code core (e62454b98933a6ba6cb5890084fa7353d671c5a5) and closed
+    v1 catalogue boundary (Alternative A, bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c).
+    Non-core identifiers remain implementation-defined / unguaranteed in v1
+    without a separate v1 catalogue; require a nonempty code string and event
+    preservation across each interface without fixing identifier spelling.
     """
     source, options, faults = _diagnostic_core_request(tmp_path, case, input_policy)
     severity = "WARNING" if case == "missing_cardinality" else "ERROR"
@@ -1493,6 +1532,8 @@ def test_cli_metadata_list_recovery_delivers_ontology_and_complete_report(
     assert_graph_equal(external, expected)
     assert (BASE.Person, RDF.type, OWL.Class) in graph and (ONTOLOGY, RDF.type, OWL.Ontology) in graph
     report = invoke.read_report(report_path)
+    _cli_json_report_contract(report.raw)
+    assert all(isinstance(d.code, str) and bool(d.code) for d in process.observation.diagnostics)
     assert report.outcomes == (process.observation.outcome,) and report.schema is not None
     assert all(d.raw is not None for d in report.diagnostics)
     if bad: assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in report.diagnostics)
@@ -1516,6 +1557,8 @@ def test_cli_keyword_audit_reproduction_preserves_policy_and_report(invoke, tmp_
     assert process.observation.outcome == ('completed-with-errors' if best_effort else 'aborted')
     assert report_path.is_file()
     report = invoke.read_report(report_path)
+    _cli_json_report_contract(report.raw)
+    assert all(isinstance(d.code, str) and bool(d.code) for d in process.observation.diagnostics)
     assert report.outcomes == (process.observation.outcome,) and report.schema is not None
     assert any(d.kind == 'metadata_field' and d.severity == 'ERROR' for d in report.diagnostics)
     produced, reported = invoke.diagnostic_mirror_records(process, report)

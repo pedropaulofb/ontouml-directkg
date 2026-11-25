@@ -670,7 +670,7 @@ def _observed_console(stdout, stderr):
             raw = data[match.start():end]
             # The inspected bracket-header renderer displays CODE: immediately
             # after severity. A bare severity header does not establish a code.
-            displayed = re.match(rb"([^:\s]+):", data[match.end():end]) if match.group(1) else None
+            displayed = re.match(rb"([^:\s]*):", data[match.end():end]) if match.group(1) else None
             events.append(_ConsoleDiagnostic(
                 (match.group(1) or match.group(2)).decode("ascii").upper(),
                 "console", raw.decode("utf-8", errors="replace"),
@@ -1639,7 +1639,7 @@ def console_covers_diagnostic_records(console, records):
         for index, (display_severity, displayed, displayed_code) in enumerate(available):
             if display_severity != severity or not all(field in displayed for field in text):
                 continue
-            if displayed_code is not None and displayed_code != code:
+            if displayed_code is not None and (not displayed_code or displayed_code != code):
                 continue
             if not all(path in displayed or (identifier is not None and re.search(
                     rf"(?<!\w){re.escape(identifier)}(?!\w)", displayed)) for path, identifier, _ in sources):

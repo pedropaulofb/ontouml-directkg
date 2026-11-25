@@ -2079,3 +2079,19 @@ property-ordering wording, valid/null/absent/string wording, conditionals,
 hedges, negations, bare expectations, and unrelated subjects. This TEST CHANGE
 awaits independent Test Reviewer review; no production-correctness claim is
 made.
+
+## RD-04 condition-to-code catalogue boundary for v1
+
+The owner approved Alternative A and independent Architect Reviewer issued
+**OK** (`zero findings; no required action`) at
+[`bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c`](https://github.com/pedropaulofb/ontouml-directkg/commit/bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c).
+The [scoped inventory](coverage.md#rd-04--condition-to-code-catalogue-boundary-for-v1-alternative-a)
+records the updated nonempty `code` assertions across `_cli_json_report_contract`,
+`_json_report_contract`, `_report`, CLI console/report checks, and Python
+structured diagnostic access (`read_diagnostics`), the updated
+`_observed_console` / `console_covers_diagnostic_records` empty-code handling
+in `tests/support/invocation.py`, the two harness empty-code rejection checks,
+and updated RD-04 docstrings. Non-core identifiers remain unpinned beyond
+non-emptiness and exclusion from `STABLE_DIAGNOSTIC_CODES`. This TEST CHANGE
+awaits independent Test Reviewer review; no production-correctness claim is
+made.

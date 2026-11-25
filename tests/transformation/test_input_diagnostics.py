@@ -676,7 +676,11 @@ def test_programmatic_diagnostic_access_is_complete_and_noninterfering(run, invo
     first = invoke.read_diagnostics(result)
     second = invoke.read_diagnostics(result)
     assert diagnostic_signatures(first) == diagnostic_signatures(second) == original_events
-    assert all(d.severity in {"INFO", "WARNING", "ERROR"} and d.raw is not None for d in first)
+    assert all(
+        d.severity in {"INFO", "WARNING", "ERROR"} and isinstance(d.code, str) and bool(d.code) and d.raw is not None
+        for d in first
+    )
+    assert all(isinstance(d.code, str) and bool(d.code) for d in result.diagnostics)
     assert invoke.read_outcome(result) == outcome
     observed_graph = invoke.read_ontology(result)
     if outcome == "aborted":
@@ -705,6 +709,7 @@ def _json_report_contract(payload):
         assert isinstance(event, dict)
         assert {"severity", "code", "message", "effect", "sources", "generated_iri"} <= event.keys()
         assert all(isinstance(event[name], str) for name in ("severity", "code", "message", "effect"))
+        assert event["code"]
         assert event["severity"] in {"INFO", "WARNING", "ERROR"}
         assert event["generated_iri"] is None or isinstance(event["generated_iri"], str)
         assert isinstance(event["sources"], list)
@@ -852,8 +857,10 @@ def _json_contract_source(source_json, tmp_path, scenario):
 def test_shared_json_contract_python_export_preserves_required_fields_and_actual_events(invoke, source_json, tmp_path, scenario):
     """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-GEN-09, DK-IRI-01, DK-IRI-04, DK-INS-02; §3.4 and §15 Python JSON export.
 
-    RD-04 alternative A, reviewed registration 37e68764202a2a18e0c54ac264df1536ff47e28c.
-    Codes and wording are observed event data, never fixed expected identifiers.
+    RD-04 alternative A, reviewed registrations 37e68764202a2a18e0c54ac264df1536ff47e28c
+    and bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c. Every produced diagnostic
+    populates code as a nonempty string; non-core identifiers and wording are
+    observed event data without a separate v1 catalogue or fixed non-core codes.
     Re-read the live ontology after export to verify continued output eligibility.
     """
     source, options = _json_contract_source(source_json, tmp_path, scenario)
@@ -864,6 +871,7 @@ def test_shared_json_contract_python_export_preserves_required_fields_and_actual
         else "completed"
     )
     assert result.outcome == expected and result.diagnostics_exports == ()
+    assert all(isinstance(d.code, str) and bool(d.code) for d in invoke.read_diagnostics(result))
     before = _native_report_records(invoke.report_content(result))
     graph = None if result.ontology is None else Graph() + result.ontology
     destination = tmp_path / "chosen-report.data"
@@ -943,6 +951,23 @@ def test_shared_json_contract_reader_accepts_compatible_members_and_reordered_en
     assert _json_report_contract(interpreted.raw) == expected
     assert diagnostic_signatures(interpreted.diagnostics) == diagnostic_signatures(initial.diagnostics)
     assert interpreted.schema == initial.schema
+
+
+def test_json_report_contract_rejects_empty_diagnostic_code():
+    """Rules: DK-DIAG-04. Harness only: enforce nonempty code in the shared JSON contract."""
+    payload = {
+        "outcome": "completed",
+        "diagnostics": [{
+            "severity": "WARNING",
+            "code": "",
+            "message": "Placeholder base used.",
+            "effect": "Generated entities use placeholder base.",
+            "sources": [],
+            "generated_iri": None,
+        }],
+    }
+    with pytest.raises(AssertionError):
+        _json_report_contract(payload)
 
 
 @pytest.mark.parametrize("scenario", ["clean", "partial", "duplicate_abort"])
