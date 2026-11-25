@@ -61,6 +61,8 @@ As a narrowly scoped exception to this boundary, DirectKG enforces targeted **tr
 
 Contradictory nonnegative numeric bounds, such as `5..2`, remain stated constraints: both the minimum and maximum are generated, with no warning or error solely for the contradiction. Such restrictions can make a class unsatisfiable; that does not alone make the whole ontology inconsistent unless other axioms require an instance. Separately, the selected material-chain mode can require omission of restrictions affected by emitted chains. It does not repair the source bounds.
 
+Within the accepted input and transformation scope, residual structural recovery applies the existing input policy when affected and dependent contributions and safe continuation can be determined unambiguously from accepted requirements. Generalizations connecting resolved classes and relations are structural errors, and a mixed class/relation set contributes no set-derived mappings under `best-effort`. These rules preserve independent mappings and retain the semantic-validation boundary. See [Residual structural recovery](../reference/diagnostics.md#residual-structural-recovery) and [Mixed class and relation generalizations and sets](../reference/diagnostics.md#mixed-class-and-relation-generalizations-and-sets).
+
 ## Preservation boundaries
 
 Preservation depends on the construct, rather than on conversion completing without errors.
@@ -98,7 +100,7 @@ Combining chains with other axioms can cause a reasoner to reject an ontology or
 
 ---
 
-Governing rules: §§3–5; DK-GEN-02–04; DK-ATT-01–02; DK-HO-01, 03; DK-PROP-03–05; DK-REL-01, 07–08, 14–16, 20; DK-DIAG-01–02, 05, 07; §15; baseline consolidated: **2026-11-20**; repository commit: `ddca486133edb1b27a26c8995d612c4579afd838`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ddca486133edb1b27a26c8995d612c4579afd838/documentation/specification/transformation-specification.md).
+Governing rules: §§3–5; DK-GEN-02–04, 12; DK-ATT-01–02; DK-HO-01, 03; DK-PROP-03–05; DK-REL-01, 07–08, 14–16, 20; DK-DIAG-01–02, 05, 07; §15; baseline consolidated: **2026-11-25**; repository commit: `295fa5f296477924d60afa904ac451780e5e56eb`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/295fa5f296477924d60afa904ac451780e5e56eb/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — Attributes owned by a `Class` without a generated local `owl:Class` (Alternative A) and dependent `DK-PROP-03` handling** (project-owner formalization included in the cited consolidation).
 

@@ -46,7 +46,7 @@ This is bounded materialization of the modeled extension, not a promise of gener
 
 ### Recovery for incomplete categorized class sets
 
-This rule applies when a class set has a nonempty `generalizations` array, at least one member reference fails to resolve or a required member transformation fails, and the categorizer `C` resolves to an eligible classifier with a generated local OWL class (DK-HO-04).
+This rule applies when a class set without mixed class/relation membership under DK-GEN-12 has a nonempty `generalizations` array, at least one member reference fails to resolve or a required member transformation fails, and the categorizer `C` resolves to an eligible classifier with a generated local OWL class (DK-HO-04).
 
 Under `best-effort`, each distinct specific `S` of the successfully transformed explicit members receives `S rdf:type C` using the existing [punning rules](#punning-and-separate-facets). If no members survive, the set contributes no categorizer assertions. When `C.isPowertype` is true, omit the expansion to the common general and other specializations for this incomplete set. Classifications established independently by other mappings still apply.
 
@@ -58,7 +58,7 @@ The existing member ERROR remains. `strict` and `tolerant` abort. Under `best-ef
 
 ### Recovery for an unusable categorizer
 
-This rule applies to a class generalization set with a nonempty `generalizations` array and a present, non-null `categorizer` value that cannot supply a generated local `owl:Class` (DK-HO-04). An unusable categorizer includes:
+This rule applies to a class generalization set without mixed class/relation membership under DK-GEN-12, with a nonempty `generalizations` array and a present, non-null `categorizer` value that cannot supply a generated local `owl:Class` (DK-HO-04). An unusable categorizer includes:
 
 - a malformed reference value;
 - an unresolved reference, including a dangling identifier, a reference-type mismatch, or a target class omitted earlier under `best-effort`;
@@ -87,7 +87,7 @@ For example (**specification illustration**, not observed converter output), if 
 
 ### Non-null categorizer on relation generalization sets
 
-This rule applies to a relation generalization set (a `GeneralizationSet` with a nonempty `generalizations` array containing relation generalization(s)) carrying a present, non-null `categorizer` value—regardless of whether that value is malformed, unresolved, resolves to a non-`Class` declaration, or resolves to a `Class` (with or without a generated local `owl:Class`) (DK-HO-04). An absent or explicit `null` `categorizer` on a relation generalization set continues to denote an uncategorized relation generalization set without error.
+This rule applies to a relation generalization set (a `GeneralizationSet` with a nonempty `generalizations` array containing relation generalization(s) and without mixed class/relation membership under DK-GEN-12) carrying a present, non-null `categorizer` value—regardless of whether that value is malformed, unresolved, resolves to a non-`Class` declaration, or resolves to a `Class` (with or without a generated local `owl:Class`) (DK-HO-04). An absent or explicit `null` `categorizer` on a relation generalization set continues to denote an uncategorized relation generalization set without error.
 
 DirectKG reports a structural **ERROR** identifying the affected generalization set and the inapplicable non-null `categorizer` condition. This rule selects no new stable diagnostic identifier; `DK-DIAG-04`'s eight-code core remains unchanged and its code remains [provisional](../reference/diagnostics.md#stable-first-release-diagnostic-core). Under `strict` or `tolerant` (the default), conversion aborts under DK-DIAG-05 (`aborted` outcome, no ontology delivered). Under `best-effort`, DirectKG retains ERROR severity, emits no categorizer (DK-HO-02), powertype-extension (DK-HO-03), or property-typing assertions derived from that set, and continues processing. See [relation-set categorizer diagnostics](../reference/diagnostics.md#non-null-categorizer-in-relation-generalization-sets) for the outcome, delivery, and CLI exit-code contract.
 
@@ -108,7 +108,7 @@ DirectKG must not invent a property-categorizer mapping or emit `rdf:type` asser
 
 For example (**specification illustration**, not observed converter output), if a disjoint relation generalization set specializes `:relates` into `:approves` and `:rejects` and its `categorizer` references an independently declared `Class` `RelationType` (or a dangling ID), `strict` and `tolerant` report a structural ERROR and abort. Under `best-effort`, DirectKG retains ERROR severity, omits all DK-HO-02 categorizer, DK-HO-03 powertype-extension, and property-typing assertions derived from that set, and retains `:approves rdfs:subPropertyOf :relates`, `:rejects rdfs:subPropertyOf :relates`, `:approves owl:propertyDisjointWith :rejects` (and the corresponding named-inverse axioms when applicable), and the independently declared `RelationType` class.
 
-[DK-DIAG-12](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) retains precedence for empty, absent, `null`, or other non-array `generalizations` containers (which already omit any categorizer or powertype output from the affected set), and the fatal [duplicate-declaration-ID rule](../reference/diagnostics.md#input-policy) (§3.4 / DK-DIAG-05) retains precedence under every input policy, including `best-effort`. Mixed class/relation generalizations and mixed class/relation generalization sets remain outside scope.
+[DK-DIAG-12](../reference/diagnostics.md#missing-or-malformed-generalization-set-membership) retains precedence for empty, absent, `null`, or other non-array `generalizations` containers (which already omit any categorizer or powertype output from the affected set), and the fatal [duplicate-declaration-ID rule](../reference/diagnostics.md#input-policy) (§3.4 / DK-DIAG-05) retains precedence under every input policy, including `best-effort`. Mixed class/relation constructs follow [Mixed class and relation generalizations and sets](../reference/diagnostics.md#mixed-class-and-relation-generalizations-and-sets). A mixed set contributes no categorizer or powertype assertions under `best-effort`, including assertions that would arise from a homogeneous subset. Independently applicable classifications still apply.
 
 **Implementation status.** At the [reviewed registration revision `cc562c49a8274367e3a52d95c368abb484bfa713`](https://github.com/pedropaulofb/ontouml-directkg/blob/cc562c49a8274367e3a52d95c368abb484bfa713/src/ontouml_directkg/generalizations.py#L266-L267), `emit_relation_generalizations` still raises `NotImplementedError("Categorizer treatment for relation sets remains unspecified")` whenever `data.get("categorizer") is not None` on a relation generalization set, caught in [`conversion.py`](https://github.com/pedropaulofb/ontouml-directkg/blob/cc562c49a8274367e3a52d95c368abb484bfa713/src/ontouml_directkg/conversion.py#L247-L251) as `INTERNAL_TRANSFORMATION_FAILURE` and aborting under every input policy, including `best-effort`. This subsection describes the accepted intended behavior.
 
@@ -122,6 +122,6 @@ Explicitly empty generalization arrays have their defined error handling. Under 
 
 ---
 
-Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01–02, 05–09; DK-REL-14–16, 20; DK-INV-12; DK-DIAG-01, 04–05, 12, 14; §3.4; §15; baseline consolidated: **2026-11-24**; repository commit: `15eff98eb9dfeed69694ff81f099e0b9785e700f`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/15eff98eb9dfeed69694ff81f099e0b9785e700f/documentation/specification/transformation-specification.md).
+Governing rules: DK-HO-01–04; DK-GEN-12; DK-CLS-01–02, 05–09; DK-REL-14–16, 20; DK-INV-12; DK-DIAG-01, 04–05, 12, 14; §3.4; §15; baseline consolidated: **2026-11-25**; repository commit: `295fa5f296477924d60afa904ac451780e5e56eb`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/295fa5f296477924d60afa904ac451780e5e56eb/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — Malformed Boolean flags (Alternative 1 — Uniform field-level omission)** (project-owner formalization included in the cited consolidation).

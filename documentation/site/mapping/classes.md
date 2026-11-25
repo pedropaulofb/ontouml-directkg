@@ -27,7 +27,9 @@ Both stereotype rules use pairwise `owl:disjointWith`, with one statement per un
 
 ## Generalization sets
 
-A class generalization set constrains its **explicit specific classifiers**. Disjointness and completeness are separate: the mappings do not use `owl:disjointUnionOf`.
+A homogeneous class generalization set constrains its **explicit specific classifiers**. Disjointness and completeness are separate: the mappings do not use `owl:disjointUnionOf`.
+
+A generalization connecting a resolved class and relation in either direction is a structural ERROR under DK-GEN-12. Under `best-effort`, omit its hierarchy contribution. If a set contains resolved class and relation endpoints, omit its entire set contribution, including class coverage, disjointness and categorizations, even if some members could independently support a homogeneous class set. See [Mixed class and relation generalizations and sets](../reference/diagnostics.md#mixed-class-and-relation-generalizations-and-sets).
 
 Count members using the [generalization-set membership rule](../reference/input.md#generalization-set-membership): repeated references to the same declaration count once within the set. A fully resolved, complete `[g1, g1]` therefore uses singleton completeness and its required INFO. The linked input reference records the implementation status of this accepted behavior.
 
@@ -45,7 +47,7 @@ For example, a complete set specializing `Vehicle` into `Car` and `Bicycle` cons
 
 For singleton completeness, the two subclass directions make the classes extensionally equivalent while their IRIs remain distinct. DirectKG uses the reverse subclass statement, rather than a one-member union or an additional `owl:equivalentClass`. Applying this mapping requires a nonfatal INFO identifying the set, general, and specific and explaining that consequence. Singleton membership alone is not a warning. A singleton has no pair for set-derived disjointness; other disjointness remains applicable.
 
-An unresolved member reference or failed member transformation is an error. `strict` and `tolerant` abort; under `best-effort`, retain independently transformable class/generalization mappings and any pairwise disjointness among surviving specifics, but **omit coverage**. Never cover the general using only survivors or apply singleton completeness just because one member survives. No surviving pair means no disjointness from that set (DK-CLS-09).
+For a class set without mixed class/relation membership under DK-GEN-12, an unresolved member reference or failed member transformation is an error. `strict` and `tolerant` abort; under `best-effort`, retain independently transformable class/generalization mappings and any pairwise disjointness among surviving specifics, but **omit coverage**. Never cover the general using only survivors or apply singleton completeness just because one member survives. No surviving pair means no disjointness from that set (DK-CLS-09).
 
 An explicitly empty `generalizations` array is a structural error under every completeness/disjointness combination. `strict` and `tolerant` abort; `best-effort` reports the error, omits the empty set's contribution, and continues elsewhere. Do not infer a general class, invent members, or assert an empty class extension from that array (DK-DIAG-12).
 
@@ -112,7 +114,7 @@ Explicit `isDerived` values have the separate cross-cutting [derived-status comm
 
 ---
 
-Governing rules: §3.4; DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05, 12; DK-HO-03–04; DK-DIAG-05–06, 12–17; baseline consolidated: **2026-11-25**; repository commit: `03c4f88487631979c4debc38634668ee9cbaf612`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/03c4f88487631979c4debc38634668ee9cbaf612/documentation/specification/transformation-specification.md).
+Governing rules: §3.4; DK-CLS-01–11; DK-DAT-01–05; DK-GEN-05, 12; DK-HO-03–04; DK-DIAG-05–06, 12–17; baseline consolidated: **2026-11-25**; repository commit: `295fa5f296477924d60afa904ac451780e5e56eb`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/295fa5f296477924d60afa904ac451780e5e56eb/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — `Class.order` validation and field-level recovery (V4 + R1)** (project-owner formalization included in the cited consolidation).
 

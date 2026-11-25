@@ -70,7 +70,7 @@ Missing and invalid IDs follow the existing [structural-error policies](diagnost
 
     For separate declarations participating in accepted mappings or required reference resolution, decoded JSON ID strings are compared exactly: no trimming, normalization, or case folding. A duplicate declaration ID is fatal under **every** input policy, even when the declarations have identical contents or unrelated fragments could be transformed. Selecting a declaration, merging declarations, or assigning replacement IDs is prohibited. Ordinary repeated reference objects pointing to one declaration are not duplicate declarations.
 
-Other structural failures follow their applicable recovery rules. `best-effort` does not authorize inventing missing information or delivering syntactically invalid RDF. It also does not authorize continuation after a stereotype condition rejected by the separate stereotype policy. See [Controls](controls.md#control-boundaries) for the policy boundaries.
+Other structural failures follow their applicable recovery rules. Where a specific rule is absent, apply [residual structural recovery](diagnostics.md#residual-structural-recovery) when the existing requirements unambiguously determine affected contributions and safe continuation. `best-effort` does not authorize inventing missing information or delivering syntactically invalid RDF. It also does not authorize continuation after a stereotype condition rejected by the separate stereotype policy. See [Controls](controls.md#control-boundaries) for the policy boundaries.
 
 On any indexed `Class`, `Relation`, or `Property` (including classifier-owned attributes, valid `Property` entries in `Relation.properties`, and indexed misplaced `Property` entries in `Package.contents`), any `stereotype` value that is neither `null`/absent nor a string with at least one non-whitespace character (specifically non-`null`, non-string JSON values and empty or whitespace-only strings) triggers a structural **ERROR** under `DK-DIAG-05` regardless of `--stereotype-policy`: `strict` and `tolerant` abort, while `best-effort` applies hybrid recovery (omitting affected `Class` or `Relation` elements together with their owned `properties`/`literals` descendants at element level, and omitting only the malformed `stereotype` field on surviving `Property` elements). See [Malformed stereotype values](diagnostics.md#malformed-stereotype-values) for policy outcomes, precedence, and current `NotImplementedError` / `UNRECOGNIZED_STEREOTYPE` implementation status in `source.py`.
 
@@ -99,6 +99,8 @@ See [Class properties and non-enumeration literals](diagnostics.md#class-propert
 
 ### Generalization-set membership
 
+Generalizations connecting a resolved `Class` and `Relation` in either direction, and sets whose resolved member endpoints establish mixed class/relation membership, are structural errors (DK-GEN-12). Under `strict` and `tolerant` they abort; under `best-effort` the affected hierarchy contribution or entire mixed-set contribution is omitted. See [Mixed class and relation generalizations and sets](diagnostics.md#mixed-class-and-relation-generalizations-and-sets) for detection and recovery.
+
 Within each set's `generalizations` array, otherwise valid references resolving to the same source `Generalization` declaration count as **one membership** (DK-GEN-12). Identity uses the exact decoded source-ID string, without trimming, normalization, or case folding. Counting is separate for each set and applies under `strict`, `tolerant`, and `best-effort`. The existing class, relation, and categorizer mappings use that effective membership.
 
 Distinct generalization declarations remain distinct members even when they share endpoint classifiers. Repeated references are also distinct from separate declarations sharing an ID: duplicate declaration IDs still abort under every input policy. Repetition alone adds no diagnostic or control; independently required diagnostics remain applicable.
@@ -107,7 +109,7 @@ These are **specification illustrations** using shorthand references to declarat
 
 | References in one set | Accepted treatment |
 | --- | --- |
-| Fully resolved `[g1, g1]` | One member. Apply the existing singleton rules, including required INFO when completeness is applied. |
+| Fully resolved eligible homogeneous set `[g1, g1]` | One member. Apply the existing singleton rules, including required INFO when completeness is applied. |
 | Fully resolved `[g1, g2, g1]`, with distinct declarations | Two members. Apply the existing mappings and their prerequisites. |
 | `[g1, g1, g2]`, with `g2` unresolved or its transformation failed | Retain the existing error/recovery treatment. Counting `g1` once cannot authorize singleton completeness. |
 
@@ -133,7 +135,7 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-05–08, 12; DK-CLS-01, 05–09, 11; DK-ATT-01; DK-PROP-03–06; DK-HO-03–04; DK-REL-01–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02–03, 05; DK-DIAG-01, 03, 05–06, 09, 12–19; baseline consolidated: **2026-11-25**; repository commit: `03c4f88487631979c4debc38634668ee9cbaf612`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/03c4f88487631979c4debc38634668ee9cbaf612/documentation/specification/transformation-specification.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-05–08, 12; DK-CLS-01, 05–09, 11; DK-ATT-01; DK-PROP-03–06; DK-HO-03–04; DK-REL-01–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02–03, 05; DK-DIAG-01, 03, 05–06, 09, 12–19; baseline consolidated: **2026-11-25**; repository commit: `295fa5f296477924d60afa904ac451780e5e56eb`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/295fa5f296477924d60afa904ac451780e5e56eb/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — `Class.order` validation and field-level recovery (V4 + R1)** (project-owner formalization included in the cited consolidation).
 
