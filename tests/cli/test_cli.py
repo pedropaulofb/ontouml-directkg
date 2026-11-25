@@ -3192,3 +3192,121 @@ def test_malformed_boolean_flag_adds_no_new_cli_or_python_controls(invoke):
     assert set(surface.cli) == {
         flag for flag, *_ in CONTROLS
     } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
+
+
+def _malformed_class_order_cli_document(case):
+    if case == "ordinary_class_int":
+        document = load_json("shared/core_model")
+        source_element(document, "cOrg").update(description="Org desc", isAbstract=True, order=2)
+        return document, "cOrg"
+    if case == "primitive_datatype_bool":
+        document = load_json("classes/enumerations")
+        owner = source_element(document, "cOwner")
+        owner["properties"] = None
+        target = source_element(document, "eStatus")
+        target.update(stereotype="datatype", name="int", properties=None, literals=None, order=True)
+        document["model"]["contents"] = [owner, target]
+        return document, "eStatus"
+    raise AssertionError(f"Unlisted CLI malformed Class.order case: {case}")
+
+
+@pytest.mark.parametrize("input_policy", [None, *POLICIES], ids=["default", *POLICIES])
+@pytest.mark.parametrize("case", ["ordinary_class_int", "primitive_datatype_bool"])
+def test_malformed_class_order_cli_python_parity(invoke, tmp_path, input_policy, case):
+    """Rules: DK-CLS-01, DK-CLS-05, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-02 V4 + R1."""
+    document, target_id = _malformed_class_order_cli_document(case)
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if input_policy is not None:
+        options["input_policy"] = input_policy
+
+    if input_policy == "best-effort":
+        outcome, expected_code, delivered_expected = "completed-with-errors", 1, True
+    else:
+        outcome, expected_code, delivered_expected = "aborted", 3, False
+
+    python_dir, cli_dir = tmp_path / "python", tmp_path / "cli"
+    python_dir.mkdir()
+    cli_dir.mkdir()
+    destination, report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == outcome
+    assert (invoke.read_ontology(python) is not None) == delivered_expected
+    assert (invoke.read_provenance(python) is not None) == delivered_expected
+    assert destination.is_file() == delivered_expected
+    assert destination.with_name("out.provenance.ttl").is_file() == delivered_expected
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+
+    exported = _assert_native_json_mirror(invoke, python, python_dir / "python.json")
+    delivered = _assert_cli_json_and_console(invoke, process, report)
+    assert exported.outcome == delivered.outcome == outcome
+
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        assert not any(event.code == "UNKNOWN_INFORMATION" for event in events)
+        assert any(
+            event.severity == "ERROR"
+            and "malformed_class_order" in event.facts
+            and target_id in event.identified_sources
+            and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+            for event in events
+        ), events
+
+    if delivered_expected:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        if case == "ordinary_class_int":
+            assert (BASE.cOrg, RDF.type, OWL.Class) in delivered_graph
+            comments = set(delivered_graph.objects(BASE.cOrg, RDFS.comment))
+            assert Literal("Org desc") in comments
+            assert not any(str(comment).startswith("OntoUML classifier order:") for comment in comments)
+            assert any(d.kind == "abstractness" and "cOrg" in d.identified_sources
+                       for d in process.observation.diagnostics)
+        else:
+            assert (BASE.cOwner, RDF.type, OWL.Class) in delivered_graph
+            assert not any(BASE.eStatus in triple for triple in delivered_graph)
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_malformed_class_order_report_failure_takes_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-CLS-05, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 precedence. RD-02 V4 + R1."""
+    document, target_id = _malformed_class_order_cli_document("ordinary_class_int")
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report)
+    recover = input_policy == "best-effort"
+    assert process.returncode == 4, process.stderr
+    assert not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert process.observation.outcome == ("completed-with-errors" if recover else "aborted")
+    assert destination.is_file() == recover
+    assert destination.with_name("out.provenance.ttl").is_file() == recover
+    assert any(
+        event.severity == "ERROR"
+        and "malformed_class_order" in event.facts
+        and target_id in event.identified_sources
+        and event.code and event.code not in STABLE_DIAGNOSTIC_CODES
+        for event in process.observation.diagnostics
+    ), process.observation.diagnostics
+
+
+def test_malformed_class_order_adds_no_new_cli_or_python_controls(invoke):
+    """Rules: DK-CLS-05, DK-DIAG-05; §15 configuration surface boundary. RD-02 V4 + R1."""
+    surface = invoke.inspect_controls()
+    assert set(surface.python) == set(DEFAULTS)
+    assert set(surface.cli) == {
+        flag for flag, *_ in CONTROLS
+    } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}

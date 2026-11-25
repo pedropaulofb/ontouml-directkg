@@ -15,6 +15,7 @@ from tests.support.invocation import (attribute_owner_without_local_class_diagno
                                       class_properties_container_diagnostic,
                                       diagnostic_signatures,
                                       malformed_boolean_flag_diagnostic,
+                                      malformed_class_order_diagnostic,
                                       malformed_package_contents_diagnostic,
                                       malformed_stereotype_diagnostic,
                                       non_enum_literals_diagnostic,
@@ -2889,5 +2890,259 @@ def test_malformed_boolean_flag_reader_requires_affirmative_conditions():
     )
     for message in rejected:
         assert not malformed_boolean_flag_diagnostic(message), message
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("target_role", [
+    "project", "package", "relation", "attribute", "source_end", "target_end",
+    "generalization", "generalization_set", "literal",
+])
+@pytest.mark.parametrize("value", [pytest.param("1", id="str"), pytest.param(2, id="int")])
+def test_non_class_order_field_routes_through_unknown_information(
+        run, source_json, tmp_path, input_policy, target_role, value):
+    """Rules: DK-CLS-05, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §3.2. RD-02 V4 + R1."""
+    if target_role == "generalization_set":
+        document = source_json("classes/generalization_sets")
+        target = source_element(document, "gsMain")
+        target_id = "gsMain"
+    elif target_role == "generalization":
+        document = source_json("classes/generalization_sets")
+        target = source_element(document, "gB")
+        target_id = "gB"
+    elif target_role == "literal":
+        document = source_json("classes/enumerations")
+        target = source_element(document, "vPending")
+        target_id = "vPending"
+    else:
+        document = source_json("shared/core_model")
+        if target_role == "project":
+            target = document
+            target_id = document["id"]
+        elif target_role == "package":
+            target = document["model"]
+            target_id = target["id"]
+        else:
+            target_id = {
+                "relation": "rWorks",
+                "attribute": "aAge",
+                "source_end": "eSource",
+                "target_end": "eTarget",
+            }[target_role]
+            target = source_element(document, target_id)
+    target["order"] = value
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any("malformed_class_order" in d.facts for d in result.diagnostics), result.diagnostics
+    expected_severity = "ERROR" if input_policy == "strict" else "WARNING"
+    assert any(
+        d.code == "UNKNOWN_INFORMATION"
+        and d.severity == expected_severity
+        and target_id in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy == "strict":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed" and result.ontology is not None
+        assert not any(
+            str(comment).startswith("OntoUML classifier order:")
+            for _, _, comment in result.ontology.triples((None, RDFS.comment, None))
+        )
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("condition", [
+    "duplicate_class_id_with_malformed_order",
+    "rejected_missing_stereotype_class_with_malformed_order",
+    "rejected_custom_stereotype_class_with_malformed_order",
+    "malformed_stereotype_class_omitted_suppresses_order_error",
+    "missing_class_id_with_malformed_order",
+    "invalid_class_id_with_malformed_order",
+    "nested_package_non_array_contents_suppresses_class_order_error",
+    "package_contents_invalid_entry_suppresses_class_order_error",
+])
+def test_malformed_class_order_respects_precedence_and_omitted_element_boundaries(
+        run, source_json, tmp_path, input_policy, condition):
+    """Rules: DK-CLS-05, DK-DIAG-05, DK-DIAG-06, DK-GEN-06; §§3.2, 3.4. RD-02 V4 + R1."""
+    document = source_json("shared/core_model")
+    options = {"iri_strategy": "id", "input_policy": input_policy}
+    always_abort = False
+
+    if condition == "duplicate_class_id_with_malformed_order":
+        dup = copy.deepcopy(source_element(document, "cOrg"))
+        dup["order"] = 2
+        document["model"]["contents"].append(dup)
+        always_abort = True
+    elif condition == "rejected_missing_stereotype_class_with_malformed_order":
+        options["stereotype_policy"] = "require-known"
+        source_element(document, "cOrg").update(stereotype=None, order=2)
+        always_abort = True
+    elif condition == "rejected_custom_stereotype_class_with_malformed_order":
+        options["stereotype_policy"] = "allow-missing"
+        source_element(document, "cOrg").update(stereotype="customKind", order=True)
+        always_abort = True
+    elif condition == "malformed_stereotype_class_omitted_suppresses_order_error":
+        bad = copy.deepcopy(source_element(document, "cOrg"))
+        bad.update(id="cBadStereo", stereotype="", order=2)
+        document["model"]["contents"].append(bad)
+    elif condition == "missing_class_id_with_malformed_order":
+        bad = copy.deepcopy(source_element(document, "cOrg"))
+        del bad["id"]
+        bad["order"] = 2
+        document["model"]["contents"].append(bad)
+    elif condition == "invalid_class_id_with_malformed_order":
+        bad = copy.deepcopy(source_element(document, "cOrg"))
+        bad.update(id="", order=2)
+        document["model"]["contents"].append(bad)
+    elif condition == "nested_package_non_array_contents_suppresses_class_order_error":
+        lost = copy.deepcopy(source_element(document, "cOrg"))
+        lost.update(id="cLost", name="LostClass", order=2)
+        document["model"]["contents"].append({
+            "id": "pNested", "name": "Nested", "description": None,
+            "type": "Package", "propertyAssignments": None,
+            "contents": lost,
+        })
+    else:
+        bad = copy.deepcopy(source_element(document, "cOrg"))
+        bad.update(id="cMissingType", type="", order=2)
+        document["model"]["contents"].append(bad)
+
+    result = run(path=write_input(tmp_path, document), **options)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any("malformed_class_order" in d.facts for d in result.diagnostics), result.diagnostics
+
+    if always_abort:
+        assert result.outcome == "aborted" and result.ontology is None
+        if condition == "duplicate_class_id_with_malformed_order":
+            assert any(d.code == "DUPLICATE_SOURCE_ID" and d.severity == "ERROR" for d in result.diagnostics)
+        elif condition == "rejected_missing_stereotype_class_with_malformed_order":
+            assert any(d.code == "MISSING_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+        else:
+            assert any(d.code == "UNRECOGNIZED_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+        return
+
+    expected_kind = {
+        "malformed_stereotype_class_omitted_suppresses_order_error": "malformed_stereotype",
+        "missing_class_id_with_malformed_order": "missing_id",
+        "invalid_class_id_with_malformed_order": "invalid_id",
+        "nested_package_non_array_contents_suppresses_class_order_error": "malformed_package_contents",
+        "package_contents_invalid_entry_suppresses_class_order_error": "invalid_package_contents_entry",
+    }[condition]
+    assert any(d.severity == "ERROR" and d.kind == expected_kind for d in result.diagnostics), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors" and result.ontology is not None
+        assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case,bad_value", [
+    pytest.param("ordinary_int", 2, id="ordinary_int"),
+    pytest.param("ordinary_float", 1.5, id="ordinary_float"),
+    pytest.param("ordinary_bool", True, id="ordinary_bool"),
+    pytest.param("ordinary_list", [1], id="ordinary_list"),
+    pytest.param("ordinary_dict", {"order": "1"}, id="ordinary_dict"),
+    pytest.param("primitive_int", 2, id="primitive_int"),
+])
+def test_malformed_class_order_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy, case, bad_value):
+    """Rules: DK-CLS-05, DK-DIAG-04, DK-DIAG-05; §15 Python JSON export. RD-02 V4 + R1."""
+    if case == "primitive_int":
+        document = source_json("classes/enumerations")
+        owner = source_element(document, "cOwner")
+        owner["properties"] = None
+        target = source_element(document, "eStatus")
+        target.update(stereotype="datatype", name="int", properties=None, literals=None, order=bad_value)
+        document["model"]["contents"] = [owner, target]
+        target_id = "eStatus"
+    else:
+        document = source_json("shared/core_model")
+        source_element(document, "cOrg")["order"] = copy.deepcopy(bad_value)
+        target_id = "cOrg"
+
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "malformed_class_order.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+
+    matching = [
+        event for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] not in _STABLE_DIAGNOSTIC_CODES
+        and event["message"]
+        and event["effect"]
+        and "malformed_class_order" in malformed_class_order_diagnostic(
+            event["message"], [type("Loc", (), s)() for s in event["sources"]]
+        )
+    ]
+    assert matching, payload["diagnostics"]
+    reported_sources = {
+        (source_loc["element_type"], source_loc["identifier"])
+        for event in matching for source_loc in event["sources"]
+    }
+    assert ("Class", target_id) in reported_sources
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+
+
+def test_malformed_class_order_reader_requires_affirmative_conditions():
+    """Harness only: verify affirmative malformed-class-order reader rejects guard, unknown-field, isOrdered, null/valid, negated, and unrelated wording."""
+    accepted = (
+        "Class 'cPerson' order must be a string or null, got int.",
+        "Malformed Class.order on 'cPerson': expected str or null, got float.",
+        "Class 'cPerson' has a non-string order value (got list).",
+        "Invalid order value '2' on Class 'cPerson'.",
+        "Class 'cPerson' order is a boolean (got True).",
+        "Class 'cPerson' order is not a JSON string.",
+        "Class 'cPerson' order has invalid type dict.",
+        "Class 'cPerson' order cannot be non-string.",
+    )
+    for message in accepted:
+        assert "malformed_class_order" in malformed_class_order_diagnostic(message), message
+
+    order_loc = (SimpleNamespace(path="$.model.contents[0].order", identifier="cPerson", element_type="Class"),)
+    assert "malformed_class_order" in malformed_class_order_diagnostic("Invalid value (got int).", order_loc)
+
+    rejected = (
+        "Malformed classifier-order recovery is outside the decided baseline",
+        "Unexpected internal failure while validating order.",
+        "Unrecognized input fields on Relation: order.",
+        "Unrecognized input field order on Property.",
+        "Order is not a defined field on Relation.",
+        "Property 'aAge' value order is not represented.",
+        "Property 'aAge' isOrdered must be a boolean or null, got int.",
+        "Class 'cPerson' order is null.",
+        "Class 'cPerson' order is absent.",
+        "Class 'cPerson' order is a string.",
+        "Class 'cPerson' order is preserved as an annotation.",
+        "Class 'cPerson' order is valid.",
+        "Class 'cPerson' order is not malformed.",
+        "If order is non-string, conversion aborts.",
+        "Class 'cPerson' order may be malformed.",
+        "Class 'cPerson' order is null or malformed.",
+        "Class 'cPerson' order must be a string or null.",
+        "Class 'cPerson' order must be a string or null, got str.",
+        "Class 'cPerson' isAbstract must be a boolean or null, got int.",
+        "Class 'cPerson' stereotype must be a nonempty string or null, got int.",
+    )
+    for message in rejected:
+        assert not malformed_class_order_diagnostic(message), message
 
 

@@ -2934,6 +2934,90 @@ def malformed_boolean_flag_diagnostic(message: str, sources: tuple = ()) -> froz
     return frozenset(_malformed_boolean_flag_facts(message, sources))
 
 
+def _malformed_class_order_facts(message: str, sources: tuple = ()) -> set[str]:
+    """Read affirmative RD-02 malformed Class.order ERROR wording.
+
+    Rejects internal/deferred guard wording, conditionals, hedges, negations,
+    bare expectations, valid/null/absent/string statements, UNKNOWN_INFORMATION
+    unrecognized-field wording, ORDERING_ANNOTATION property-ordering wording,
+    and unrelated carrier/container/flag subjects.
+    """
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside bi-w1|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    wording = re.sub(r"\bclass\.order\b", "class order", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"(?<!\w)(?:''|\"\"|'\s+'|\"\s+\")(?=$|[\s.,;:)!?])", "<blank_quoted>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(class order|classifier order|order|class|null|str|string)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    global_disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\border\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:malformed|invalid|non[- ]?string)\b",
+        r"\border(?:\s+(?:field|value))?\s+(?:is|was)\s+(?:explicitly\s+)?(?<!non-)(?<!non )(?:null|none|absent|missing|omitted|a\s+(?:json\s+)?str(?:ing)?|valid|allowed|accepted|preserved)\b",
+        r"\b(?:null|absent|missing|valid)\s+or\s+(?:malformed|invalid|non[- ]?string)\b",
+        r"\b(?:malformed|invalid|non[- ]?string)\s+or\s+(?:null|absent|missing|valid)\b",
+        r"\b(?:unrecognized|unknown|unexpected|undefined|unsupported)\s+(?:input\s+)?fields?\b",
+        r"\bnot\s+(?:a\s+)?(?:defined|recognized|supported)\s+(?:class\s+)?field\b",
+        r"\bvalue\s+order\s+is\s+not\s+represented\b",
+        r"\bpreserved\s+as\s+an\s+annotation\b",
+        rf"\b(?:stereotype|name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype|package\.contents|class\.properties|class\.literals|relation\.properties|{'|'.join(_BOOLEAN_FLAG_NAMES)})\b",
+    )
+    if any(re.search(pattern, wording) for pattern in global_disqualifiers):
+        return set()
+
+    has_order_locator = any(
+        (getattr(src, "path", "") or "").casefold().endswith(".order") for src in sources
+    )
+    has_order_context = bool(re.search(r"\b(?:(?:class|classifier)\s+)?order\b", wording)) or has_order_locator
+    if not has_order_context:
+        return set()
+
+    order_subj = r"(?:(?:(?:class|classifier)\s+)?order(?:\s+(?:field|value))?)"
+    bad_adj = r"(?:malformed|invalid(?:\s+type)?|non[- ]?string(?:\s+value)?)"
+    bad_type = r"(?:int(?:eger)?|float|number|bool(?:ean)?|array|list|object|dict(?:ionary)?|<blank_quoted>|<quoted>|<value>)"
+    patterns = (
+        re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)\b{bad_adj}\s+(?:or\s+{bad_adj}\s+)?{order_subj}\b"),
+        re.compile(rf"\b{order_subj}(?:\s+(?:<quoted>|<value>))?\s+(?:is|was)\s+(?:(?:a|an)\s+)?(?:{bad_adj}|{bad_type}|not\s+(?:a|an)\s+(?:valid\s+)?(?:json\s+)?str(?:ing)?)\b"),
+        re.compile(rf"\b(?:has|had|with)\s+(?:a|an)?\s*{bad_adj}(?:\s+or\s+{bad_adj})?\s+{order_subj}\b"),
+        re.compile(rf"\b{order_subj}\b[^.!?;]*\b(?:has|had)\s+(?:a|an)?\s*(?:{bad_adj}|wrong\s+type)\b"),
+        re.compile(rf"\b{order_subj}\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\b[^.!?;]*(?:got|found|received)\s+(?!null\b|none\b|str(?:ing)?\b)\S+"),
+        re.compile(rf"\b{order_subj}\b[^.!?;]*\b(?:cannot|must\s+not)\s+be\s+(?:{bad_adj}|{bad_type})\b"),
+    )
+    locator_pattern = re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)\b{bad_adj}\b")
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|allowed|accepted|preserved)\b", clause) and not re.search(r"\bnot\s+(?:valid|allowed|accepted|preserved)\b", clause):
+            continue
+        if any(p.search(clause) for p in patterns) or (has_order_locator and locator_pattern.search(clause)):
+            return {"malformed_class_order"}
+    return set()
+
+
+def malformed_class_order_diagnostic(message: str, sources: tuple = ()) -> frozenset[str]:
+    """Return recognized RD-02 malformed Class.order ERROR facts for harness checks."""
+    return frozenset(_malformed_class_order_facts(message, sources))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -3043,6 +3127,11 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.update(flag_facts)
                 if kind is None:
                     kind = "malformed_boolean_flag"
+            order_facts = _malformed_class_order_facts(event.message, event.sources)
+            if order_facts:
+                facts.update(order_facts)
+                if kind is None:
+                    kind = "malformed_class_order"
         if kind is None:
             if (event.severity == "ERROR" and
                     (re.search(r"\bpackage\b", event.message, re.I)

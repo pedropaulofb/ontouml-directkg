@@ -1520,3 +1520,48 @@ def test_categorized_class_set_malformed_boolean_flags_preserve_categorizer_and_
         assert len(unions) == 1
         assert set(rdf_list(graph, one_object(graph, unions[0], OWL.unionOf))) == {BASE.cOne, BASE.cTwo}
 
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_categorizer_malformed_order_omits_only_order_and_preserves_higher_order_mappings(
+        run, source_json, tmp_path, input_policy):
+    """Rules: DK-HO-01, DK-HO-02, DK-HO-03, DK-CLS-01, DK-CLS-05, DK-CLS-06, DK-CLS-07, DK-DIAG-05; §3.2. RD-02 V4 + R1."""
+    document = source_json("shared/categorizers")
+    categorizer = source_element(document, "cCategorizer")
+    categorizer["isPowertype"] = True
+    source_element(document, "gsFirst").update(isComplete=True, isDisjoint=True)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "cCategorizer").pop("order", None)
+    categorizer["order"] = 2
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" or d.kind == "unknown_information"
+                   for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR" and "malformed_class_order" in d.facts and "cCategorizer" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"),
+                   iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert not any(str(comment).startswith("OntoUML classifier order:")
+                   for comment in graph.objects(BASE.cCategorizer, RDFS.comment))
+    assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == {
+        BASE.cOne, BASE.cTwo, BASE.cBase, BASE.cOutside, BASE.cDeep
+    }
+    assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert ((BASE.cOne, OWL.disjointWith, BASE.cTwo) in graph or (BASE.cTwo, OWL.disjointWith, BASE.cOne) in graph)
+    unions = [node for node in graph.objects(BASE.cBase, RDFS.subClassOf) if isinstance(node, BNode)]
+    assert len(unions) == 1
+    assert set(rdf_list(graph, one_object(graph, unions[0], OWL.unionOf))) == {BASE.cOne, BASE.cTwo}
+

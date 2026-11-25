@@ -2056,3 +2056,26 @@ fixing provisional diagnostic codes, rejecting BI-W1 internal-guard wording,
 wording, conditionals, hedges, negations, bare expectations, and unrelated
 subjects. This TEST CHANGE awaits independent Test Reviewer review; no
 production-correctness claim is made.
+
+## RD-02 `Class.order` validation and field-level recovery
+
+The owner forwarded the Architect's unified handoff and independent Architect
+Reviewer **OK** (`no findings; no required action`) for
+[`03c4f88487631979c4debc38634668ee9cbaf612`](https://github.com/pedropaulofb/ontouml-directkg/commit/03c4f88487631979c4debc38634668ee9cbaf612).
+The [scoped inventory](coverage.md#rd-02-classorder-validation-and-field-level-recovery-v4--r1)
+records the 209 behavioral nodes and 1 harness reader check across
+`tests/transformation/test_classes.py`,
+`tests/transformation/test_higher_order.py`,
+`tests/transformation/test_input_diagnostics.py`, and `tests/cli/test_cli.py`,
+reusing existing shared and topical fixtures with explicit runtime mutations
+and inline assertions.
+
+`tests/support/invocation.py` adds the affirmative semantic diagnostic reader
+`_malformed_class_order_facts` / `malformed_class_order_diagnostic` (wired into
+`_observed_diagnostics` for `ERROR` events outside `_structural_skip`) without
+fixing provisional diagnostic codes, rejecting BI-W1 internal-guard wording,
+`UNKNOWN_INFORMATION` unrecognized-field wording, `ORDERING_ANNOTATION`
+property-ordering wording, valid/null/absent/string wording, conditionals,
+hedges, negations, bare expectations, and unrelated subjects. This TEST CHANGE
+awaits independent Test Reviewer review; no production-correctness claim is
+made.

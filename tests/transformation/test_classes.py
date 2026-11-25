@@ -1380,3 +1380,163 @@ def test_class_generalization_set_malformed_boolean_flags_recover_only_malformed
         assert events and all(d.severity == "INFO" for d in events)
         assert any({"gsMain", "cA", "cB"} <= set(d.identified_sources) for d in events)
 
+
+_UNCONVENTIONAL_ORDER_STRINGS = [
+    pytest.param("", "OntoUML classifier order: .", id="empty_string"),
+    pytest.param("   ", "OntoUML classifier order:    .", id="whitespace_only"),
+    pytest.param(" * ", "OntoUML classifier order:  * .", id="padded_asterisk"),
+    pytest.param(" 12 ", "OntoUML classifier order:  12 .", id="padded_number"),
+    pytest.param("abc", "OntoUML classifier order: abc.", id="non_numeric"),
+    pytest.param("-1", "OntoUML classifier order: -1.", id="negative_string"),
+    pytest.param("*", "OntoUML classifier order: orderless (*).", id="exact_orderless"),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("value,expected_comment", _UNCONVENTIONAL_ORDER_STRINGS)
+def test_unconventional_string_class_order_is_preserved_verbatim_without_diagnostic(
+        run, source_json, tmp_path, input_policy, value, expected_comment):
+    """Rules: DK-CLS-01, DK-CLS-05, DK-LBL-02, DK-DIAG-01, DK-DIAG-05; §3.2. RD-02 V4."""
+    document = source_json("classes/flags")
+    source_element(document, "cFocus")["order"] = value
+    result = run(path=write_input(tmp_path, document), iri_strategy="id",
+                 input_policy=input_policy, language="pt-BR")
+    assert result.outcome == "completed"
+    assert not any(
+        d.severity in {"WARNING", "ERROR"} or d.kind in {"semantic_validation", "unknown_information", "malformed_class_order"}
+        for d in result.diagnostics
+    ), result.diagnostics
+    comments = {c for c in result.ontology.objects(BASE.cFocus, RDFS.comment)
+                if str(c).startswith("OntoUML classifier order:")}
+    assert comments == {Literal(expected_comment, lang="en")}
+    assert not {p for p in result.ontology.predicates(BASE.cFocus)
+                if p not in {RDF.type, RDFS.comment, RDFS.label, DCTERMS.identifier}}
+    expected = Graph()
+    expected.add((BASE.cFocus, RDF.type, OWL.Class))
+    assert_graph_equal(_logic(result.ontology), expected)
+
+
+_PRIMITIVE_VOID_ORDER_STATES = [
+    pytest.param("absent", id="valid_absent"),
+    pytest.param(None, id="valid_null"),
+    pytest.param("1", id="valid_one"),
+    pytest.param("*", id="valid_orderless"),
+    pytest.param("abc", id="valid_non_numeric"),
+    pytest.param(2, id="malformed_int"),
+    pytest.param(1.5, id="malformed_float"),
+    pytest.param(True, id="malformed_bool"),
+    pytest.param([], id="malformed_list"),
+    pytest.param({}, id="malformed_dict"),
+]
+
+
+@pytest.mark.parametrize("kind", ["primitive", "void"])
+@pytest.mark.parametrize("state", _PRIMITIVE_VOID_ORDER_STATES)
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_surviving_primitive_and_void_class_order_valid_and_malformed(
+        run, source_json, tmp_path, kind, state, input_policy):
+    """Rules: DK-CLS-01, DK-CLS-05, DK-DAT-02, DK-DAT-04, DK-DIAG-01, DK-DIAG-05; §3.2. RD-02 V4 + R1."""
+    document = source_json("classes/enumerations")
+    owner = source_element(document, "cOwner")
+    owner["properties"] = None
+    target = source_element(document, "eStatus")
+    for item in (owner, target):
+        for existing_flag in ("isAbstract", "isDerived", "isExtensional", "isPowertype"):
+            item.pop(existing_flag, None)
+    target.update(stereotype="datatype", name="int" if kind == "primitive" else "void",
+                  properties=None, literals=None)
+    document["model"]["contents"] = [owner, target]
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "eStatus").pop("order", None)
+
+    if state == "absent":
+        target.pop("order", None)
+    else:
+        target["order"] = copy.deepcopy(state)
+
+    malformed = state is not None and state != "absent" and not isinstance(state, str)
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" or d.kind == "unknown_information"
+                   for d in result.diagnostics), result.diagnostics
+
+    if not malformed:
+        assert result.outcome == "completed"
+        assert not any(d.severity in {"WARNING", "ERROR"} for d in result.diagnostics), result.diagnostics
+        assert not any(BASE.eStatus in triple for triple in result.ontology)
+        assert not list(result.ontology.objects(XSD.int, RDFS.comment))
+        assert set(result.ontology.subjects(RDF.type, OWL.Class)) == {BASE.cOwner}
+        return
+
+    assert any(
+        d.severity == "ERROR" and "malformed_class_order" in d.facts and "eStatus" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"),
+                   iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+    assert not any(BASE.eStatus in triple for triple in result.ontology)
+    assert not list(result.ontology.objects(XSD.int, RDFS.comment))
+    assert set(result.ontology.subjects(RDF.type, OWL.Class)) == {BASE.cOwner}
+
+
+_MALFORMED_ORDER_VALUES = [
+    pytest.param(2, id="int"),
+    pytest.param(1.5, id="float"),
+    pytest.param(True, id="bool_true"),
+    pytest.param(False, id="bool_false"),
+    pytest.param(["1"], id="list"),
+    pytest.param({"order": "1"}, id="dict"),
+]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_value", _MALFORMED_ORDER_VALUES)
+def test_class_malformed_order_omits_only_order_and_preserves_class_and_siblings(
+        run, source_json, tmp_path, input_policy, bad_value):
+    """Rules: DK-CLS-01, DK-CLS-03, DK-CLS-04, DK-CLS-05, DK-GEN-05, DK-LBL-02, DK-ATT-01, DK-REL-01, DK-DIAG-01, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-17; §3.2. RD-02 V4 + R1."""
+    document = source_json("shared/core_model")
+    org = source_element(document, "cOrg")
+    org.update(description="Org desc", isAbstract=True, isDerived=True, isExtensional=True)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, "cOrg").pop("order", None)
+    org["order"] = copy.deepcopy(bad_value)
+
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
+    assert not any(d.code == "UNKNOWN_INFORMATION" or d.kind == "unknown_information"
+                   for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == "ERROR" and "malformed_class_order" in d.facts and "cOrg" in d.identified_sources
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors"
+    baseline = run(path=write_input(tmp_path, baseline_doc, "baseline.json"),
+                   iri_strategy="id", input_policy="tolerant")
+    assert baseline.outcome == "completed"
+    assert_graph_equal(result.ontology, baseline.ontology)
+    assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
+    assert (BASE.cPerson, RDF.type, OWL.Class) in result.ontology
+    assert (BASE.aAge, RDF.type, OWL.DatatypeProperty) in result.ontology
+    assert (BASE.eTarget, RDF.type, OWL.ObjectProperty) in result.ontology
+    assert _pairs(result.ontology) == {frozenset((BASE.cPerson, BASE.cOrg))}
+    comments = set(result.ontology.objects(BASE.cOrg, RDFS.comment))
+    assert Literal("Org desc") in comments
+    assert not any(str(comment).startswith("OntoUML classifier order:") for comment in comments)
+    for sibling_kind in ("abstractness", "derived_status", "extensionality"):
+        assert any(d.kind == sibling_kind and d.severity == "INFO" and "cOrg" in d.identified_sources
+                   for d in result.diagnostics), (sibling_kind, result.diagnostics)
+
