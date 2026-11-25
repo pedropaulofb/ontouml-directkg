@@ -13,13 +13,14 @@ import yaml
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCAT, DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.data import fixture_path, fixture_issues, load_json, package_contents_document, source_element, source_elements, write_input
+from tests.support.data import fixture_path, fixture_issues, load_json, mixed_hierarchy_document, package_contents_document, source_element, source_elements, write_input
 from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, absent_attribute_property_type_error,
                                       console_covers_diagnostic_records,
                                       diagnostic_record_counts, diagnostic_signatures,
                                       diagnostics_report_write_error, dkgm_chain_facts, escaped_id_collision_diagnostic,
                                       malformed_package_contents_diagnostic, ontology_serialization_error,
+                                      mixed_hierarchy_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained,
                                       transformation_failure_diagnostic)
 from tests.support.rdf import assert_graph_equal, load_graph, one_object, property_chains, rdf_list, rooted_graph
@@ -661,6 +662,84 @@ def _assert_cli_json_and_console(invoke, process, path):
     # Code equality is checked only when the observed console record displays it.
     assert console_covers_diagnostic_records(process.console, delivered.events)
     return delivered
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case", ["mixed_edge", "mixed_set", "residual_id"])
+def test_rd02_consolidation_cli_python_recovery_and_diagnostics(invoke, tmp_path, input_policy, case):
+    """Rules: DK-GEN-12, DK-DIAG-04, DK-DIAG-05; §3.4, §15. Mixed constructs and residual identity recovery."""
+    document = mixed_hierarchy_document()
+    if case == "mixed_edge":
+        source_element(document, "gLeft")["general"] = {"id": "cBase", "type": "Class"}
+    elif case == "mixed_set":
+        affected = source_element(document, "gsFirst")
+        affected.update(isComplete=True, isDisjoint=True)
+        affected["generalizations"] += [{"id": identifier, "type": "Generalization"} for identifier in ("gLeft", "gRight")]
+    else:
+        # An invalid identity prevents the independent relation mapping and
+        # leaves its explicit generalization's required endpoint unresolved.
+        del source_element(document, "rLeft")["id"]
+    assert fixture_issues(document) == ({"invalid_id", "unresolved_reference:rLeft"} if case == "residual_id" else set())
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "inverse_properties": "all",
+               "provenance": "sidecar", "input_policy": input_policy}
+    eligible = input_policy == "best-effort"
+    expected = "completed-with-errors" if eligible else "aborted"
+    destination, report = tmp_path / "out.ttl", tmp_path / "cli.json"
+    process = invoke.cli(source, options=options, workdir=tmp_path, output_path=destination, diagnostics_path=report)
+    python = invoke.convert(source, options=options, workdir=tmp_path)
+    assert process.conversion_started
+    assert process.returncode == (1 if eligible else 3)
+    assert invoke.read_outcome(python) == expected
+    assert _assert_native_json_mirror(invoke, python, tmp_path / "python.json").outcome == expected
+    assert _assert_cli_json_and_console(invoke, process, report).outcome == expected
+    for events in (invoke.read_diagnostics(python), process.observation.diagnostics):
+        assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in events)
+        if case == "residual_id":
+            assert any(event.kind == "missing_id" and event.severity == "ERROR" for event in events)
+        else:
+            assert any(mixed_hierarchy_error(event, "gsFirst" if case == "mixed_set" else "gLeft", is_set=case == "mixed_set")
+                       for event in events)
+    assert (invoke.read_ontology(python) is not None) == eligible
+    assert (invoke.read_provenance(python) is not None) == eligible
+    assert destination.is_file() == eligible
+    assert destination.with_name("out.provenance.ttl").is_file() == eligible
+    if eligible:
+        graph = load_graph(destination)
+        assert_graph_equal(graph, invoke.read_ontology(python))
+        assert (BASE.tRight, RDFS.subPropertyOf, BASE.tParent) in graph
+        assert (BASE.sRight, RDFS.subPropertyOf, BASE.sParent) in graph
+        assert (BASE.cOne, RDF.type, BASE.cOtherCategorizer) in graph
+        if case == "mixed_set":
+            assert not list(graph.subjects(RDF.type, BASE.cCategorizer))
+            assert not list(graph.triples((None, OWL.propertyDisjointWith, None)))
+        else:
+            assert (BASE.tLeft, RDFS.subPropertyOf, BASE.tParent) not in graph
+            assert (BASE.sLeft, RDFS.subPropertyOf, BASE.sParent) not in graph
+
+
+@pytest.mark.parametrize("input_policy", ["strict", "best-effort"])
+def test_rd02_consolidation_mixed_set_report_failure_precedence(invoke, tmp_path, input_policy):
+    """Rules: DK-GEN-12, DK-DIAG-04, DK-DIAG-05; §15 exit code 4."""
+    document = mixed_hierarchy_document()
+    source_element(document, "gsFirst")["generalizations"].append({"id": "gLeft", "type": "Generalization"})
+    source = write_input(tmp_path, document)
+    blocker = tmp_path / "regular-file"
+    blocker.write_bytes(b"Not a directory")
+    destination, report = tmp_path / "out.ttl", blocker / "report.json"
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": input_policy}
+    process = invoke.cli(source, options=options, workdir=tmp_path, output_path=destination, diagnostics_path=report)
+    assert process.returncode == 4 and not report.exists()
+    assert any(diagnostics_report_write_error(event, report, error)
+               for error in process.execution_trace["report_io_errors"] for event in process.console)
+    converted, delivered = invoke.cli_report_content(process)
+    eligible = input_policy == "best-effort"
+    assert converted.outcome == delivered.outcome == ("completed-with-errors" if eligible else "aborted")
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    assert console_covers_diagnostic_records(process.console, converted.events)
+    assert any(mixed_hierarchy_error(event, "gsFirst", is_set=True) for event in process.observation.diagnostics)
+    assert destination.is_file() == eligible
+    assert destination.with_name("out.provenance.ttl").is_file() == eligible
 
 
 @pytest.mark.parametrize("carrier", ["absent", "null"])

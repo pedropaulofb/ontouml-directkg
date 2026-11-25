@@ -107,6 +107,28 @@ def package_contents_document(scope, form, *, dependent=False):
     return document
 
 
+def mixed_hierarchy_document():
+    """Combine the canonical categorizer and relation carriers for RD-02 cases."""
+    import copy
+
+    document = load_json("shared/categorizers")
+    relation = source_element(load_json("shared/core_model"), "rWorks")
+    contents = document["model"]["contents"]
+    for suffix in ("Parent", "Left", "Right"):
+        item = copy.deepcopy(relation)
+        item.update(id="r" + suffix, name="relation" + suffix)
+        for end, role, target in zip(item["properties"], ("s", "t"), ("cBase", "cOutside")):
+            end.update(id=role + suffix, propertyType={"id": target, "type": "Class"})
+        contents.append(item)
+    for suffix in ("Left", "Right"):
+        edge = copy.deepcopy(source_element(document, "gOne"))
+        edge.update(id="g" + suffix, specific={"id": "r" + suffix, "type": "Relation"},
+                    general={"id": "rParent", "type": "Relation"})
+        contents.append(edge)
+    assert not fixture_issues(document)
+    return document
+
+
 def _valid_identifier(value):
     """Fixture-authoring check for RD-02's opaque strings; never repair data."""
     if not isinstance(value, str) or value == "":

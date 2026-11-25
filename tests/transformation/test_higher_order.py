@@ -8,8 +8,9 @@ import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.data import source_element, write_input, fixture_issues
-from tests.support.invocation import _observed_diagnostics, diagnostic_signatures, unusable_categorizer_diagnostic
+from tests.support.data import source_element, write_input, fixture_issues, mixed_hierarchy_document
+from tests.support.invocation import (_observed_diagnostics, diagnostic_signatures, mixed_hierarchy_error,
+                                      nonclassifier_hierarchy_error, unusable_categorizer_diagnostic)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, one_object, rdf_list
 
 
@@ -21,6 +22,193 @@ STABLE_DIAGNOSTIC_CODES = frozenset({
     "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
     "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
 })
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("powertype", [False, True], ids=["ordinary", "powertype"])
+@pytest.mark.parametrize("partition_size", [1, 2], ids=["singleton_partitions", "multi_member_partitions"])
+def test_mixed_class_relation_set_omits_entire_set_not_homogeneous_partitions(run, tmp_path, input_policy, powertype, partition_size):
+    """Rules: DK-GEN-12, DK-CLS-06, DK-CLS-07, DK-CLS-08, DK-HO-02, DK-HO-03, DK-HO-04, DK-REL-15, DK-REL-20, DK-DIAG-05."""
+    document = mixed_hierarchy_document()
+    source_element(document, "cCategorizer")["isPowertype"] = powertype
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True)
+    affected["generalizations"] = affected["generalizations"][:partition_size] + [
+        {"id": identifier, "type": "Generalization"} for identifier in ("gLeft", "gRight")[:partition_size]
+    ]
+    assert not fixture_issues(document)
+    options = dict(iri_strategy="id", inverse_properties="all", input_policy=input_policy)
+    result = run(path=write_input(tmp_path, document), **options)
+    assert any(mixed_hierarchy_error(event, "gsFirst", is_set=True) for event in result.diagnostics)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    assert not any("gsFirst" in event.identified_sources and (event.kind in {
+        "inapplicable_relation_categorizer", "relation_set_completeness", "singleton_completeness"
+    } or event.code == "INAPPLICABLE_RELATION_CATEGORIZER") for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+    assert result.outcome == "completed-with-errors"
+    document["model"]["contents"].remove(affected)
+    control = run(path=write_input(tmp_path, document, "no_set.json"), **options)
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
+    graph = result.ontology
+    assert {(BASE.cOne, RDFS.subClassOf, BASE.cBase), (BASE.cTwo, RDFS.subClassOf, BASE.cBase),
+            (BASE.tLeft, RDFS.subPropertyOf, BASE.tParent), (BASE.tRight, RDFS.subPropertyOf, BASE.tParent),
+            (BASE.sLeft, RDFS.subPropertyOf, BASE.sParent), (BASE.sRight, RDFS.subPropertyOf, BASE.sParent),
+            (BASE.cOne, RDF.type, BASE.cOtherCategorizer)} <= set(graph)
+    # The control has no affected set, so equality excludes every set-derived
+    # contribution, including inverse disjointness and invented singleton edges.
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+
+
+@pytest.mark.parametrize("case", ["mixed_member", "omitted_relation", "partial_member"])
+def test_mixed_class_relation_set_detection_uses_resolved_declarations(run, tmp_path, case):
+    """Rules: DK-GEN-12, DK-CLS-09, DK-HO-04, DK-REL-14, DK-REL-20, DK-DIAG-05."""
+    document = mixed_hierarchy_document()
+    source_element(document, "cCategorizer")["isPowertype"] = True
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True)
+    edge = source_element(document, "gLeft")
+    if case == "mixed_member":
+        edge["general"] = {"id": "cBase", "type": "Class"}
+        # A singleton mixed member, repeated, is still a mixed set.
+        affected["generalizations"] = [{"id": "gLeft", "type": "Generalization"}] * 2
+        defects = set()
+    else:
+        affected["generalizations"].append({"id": "gLeft", "type": "Generalization"})
+        if case == "omitted_relation":
+            source_element(document, "rLeft")["properties"] = []
+            defects = {"nonbinary_relation"}
+        else:
+            edge["general"] = {"id": "missingParent", "type": "Relation"}
+            defects = {"unresolved_reference:missingParent"}
+    assert fixture_issues(document) == defects
+    options = dict(iri_strategy="id", inverse_properties="all", input_policy="best-effort")
+    result = run(path=write_input(tmp_path, document), **options)
+    assert result.outcome == "completed-with-errors"
+    assert any(mixed_hierarchy_error(event, "gsFirst", is_set=True) for event in result.diagnostics)
+    assert any(event.severity == "ERROR" and set(event.identified_sources) & {"gLeft", "rLeft"}
+               for event in result.diagnostics)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    document["model"]["contents"].remove(affected)
+    control = run(path=write_input(tmp_path, document, "no_set.json"), **options)
+    assert control.outcome == "completed-with-errors"
+    assert_graph_equal(result.ontology, control.ontology)
+    assert (BASE.cOne, RDF.type, BASE.cOtherCategorizer) in result.ontology
+    assert (BASE.tRight, RDFS.subPropertyOf, BASE.tParent) in result.ontology
+
+
+def test_mixed_class_relation_set_does_not_guess_kinds_from_unresolved_reference(run, tmp_path):
+    """Rules: DK-GEN-12, DK-CLS-09, DK-HO-04, DK-DIAG-05; §3.4."""
+    document = mixed_hierarchy_document()
+    affected = source_element(document, "gsFirst")
+    affected.update(isComplete=True, isDisjoint=True)
+    source_element(document, "cCategorizer")["isPowertype"] = True
+    failed = copy.deepcopy(source_element(document, "gOne"))
+    failed.update(id="gFailed", specific={"id": "cOutside", "type": "Relation"})
+    document["model"]["contents"].append(failed)
+    affected["generalizations"].append({"id": "gFailed", "type": "Generalization"})
+    assert fixture_issues(document) == {"reference_type_mismatch:cOutside"}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
+    assert result.outcome == "completed-with-errors"
+    assert any(event.severity == "ERROR" and "gFailed" in event.identified_sources for event in result.diagnostics)
+    assert not any(mixed_hierarchy_error(event, "gsFirst", is_set=True) for event in result.diagnostics)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    graph = result.ontology
+    assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == {BASE.cOne, BASE.cTwo}
+    assert (BASE.cOne, RDF.type, BASE.cOtherCategorizer) in graph
+    assert frozenset((BASE.cOne, BASE.cTwo)) in {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)}
+    assert not list(graph.triples((None, OWL.unionOf, None)))
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
+
+
+def test_mixed_class_relation_diagnostic_reader_requires_affirmative_condition():
+    """Rules: DK-GEN-12, DK-DIAG-04, DK-DIAG-05. Harness: condition and exact subject, not provisional codes."""
+    from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
+
+    for is_set, subject, identifier in ((False, "Generalization", "gLeft"), (True, "Generalization set", "gsFirst")):
+        source = SourceLocation("$.model.contents[0]", identifier, "GeneralizationSet" if is_set else "Generalization")
+        for reason, expected in (
+            (f"{subject} '{identifier}' has mixed Class/Relation endpoints.", True),
+            (f"{subject} '{identifier}' contains both Class and Relation classifiers.", True),
+            (f"Mixed class/relation {subject} '{identifier}'.", True),
+            (f"Mixed class/relation {subject} {'membership' if is_set else 'endpoints'}.", True),
+            (f"{subject} '{identifier}' has no mixed Class/Relation endpoints.", False),
+            (f"{subject} 'other' has mixed Class/Relation endpoints.", False),
+            (f"{subject} '{identifier}' has mixed Class/Relation endpoints or unresolved members.", False),
+            (f"{subject} '{identifier}' mixes owl:ObjectProperty and owl:DatatypeProperty.", False),
+            (f"It is not true that {subject} '{identifier}' has mixed Class/Relation endpoints.", False),
+        ):
+            native = Diagnostic("ERROR", "PROVISIONAL_PROBE", reason, "Affected hierarchy or set omitted.", (source,))
+            event, = _observed_diagnostics((native,), retain_unclassified=True)
+            assert mixed_hierarchy_error(event, identifier, is_set=is_set) == expected, reason
+    source = SourceLocation("$.model.contents[0]", "gInvalid", "Generalization")
+    for reason, expected in (
+        ("Generalization 'gInvalid' has a non-classifier endpoint.", True),
+        ("Generalization 'gInvalid' connects a Class to a Property.", True),
+        ("Generalization 'gInvalid' has an endpoint that is not a Class or Relation.", True),
+        ("Generalization 'gInvalid' has an unsupported endpoint type 'Property'.", True),
+        ("Generalization 'gInvalid' has an invalid endpoint.", False),
+        ("Generalization 'gInvalid' has no non-classifier endpoint.", False),
+        ("Generalization 'other' has a non-classifier endpoint.", False),
+        ("Generalization 'gInvalid' has an unsupported endpoint or is incomplete.", False),
+    ):
+        native = Diagnostic("ERROR", "PROVISIONAL_PROBE", reason, "Affected hierarchy omitted.", (source,))
+        event, = _observed_diagnostics((native,), retain_unclassified=True)
+        assert nonclassifier_hierarchy_error(event, "gInvalid") == expected, reason
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_mixed_class_relation_set_retains_fatal_duplicate_precedence(run, tmp_path, input_policy):
+    """Rules: DK-GEN-12, DK-DIAG-05; §3.4 duplicate declaration IDs."""
+    document = mixed_hierarchy_document()
+    source_element(document, "gsFirst")["generalizations"].append({"id": "gLeft", "type": "Generalization"})
+    document["model"]["contents"].append(copy.deepcopy(source_element(document, "gLeft")))
+    assert fixture_issues(document) == {"duplicate_id:gLeft"}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.outcome == "aborted" and result.ontology is None
+    assert any(event.code == "DUPLICATE_SOURCE_ID" and event.severity == "ERROR" and "gLeft" in event.identified_sources
+               for event in result.diagnostics)
+    assert not any(mixed_hierarchy_error(event, "gsFirst", is_set=True) or event.code == "INTERNAL_TRANSFORMATION_FAILURE"
+                   for event in result.diagnostics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("focus_id", ["gOne", "gsFirst"])
+def test_residual_hierarchy_identity_omits_only_dependent_contributions(run, source_json, tmp_path, input_policy, focus_id):
+    """Rules: §3.4, DK-DIAG-05 residual recovery, DK-GEN-12, DK-CLS-02, DK-CLS-09, DK-HO-04."""
+    document = source_json("shared/categorizers")
+    focus = source_element(document, focus_id)
+    contents = document["model"]["contents"]
+    path = f"$.model.contents[{contents.index(focus)}]"
+    source_element(document, "gsFirst").update(isComplete=True, isDisjoint=True)
+    del focus["id"]
+    assert fixture_issues(document) == ({"invalid_id", "unresolved_reference:gOne"} if focus_id == "gOne" else {"invalid_id"})
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert any(event.kind == "missing_id" and event.severity == "ERROR" and any(source.path == path for source in event.raw.sources)
+               for event in result.diagnostics)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+    assert result.outcome == "completed-with-errors"
+    graph = result.ontology
+    assert set(graph.subjects(RDF.type, OWL.Class)) == MODELED
+    expected_edges = {(BASE.cOne, BASE.cBase), (BASE.cTwo, BASE.cBase), (BASE.cOutside, BASE.cBase), (BASE.cDeep, BASE.cOutside)}
+    if focus_id == "gOne":
+        expected_edges.remove((BASE.cOne, BASE.cBase))
+        assert set(graph.subjects(RDF.type, BASE.cCategorizer)) == {BASE.cTwo}
+        assert not list(graph.subjects(RDF.type, BASE.cOtherCategorizer))
+        for set_id in ("gsFirst", "gsSecond"):
+            assert any(event.severity == "ERROR" and set_id in event.identified_sources for event in result.diagnostics)
+    else:
+        assert not list(graph.subjects(RDF.type, BASE.cCategorizer))
+        assert set(graph.subjects(RDF.type, BASE.cOtherCategorizer)) == {BASE.cOne}
+    assert set(graph.subject_objects(RDFS.subClassOf)) == expected_edges
+    assert not list(graph.triples((None, OWL.unionOf, None)))
+    assert {frozenset(pair) for pair in graph.subject_objects(OWL.disjointWith)} == {frozenset((BASE.cCategorizer, BASE.cOtherCategorizer))}
+    assert not any(event.kind == "singleton_completeness" for event in result.diagnostics)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

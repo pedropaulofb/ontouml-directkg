@@ -10,9 +10,10 @@ import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
-from tests.support.data import fixture_issues, source_element, write_input
+from tests.support.data import fixture_issues, mixed_hierarchy_document, source_element, write_input
 from tests.support.dkgm import DKGM, DKGM_CHAINS, DKGM_STEREOTYPES, assert_dkgm_vocabulary
-from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, _observed_diagnostics, diagnostic_signatures,
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, _observed_diagnostics, diagnostic_signatures, mixed_hierarchy_error,
+                                      nonclassifier_hierarchy_error,
                                       inapplicable_relation_categorizer_diagnostic,
                                       rd02_relation_diagnostic, relation_end_comment_meanings,
                                       relation_properties_container_diagnostic)
@@ -26,6 +27,62 @@ STABLE_DIAGNOSTIC_CODES = frozenset({
     'PLACEHOLDER_BASE', 'UNPROCESSABLE_DOCUMENT', 'DUPLICATE_SOURCE_ID', 'UNKNOWN_INFORMATION',
     'REQUIRED_PROVENANCE', 'INTERNAL_TRANSFORMATION_FAILURE', 'ONTOLOGY_DELIVERY', 'SIDECAR_DELIVERY',
 })
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("direction", ["class_to_relation", "relation_to_class"])
+def test_mixed_class_relation_generalization_omits_only_its_hierarchy(run, tmp_path, input_policy, direction):
+    """Rules: DK-GEN-12, DK-CLS-02, DK-REL-14, DK-INV-12, DK-DIAG-05."""
+    document = mixed_hierarchy_document()
+    edge = copy.deepcopy(source_element(document, "gOne"))
+    class_ref, relation_ref = {"id": "cOne", "type": "Class"}, {"id": "rParent", "type": "Relation"}
+    specific, general = (class_ref, relation_ref) if direction == "class_to_relation" else (relation_ref, class_ref)
+    edge.update(id="gMixed", specific=specific, general=general)
+    document["model"]["contents"].append(edge)
+    assert not fixture_issues(document)
+    options = dict(iri_strategy="id", inverse_properties="all", input_policy=input_policy)
+    result = run(path=write_input(tmp_path, document), **options)
+    assert any(mixed_hierarchy_error(event, "gMixed") for event in result.diagnostics)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+    assert result.outcome == "completed-with-errors"
+    document["model"]["contents"].remove(edge)
+    control = run(path=write_input(tmp_path, document, "no_mixed_edge.json"), **options)
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
+    assert (BASE.cOne, RDFS.subClassOf, BASE.cBase) in result.ontology
+    assert (BASE.tLeft, RDFS.subPropertyOf, BASE.tParent) in result.ontology
+    assert (BASE.sLeft, RDFS.subPropertyOf, BASE.sParent) in result.ontology
+    assert (BASE.cOne, RDF.type, BASE.cOtherCategorizer) in result.ontology
+    assert (BASE.tParent, RDF.type, OWL.ObjectProperty) in result.ontology
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("classifier", ["Class", "Relation"])
+def test_residual_generalization_to_resolved_nonclassifier_omits_only_edge(run, tmp_path, input_policy, classifier):
+    """Rules: DK-CLS-02, DK-REL-14, DK-GEN-12, DK-DIAG-05 residual recovery."""
+    document = mixed_hierarchy_document()
+    edge = copy.deepcopy(source_element(document, "gOne"))
+    edge.update(id="gInvalid", specific={"id": "cOne" if classifier == "Class" else "rLeft", "type": classifier},
+                general={"id": "tParent", "type": "Property"})
+    document["model"]["contents"].append(edge)
+    # Both references resolve exactly; the Property cannot support a classifier hierarchy.
+    assert not fixture_issues(document)
+    options = dict(iri_strategy="id", inverse_properties="all", input_policy=input_policy)
+    result = run(path=write_input(tmp_path, document), **options)
+    assert any(nonclassifier_hierarchy_error(event, "gInvalid") for event in result.diagnostics)
+    assert not any(event.code == "INTERNAL_TRANSFORMATION_FAILURE" or mixed_hierarchy_error(event, "gInvalid")
+                   for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+    assert result.outcome == "completed-with-errors"
+    document["model"]["contents"].remove(edge)
+    control = run(path=write_input(tmp_path, document, "no_invalid_edge.json"), **options)
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
 NAMING_KINDS = {'relation_naming', 'stereotype_naming', 'comparative_naming',
                 'unavailable_grounding_relator', 'relator_naming', 'missing_name',
                 'generic_id_fallback', 'owner_qualification'}

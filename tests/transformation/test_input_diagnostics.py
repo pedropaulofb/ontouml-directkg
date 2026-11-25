@@ -22,7 +22,7 @@ from tests.support.invocation import (attribute_owner_without_local_class_diagno
                                       package_contents_entry_diagnostic,
                                       project_languages_diagnostic,
                                       relation_properties_container_diagnostic,
-                                      textual_carrier_diagnostic)
+                                      textual_carrier_diagnostic, unresolved_property_reference_between)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
 
@@ -483,6 +483,57 @@ def test_invalid_declaration_identifiers_follow_input_policy(run, invoke, source
         assert set(result.ontology.subjects(RDF.type, OWL.Class)) == {survivor}
         assert (survivor, RDFS.label, Literal("Independent")) in result.ontology
         assert not list(result.ontology.subjects(RDFS.label, Literal("Person")))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("identity", ["absent", "invalid"])
+@pytest.mark.parametrize("focus_id", ["cPerson", "aAge", "rWorks"])
+def test_residual_identity_recovery_omits_dependent_contributions(run, source_json, tmp_path, input_policy, identity, focus_id):
+    """Rules: §3.4, DK-DIAG-05 residual recovery, DK-ATT-01, DK-PROP-03, DK-REL-01."""
+    document = source_json("shared/core_model")
+    contents = document["model"]["contents"]
+    focus = source_element(document, focus_id)
+    if focus_id == "aAge":
+        owner = source_element(document, "cPerson")
+        path = f"$.model.contents[{contents.index(owner)}].properties[{owner['properties'].index(focus)}]"
+        # A surviving attribute referring to an omitted attribute still reports
+        # the genuinely unresolved reference (DK-PROP-03's specific boundary).
+        note = source_element(document, "aNote")
+        note["subsettedProperties"] = [{"id": "aAge", "type": "Property"}]
+    else:
+        path = f"$.model.contents[{contents.index(focus)}]"
+    if identity == "absent":
+        del focus["id"]
+    else:
+        focus["id"] = 17
+    defects = {"invalid_id"}
+    if focus_id in {"cPerson", "aAge"}:
+        defects.add("unresolved_reference:" + focus_id)
+    assert fixture_issues(document) == defects
+    options = dict(iri_strategy="id", input_policy=input_policy, inverse_properties="all")
+    result = run(path=write_input(tmp_path, document), **options)
+    assert any(event.severity == "ERROR" and event.kind == ("missing_id" if identity == "absent" else "invalid_id")
+               and any(source.path == path for source in event.raw.sources) for event in result.diagnostics)
+    assert all(event.code != "INTERNAL_TRANSFORMATION_FAILURE" for event in result.diagnostics)
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+        return
+    assert result.outcome == "completed-with-errors"
+    if focus_id == "aAge":
+        assert any(unresolved_property_reference_between(event, "aNote", "subsettedProperties", "aAge")
+                   for event in result.diagnostics)
+        owner["properties"].remove(focus)
+        note["subsettedProperties"] = None
+    else:
+        contents.remove(focus)
+        if focus_id == "cPerson":
+            assert any(event.severity == "ERROR" and "rWorks" in event.identified_sources for event in result.diagnostics)
+            contents.remove(source_element(document, "rWorks"))
+    assert not fixture_issues(document)
+    control = run(path=write_input(tmp_path, document, "independent.json"), **options)
+    assert control.outcome == "completed"
+    assert_graph_equal(result.ontology, control.ontology)
+    assert (BASE.cOrg, RDF.type, OWL.Class) in result.ontology
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

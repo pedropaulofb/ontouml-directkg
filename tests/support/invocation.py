@@ -2067,6 +2067,68 @@ def unresolved_property_reference_between(event, referencing, field, referenced)
     return _diagnostic_identifier(target) == referenced
 
 
+def _mixed_hierarchy_claim(message):
+    """Read an affirmative mixed-declaration error, retaining its named subject."""
+    token = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]+`|[^\s'\"`]+)"""
+    subject = rf"(?P<construct>generalization(?:[ -]?set)?)(?: (?P<identifier>{token}))??"
+    kinds = r"(?:(?:a )?class(?:es)? (?:and|to|with) (?:a )?relations?|(?:a )?relations? (?:and|to|with) (?:a )?class(?:es)?|class\s*/\s*relation|relation\s*/\s*class)"
+    members = r"(?: endpoint(?:s| kinds)?| member(?:s| endpoints|hip)?| classifier(?:s| kinds| types)?| declaration(?:s| kinds| types)?| generalizations?)?"
+    reason = message.strip().removesuffix(".")
+    for pattern in (
+        rf"{subject} (?:connects|mixes|combines|contains|has|groups) (?:both |mixed )?(?:resolved )?{kinds}{members}",
+        rf"{subject} (?:has|contains|establishes) (?:a )?mixture of {kinds}{members}",
+        rf"mixed {kinds} {subject}(?: membership| endpoints)?",
+        rf"mixed {kinds} (?:membership|endpoints) (?:in|on|of) {subject}",
+    ):
+        match = re.fullmatch(pattern, reason, re.IGNORECASE)
+        if match:
+            return match
+    return None
+
+
+def mixed_hierarchy_error(event, identifier, *, is_set=False):
+    """Require observed structural meaning and source identity, not a provisional code."""
+    claim = _mixed_hierarchy_claim(getattr(event.raw, "message", event.message))
+    if not claim or event.severity != "ERROR" or identifier not in event.identified_sources:
+        return False
+    subject = claim.group("identifier")
+    return (claim.group("construct").casefold().endswith("set") == is_set
+            and (subject is None or _diagnostic_identifier(subject) == identifier)
+            and bool(event.code) and event.code not in {
+                "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+                "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+            })
+
+
+def _nonclassifier_hierarchy_claim(message):
+    """Read a structural endpoint-kind error independently of its provisional code."""
+    subject = rf"generalization(?: (?P<identifier>{_DIAGNOSTIC_ID_TOKEN}))?"
+    reason = message.strip().removesuffix(".")
+    for pattern in (
+        rf"{subject} (?:has|contains) (?:an? )?(?:non-classifier|nonclassifier) endpoint(?: type| kind)?",
+        rf"{subject} (?:has|contains) (?:an? )?(?:invalid|unsupported) endpoint (?:type|kind)(?: (?:Property|'Property'|\"Property\"))?",
+        rf"{subject} (?:has|contains) (?:an? )?endpoint (?:that is|which is|of type Property, which is) not (?:a )?Class or (?:a )?Relation",
+        rf"{subject} connects (?:a )?(?:Class|Relation) (?:to|and|with) (?:a )?Property",
+        rf"{subject} connects (?:a )?Property (?:to|and|with) (?:a )?(?:Class|Relation)",
+    ):
+        match = re.fullmatch(pattern, reason, re.IGNORECASE)
+        if match:
+            return match
+    return None
+
+
+def nonclassifier_hierarchy_error(event, identifier):
+    claim = _nonclassifier_hierarchy_claim(getattr(event.raw, "message", event.message))
+    if not claim or event.severity != "ERROR" or identifier not in event.identified_sources:
+        return False
+    subject = claim.group("identifier")
+    return ((subject is None or _diagnostic_identifier(subject) == identifier)
+            and bool(event.code) and event.code not in {
+                "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+                "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+            })
+
+
 def _attribute_owner_without_local_class_facts(message: str, effect: str = "") -> set[str]:
     """Read affirmative ERROR wording for an attribute owned by a Class without a local owl:Class."""
     combined = f"{message} {effect}".strip()
@@ -3029,6 +3091,14 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
         wording = (event.message + " " + event.effect).casefold()
         facts = dkgm_chain_facts(event.message, event.effect)
         kind = _DIAGNOSTIC_KINDS.get(event.code)
+        if event.severity == "ERROR" and _mixed_hierarchy_claim(event.message):
+            facts.add("mixed_class_relation_hierarchy")
+            if kind is None:
+                kind = "mixed_class_relation_hierarchy"
+        if event.severity == "ERROR" and _nonclassifier_hierarchy_claim(event.message):
+            facts.add("nonclassifier_hierarchy_endpoint")
+            if kind is None:
+                kind = "nonclassifier_hierarchy_endpoint"
         membership_facts = _generalization_membership_facts(event.message) if event.severity == "ERROR" else set()
         if membership_facts:
             facts.update(membership_facts)
