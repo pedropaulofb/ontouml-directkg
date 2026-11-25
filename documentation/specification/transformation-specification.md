@@ -3048,7 +3048,7 @@ The INFO diagnostic required whenever class or relation singleton completeness i
 
 The persistent export MUST NOT independently create diagnostics for every known limitation or information loss documented by this specification. Rules that intentionally require no diagnostic remain in force and do not become reportable merely because export is enabled. The DK-INS-02 warning is a produced diagnostic and MUST be included in the JSON mirror, observing DK-INS-02's boundary between source-locator and discarded-value content. Its console and JSON forms MAY differ in presentation but MUST represent the same underlying diagnostic event.
 
-Each exported diagnostic SHOULD contain sufficient structured information to identify what happened and, where applicable, trace it to the relevant source element. The shared JSON report contract below fixes the minimum structure, required member names and types, context representation, and compatibility rules. The stable first-release diagnostic core below selects eight identifier strings and their condition meanings. All other identifiers remain provisional, and the complete condition-to-code catalogue remains unresolved.
+Each exported diagnostic SHOULD contain sufficient structured information to identify what happened and, where applicable, trace it to the relevant source element. The shared JSON report contract below fixes the minimum structure, required member names and types, context representation, and compatibility rules. Under RD-04 (Alternative A), the stable first-release diagnostic core below defines the sole eight identifier strings and condition meanings carrying a normative v1 stability guarantee; every produced diagnostic MUST populate `code` as a nonempty string, while exact identifier strings outside that eight-code core remain implementation-defined / unguaranteed in the first release and are not expanded by a separate v1 catalogue.
 
 The Python API and, when exported, the shared JSON diagnostics report MUST expose exactly one transformation outcome for each conversion, using the outcome names and classification defined in DK-DIAG-05: `completed`, `completed-with-errors`, or `aborted`. This applies to reports exported through either the CLI or Python. Exposing the outcome MUST NOT itself introduce additional diagnostics. The JSON report structure and member names follow DK-DIAG-04's shared report contract. Python representations remain unspecified.
 
@@ -3065,7 +3065,7 @@ CLI JSON diagnostics export and the separate Python JSON export operation MUST u
 | Report | `outcome` | A string with one of the values `"completed"`, `"completed-with-errors"`, or `"aborted"`, classified under DK-DIAG-05. |
 | Report | `diagnostics` | An array of diagnostic objects containing every produced diagnostic; `[]` when none were produced. |
 | Diagnostic | `severity` | A string with one of the values `"INFO"`, `"WARNING"`, or `"ERROR"`. |
-| Diagnostic | `code` | A string identifying the diagnostic condition. |
+| Diagnostic | `code` | A nonempty string identifying the diagnostic condition (stabilized for the eight-code first-release core below; implementation-defined / unguaranteed otherwise). |
 | Diagnostic | `message` | A string providing a human-readable explanation. |
 | Diagnostic | `effect` | A string providing a human-readable account of the effect on transformation or delivery. |
 | Diagnostic | `sources` | An array of relevant source-location objects; `[]` when no locations apply. |
@@ -3078,7 +3078,7 @@ All listed members MUST be present in their respective objects. Optional context
 
 Additional members MAY be added compatibly. Required members MUST retain their specified names, types, and meanings; consumers MUST ignore unrecognized members. This contract requires no `schema_version` member.
 
-Human-readable messages remain explanatory text. This contract establishes no new stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. The identifiers and condition meanings receiving first-release stability guarantees are specified in the stable diagnostic core below.
+Every produced diagnostic MUST populate `code` as a nonempty string in the shared JSON report and in any CLI or Python diagnostic access. Human-readable messages remain explanatory text. This contract establishes no new stability guarantee for exact message wording, JSON object-member order, or diagnostic-array order. Only the eight identifiers and condition meanings specified in the stable first-release diagnostic core below receive a first-release stability guarantee.
 
 This structure MUST NOT change diagnostic production, consolidation, severity, meaning, console filtering, transformation outcomes, abortion, output eligibility, or existing failure and delivery policies. It does not prescribe Python object representations, API names, function signatures, or a result or exception mechanism.
 
@@ -3102,7 +3102,7 @@ This structure MUST NOT change diagnostic production, consolidation, severity, m
 
 #### Stable first-release diagnostic core (RD-04, alternative A)
 
-For the first release, DirectKG MUST stabilize the following eight diagnostic identifier strings and their specified condition meanings. When a diagnostic is produced for one of these conditions under its governing rule, it MUST use the corresponding identifier consistently in CLI JSON exports, structured Python diagnostic access, Python JSON exports, and any CLI presentation that displays the code.
+For DirectKG's first release, **only** the following eight diagnostic identifier strings and their specified condition meanings carry a normative stability guarantee. When a diagnostic is produced for one of these conditions under its governing rule, it MUST use the corresponding identifier consistently in CLI JSON exports, structured Python diagnostic access, Python JSON exports, and any CLI presentation that displays the code.
 
 | Stable identifier | Specified condition meaning |
 |---|---|
@@ -3115,15 +3115,15 @@ For the first release, DirectKG MUST stabilize the following eight diagnostic id
 | `ONTOLOGY_DELIVERY` | Main-ontology serialization, encoding, creation, or writing fails within this rule's settled ontology-file delivery scope. |
 | `SIDECAR_DELIVERY` | Serialization, creation, or writing of the requested provenance sidecar fails within DK-GEN-10's settled sidecar-delivery scope. |
 
-All other identifiers, including `MISSING_CARDINALITY` and `INVALID_CARDINALITY`, MUST remain provisional for the first release and receive no stability guarantee from this decision. DirectKG MUST continue to produce, expose, and export the corresponding diagnostics under their existing requirements. Provisional identifier status MUST NOT suppress required diagnostics.
+Every produced diagnostic MUST populate `code` as a nonempty string in the shared JSON report and in any CLI or Python diagnostic access. Exact identifier strings outside the eight-code core above—explicitly including `MISSING_CARDINALITY`, `INVALID_CARDINALITY`, and all other non-core condition codes—remain implementation-defined / unguaranteed in the first release and are not expanded by a separate v1 condition-to-code catalogue. DirectKG MUST continue to produce, expose, and export the corresponding diagnostics under all existing production, severity, consolidation, content-boundary, outcome, and export requirements; unguaranteed / provisional non-core identifier status MUST NOT suppress required diagnostics.
 
-This core does not complete the condition-to-code catalogue. Identifiers and condition mappings outside it remain unselected for stability; other unresolved RD-04 questions remain unresolved.
+This eight-code core closes the condition-to-code catalogue boundary for the first release (no further diagnostic codes are stabilized for v1). Uncovered runtime and ontology-output delivery failures outside the resolved scope remain unresolved under RD-04.
 
-Stabilization concerns only these identifier strings and their specified meanings. It MUST NOT alter diagnostic production, severity, consolidation, content boundaries, console filtering, transformation outcomes, recovery, output eligibility, or exit-status rules. Existing input and stereotype policies, provenance requirements, and delivery-failure distinctions and precedence remain applicable. This decision introduces no guarantee of exact message wording, diagnostic count or order, and no new report member, control, or console format.
+Stabilization concerns only these eight identifier strings and their specified meanings. It MUST NOT alter diagnostic production, severity, consolidation, content boundaries, console filtering, transformation outcomes, recovery, output eligibility, or exit-status rules. Existing input and stereotype policies, provenance requirements, and delivery-failure distinctions and precedence remain applicable. This decision introduces no guarantee of exact message wording, diagnostic count or order, and no new report member, control, or console format.
 
 Selecting `INTERNAL_TRANSFORMATION_FAILURE` MUST NOT be treated as evidence that the existing unexpected-failure reporting contract is implemented or tested. That existing contract remains an implementation and testing obligation independently of identifier selection.
 
-**Rationale (non-normative):** The bounded core supports publication safeguards, supported-input compatibility checks, identity-integrity reporting, and distinctions between conversion and artifact-delivery failures. Other identifiers remain available without requiring a complete stable catalogue before the first release.
+**Rationale (non-normative):** The bounded core supports publication safeguards, supported-input compatibility checks, identity-integrity reporting, and distinctions between conversion and artifact-delivery failures. Requiring every diagnostic to populate a nonempty `code` string while keeping non-core condition codes implementation-defined avoids prescribing a full v1 catalogue without weakening diagnostic reporting.
 
 #### Ontology-file delivery failures (RD-04, option A)
 
