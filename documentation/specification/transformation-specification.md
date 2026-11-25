@@ -3258,7 +3258,7 @@ The Python interface MUST expose the `aborted` outcome and diagnostics through D
 
 The established rules for input handling, required-provenance generation, and artifact delivery retain their own scope. Diagnostics produced for this condition MUST use `INTERNAL_TRANSFORMATION_FAILURE` from DK-DIAG-04's stable first-release core. Identifier selection does not establish implementation or test completion; the existing failure-reporting requirements remain applicable. Console-only write, encode, or flush failures (`stdout` or `stderr`) alone MUST NOT trigger this abort or change exit codes (`0`–`7`); reportable unexpected runtime failures that cannot be classified under exit codes `0`–`6` (excluding console-only failures) fall back to residual CLI exit code `7` under §15.
 
-A detected collision covered by DK-IRI-07 MUST follow this internal-failure contract.
+A detected collision between distinct valid source IDs producing the same local name under the same ID-based construction in DK-IRI-05 (DK-IRI-07, ODI-IRI, Alternative A) MUST follow this internal-failure contract.
 
 **Example (non-normative):** If a placeholder-base WARNING has already been produced when an unexpected internal error stops relation mapping, a successfully written diagnostics report records `aborted`, the earlier WARNING, and the internal-failure ERROR. No ontology or provenance sidecar is delivered.
 
