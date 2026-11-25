@@ -624,7 +624,7 @@ class _MetadataCLIObservation(_BasicObservation):
 
 
 class _InspectedControlSurface(_BoundFieldsOnly, ControlSurface):
-    _available_fields = frozenset({"cli", "python", "prohibited_features", "software_version", "raw"})
+    _available_fields = frozenset({"cli", "python", "prohibited_features", "software_version", "raw", "stdout_supported"})
 
 
 class _NoReportCLIObservation(_BasicObservation):
@@ -914,10 +914,12 @@ def _fail_required_provenance(trace):
 _CLI_OBSERVER = '''\
 import argparse
 import atexit
+import errno
 import json
 import os
 import sys
-from ontouml_directkg.conversion import read_project, convert
+from pathlib import Path
+from ontouml_directkg.conversion import ConversionResult, read_project, convert
 from ontouml_directkg.diagnostics import export_report
 
 reader_code = read_project.__code__
@@ -925,13 +927,16 @@ conversion_code = convert.__code__
 parser_error_code = argparse.ArgumentParser.error.__code__
 trace = {"input_reader": {"module": read_project.__module__, "name": read_project.__qualname__},
          "conversion_started": False, "parser_errors": [],
-         "conversion_calls": 0, "conversion_returns": 0, "diagnostics_exports": []}
+         "conversion_calls": 0, "conversion_returns": 0, "diagnostics_exports": [],
+         "console_io_errors": [], "report_export_errors": [], "runtime_faults": [],
+         "delivery_faults": []}
 metadata = _MetadataCapture()
 native_result = None
 ontology_fault = os.environ.get("DIRECTKG_TEST_ONTOLOGY_FAULT")
 probe = _OntologySerializationProbe(ontology_fault) if ontology_fault is not None else None
 transformation_fault = os.environ.get("DIRECTKG_TEST_TRANSFORMATION_FAULT")
 provenance_fault = os.environ.get("DIRECTKG_TEST_PROVENANCE_FAULT") == "construct"
+cli_faults = json.loads(os.environ.get("DIRECTKG_TEST_CLI_FAULTS", "[]"))
 if transformation_fault == "emit_relations":
     _fail_relation_emission(trace).start()
 elif transformation_fault:
@@ -939,18 +944,127 @@ elif transformation_fault:
 if provenance_fault:
     _fail_required_provenance(trace).start()
 if probe is not None:
-    from ontouml_directkg.conversion import ConversionResult
-
     def observed_turtle(result):
         return probe.serialize(result)
 
     ConversionResult.to_turtle = observed_turtle
-from pathlib import Path
 
+_wrapped_streams = []
+
+class _FailingConsoleStream:
+    def __init__(self, wrapped, stream_name, operation):
+        self._wrapped = wrapped
+        self._stream_name = stream_name
+        self._operation = operation
+        self.active = True
+
+    def write(self, data):
+        if self.active and self._operation in {"write", "encode"}:
+            trace["console_io_errors"].append({"stream": self._stream_name, "operation": self._operation})
+            if self._operation == "encode":
+                raise UnicodeEncodeError("ascii", "\\u2603", 0, 1, "ordinal not in range(128)")
+            raise OSError(errno.EIO, f"Injected {self._stream_name} write failure")
+        return self._wrapped.write(data)
+
+    def flush(self):
+        if self.active and self._operation == "flush":
+            trace["console_io_errors"].append({"stream": self._stream_name, "operation": self._operation})
+            raise OSError(errno.EIO, f"Injected {self._stream_name} flush failure")
+        return self._wrapped.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._wrapped, name)
+
+for _fault in cli_faults:
+    _kind, _op, _fpath = _fault["kind"], _fault["operation"], _fault.get("path")
+    if _kind == "provenance" and _op == "output_construct":
+        import ontouml_directkg.delivery as _delivery_mod
+        _prov_mod = _delivery_mod.execution_provenance
+        trace.setdefault("provenance_probe", {"module": _prov_mod.output_provenance.__module__,
+                                              "name": _prov_mod.output_provenance.__qualname__, "calls": []})
+        def _fail_output_provenance(*args, **kwargs):
+            err = RuntimeError("RD04-OUTPUT-PROVENANCE-272")
+            trace["provenance_probe"]["calls"].append({"cause": str(err), "operation": "output_construct"})
+            raise err
+        _prov_mod.output_provenance = _fail_output_provenance
+    elif _kind == "sidecar" and _op == "encode":
+        _orig_prov_turtle = ConversionResult.to_provenance_turtle
+        def _unencodable_prov(result, _orig=_orig_prov_turtle):
+            class _BadStr(str):
+                def encode(text, *args, **kwargs):
+                    try:
+                        return super().encode(*args, **kwargs)
+                    except UnicodeEncodeError as err:
+                        trace["delivery_faults"].append({"kind": "sidecar", "operation": "encode", "reason": str(err)})
+                        raise
+            return _BadStr(_orig(result) + "\\ud800")
+        ConversionResult.to_provenance_turtle = _unencodable_prov
+    elif _kind in {"ontology", "sidecar"} and _op == "unexpected":
+        import ontouml_directkg.delivery as _delivery_mod
+        _orig_write_artifact = _delivery_mod._write_artifact
+        def _failing_write_artifact(path, content, _k=_kind, _fp=_fpath, _orig=_orig_write_artifact):
+            target_match = (_fp is not None and Path(path) == Path(_fp)) or (
+                _fp is None and ((_k == "sidecar") == str(path).endswith(".provenance.ttl"))
+            )
+            if target_match:
+                err = RuntimeError(f"Unexpected runtime error during {_k} delivery")
+                trace["delivery_faults"].append({"kind": _k, "operation": "unexpected", "path": str(path), "reason": str(err)})
+                raise err
+            return _orig(path, content)
+        _delivery_mod._write_artifact = _failing_write_artifact
+    elif _kind == "diagnostics" and _op in {"serialize", "unexpected"}:
+        import ontouml_directkg.diagnostics as _diag_mod
+        def _failing_json_dumps(*args, _op_name=_op, **kwargs):
+            err = (TypeError("Injected diagnostics JSON serialization failure")
+                   if _op_name == "serialize" else RuntimeError("Unexpected diagnostics export error"))
+            trace["report_export_errors"].append({"operation": _op_name, "error_type": type(err).__name__, "reason": str(err)})
+            raise err
+        _diag_mod.json.dumps = _failing_json_dumps
+    elif _kind in {"stdout", "stderr"} and _op in {"write", "encode", "flush"}:
+        _proxy = _FailingConsoleStream(getattr(sys, _kind), _kind, _op)
+        setattr(sys, _kind, _proxy)
+        _wrapped_streams.append(_proxy)
+    elif _kind == "runtime" and _op == "pre_conversion":
+        import ontouml_directkg.conversion as _conv_mod
+        def _failing_select_base(*args, **kwargs):
+            err = RuntimeError("Unexpected pre-conversion runtime failure")
+            trace["runtime_faults"].append({"stage": "pre_conversion", "reason": str(err)})
+            raise err
+        _conv_mod.select_base = _failing_select_base
+    elif _kind == "runtime" and _op == "parser_setup":
+        import ontouml_directkg.cli as _cli_mod
+        def _failing_build_parser(*args, **kwargs):
+            err = RuntimeError("Unexpected parser setup runtime failure")
+            trace["runtime_faults"].append({"stage": "parser_setup", "reason": str(err)})
+            raise err
+        _cli_mod.build_parser = _failing_build_parser
+    elif _kind == "runtime" and _op == "post_delivery":
+        import ontouml_directkg.delivery as _delivery_mod
+        _orig_deliver = _delivery_mod.deliver
+        def _post_delivery_runtime_fail(result, destination, _orig=_orig_deliver):
+            real_delivered = _orig(result, destination)
+            class _FailingFailuresDeliveryResult:
+                def __init__(self, wrapped):
+                    self._wrapped = wrapped
+                @property
+                def failures(self):
+                    err = RuntimeError("Unexpected post-delivery runtime failure")
+                    trace["runtime_faults"].append({"stage": "post_delivery", "reason": str(err)})
+                    raise err
+                def __getattr__(self, name):
+                    return getattr(self._wrapped, name)
+            return _FailingFailuresDeliveryResult(real_delivered)
+        _delivery_mod.deliver = _post_delivery_runtime_fail
+
+_diag_write_fault = any(f["kind"] == "diagnostics" and f["operation"] in {"create", "write"} for f in cli_faults)
 write_bytes = Path.write_bytes
 
 def observed_write_bytes(path, data):
     is_report = sys._getframe(1).f_code is export_report.__code__
+    if is_report and _diag_write_fault:
+        error = OSError(errno.EACCES, "Permission denied", str(path))
+        trace["report_io_errors"].append({"destination": str(path), "errno": error.errno, "reason": str(error)})
+        raise error
     try:
         return write_bytes(path, data)
     except OSError as error:
@@ -990,11 +1104,13 @@ def observe(frame, event, argument):
             trace["parser_errors"].append(frame.f_locals["message"])
         elif frame.f_code is export_report.__code__:
             trace["diagnostics_exports"].append(str(frame.f_locals["destination"]))
-            if probe is not None or transformation_fault or provenance_fault:
+            if probe is not None or transformation_fault or provenance_fault or cli_faults:
                 trace["report_at_export"].append(report_fields(
                     frame.f_locals["outcome"], frame.f_locals["events"]))
 
 def finish():
+    for _stream in _wrapped_streams:
+        _stream.active = False
     trace["profile_active_at_exit"] = sys.getprofile() is observe
     sys.setprofile(None)
     trace["observation_completed"] = True
@@ -1051,7 +1167,7 @@ def _observe_python_input():
             raise ImplementationUnavailable("Incomplete Python input-processing evidence")
 
 
-def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=None, provenance_fault=False):
+def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_fault=None, provenance_fault=False, cli_faults=()):
     """Observe the real -m CLI without replacing conversion or parser behavior.
 
     The inspected converter finishes configuration validation before calling
@@ -1072,12 +1188,18 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_f
         environment.pop("DIRECTKG_TEST_ONTOLOGY_FAULT", None)
         environment.pop("DIRECTKG_TEST_TRANSFORMATION_FAULT", None)
         environment.pop("DIRECTKG_TEST_PROVENANCE_FAULT", None)
+        environment.pop("DIRECTKG_TEST_CLI_FAULTS", None)
         if ontology_fault is not None:
             environment["DIRECTKG_TEST_ONTOLOGY_FAULT"] = ontology_fault
         if transformation_fault:
             environment["DIRECTKG_TEST_TRANSFORMATION_FAULT"] = transformation_fault
         if provenance_fault:
             environment["DIRECTKG_TEST_PROVENANCE_FAULT"] = "construct"
+        if cli_faults:
+            environment["DIRECTKG_TEST_CLI_FAULTS"] = json.dumps([
+                {"kind": f.kind, "operation": f.operation, "path": str(f.path) if f.path is not None else None}
+                for f in cli_faults
+            ])
         environment["PYTHONPATH"] = str(directory) + (
             os.pathsep + environment["PYTHONPATH"] if environment.get("PYTHONPATH") else ""
         )
@@ -3455,7 +3577,8 @@ class _DirectKGInvocation(_UnboundInvocation):
             raise ImplementationUnavailable("Install the actual DirectKG package before conversion tests") from exc
         request = dict(options)
         if "stereotype_relation_naming" in request:
-            request["no_stereotype_relation_naming"] = not request.pop("stereotype_relation_naming")
+            value = request.pop("stereotype_relation_naming")
+            request["no_stereotype_relation_naming"] = (not value) if type(value) is bool else value
         if "dkgm_vocabulary" in request:
             try:
                 inspect.signature(convert).bind(source, **request)
@@ -3555,7 +3678,16 @@ class _DirectKGInvocation(_UnboundInvocation):
                           | {action.dest for action in actions.values()}, "python": set(signature.parameters)}
         features = {f"{interface}:{feature}": bool(names & aliases)
                     for interface, names in observed_names.items() for feature, aliases in prohibited.items()}
+        output_action = actions.get("--output")
+        stdout_supported = not (
+            output_action is not None
+            and getattr(output_action, "required", False) is True
+            and "-o" in output_action.option_strings
+            and "--output" in output_action.option_strings
+            and not any(flag in actions for flag in ("--stdout", "-"))
+        )
         return _InspectedControlSurface(cli, python, features, software_version=__version__,
+                                        stdout_supported=stdout_supported,
                                         raw={"python_signature": signature, "cli_help": parser.format_help(),
                                              "python_enum_rejections": rejections})
 
@@ -3630,17 +3762,36 @@ class _DirectKGInvocation(_UnboundInvocation):
 
     def serialize(self, observation, *, target, faults=()):
         """Read the native result's public Turtle serialization."""
-        if faults:
+        applicable = {
+            ("ontology", "serialize"), ("ontology", "encode"),
+            ("provenance", "serialize"), ("provenance", "encode"),
+        }
+        if any((fault.kind, fault.operation) not in applicable or fault.kind != target for fault in faults):
             self._unavailable()
         method = {"ontology": "to_turtle", "provenance": "to_provenance_turtle"}[target]
         serializer = getattr(observation.native, method, None)
         if not callable(serializer):
             raise ImplementationUnavailable(f"Bind the public Python {target} serializer")
+        graph_attr = "ontology" if target == "ontology" else "provenance"
+        graph_obj = getattr(observation.native, graph_attr, None)
+        fault = faults[0] if faults else None
+        patch_ctx = nullcontext()
+        if fault is not None and graph_obj is not None:
+            if fault.operation == "serialize":
+                def fail_serialize(*args, **kwargs):
+                    raise ValueError("Cyclic RDF list")
+                patch_ctx = patch.object(graph_obj, "serialize", fail_serialize)
+            elif fault.operation == "encode":
+                def fail_encode(*args, **kwargs):
+                    raise UnicodeEncodeError("utf-8", "\ud800", 0, 1, "surrogates not allowed")
+                patch_ctx = patch.object(graph_obj, "serialize", fail_encode)
         try:
-            turtle = serializer()
-        except ValueError as exc:
+            with patch_ctx:
+                turtle = serializer()
+            data = turtle.encode("utf-8")
+        except (ValueError, RuntimeError, UnicodeEncodeError) as exc:
             return SerializationObservation(data=None, failure=exc)
-        return SerializationObservation(data=turtle.encode("utf-8"))
+        return SerializationObservation(data=data)
 
     def deliver(self, observation, *, output_path, faults=()):
         """Call real delivery while observing its write and serialization boundaries."""
@@ -3649,10 +3800,12 @@ class _DirectKGInvocation(_UnboundInvocation):
         native = observation.native
         destination = Path(output_path)
         sidecar = destination.with_name(destination.stem + ".provenance.ttl")
-        targets = {"ontology": destination, "sidecar": sidecar}
+        targets = {"ontology": destination, "sidecar": sidecar, "provenance": sidecar}
         applicable = {("ontology", "create"), ("ontology", "write"),
-                      ("ontology", "serialize"), ("ontology", "encode"),
-                      ("sidecar", "create"), ("sidecar", "write"), ("sidecar", "serialize")}
+                      ("ontology", "serialize"), ("ontology", "encode"), ("ontology", "unexpected"),
+                      ("sidecar", "create"), ("sidecar", "write"),
+                      ("sidecar", "serialize"), ("sidecar", "encode"), ("sidecar", "unexpected"),
+                      ("provenance", "output_construct")}
         if any((fault.kind, fault.operation) not in applicable or
                (fault.path is not None and fault.path != targets[fault.kind]) for fault in faults):
             self._unavailable()
@@ -3661,6 +3814,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         real_write = delivery._write_artifact
         real_open = delivery.tempfile.NamedTemporaryFile
         real_serialize = native.to_provenance_turtle
+        real_output_provenance = delivery.execution_provenance.output_provenance
         serialization_fault = next((fault for fault in faults if fault.kind == "ontology"
                                     and fault.operation in {"serialize", "encode"}), None)
         probe = _OntologySerializationProbe(serialization_fault.operation) if serialization_fault else None
@@ -3668,7 +3822,9 @@ class _DirectKGInvocation(_UnboundInvocation):
         def observe_operation(kind, operation, path):
             for fault in faults:
                 if (kind, operation) == (fault.kind, fault.operation):
-                    error = OSError(f"Injected {kind} {operation} failure")
+                    error = (RuntimeError(f"Unexpected runtime error during {kind} delivery")
+                             if operation == "unexpected"
+                             else OSError(f"Injected {kind} {operation} failure"))
                     operations.append(Operation(kind, operation, path, True, error))
                     raise error
 
@@ -3687,21 +3843,40 @@ class _DirectKGInvocation(_UnboundInvocation):
 
         def write_artifact(path, content):
             nonlocal before_io
-            if before_io is None:
+            if before_io is None and native.ontology is not None:
                 before_io = Graph() + native.ontology
             kind = "ontology" if path == destination else "sidecar" if path == sidecar else None
             if kind is None:
                 raise ImplementationUnavailable(f"Interpret the native artifact write to {path}")
+            observe_operation(kind, "unexpected", path)
             with patch.object(delivery.tempfile, "NamedTemporaryFile",
                               lambda *args, **kwargs: open_observed(kind, path, *args, **kwargs)):
                 return real_write(path, content)
 
         def serialize_sidecar():
             observe_operation("sidecar", "serialize", sidecar)
-            return real_serialize()
+            result_str = real_serialize()
+            if any((f.kind, f.operation) == ("sidecar", "encode") for f in faults):
+                class UnencodableSidecar(str):
+                    def encode(text, *args, **kwargs):
+                        try:
+                            return super().encode(*args, **kwargs)
+                        except UnicodeEncodeError as error:
+                            operations.append(Operation("sidecar", "encode", sidecar, True, error))
+                            raise
+                return UnencodableSidecar(result_str + "\ud800")
+            return result_str
+
+        def failing_output_provenance(*args, **kwargs):
+            if any((f.kind, f.operation) == ("provenance", "output_construct") for f in faults):
+                error = RuntimeError("RD04-OUTPUT-PROVENANCE-272")
+                operations.append(Operation("provenance", "output_construct", sidecar, True, error))
+                raise error
+            return real_output_provenance(*args, **kwargs)
 
         with patch.object(delivery, "_write_artifact", write_artifact), \
-             patch.object(native, "to_provenance_turtle", serialize_sidecar):
+             patch.object(native, "to_provenance_turtle", serialize_sidecar), \
+             patch.object(delivery.execution_provenance, "output_provenance", failing_output_provenance):
             if probe is None:
                 delivered = native.deliver(destination)
             else:
@@ -3714,6 +3889,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         failures = tuple(DeliveryFailure(item.kind, item.destination, item.reason, item,
                                          item.old_file_not_updated) for item in delivered.failures)
         fields = {**vars(observation), **_delivery_provenance(delivered.conversion)}
+        fields.setdefault("external_metadata_output", None)
         fields.update(ontology=delivered.conversion.ontology, provenance=delivered.conversion.provenance,
                       provenance_mode=delivered.conversion.provenance_mode,
                       outcome=delivered.conversion.outcome, native=delivered.conversion,
@@ -3892,13 +4068,57 @@ class _DirectKGInvocation(_UnboundInvocation):
         return tuple(comments)
 
     def export_diagnostics(self, observation, path, *, faults=()):
-        if faults:
+        applicable = {
+            ("diagnostics", "create"), ("diagnostics", "write"),
+            ("diagnostics", "serialize"), ("diagnostics", "unexpected"),
+        }
+        target = Path(path)
+        if any((fault.kind, fault.operation) not in applicable or
+               (fault.path is not None and fault.path != target) for fault in faults):
             self._unavailable()
         from ontouml_directkg import DiagnosticsExportError
+        from ontouml_directkg import diagnostics as diag_mod
+        operations = []
+        patch_ctx = nullcontext()
+        if faults:
+            fault = faults[0]
+            if fault.operation in {"create", "write"}:
+                real_write_bytes = Path.write_bytes
+                def failing_write_bytes(self_path, data):
+                    if self_path == target:
+                        err = OSError(errno.EACCES, "Injected diagnostics write failure", str(target))
+                        operations.append(Operation("diagnostics", fault.operation, target, True, err))
+                        raise err
+                    return real_write_bytes(self_path, data)
+                patch_ctx = patch.object(Path, "write_bytes", failing_write_bytes)
+            else:
+                def failing_json_dumps(*args, **kwargs):
+                    err = (TypeError("Injected diagnostics JSON serialization failure")
+                           if fault.operation == "serialize" else RuntimeError("Unexpected diagnostics export error"))
+                    operations.append(Operation("diagnostics", fault.operation, target, True, err))
+                    raise err
+                patch_ctx = patch.object(diag_mod.json, "dumps", failing_json_dumps)
         try:
-            observation.native.export_diagnostics(path)
-        except DiagnosticsExportError as exc:
-            return DeliveryObservation(observation, DeliveryFailure("diagnostics", Path(path), str(exc), exc))
+            with patch_ctx:
+                observation.native.export_diagnostics(path)
+        except (DiagnosticsExportError, OSError, TypeError, ValueError, RuntimeError) as exc:
+            fields = dict(vars(observation))
+            fields["operations"] = tuple(operations)
+            fields.setdefault("external_metadata_output", None)
+            fields.setdefault("delivery_failures", ())
+            fields.setdefault("valid_artifacts", ())
+            fields.setdefault("pre_delivery_ontology", None)
+            fields.setdefault("provenance_roles", None)
+            fields.setdefault("configuration_controls", None)
+            fields.setdefault("configuration_literal", None)
+            fields.setdefault("output_artifact_output", None)
+            fields.setdefault("output_artifact_evidence", None)
+            fields.setdefault("output_filename", None)
+            fields.setdefault("output_format", None)
+            fields.setdefault("embedded_output_configuration", None)
+            fields.setdefault("provenance_mode", None)
+            return DeliveryObservation(_PythonDeliveryObservation(**fields),
+                                       DeliveryFailure("diagnostics", target, str(exc), exc))
         return DeliveryObservation(observation)
 
     def report_content(self, observation):
@@ -3979,14 +4199,52 @@ class _DirectKGInvocation(_UnboundInvocation):
                                and (faults[0].path is None or faults[0].path == output_path) else None)
         transformation_fault = _transformation_fault(faults)
         provenance_fault = faults == (Fault("provenance", "construct"),)
-        if ((faults and not (serialization_fault or transformation_fault or provenance_fault)) or extra_args or output_path is None
-                or (serialization_fault is None and Path(output_path).exists())
-                or (diagnostics_path is not None and Path(diagnostics_path).exists())):
+        supported_cli_faults = {
+            ("provenance", "output_construct"),
+            ("ontology", "unexpected"),
+            ("sidecar", "encode"), ("sidecar", "unexpected"),
+            ("diagnostics", "create"), ("diagnostics", "write"),
+            ("diagnostics", "serialize"), ("diagnostics", "unexpected"),
+            ("stdout", "write"), ("stdout", "encode"), ("stdout", "flush"),
+            ("stderr", "write"), ("stderr", "encode"), ("stderr", "flush"),
+            ("runtime", "pre_conversion"), ("runtime", "parser_setup"), ("runtime", "post_delivery"),
+        }
+        new_cli_faults = tuple(
+            f for f in faults
+            if (f.kind, f.operation) in supported_cli_faults
+        )
+        all_new_handled = bool(faults) and len(new_cli_faults) == len(faults)
+        # Also allow combined ontology/sidecar/diagnostics/console faults where ontology serialize/encode is combined
+        if not all_new_handled and faults and not (serialization_fault or transformation_fault or provenance_fault):
+            # Check if faults are a mix of ontology serialize/encode and supported_cli_faults
+            ont_ser = [f for f in faults if f.kind == "ontology" and f.operation in {"serialize", "encode"}]
+            rest = tuple(f for f in faults if f not in ont_ser)
+            if len(ont_ser) <= 1 and rest and all((f.kind, f.operation) in supported_cli_faults for f in rest):
+                serialization_fault = ont_ser[0] if ont_ser else None
+                new_cli_faults = rest
+                all_new_handled = True
+        sidecar_path = (Path(output_path).with_name(Path(output_path).stem + ".provenance.ttl")
+                        if output_path is not None else None)
+        allow_existing_output = bool(faults and any(f.kind in {"ontology", "sidecar", "provenance", "diagnostics"} for f in faults)) or (
+            output_path is not None and Path(output_path).is_symlink()
+        )
+        allow_existing_diag = bool(faults and any(f.kind == "diagnostics" for f in faults)) or (
+            diagnostics_path is not None and (
+                Path(diagnostics_path).is_symlink()
+                or (output_path is not None and Path(output_path).is_symlink())
+                or (sidecar_path is not None and sidecar_path.is_symlink())
+            )
+        )
+        if ((faults and not (serialization_fault or transformation_fault or provenance_fault or all_new_handled))
+                or extra_args
+                or (output_path is not None and not allow_existing_output and Path(output_path).exists())
+                or (diagnostics_path is not None and not allow_existing_diag and Path(diagnostics_path).exists())):
             self._unavailable()
         command = [sys.executable, "-m", "ontouml_directkg"]
         if source is not None:
             command.append(str(source))
-        command.extend(["--output", str(output_path)])
+        if output_path is not None:
+            command.extend(["--output", str(output_path)])
         if diagnostics_path is not None:
             command.extend(["--diagnostics-file", str(diagnostics_path)])
         for name, value in options.items():
@@ -4000,11 +4258,17 @@ class _DirectKGInvocation(_UnboundInvocation):
                 command.extend(("--" + name.replace("_", "-"), str(value)))
         completed, trace = _run_observed_cli(
             command, workdir, ontology_fault=serialization_fault.operation if serialization_fault else None,
-            transformation_fault=transformation_fault, provenance_fault=provenance_fault)
+            transformation_fault=transformation_fault, provenance_fault=provenance_fault,
+            cli_faults=new_cli_faults)
         started = trace["conversion_started"]
-        if completed.returncode == 2 and trace["parser_errors"] and not started:
-            # Actual native rejection before input processing has no conversion
-            # result. Do not require or manufacture a conversion-diagnostics file.
+        has_runtime_fault = any(f.kind == "runtime" for f in new_cli_faults)
+        has_console_fault = any(f.kind in {"stdout", "stderr"} for f in new_cli_faults)
+        has_diag_fault = any(f.kind == "diagnostics" for f in new_cli_faults)
+        has_late_prov_fault = any((f.kind, f.operation) == ("provenance", "output_construct") for f in new_cli_faults)
+        has_delivery_fault = any(f.kind in {"ontology", "sidecar"} for f in new_cli_faults)
+        if (completed.returncode == 2 and trace["parser_errors"] and not started) or (
+                not started and (has_runtime_fault or output_path is None)):
+            # Actual native rejection or pre-conversion runtime failure has no conversion result.
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   None, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
@@ -4021,7 +4285,10 @@ class _DirectKGInvocation(_UnboundInvocation):
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   None, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
-        if diagnostics_path is None or provenance_fault or trace.get("report_io_errors"):
+        if (diagnostics_path is None or provenance_fault or has_late_prov_fault or has_diag_fault
+                or has_delivery_fault or trace.get("report_io_errors") or trace.get("report_export_errors")
+                or has_runtime_fault or (has_console_fault and not Path(diagnostics_path).is_file())
+                or completed.returncode == 4):
             from ontouml_directkg import Diagnostic as NativeDiagnostic, SourceLocation
 
             # Keep the native result if no report was requested or filesystem
@@ -4032,9 +4299,18 @@ class _DirectKGInvocation(_UnboundInvocation):
             events = tuple(NativeDiagnostic(severity, code, message, effect,
                                             tuple(SourceLocation(*item) for item in sources), iri)
                            for severity, code, message, effect, sources, iri in native["events"])
-            graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
+            graph = (
+                Graph().parse(output_path, format="turtle")
+                if output_path is not None and Path(output_path).is_file()
+                and not Path(output_path).is_symlink()
+                and native["outcome"] != "aborted"
+                and not has_delivery_fault and not has_late_prov_fault
+                else None
+            )
             observed = _NoReportCLIObservation(
-                graph, native["outcome"], _observed_diagnostics(events), native=native,
+                graph, native["outcome"], _observed_diagnostics(
+                    events, retain_unclassified=bool(has_delivery_fault or trace.get("delivery_faults"))),
+                native=native,
                 diagnostics_exports=tuple(Path(item) for item in trace["diagnostics_exports"]))
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   observed, _observed_console(completed.stdout, completed.stderr),
@@ -4047,7 +4323,7 @@ class _DirectKGInvocation(_UnboundInvocation):
             exc.add_note(f"Real CLI status {completed.returncode}; processing started={started}; "
                          f"stderr={completed.stderr.decode('utf-8', errors='replace')}")
             raise
-        graph = Graph().parse(output_path, format="turtle") if Path(output_path).is_file() else None
+        graph = Graph().parse(output_path, format="turtle") if output_path is not None and Path(output_path).is_file() else None
         evidence = trace.get("metadata")
         if (not isinstance(evidence, dict) or type(evidence.get("entries")) is not int
                 or evidence.get("entries") != evidence.get("returns") or evidence.get("active_frames") != 0

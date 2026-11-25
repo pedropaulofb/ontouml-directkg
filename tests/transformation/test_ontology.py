@@ -566,11 +566,12 @@ def test_metadata_file_failure_aborts_or_omits_every_external_contribution_witho
 
 @pytest.mark.parametrize('suffix',['json','ttl','ion'])
 def test_external_metadata_mechanism_does_not_accept_other_file_formats(run,tmp_path,suffix):
-    """Rules: DK-GEN-09."""
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05; §15. RD-04 Decision 2 (Q3-A)."""
     path=tmp_path/('metadata.'+suffix);path.write_text('{"title":"UNSUPPORTED_FORMAT_TITLE"}')
     result=run('shared/base_iri',metadata_file=path,input_policy='best-effort')
-    if result.ontology is not None:assert result.external_metadata_output==()
-    else:assert result.configuration_error is not None or result.outcome=='aborted'
+    assert result.configuration_error is not None
+    assert result.conversion_started is False
+    assert result.outcome is None and result.ontology is None and result.diagnostics==()
 
 
 @pytest.mark.parametrize('mode',[None,'none','embedded','sidecar'],ids=['default_embedded','none','embedded','sidecar'])
@@ -687,10 +688,11 @@ def test_file_source_preserves_exact_consumed_bytes_and_programmatic_graphs(invo
 @pytest.mark.parametrize('mode', ['none', 'embedded', 'sidecar'])
 @pytest.mark.parametrize('representation', ['mapping', 'json_text', 'json_bytes', 'text_stream', 'byte_stream', 'missing'])
 def test_fileless_source_substitutes_are_rejected_in_every_provenance_mode(invoke, source_json, tmp_path, mode, representation):
-    """Rules: DK-GEN-10; §3.2, §15. RD-05 file-only input rules 1–2, 4.
+    """Rules: DK-GEN-10, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §3.2, §15. RD-05 file-only rules and RD-04 Decision 2 (Q3-A).
 
-    Rejection may be programmatic or an aborted result; no new exception class,
-    diagnostic text, checksum fallback, or source-failure policy is prescribed.
+    Non-path Python source arguments outside str | os.PathLike must be rejected
+    pre-conversion as a configuration error (no conversion start, no outcome,
+    and no conversion-diagnostics report).
     """
     document = source_json('shared/base_iri')
     assert not fixture_issues(document)
@@ -705,9 +707,17 @@ def test_fileless_source_substitutes_are_rejected_in_every_provenance_mode(invok
     else:
         result = attempt.observation
         assert result is not None and result.ontology is None
-        assert result.configuration_error is not None or result.outcome == 'aborted'
-        if result.configuration_error is None:
-            assert any(event.severity == 'ERROR' for event in result.diagnostics)
+        if representation == 'json_text':
+            # A str is inside str | os.PathLike, so it is treated as a source path and aborts as unreadable.
+            assert result.configuration_error is None
+            assert result.conversion_started is True
+            assert result.outcome == 'aborted'
+            assert any(event.code == 'UNPROCESSABLE_DOCUMENT' and event.severity == 'ERROR'
+                       for event in result.diagnostics)
+        else:
+            assert result.configuration_error is not None
+            assert result.conversion_started is False
+            assert result.outcome is None and result.diagnostics == ()
     assert not list(tmp_path.glob('*.provenance.ttl'))
 
 
@@ -1381,3 +1391,210 @@ def test_ontology_version_iri_sidecar_hashes_final_delivered_bytes(invoke, sourc
         assert isinstance(yaml.safe_load(str(observed.configuration_literal)), dict)
         assert observed.configuration_controls is not None
         assert observed.configuration_controls.get('ontology_version_iri') == version
+
+
+def test_os_pathlike_source_and_metadata_file_are_accepted(invoke, source_path, tmp_path):
+    """Rules: DK-GEN-09, DK-GEN-10; §3.2, §15. RD-04 Decision 2 (Q3-A)."""
+    class CustomPathLike:
+        def __init__(self, target: Path):
+            self._target = target
+
+        def __fspath__(self) -> str:
+            return str(self._target)
+
+    meta = tmp_path / 'metadata.yaml'
+    meta.write_bytes(fixture_path(METADATA, 'metadata.yaml').read_bytes())
+    src = source_path('shared/base_iri')
+    result = invoke.convert(
+        CustomPathLike(src),
+        options={'base_iri': str(BASE), 'metadata_file': CustomPathLike(meta), 'provenance': 'embedded'},
+        workdir=tmp_path,
+    )
+    assert result.configuration_error is None
+    assert result.outcome == 'completed'
+    assert (ONTOLOGY, DCTERMS.title, Literal('External Ontology Title')) in result.ontology
+    _provenance(result, 'embedded', src.read_bytes(), meta)
+
+
+@pytest.mark.parametrize('mode', ['embedded', 'sidecar'])
+def test_python_direct_serialization_errors_do_not_write_or_mutate_result(
+        invoke, source_path, tmp_path, mode):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. RD-04 Decision 2 (Q4-A, Q1-A)."""
+    result = invoke.convert(
+        source_path('shared/core_model'),
+        options={'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': mode},
+        workdir=tmp_path,
+    )
+    assert result.outcome == 'completed'
+    before_diag = diagnostic_signatures(invoke.read_diagnostics(result))
+    before_ont = Graph() + invoke.read_ontology(result)
+    before_prov = Graph() + invoke.read_provenance(result) if mode == 'sidecar' else None
+
+    for fault in (Fault('ontology', 'serialize'), Fault('ontology', 'encode')):
+        out = invoke.serialize(result, target='ontology', faults=(fault,))
+        assert out.failure is not None and out.data is None
+        assert not list(tmp_path.iterdir())
+        assert invoke.read_outcome(result) == 'completed'
+        assert diagnostic_signatures(invoke.read_diagnostics(result)) == before_diag
+        assert_graph_equal(invoke.read_ontology(result), before_ont)
+
+    if mode == 'sidecar':
+        prov_out = invoke.serialize(result, target='provenance', faults=(Fault('provenance', 'serialize'),))
+        assert prov_out.failure is not None and prov_out.data is None
+        assert not list(tmp_path.iterdir())
+        assert invoke.read_outcome(result) == 'completed'
+        assert diagnostic_signatures(invoke.read_diagnostics(result)) == before_diag
+        assert_graph_equal(invoke.read_ontology(result), before_ont)
+        assert_graph_equal(invoke.read_provenance(result), before_prov)
+    else:
+        unavailable = invoke.serialize(result, target='provenance')
+        assert unavailable.failure is not None and unavailable.data is None
+        assert not list(tmp_path.iterdir())
+        assert invoke.read_outcome(result) == 'completed'
+        assert diagnostic_signatures(invoke.read_diagnostics(result)) == before_diag
+
+    aborted = invoke.convert(
+        tmp_path / 'missing_source.json',
+        options={'base_iri': str(BASE), 'provenance': mode},
+        workdir=tmp_path,
+    )
+    assert aborted.outcome == 'aborted'
+    aborted_diag = diagnostic_signatures(invoke.read_diagnostics(aborted))
+    aborted_ser = invoke.serialize(aborted, target='ontology')
+    assert aborted_ser.failure is not None and aborted_ser.data is None
+    assert invoke.read_outcome(aborted) == 'aborted'
+    assert invoke.read_ontology(aborted) is None
+    assert diagnostic_signatures(invoke.read_diagnostics(aborted)) == aborted_diag
+
+
+@pytest.mark.parametrize('abort_cause', ['policy_abort', 'duplicate_abort', 'required_provenance', 'internal_failure'])
+def test_python_deliver_on_aborted_result_is_noop_and_preserves_existing_files(
+        invoke, source_json, tmp_path, abort_cause):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. RD-04 Decision 2 (Q4-A)."""
+    document = source_json('shared/binary_relation')
+    options = {'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': 'sidecar', 'input_policy': 'strict'}
+    faults = ()
+    if abort_cause == 'policy_abort':
+        source_element(document, 'tFocus')['propertyType'] = None
+    elif abort_cause == 'duplicate_abort':
+        document['model']['contents'].append(copy.deepcopy(source_element(document, 'cA')))
+    elif abort_cause == 'required_provenance':
+        faults = (Fault('provenance', 'construct'),)
+    else:
+        faults = (Fault('transformation', 'emit_relations'),)
+
+    source = write_input(tmp_path, document)
+    result = invoke.convert(source, options=options, workdir=tmp_path, faults=faults)
+    assert result.outcome == 'aborted'
+    before_diag = diagnostic_signatures(invoke.read_diagnostics(result))
+
+    destination = tmp_path / 'existing.ttl'
+    sidecar = tmp_path / 'existing.provenance.ttl'
+    destination.write_bytes(b'OLD_ONTOLOGY\n')
+    sidecar.write_bytes(b'OLD_SIDECAR\n')
+
+    delivered = invoke.deliver(result, output_path=destination)
+    assert delivered.failure is None
+    assert delivered.observation.outcome == 'aborted'
+    assert delivered.observation.ontology is None
+    assert delivered.observation.provenance is None
+    assert delivered.observation.valid_artifacts == ()
+    assert delivered.observation.delivery_failures == ()
+    assert diagnostic_signatures(invoke.read_diagnostics(delivered.observation)) == before_diag
+    assert destination.read_bytes() == b'OLD_ONTOLOGY\n'
+    assert sidecar.read_bytes() == b'OLD_SIDECAR\n'
+
+
+@pytest.mark.parametrize('policy,partial', [('strict', False), ('best-effort', True)],
+                         ids=['strict_clean', 'best_effort_partial'])
+@pytest.mark.parametrize('old_files', [False, True], ids=['new_files', 'old_files'])
+def test_python_late_sidecar_output_provenance_failure_aborts_before_writing_files(
+        invoke, source_json, tmp_path, policy, partial, old_files):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. RD-04 Decision 2 (Q1-A, Q4-A)."""
+    document = source_json('shared/binary_relation')
+    if partial:
+        source_element(document, 'tFocus')['propertyType'] = None
+    source = write_input(tmp_path, document)
+    result = invoke.convert(
+        source, options={'base_iri': str(BASE), 'iri_strategy': 'id', 'provenance': 'sidecar', 'input_policy': policy},
+        workdir=tmp_path,
+    )
+    assert result.outcome == ('completed-with-errors' if partial else 'completed')
+    before_count = len(result.diagnostics)
+
+    destination = tmp_path / 'model.ttl'
+    sidecar = tmp_path / 'model.provenance.ttl'
+    if old_files:
+        destination.write_bytes(b'OLD_ONTOLOGY\n')
+        sidecar.write_bytes(b'OLD_SIDECAR\n')
+
+    delivered = invoke.deliver(result, output_path=destination, faults=(Fault('provenance', 'output_construct'),))
+    actual = delivered.observation
+    assert actual.outcome == 'aborted'
+    assert actual.ontology is None and actual.provenance is None
+    assert actual.valid_artifacts == ()
+    assert len(actual.diagnostics) > before_count
+    assert any(d.kind == 'required_provenance' and d.severity == 'ERROR' and d.code == 'REQUIRED_PROVENANCE'
+               for d in actual.diagnostics)
+    if partial:
+        assert any(d.kind == 'failed_relation' and d.severity == 'ERROR' for d in actual.diagnostics)
+    if old_files:
+        assert destination.read_bytes() == b'OLD_ONTOLOGY\n' and sidecar.read_bytes() == b'OLD_SIDECAR\n'
+    else:
+        assert not destination.exists() and not sidecar.exists()
+
+    report_path = tmp_path / 'late_prov_abort.json'
+    assert invoke.export_diagnostics(actual, report_path).failure is None
+    report = invoke.read_report(report_path)
+    assert report.outcomes == ('aborted',)
+    assert any(d.code == 'REQUIRED_PROVENANCE' and d.severity == 'ERROR' for d in report.diagnostics)
+
+
+@pytest.mark.parametrize('case', ['ontology_unexpected', 'sidecar_encode', 'sidecar_unexpected'])
+@pytest.mark.parametrize('old_files', [False, True], ids=['new_files', 'old_files'])
+def test_python_delivery_unexpected_runtime_and_sidecar_encode_failures(
+        invoke, source_path, tmp_path, monkeypatch, case, old_files):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. RD-04 Decision 2 (Q1-A)."""
+    result = invoke.convert(
+        source_path('shared/base_iri'),
+        options={'base_iri': str(BASE), 'provenance': 'sidecar'},
+        workdir=tmp_path,
+    )
+    destination = tmp_path / 'model.ttl'
+    sidecar = tmp_path / 'model.provenance.ttl'
+    if old_files:
+        destination.write_bytes(b'OLD_ONTOLOGY\n')
+        sidecar.write_bytes(b'OLD_SIDECAR\n')
+
+    if case == 'ontology_unexpected':
+        fault = Fault('ontology', 'unexpected', destination)
+        kind, expected_code = 'ontology', 'ONTOLOGY_DELIVERY'
+    elif case == 'sidecar_encode':
+        fault = Fault('sidecar', 'encode', sidecar)
+        kind, expected_code = 'sidecar', 'SIDECAR_DELIVERY'
+    else:
+        fault = Fault('sidecar', 'unexpected', sidecar)
+        kind, expected_code = 'sidecar', 'SIDECAR_DELIVERY'
+
+    delivered = invoke.deliver(result, output_path=destination, faults=(fault,))
+    actual = delivered.observation
+    assert delivered.failure is not None
+    assert actual.outcome == 'completed'
+    assert actual.pre_delivery_ontology is not None
+    assert_graph_equal(actual.ontology, actual.pre_delivery_ontology)
+    assert actual.provenance_mode == 'sidecar'
+    assert any(d.kind == kind + '_delivery' and d.severity == 'ERROR' and d.code == expected_code
+               for d in actual.diagnostics)
+    if kind == 'ontology':
+        assert actual.valid_artifacts == ()
+        if old_files:
+            assert destination.read_bytes() == b'OLD_ONTOLOGY\n' and sidecar.read_bytes() == b'OLD_SIDECAR\n'
+        else:
+            assert not destination.exists() and not sidecar.exists()
+    else:
+        assert destination in actual.valid_artifacts and sidecar not in actual.valid_artifacts
+        assert_graph_equal(_parse_turtle_exact(monkeypatch, destination), actual.pre_delivery_ontology)
+        if old_files:
+            assert sidecar.read_bytes() == b'OLD_SIDECAR\n'
+        else:
+            assert not sidecar.exists()

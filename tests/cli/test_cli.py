@@ -2071,19 +2071,17 @@ def test_cli_invalid_selected_metadata_aborts_and_exports_the_error(invoke,tmp_p
 
 @pytest.mark.parametrize('suffix',['json','ttl','ion'])
 def test_cli_external_metadata_does_not_ingest_unaccepted_formats(invoke,tmp_path,suffix):
-    """Rules: DK-GEN-09. Also §15 metadata-file control.
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05; §15 metadata-file control.
 
-    T2: preserve either observed processing or native pre-conversion rejection.
+    RD-04 Decision 2 (Q3-A): --metadata-file with filename != metadata.yaml is
+    rejected pre-conversion with exit code 2 and no diagnostics report.
     """
     metadata=tmp_path/('metadata.'+suffix);metadata.write_text('{"title":"UNSUPPORTED_FORMAT_TITLE"}')
     process=invoke.cli(fixture_path('shared/base_iri'),options={'base_iri':str(BASE),'provenance':'none','metadata_file':metadata,'input_policy':'best-effort'},workdir=tmp_path,output_path=tmp_path/'out.ttl',diagnostics_path=tmp_path/'report.json')
-    assert process.conversion_started is not None
-    if process.conversion_started:
-        _report(invoke,tmp_path/'report.json',process.observation)
-        if process.observation.ontology is not None:assert process.observation.external_metadata_output==()
-    else:
-        assert process.returncode==2 and process.observation is None
-        assert not (tmp_path/'out.ttl').exists() and not (tmp_path/'report.json').exists()
+    assert process.returncode==2 and process.conversion_started is False
+    assert process.observation is None
+    assert not (tmp_path/'out.ttl').exists() and not (tmp_path/'report.json').exists()
+    assert process.stdout or process.stderr
 
 def test_cli_ontology_version_iri_sidecar_records_setting_and_final_byte_digest(invoke, tmp_path):
     """Rules: DK-IRI-01, DK-GEN-04, DK-GEN-10, DK-DIAG-04; RD-05 Option B replacement Rule 5; §15.
@@ -3432,3 +3430,453 @@ def test_malformed_class_order_adds_no_new_cli_or_python_controls(invoke):
     assert set(surface.cli) == {
         flag for flag, *_ in CONTROLS
     } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
+
+
+@pytest.mark.parametrize("stream", ["stderr", "stdout"])
+@pytest.mark.parametrize("operation", ["write", "encode", "flush"])
+@pytest.mark.parametrize("scenario", [
+    "warning_completed",
+    "partial_recovered",
+    "duplicate_abort",
+    "sidecar_failure",
+    "ontology_failure",
+    "diagnostics_failure",
+])
+def test_cli_console_only_failures_never_alter_outcome_export_files_or_exit_code(
+        invoke, tmp_path, stream, operation, scenario):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 console-only failure isolation.
+
+    RD-04 Decision 2 (Q1-A, ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc):
+    stdout/stderr write, encode, or flush failures alone must not alter the
+    transformation outcome, collected diagnostics, delivered artifacts, requested
+    --diagnostics-file export attempt, or CLI exit code (never 4 or 7 for console).
+    """
+    document = load_json("shared/binary_relation" if scenario == "partial_recovered" else "shared/base_iri")
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "console_level": "info"}
+    destination = tmp_path / "out.ttl"
+    sidecar = tmp_path / "out.provenance.ttl"
+    report_path = tmp_path / "report.json"
+    extra_faults = ()
+
+    if scenario == "warning_completed":
+        options.pop("base_iri")
+        source_element(document, "C17")["isAbstract"] = True
+        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 0, True, True
+    elif scenario == "partial_recovered":
+        source_element(document, "tFocus")["propertyType"] = None
+        options["input_policy"] = "best-effort"
+        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed-with-errors", 1, True, True
+    elif scenario == "duplicate_abort":
+        document["model"]["contents"].append(copy.deepcopy(source_element(document, "C17")))
+        expected_outcome, expected_code, expect_ontology, expect_sidecar = "aborted", 3, False, False
+    elif scenario == "sidecar_failure":
+        extra_faults = (Fault("sidecar", "unexpected", sidecar),)
+        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 5, True, False
+    elif scenario == "ontology_failure":
+        extra_faults = (Fault("ontology", "serialize", destination),)
+        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 6, False, False
+    else:
+        extra_faults = (Fault("diagnostics", "write", report_path),)
+        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 4, True, True
+
+    source = write_input(tmp_path, document)
+    faults = (Fault(stream, operation),) + extra_faults
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report_path, faults=faults)
+    assert process.conversion_started is True
+    if stream == "stdout":
+        assert b"Traceback" not in process.stderr
+    assert process.returncode == expected_code, (process.stdout, process.stderr, process.execution_trace)
+
+    converted, native = invoke.cli_report_content(process)
+    assert converted.outcome == native.outcome == expected_outcome
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(native.events)
+
+    if operation in {"write", "encode"} and (stream == "stdout" or native.events):
+        assert any(item["stream"] == stream and item["operation"] == operation
+                   for item in process.execution_trace["console_io_errors"])
+
+    assert destination.is_file() == expect_ontology
+    assert sidecar.is_file() == expect_sidecar
+    if expect_ontology:
+        assert len(Graph().parse(destination, format="turtle")) > 0
+    if expect_sidecar:
+        assert len(Graph().parse(sidecar, format="turtle")) > 0
+
+    if scenario != "diagnostics_failure":
+        assert str(report_path) in process.execution_trace["diagnostics_exports"]
+        assert report_path.is_file()
+        assert _cli_json_report_contract(json.loads(report_path.read_bytes())) == (
+            native.outcome, diagnostic_record_counts(native.events))
+    else:
+        assert not report_path.exists()
+
+
+@pytest.mark.parametrize("provenance", ["embedded", "none"])
+@pytest.mark.parametrize("alias_kind", ["direct", "symlink", "pre_existing_symlink"])
+def test_cli_diagnostics_file_allows_sidecar_name_when_sidecar_inactive(
+        invoke, tmp_path, provenance, alias_kind):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. RD-04 Decision 2 (Q2-A)."""
+    source = fixture_path("shared/core_model")
+    destination = tmp_path / "model.ttl"
+    sidecar_path = tmp_path / "model.provenance.ttl"
+    if alias_kind == "direct":
+        report_path = sidecar_path
+    else:
+        if alias_kind == "pre_existing_symlink":
+            sidecar_path.write_bytes(b"PRE_EXISTING_UNRELATED_FILE\n")
+        report_path = tmp_path / "diag.json"
+        report_path.symlink_to(sidecar_path)
+    process = invoke.cli(
+        source, options={"base_iri": str(BASE), "iri_strategy": "id", "provenance": provenance},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report_path,
+    )
+    assert process.returncode == 0, process.stderr
+    assert process.conversion_started is True
+    assert process.observation.outcome == "completed"
+    assert destination.is_file() and (BASE.cPerson, RDF.type, OWL.Class) in load_graph(destination)
+    assert sidecar_path.is_file()
+    payload = json.loads(sidecar_path.read_bytes())
+    assert _cli_json_report_contract(payload)[0] == "completed"
+
+
+@pytest.mark.parametrize("provenance,target_kind", [
+    ("embedded", "output"),
+    ("sidecar", "output"),
+    ("sidecar", "sidecar"),
+])
+@pytest.mark.parametrize("carrier", ["direct", "dot_segment", "symlink"])
+def test_cli_invocation_time_diagnostics_aliasing_rejected_before_conversion(
+        invoke, tmp_path, provenance, target_kind, carrier):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15 exit code 2. RD-04 Decision 2 (Q2-A)."""
+    destination = tmp_path / "model.ttl"
+    sidecar = tmp_path / "model.provenance.ttl"
+    target = destination if target_kind == "output" else sidecar
+    if carrier == "direct":
+        report_path = target
+    elif carrier == "dot_segment":
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        report_path = sub / ".." / target.name
+    else:
+        report_path = tmp_path / "diag_alias.json"
+        report_path.symlink_to(target)
+
+    process = invoke.cli(
+        fixture_path("shared/base_iri"),
+        options={"base_iri": str(BASE), "provenance": provenance},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report_path,
+    )
+    assert process.returncode == 2
+    assert process.conversion_started is False
+    assert process.observation is None
+    assert not destination.exists() and not sidecar.exists()
+    assert not target.exists()
+    assert process.stdout or process.stderr
+
+
+@pytest.mark.parametrize("target_kind", ["output", "sidecar"])
+@pytest.mark.parametrize("scenario", ["aborted_conversion", "blocked_delivery"])
+def test_cli_export_time_late_diagnostics_aliasing_falls_back_to_exit_four(
+        invoke, tmp_path, target_kind, scenario):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 fallback. RD-04 Decision 2 (Q2-A)."""
+    document = load_json("shared/base_iri")
+    options = {"base_iri": str(BASE), "iri_strategy": "id",
+               "provenance": "sidecar" if target_kind == "sidecar" else "none"}
+    faults = ()
+    if scenario == "aborted_conversion":
+        document["model"]["contents"][0]["unknownStrictField"] = True
+        options["input_policy"] = "strict"
+        expected_outcome = "aborted"
+    else:
+        expected_outcome = "completed"
+        faults = (Fault("sidecar", "encode") if target_kind == "sidecar" else Fault("ontology", "serialize"),)
+
+    source = write_input(tmp_path, document)
+    actual_report = tmp_path / "existing_target.ttl"
+    actual_report.write_bytes(b"RETAINED_EXISTING_CONTENT\n")
+    destination = tmp_path / "model.ttl"
+    sidecar = tmp_path / "model.provenance.ttl"
+    if target_kind == "output":
+        destination.symlink_to(actual_report)
+    else:
+        sidecar.symlink_to(actual_report)
+
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=actual_report, faults=faults)
+    assert process.conversion_started is True
+    assert process.returncode == 4, (process.stdout, process.stderr)
+    assert actual_report.read_bytes() == b"RETAINED_EXISTING_CONTENT\n"
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome == expected_outcome
+    assert any(event.severity == "ERROR" for event in process.console)
+    if target_kind == "sidecar" and scenario == "blocked_delivery":
+        assert destination.is_file() and (BASE.C17, RDF.type, OWL.Class) in load_graph(destination)
+
+
+@pytest.mark.parametrize("policy,partial", [("strict", False), ("best-effort", True)],
+                         ids=["strict_clean", "best_effort_partial"])
+@pytest.mark.parametrize("old_files", [False, True], ids=["new_files", "old_files"])
+@pytest.mark.parametrize("report_failure", [False, True], ids=["report_written", "report_failure"])
+def test_cli_late_sidecar_output_provenance_failure_aborts_before_writing_and_preserves_old_files(
+        invoke, tmp_path, policy, partial, old_files, report_failure):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15 exit codes 3/4. RD-04 Decision 2 (Q1-A, Q4-A)."""
+    document = load_json("shared/binary_relation")
+    if partial:
+        source_element(document, "tFocus")["propertyType"] = None
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "input_policy": policy}
+    destination = tmp_path / "out.ttl"
+    sidecar = tmp_path / "out.provenance.ttl"
+    old_ont = b"OLD_ONTOLOGY\n"
+    old_sc = b"OLD_SIDECAR\n"
+    if old_files:
+        destination.write_bytes(old_ont)
+        sidecar.write_bytes(old_sc)
+
+    report_path = tmp_path / "report.json"
+    if report_failure:
+        blocker = tmp_path / "regular-file"
+        blocker.write_bytes(b"Not a directory")
+        report_path = blocker / "report.json"
+
+    process = invoke.cli(
+        source, options=options, workdir=tmp_path,
+        output_path=destination, diagnostics_path=report_path,
+        faults=(Fault("provenance", "output_construct"),),
+    )
+    assert process.conversion_started is True
+    assert process.returncode == (4 if report_failure else 3), (process.stdout, process.stderr)
+    assert process.observation.outcome == "aborted"
+    assert process.observation.ontology is None
+    assert any(d.kind == "required_provenance" and d.severity == "ERROR" and d.code == "REQUIRED_PROVENANCE"
+               for d in process.observation.diagnostics)
+    if partial:
+        assert any(d.kind == "failed_relation" and d.severity == "ERROR" for d in process.observation.diagnostics)
+    if old_files:
+        assert destination.read_bytes() == old_ont and sidecar.read_bytes() == old_sc
+    else:
+        assert not destination.exists() and not sidecar.exists()
+
+    if report_failure:
+        assert not report_path.exists()
+        assert any(diagnostics_report_write_error(event, report_path, error)
+                   for error in process.execution_trace["report_io_errors"] for event in process.console)
+    else:
+        payload = json.loads(report_path.read_bytes())
+        assert _cli_json_report_contract(payload)[0] == "aborted"
+        assert any(item["code"] == "REQUIRED_PROVENANCE" and item["severity"] == "ERROR"
+                   for item in payload["diagnostics"])
+
+
+@pytest.mark.parametrize("case,scenario", [
+    ("ontology_unexpected", "clean"),
+    ("ontology_unexpected", "partial"),
+    ("sidecar_encode", "clean"),
+    ("sidecar_encode", "partial"),
+    ("sidecar_unexpected", "clean"),
+    ("sidecar_unexpected", "partial"),
+    ("diagnostics_serialize", "clean"),
+    ("diagnostics_serialize", "partial"),
+    ("diagnostics_serialize", "aborted"),
+    ("diagnostics_unexpected", "clean"),
+    ("diagnostics_unexpected", "partial"),
+    ("diagnostics_unexpected", "aborted"),
+], ids=[
+    "ontology_unexpected-clean", "ontology_unexpected-partial",
+    "sidecar_encode-clean", "sidecar_encode-partial",
+    "sidecar_unexpected-clean", "sidecar_unexpected-partial",
+    "diagnostics_serialize-clean", "diagnostics_serialize-partial", "diagnostics_serialize-aborted",
+    "diagnostics_unexpected-clean", "diagnostics_unexpected-partial", "diagnostics_unexpected-aborted",
+])
+def test_cli_delivery_unexpected_runtime_and_diagnostics_export_errors(
+        invoke, tmp_path, case, scenario):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 exit codes 4/5/6. RD-04 Decision 2 (Q1-A)."""
+    document = load_json("shared/binary_relation")
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"}
+    if scenario == "partial":
+        source_element(document, "tFocus")["propertyType"] = None
+        options["input_policy"] = "best-effort"
+        expected_outcome = "completed-with-errors"
+    elif scenario == "aborted":
+        source_element(document, "tFocus")["propertyType"] = None
+        options["input_policy"] = "strict"
+        expected_outcome = "aborted"
+    else:
+        expected_outcome = "completed"
+
+    source = write_input(tmp_path, document)
+    destination = tmp_path / "out.ttl"
+    sidecar = tmp_path / "out.provenance.ttl"
+    report_path = tmp_path / "report.json"
+
+    if case == "ontology_unexpected":
+        faults = (Fault("ontology", "unexpected", destination),)
+        expected_code, expected_diag_code = 6, "ONTOLOGY_DELIVERY"
+    elif case == "sidecar_encode":
+        faults = (Fault("sidecar", "encode", sidecar),)
+        expected_code, expected_diag_code = 5, "SIDECAR_DELIVERY"
+    elif case == "sidecar_unexpected":
+        faults = (Fault("sidecar", "unexpected", sidecar),)
+        expected_code, expected_diag_code = 5, "SIDECAR_DELIVERY"
+    elif case == "diagnostics_serialize":
+        faults = (Fault("diagnostics", "serialize", report_path),)
+        expected_code, expected_diag_code = 4, None
+    else:
+        faults = (Fault("diagnostics", "unexpected", report_path),)
+        expected_code, expected_diag_code = 4, None
+
+    process = invoke.cli(source, options=options, workdir=tmp_path,
+                         output_path=destination, diagnostics_path=report_path, faults=faults)
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, (process.stdout, process.stderr)
+    converted, native = invoke.cli_report_content(process)
+    assert converted.outcome == native.outcome == expected_outcome
+    assert any(event.severity == "ERROR" for event in process.console)
+
+    if expected_diag_code is not None:
+        assert any(code == expected_diag_code and severity == "ERROR"
+                   for severity, code, *_ in native.events), native.events
+        assert report_path.is_file()
+        payload = json.loads(report_path.read_bytes())
+        assert _cli_json_report_contract(payload)[0] == expected_outcome
+        assert any(item["code"] == expected_diag_code and item["severity"] == "ERROR"
+                   for item in payload["diagnostics"])
+        if case == "ontology_unexpected":
+            assert not destination.exists() and not sidecar.exists()
+        else:
+            assert destination.is_file() and (BASE.cA, RDF.type, OWL.Class) in load_graph(destination)
+            assert not sidecar.exists()
+    else:
+        assert not report_path.exists()
+        assert process.execution_trace["report_export_errors"]
+        if expected_outcome == "aborted":
+            assert not destination.exists() and not sidecar.exists()
+        else:
+            assert destination.is_file() and sidecar.is_file()
+
+
+@pytest.mark.parametrize("stage", ["pre_conversion", "parser_setup", "post_delivery"])
+@pytest.mark.parametrize("console_fault", [False, True], ids=["normal_console", "console_write_fails"])
+def test_cli_residual_exit_code_seven_for_unclassifiable_unexpected_runtime_failures(
+        invoke, tmp_path, stage, console_fault):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 exit code 7. RD-04 Decision 2 (Q1 Adjustment)."""
+    source = fixture_path("shared/base_iri")
+    destination = tmp_path / "out.ttl"
+    report_path = tmp_path / "report.json"
+    faults = (Fault("runtime", stage),) + ((Fault("stderr", "write"),) if console_fault else ())
+    process = invoke.cli(
+        source, options={"base_iri": str(BASE), "provenance": "none"},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report_path, faults=faults,
+    )
+    assert process.returncode == 7, (process.stdout, process.stderr, process.execution_trace)
+    assert process.execution_trace["runtime_faults"]
+    if stage in {"pre_conversion", "parser_setup"}:
+        assert process.conversion_started is False
+        assert process.observation is None
+        assert not destination.exists() and not report_path.exists()
+    else:
+        assert process.conversion_started is True
+        assert process.observation.outcome in {"completed", "completed-with-errors", "aborted"}
+    if not console_fault:
+        assert process.stdout or process.stderr
+    assert STABLE_DIAGNOSTIC_CODES == frozenset({
+        "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+        "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+    })
+
+
+def test_cli_residual_exit_code_seven_preserves_diagnostics_failure_precedence(invoke, tmp_path):
+    """Rules: DK-DIAG-04, DK-DIAG-05; §15 exit code 4 over 7. RD-04 Decision 2 (Q1 Adjustment)."""
+    destination = tmp_path / "out.ttl"
+    report_path = tmp_path / "report.json"
+    process = invoke.cli(
+        fixture_path("shared/base_iri"),
+        options={"base_iri": str(BASE), "provenance": "none"},
+        workdir=tmp_path, output_path=destination, diagnostics_path=report_path,
+        faults=(Fault("diagnostics", "write", report_path), Fault("runtime", "post_delivery")),
+    )
+    assert process.returncode == 4, (process.stdout, process.stderr)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_options", [
+    {"base_iri": "relative/base"},
+    {"ontology_version_iri": "relative/version"},
+    {"language": "bad tag"},
+    {"iri_strategy": "INVALID"},
+    {"stereotype_policy": "INVALID"},
+    {"inverse_properties": "INVALID"},
+    {"relation_labels": "INVALID"},
+    {"material_property_chains": "INVALID"},
+    {"dkgm_vocabulary": "INVALID"},
+    {"provenance": "INVALID"},
+    {"metadata_file": "catalog.yaml"},
+    {"metadata_file": "metadata.json"},
+], ids=[
+    "base_iri", "ontology_version_iri", "language", "iri_strategy", "stereotype_policy",
+    "inverse_properties", "relation_labels", "material_property_chains", "dkgm_vocabulary",
+    "provenance", "metadata_wrong_name", "metadata_wrong_extension",
+])
+def test_cli_uniform_pre_conversion_configuration_validation_rejects_all_invalid_controls(
+        invoke, tmp_path, input_policy, bad_options):
+    """Rules: DK-IRI-01, DK-LBL-02, DK-GEN-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-04 Decision 2 (Q3-A)."""
+    options = {"base_iri": str(BASE), "input_policy": input_policy}
+    if "metadata_file" in bad_options:
+        bad_meta = tmp_path / bad_options["metadata_file"]
+        bad_meta.write_text("title: Valid Title\n", encoding="utf-8")
+        options["metadata_file"] = bad_meta
+    else:
+        options.update(bad_options)
+
+    destination = tmp_path / "out.ttl"
+    sidecar = tmp_path / "out.provenance.ttl"
+    report_path = tmp_path / "report.json"
+    process = invoke.cli(
+        fixture_path("shared/base_iri"), options=options, workdir=tmp_path,
+        output_path=destination, diagnostics_path=report_path,
+    )
+    assert process.returncode == 2
+    assert process.conversion_started is False
+    assert process.observation is None
+    assert not destination.exists() and not sidecar.exists() and not report_path.exists()
+    assert process.stdout or process.stderr
+
+
+def test_cli_preserves_distinction_between_configuration_rejection_and_input_or_metadata_failures(
+        invoke, tmp_path):
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-04 Decision 2 (Q3-A)."""
+    missing_source = tmp_path / "missing_source.json"
+    p_src = invoke.cli(
+        missing_source, options={"base_iri": str(BASE), "provenance": "none", "input_policy": "best-effort"},
+        workdir=tmp_path, output_path=tmp_path / "src_out.ttl", diagnostics_path=tmp_path / "src_report.json",
+    )
+    assert p_src.conversion_started is True and p_src.returncode == 3
+    assert any(d.code == "UNPROCESSABLE_DOCUMENT" and d.severity == "ERROR"
+               for d in p_src.observation.diagnostics)
+
+    missing_meta = tmp_path / "metadata.yaml"
+    p_meta = invoke.cli(
+        fixture_path("shared/base_iri"),
+        options={"base_iri": str(BASE), "provenance": "none", "metadata_file": missing_meta, "input_policy": "strict"},
+        workdir=tmp_path, output_path=tmp_path / "meta_out.ttl", diagnostics_path=tmp_path / "meta_report.json",
+    )
+    assert p_meta.conversion_started is True and p_meta.returncode == 3
+    assert any(d.kind == "metadata_input" and d.severity == "ERROR" for d in p_meta.observation.diagnostics)
+
+
+def test_cli_requires_concrete_output_path_and_excludes_stdout_streaming(invoke, tmp_path):
+    """Rules: DK-GEN-10; §15 CLI output-path boundary. RD-04 Decision 2 (Q4-A)."""
+    surface = invoke.inspect_controls()
+    assert surface.stdout_supported is False
+    report_path = tmp_path / "report.json"
+    process = invoke.cli(
+        fixture_path("shared/base_iri"),
+        options={"base_iri": str(BASE), "provenance": "none"},
+        workdir=tmp_path, output_path=None, diagnostics_path=report_path,
+    )
+    assert process.returncode == 2
+    assert process.conversion_started is False
+    assert process.observation is None
+    assert not report_path.exists()
+    assert process.stdout or process.stderr

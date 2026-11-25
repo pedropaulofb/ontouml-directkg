@@ -1046,9 +1046,9 @@ def test_python_diagnostics_export_is_explicit_complete_and_noninterfering_even_
 
 
 @pytest.mark.parametrize('scenario',['info','partial','duplicate_abort'])
-@pytest.mark.parametrize('operation',['create','write'])
+@pytest.mark.parametrize('operation',['create','write','serialize','unexpected'])
 def test_python_report_delivery_failure_is_explicit_and_preserves_diagnostics_and_output_eligibility(invoke,source_json,tmp_path,scenario,operation):
-    """Rules: DK-DIAG-04, DK-DIAG-05. Also §15 Python export."""
+    """Rules: DK-DIAG-04, DK-DIAG-05. Also §15 Python export. RD-04 Decision 2 (Q1-A)."""
     source,options,faults=_report_source(source_json,tmp_path,scenario)
     result=invoke.convert(source,options=options,workdir=tmp_path,faults=faults)
     before=diagnostic_signatures(result.diagnostics);outcome=result.outcome
@@ -1056,6 +1056,7 @@ def test_python_report_delivery_failure_is_explicit_and_preserves_diagnostics_an
     path=tmp_path/'unwritable-report.json'
     exported=invoke.export_diagnostics(result,path,faults=(Fault('diagnostics',operation,path),))
     assert exported.failure is not None
+    assert not path.exists()
     assert diagnostic_signatures(invoke.read_diagnostics(result))==before
     assert invoke.read_outcome(result)==outcome
     if outcome=='aborted':assert invoke.read_ontology(result) is None
@@ -3220,5 +3221,109 @@ def test_malformed_class_order_reader_requires_affirmative_conditions():
     )
     for message in rejected:
         assert not malformed_class_order_diagnostic(message), message
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("bad_case,bad_value", [
+    ("base_iri", "relative/base"),
+    ("base_iri", 123),
+    ("ontology_version_iri", "relative/version"),
+    ("ontology_version_iri", 123),
+    ("iri_strategy", "INVALID"),
+    ("iri_strategy", 123),
+    ("stereotype_policy", "INVALID"),
+    ("stereotype_policy", 123),
+    ("inverse_properties", "INVALID"),
+    ("inverse_properties", 123),
+    ("relation_labels", "INVALID"),
+    ("relation_labels", 123),
+    ("material_property_chains", "INVALID"),
+    ("material_property_chains", 123),
+    ("dkgm_vocabulary", "INVALID"),
+    ("dkgm_vocabulary", 123),
+    ("provenance", "INVALID"),
+    ("provenance", 123),
+    ("omit_identifiers", "true"),
+    ("omit_identifiers", 1),
+    ("omit_identifiers", None),
+    ("stereotype_relation_naming", "false"),
+    ("stereotype_relation_naming", 0),
+    ("stereotype_relation_naming", None),
+    ("language", "bad tag"),
+    ("language", 123),
+    ("metadata_file", 123),
+    ("metadata_file", "wrong.yaml"),
+    ("metadata_file", "metadata.json"),
+    ("source", None),
+    ("source", 123),
+    ("source", {"type": "Project"}),
+], ids=[
+    "base_iri_str", "base_iri_int", "version_iri_str", "version_iri_int",
+    "iri_strategy_str", "iri_strategy_int", "stereotype_policy_str", "stereotype_policy_int",
+    "inverse_properties_str", "inverse_properties_int", "relation_labels_str", "relation_labels_int",
+    "material_chains_str", "material_chains_int", "dkgm_vocabulary_str", "dkgm_vocabulary_int",
+    "provenance_str", "provenance_int", "omit_identifiers_str", "omit_identifiers_int", "omit_identifiers_none",
+    "stereo_rel_naming_str", "stereo_rel_naming_int", "stereo_rel_naming_none",
+    "language_bad_tag", "language_int", "metadata_file_int", "metadata_file_wrong_name", "metadata_file_wrong_ext",
+    "source_none", "source_int", "source_dict",
+])
+def test_python_pre_conversion_configuration_validation_uniform_across_controls_and_policies(
+        invoke, source_path, tmp_path, input_policy, bad_case, bad_value):
+    """Rules: DK-IRI-01, DK-LBL-02, DK-GEN-09, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-04 Decision 2 (Q3-A)."""
+    source = source_path("shared/base_iri")
+    options = {"base_iri": str(BASE), "input_policy": input_policy}
+    if bad_case == "source":
+        source = bad_value
+    elif bad_case == "metadata_file" and isinstance(bad_value, str):
+        meta = tmp_path / bad_value
+        meta.write_text("title: Valid Title\n", encoding="utf-8")
+        options["metadata_file"] = meta
+    else:
+        options[bad_case] = bad_value
+
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    assert result.configuration_error is not None
+    assert result.conversion_started is False
+    assert result.native is None
+    assert result.outcome is None and result.ontology is None and result.diagnostics == ()
+    assert result.diagnostics_exports == ()
+
+
+@pytest.mark.parametrize("bad_policy", ["INVALID", 123], ids=["str", "int"])
+def test_python_pre_conversion_rejects_invalid_input_policy(invoke, source_path, tmp_path, bad_policy):
+    """Rules: DK-DIAG-01, DK-DIAG-05; §15. RD-04 Decision 2 (Q3-A)."""
+    result = invoke.convert(
+        source_path("shared/base_iri"),
+        options={"base_iri": str(BASE), "input_policy": bad_policy},
+        workdir=tmp_path,
+    )
+    assert result.configuration_error is not None
+    assert result.conversion_started is False
+    assert result.outcome is None and result.ontology is None and result.diagnostics == ()
+
+
+def test_python_preserves_distinction_between_configuration_rejection_and_input_or_metadata_failures(
+        invoke, source_path, tmp_path):
+    """Rules: DK-GEN-09, DK-DIAG-04, DK-DIAG-05; §§3.2, 15. RD-04 Decision 2 (Q3-A)."""
+    r_src = invoke.convert(
+        tmp_path / "missing_source.json",
+        options={"base_iri": str(BASE), "provenance": "none", "input_policy": "best-effort"},
+        workdir=tmp_path,
+    )
+    assert r_src.configuration_error is None
+    assert r_src.conversion_started is True
+    assert r_src.outcome == "aborted"
+    assert any(d.code == "UNPROCESSABLE_DOCUMENT" and d.severity == "ERROR" for d in r_src.diagnostics)
+
+    r_meta = invoke.convert(
+        source_path("shared/base_iri"),
+        options={"base_iri": str(BASE), "provenance": "none",
+                 "metadata_file": tmp_path / "metadata.yaml", "input_policy": "best-effort"},
+        workdir=tmp_path,
+    )
+    assert r_meta.configuration_error is None
+    assert r_meta.conversion_started is True
+    assert r_meta.outcome == "completed-with-errors"
+    assert any(d.kind == "metadata_input" and d.severity == "ERROR" for d in r_meta.diagnostics)
 
 
