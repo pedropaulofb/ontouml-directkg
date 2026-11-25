@@ -9,6 +9,7 @@ diagnostic must populate ``code`` as a nonempty string.
 
 from dataclasses import asdict, dataclass
 import json
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -44,7 +45,7 @@ class Diagnostic:
 class DiagnosticsExportError(OSError):
     """Explicit report-delivery failure; the conversion result remains usable."""
 
-    def __init__(self, destination: Path, cause: OSError):
+    def __init__(self, destination: Path, cause: Exception):
         self.destination = destination
         self.cause = cause
         super().__init__(f"Cannot write diagnostics to {destination}: {cause}")
@@ -67,7 +68,7 @@ class DiagnosticCollector:
 
 
 def export_report(outcome: Outcome, events: tuple[Diagnostic, ...],
-                  destination: str | Path) -> Path:
+                  destination: str | os.PathLike) -> Path:
     """Write the actual outcome/events without changing them or conversion state.
 
     This operation is separate from conversion. OSError failures are exposed as

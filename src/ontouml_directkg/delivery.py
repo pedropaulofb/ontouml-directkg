@@ -77,7 +77,7 @@ def deliver(result: "ConversionResult", destination: Path) -> DeliveryResult:
     except Exception as exc:
         try:
             old = destination.is_file()
-        except OSError:
+        except (OSError, ValueError):
             old = None
         failure = _failure(result, "ontology", destination, exc, old, stage=stage)
         return DeliveryResult(result, failures=(failure,))
@@ -97,9 +97,10 @@ def deliver(result: "ConversionResult", destination: Path) -> DeliveryResult:
     if sidecar_graph is None:
         return DeliveryResult(result, ontology_path=destination)
     result.provenance = sidecar_graph
-    sidecar = destination.with_name(destination.stem + ".provenance.ttl")
+    sidecar = destination
     old = None
     try:
+        sidecar = destination.with_name(destination.stem + ".provenance.ttl")
         old = sidecar.is_file()
         content = result.to_provenance_turtle().encode("utf-8")
         _write_artifact(sidecar, content)

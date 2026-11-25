@@ -1,6 +1,7 @@
 """Public orchestration/result boundary for the approved baseline increments."""
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 
 from rdflib import Graph, Literal, URIRef
@@ -55,7 +56,7 @@ class ConversionResult:
             raise ValueError("No separate provenance graph is available")
         return self.provenance.serialize(format="turtle")
 
-    def deliver(self, destination: str | Path):
+    def deliver(self, destination: str | os.PathLike):
         """Explicitly deliver Turtle and any sidecar; inspect the returned delivery result."""
         from .delivery import deliver
         return deliver(self, Path(destination))
@@ -68,7 +69,7 @@ class ConversionResult:
         self.ontology = self.provenance = None
         self._provenance_record = None
 
-    def export_diagnostics(self, destination: str | Path) -> Path:
+    def export_diagnostics(self, destination: str | os.PathLike) -> Path:
         """Explicitly export the produced outcome/events, including after abort.
 
         Raises DiagnosticsExportError for an unwritable destination. The result,
@@ -77,12 +78,12 @@ class ConversionResult:
         return export_report(self.outcome, self.diagnostics, destination)
 
 
-def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: str = "name",
+def convert(source: str | os.PathLike, *, base_iri: str | None = None, iri_strategy: str = "name",
             input_policy: str = "tolerant", stereotype_policy: str = "allow-custom",
             language: str | None = None, omit_identifiers: bool = False,
             inverse_properties: str = "all", no_stereotype_relation_naming: bool = False,
             relation_labels: str = "source-only", material_property_chains: str = "none",
-            provenance: str = "embedded", metadata_file: str | Path | None = None,
+            provenance: str = "embedded", metadata_file: str | os.PathLike | None = None,
             ontology_version_iri: str | None = None, dkgm_vocabulary: str = "import") -> ConversionResult:
     """Convert supported classifier/attribute/binary-relation VP-plugin 0.5.3 JSON.
 
@@ -121,9 +122,24 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     if language is not None and not is_valid_language_tag(language):
         raise ConfigurationError("language must be one valid language tag")
     if metadata_file is not None:
-        if not isinstance(metadata_file, (str, Path)) or Path(metadata_file).name != "metadata.yaml":
+        if not isinstance(metadata_file, (str, os.PathLike)):
             raise ConfigurationError("metadata_file must explicitly identify a file named metadata.yaml")
-        metadata_file = Path(metadata_file)
+        try:
+            metadata_fspath = os.fspath(metadata_file)
+        except TypeError as exc:
+            raise ConfigurationError("metadata_file must explicitly identify a file named metadata.yaml") from exc
+        if not isinstance(metadata_fspath, str) or Path(metadata_fspath).name != "metadata.yaml":
+            raise ConfigurationError("metadata_file must explicitly identify a file named metadata.yaml")
+        metadata_file = Path(metadata_fspath)
+    if not isinstance(source, (str, os.PathLike)):
+        raise ConfigurationError("source must be a file path (str or os.PathLike)")
+    try:
+        source_fspath = os.fspath(source)
+    except TypeError as exc:
+        raise ConfigurationError("source must be a file path (str or os.PathLike)") from exc
+    if not isinstance(source_fspath, str):
+        raise ConfigurationError("source must be a file path (str or os.PathLike)")
+    source_path = Path(source_fspath)
     diagnostics = DiagnosticCollector()
     if base_iri is None:
         diagnostics.add("WARNING", "PLACEHOLDER_BASE",
@@ -132,7 +148,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
     stage = "read_project"
     try:
         captured = [] if provenance != "none" else None
-        project = read_project(Path(source), diagnostics, captured_bytes=captured)
+        project = read_project(source_path, diagnostics, captured_bytes=captured)
         stage = "index_project"
         index = index_project(project, diagnostics, input_policy)
         # DK-GEN-12 detects mixed hierarchies from resolved source declarations,
@@ -250,7 +266,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             }
             try:
                 record = execution_provenance.construct_provenance(
-                    ontology, Path(source), captured[0], metadata, configuration, base)
+                    ontology, source_path, captured[0], metadata, configuration, base)
                 if provenance == "embedded":
                     for prefix, namespace in record.graph.namespaces():
                         graph.bind(prefix, namespace)
