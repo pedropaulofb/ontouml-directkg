@@ -7,6 +7,7 @@ These are independent initial prompts for separate AI conversations. The project
 | Role | Prompt |
 | --- | --- |
 | Adviser | [adviser/adviser.md](adviser/adviser.md) |
+| Audit Coordinator | [audit-coordinator/audit-coordinator.md](audit-coordinator/audit-coordinator.md) |
 | Architect | [architect/architect.md](architect/architect.md) |
 | Architect Reviewer | [architect/architect-reviewer.md](architect/architect-reviewer.md) |
 | Documentation Engineer | [documentation/documentation-engineer.md](documentation/documentation-engineer.md) |
@@ -29,7 +30,90 @@ These four independent roles run only when manually invoked. Each audits the com
 
 Auditors retrieve the requested branch/ref (default main), identify its full SHA, inspect actual repository evidence and report coverage and limitations. They remain read-only, distinguish confirmed defects, investigation needs and architectural/owner decisions, and route findings to the responsible existing role through the owner.
 
-Audits are outside the execution and acceptance pipeline below. They do not issue workflow OK/NOT OK verdicts, close or waive gates, accept new semantics, launch other agents or authorize repairs. Prior review does not prevent a substantiated audit finding. The owner selects follow-up; corrections retain role ownership and independent review under the distinctions below. No additional persistent audit ledger or approval stage is required.
+Independent audits are outside the architectural decision execution and acceptance workflow. They do not issue workflow OK/NOT OK verdicts, close or waive gates, accept new semantics, launch other agents or authorize repairs. Prior review does not prevent a substantiated audit finding. The owner selects follow-up; corrections retain role ownership and independent review under the distinctions below. The four reports may be evaluated together through the audit execution pipeline. No additional persistent audit ledger or approval stage is required.
+
+## Audit execution pipeline
+
+The [Audit Coordinator](audit-coordinator/audit-coordinator.md) is an independent, read-only role between the four periodic auditors and the existing remediation and review workflows. It evaluates and reconciles reports, identifies decision and investigation needs, consolidates findings and prepares forwardable assignments. It does not modify repository artifacts, accept design decisions, authorize work, issue review verdicts, launch other agents or introduce an additional review gate. The owner retains authority over decisions, assignments, message forwarding, sequencing and closure. The Adviser and Improvement Auditor are not part of this pipeline; optional improvements may be considered separately.
+
+```mermaid
+flowchart TB
+    Start([Start]) --> Invoke["Owner initiates the four audits"]
+
+    subgraph Audits["1. Independent parallel audits"]
+        AA["Architecture Auditor"]
+        DA["Documentation Auditor"]
+        TA["Test Auditor"]
+        IA["Implementation Auditor"]
+    end
+
+    Invoke --> AA & DA & TA & IA
+    AA & DA & TA & IA --> Collect["Wait for all four completed reports"]
+    Collect --> Forward["Owner forwards all reports to Audit Coordinator"]
+
+    subgraph Coordination["2. Collective evaluation and clarification"]
+        Forward --> Evaluate["Coordinator verifies, reconciles and classifies findings"]
+        Evaluate --> Questions{"Decisions, investigations or material limitations requiring owner input?"}
+        Questions -->|Yes| Clarify["Owner provides decisions, obtains evidence, authorizes investigation referrals or explicitly defers affected work"]
+        Clarify --> Evaluate
+        Questions -->|No unresolved questions for current remediation scope| Consolidate["Coordinator produces consolidated report and eligible issue-recipient messages"]
+    end
+
+    subgraph Distribution["3. Owner authorization and scheduling"]
+        Consolidate --> Authorize["Owner authorizes eligible assignments and records deferrals and limitations"]
+        Authorize --> Pending{"Unfinished authorized assignments?"}
+        Pending -->|Yes| Ready{"Eligible unblocked assignments with satisfied prerequisites?"}
+        Ready -->|No| Resolve["Owner resolves blockers or dependencies, or explicitly defers affected work"]
+        Resolve --> Pending
+        Ready -->|Yes| Dispatch["Owner forwards eligible assignments to the Architect or responsible engineers"]
+    end
+
+    subgraph Remediation["4. Remediation and independent review for each active assignment"]
+        Dispatch --> Work["Recipient addresses assigned issue or prepares justified no-change disposition"]
+        Work --> Blocked{"Assignment blocked?"}
+        Blocked -->|Yes| Requeue["Return unfinished assignment to pending work; retain blocker"]
+        Blocked -->|No| Submit["Owner forwards recipient handoff to corresponding Reviewer"]
+        Submit --> Review{"Independent review disposition?"}
+        Review -->|NOT OK| Feedback["Owner forwards review findings"]
+        Feedback --> Work
+        Review -->|Blocked| Requeue
+        Review -->|OK| Architecture{"Architectural registration requiring unified downstream handoff?"}
+        Architecture -->|Yes| Handoff["Architect prepares unified handoff; owner forwards it unchanged to all three engineers"]
+        Handoff --> Queue["Queue applicable downstream work without duplicating assignments"]
+        Queue --> Complete["Close reviewed assignment"]
+        Architecture -->|No| Complete
+    end
+
+    Complete & Requeue --> Wait["Wait for all active assignments to conclude or return to pending work"]
+    Wait --> Pending
+
+    Pending -->|No| Check{"All applicable remediation and review obligations complete and no unresolved material audit matters?"}
+    Check -->|Yes| Success([Audit workflow completed])
+    Check -->|No| Closure{"Owner explicitly directs closure with deferred findings or acknowledged limitations?"}
+    Closure -->|Yes| Qualified([Owner-directed closure])
+    Closure -->|No| Followup["Owner resolves remaining material follow-up through applicable workflows"]
+    Followup --> Check
+```
+
+**Intake and evaluation.** The owner initiates the four auditors independently in parallel, preferably against the same full commit SHA, waits for all four completed reports and forwards them to the Coordinator. A completed report may have partial coverage. The Coordinator verifies material findings against the intended remediation target (default main), reconciles differing audited revisions and intervening changes, preserves evidence and distinguishes confirmed defects, investigation and decision needs, legitimate pending work, already addressed or unsupported findings, and optional improvements. It does not repeat the comprehensive audits.
+
+**Decision and clarification loop.** The Coordinator identifies unresolved questions and material coverage or verification limitations for owner input. The owner may forward a pre-decision investigation referral to the Architect or explicitly authorize another bounded investigation within an existing role's scope. The Coordinator incorporates the resulting evidence and owner decisions until the decisions necessary for the current remediation scope have been resolved or explicitly deferred. No final remediation assignments are generated before that loop concludes. A referral is not acceptance of a design decision or authorization to implement it. Deferred findings and unresolved dependencies remain visible and affected work is excluded from the executable scope.
+
+**Consolidation and routing.** The Coordinator retains one local issue reference for each underlying problem and prepares one forwardable Markdown message per eligible issue–recipient pair, preserving contributing findings, evidence, governing requirements, assignment scope, target revision, dependencies, completion conditions and review requirements. The owner explicitly authorizes and forwards each eligible assignment; a proposal or forwarding for discussion alone is not authorization. Route by artifact ownership and the substance of the work, not by the reporting auditor. Work outside established ownership requires explicit owner scope assignment.
+
+| Recipient | Independent reviewer |
+| --- | --- |
+| Architect | Architect Reviewer |
+| Documentation Engineer | Documentation Reviewer |
+| Test Engineer | Test Reviewer |
+| Implementation Engineer | Implementation Reviewer |
+
+- Direct engineering remediation of independent audit defects entirely under existing accepted specifications goes directly to the responsible engineer, without a new Architect registration, unified architectural handoff or Architect Reviewer OK as an entry prerequisite. The engineer and reviewer verify the accepted specification basis, explicit owner assignment and absence of new normative behavior.
+- Architectural investigations and changes follow the existing architectural decision workflow: the owner accepts substantive decisions, the Architect registers the accepted decision or authorized correction, and the Architect Reviewer independently reviews the registration. When the established architectural handoff applies, the Architect prepares it after the applicable Reviewer OK and the owner forwards it unchanged to all three engineers. The Coordinator records dependent downstream responsibilities but does not release them prematurely or produce duplicate engineering messages for work covered by that handoff. Independent eligible engineering assignments need not wait for unrelated architectural work.
+
+**Execution and review.** The owner schedules eligible assignments across different agents independently, preserving material dependencies and one-assignment-at-a-time limits within each agent. Each remediation or registration assignment, including a justified no-change disposition, retains its corresponding independent review. NOT OK returns the same assignment for correction or resolution of the blocker and a current disposition. Blocked work remains unfinished and cannot be redispatched until its blocker is resolved. An unresolved semantic question, normative gap or proposed change to accepted behavior discovered during remediation returns to the normal architectural workflow. No extra Coordinator approval is required.
+
+**Completion.** The Coordinator's consolidated report distinguishes assessment and assignment status from actual remediation and review completion, and identifies pending decisions, investigations, deferrals and limitations. The owner checks that no remediation is necessary or all applicable assignments have been closed by their corresponding independent Reviewer OK, with no unresolved material findings requiring further action within the current audit scope, outstanding material decisions or investigations, blockers or unresolved material audit limitations, including material follow-up discovered during remediation. Legitimately pending development work requiring no additional action within the current audit scope does not by itself prevent completion. Explicit owner-directed closure with deferred material findings or acknowledged limitations is distinct from successful completion. Completing the current cycle does not claim repository-wide conformance or require the four auditors to run again; any subsequent audit is separately initiated by the owner.
 
 ## Execution and acceptance
 
