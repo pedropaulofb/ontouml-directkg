@@ -6,7 +6,7 @@ This guide explains **accepted intended contracts**. Descriptive metadata descri
 
 Source `Project.name` supplies the generated ontology's `rdfs:label`, and supported `Project.description` supplies its `rdfs:comment`, with the [source-text language rules](../reference/text.md#language-resolution). Absent/null/empty source text produces neither a fallback annotation nor a diagnostic solely for that condition. Project naming does not select ontology identity, mint a project resource, or add a project-ID annotation.
 
-External enrichment requires the explicitly supplied `--metadata-file PATH` identifying a file named **`metadata.yaml`**. There is no automatic discovery. JSON, RDF, Ion, and other formats are not accepted through this mechanism. Python must expose an equivalent metadata-file control without a prescribed parameter name.
+External enrichment requires the explicitly supplied `--metadata-file PATH` identifying a file named **`metadata.yaml`**. There is no automatic discovery. JSON, RDF, Ion, and other formats are not accepted through this mechanism. Python must expose an equivalent metadata-file control without a prescribed parameter name. Supplying a non-path Python value outside `str | os.PathLike` or a path whose filename is not `metadata.yaml` is rejected **before conversion starts** under every input policy (CLI exit `2`; Python programmatic configuration error; no conversion start, outcome, or conversion-diagnostics report), remaining distinct from file-existence, read, YAML-parse, or content failures on an explicit `metadata.yaml` path.
 
 ### External-field whitelist
 
@@ -104,7 +104,7 @@ Use appropriate **established external vocabulary terms**, without DirectKG-spec
 
 ## Artifacts and digests
 
-Sidecars use Turtle beside a **concrete ontology output path**, named `<output-stem>.provenance.ttl`: for example, `hospital.ttl` → `hospital.provenance.ttl`. Do not invent a name for stdout or an in-memory graph. Python must also expose separate provenance as a graph with explicit serialization, without a prescribed graph class or method.
+Sidecars use Turtle beside a **concrete ontology output path**, named `<output-stem>.provenance.ttl`: for example, `hospital.ttl` → `hospital.provenance.ttl`. Do not invent a name for stdout or an in-memory graph; CLI `stdout` ontology streaming remains outside the first-release scope (`§15`, `DK-GEN-10`). `<output-stem>.provenance.ttl` is a protected output-artifact path **only when `--provenance sidecar` is active**; under `embedded` or `none`, no sidecar artifact is produced or protected, and targeting that path with `--diagnostics-file` is not rejected as an artifact alias. Python must also expose separate provenance as a graph with explicit serialization, without a prescribed graph class or method.
 
 Concrete output-file information—filename, serialization format, and content digest—belongs **only in sidecar mode**. Embedded provenance describes the ontology and transformation without representing its containing serialization as an external artifact describing itself. The embedded configuration record also excludes that concrete output-file information.
 
@@ -150,22 +150,23 @@ This recovery rule adds no control, diagnostic identifier or report schema, and 
 
 | Failure stage | Required behavior |
 | --- | --- |
-| Required provenance cannot be constructed under `embedded` or `sidecar` | ERROR and `aborted` before ontology delivery under every input policy, including `best-effort`; retain diagnostic access and attempt requested CLI JSON export |
-| Constructed sidecar cannot be serialized, created, or written after ontology delivery | ERROR and failed sidecar delivery; retain successfully written ontology and established transformation outcome; expose failure programmatically and include it in requested diagnostics |
-| Turtle serialization or encoding for a requested ontology file fails after transformation | Follow the ontology-delivery policy. Leave any existing ontology and sidecar files untouched. Deliver neither new file. |
-| Requested ontology file cannot be created/written after successful ontology serialization and required-provenance construction | Follow the separate ontology-delivery policy; no new sidecar for that failed ontology file |
-| Requested diagnostics file cannot be created/written | Follow the separate report-delivery policy without changing transformation outcome or ontology-output eligibility |
+| Required provenance cannot be constructed under `embedded` or `sidecar` (conversion-time or post-conversion `sidecar` output-provenance construction inside explicit delivery before writing) | `REQUIRED_PROVENANCE` ERROR and `aborted` before writing any ontology or sidecar file under every input policy, including `best-effort`; leave existing ontology and sidecar files untouched, retain diagnostic access, and still attempt requested CLI JSON export |
+| Post-conversion ontology-file delivery fails before main ontology write completes (path handling, Turtle serialization, UTF-8 encoding, creation/writing/replacement, or unexpected runtime error in that stage) | `ONTOLOGY_DELIVERY` ERROR; preserve established outcome and generated graph, leave existing ontology and sidecar files untouched, leave no partial ontology presented as valid, deliver no new sidecar, and attempt requested CLI JSON export (Python retains result/graph on serialization/encoding failure) |
+| Post-ontology provenance-sidecar delivery fails after main ontology write succeeds (preparing, serializing, encoding, creating, or writing sidecar, or unexpected runtime error in that stage) | `SIDECAR_DELIVERY` ERROR and failed sidecar delivery; retain successfully written ontology and established transformation outcome, leave existing sidecar untouched, expose failure programmatically, and attempt requested CLI JSON export |
+| Requested diagnostics file cannot be serialized, created, or written (I/O error, export-time/late aliasing, or unexpected export/serialization error) | Follow the separate report-delivery policy without changing transformation outcome or ontology/sidecar delivery eligibility |
 
 Do not replace a failed required provenance record with an incomplete one or silently downgrade to another mode. After sidecar delivery failure, do not switch to embedded/none, modify the ontology graph to compensate, or delete the successfully written ontology solely because its sidecar failed. Report incomplete delivery explicitly, independently of input policy.
 
-A partial sidecar must not be presented as valid. If an older sidecar remains, report that it was not updated for this execution. Requested CLI diagnostics export is attempted after recording sidecar failure. Python explicitly exposes failed delivery rather than fully successful delivery.
+A partial sidecar must not be presented as valid. If an older sidecar remains, report that it was not updated for this execution. Requested CLI diagnostics export is attempted after recording the sidecar failure (unaffected by console-only write, encode, or flush failures). Python explicitly exposes failed delivery rather than fully successful delivery.
 
-Required-construction abortion uses CLI `3`, overridden by diagnostics-file failure `4`. Sidecar serialization/create/write failure uses `5`, with `4` and applicable ontology-file failure `6` taking precedence. The complete table, exact scopes, and retained-file rules belong to [Exit codes and delivery failures](cli.md#exit-codes-and-delivery-failures). The [diagnostics reference](../reference/diagnostics.md#outcomes-and-output-eligibility) owns transformation outcomes; delivery failure does not relabel a completed transformation as aborted.
+Required-construction abortion uses CLI `3`, overridden by diagnostics-file failure `4`. Post-ontology sidecar delivery failure uses `5`, with `4` and applicable ontology-file failure `6` taking precedence. Diagnostics-file delivery failure uses `4`. The complete table (`0`–`7`, including residual unexpected runtime fallback `7`), exact scopes, and retained-file rules belong to [Exit codes and delivery failures](cli.md#exit-codes-and-delivery-failures). The [diagnostics reference](../reference/diagnostics.md#outcomes-and-output-eligibility) owns transformation outcomes; delivery failure does not relabel a completed transformation as aborted.
 
 ---
 
-Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-16**; repository commit: `9cbad6c4ebb5c135e40bb17a275da2a049252fd1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/9cbad6c4ebb5c135e40bb17a275da2a049252fd1/documentation/specification/transformation-specification.md).
+Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-25**; repository commit: `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/documentation/specification/transformation-specification.md).
 
-Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, including the replacement wording for Rule 5; included in the cited consolidation).
+Accepted update: **RD-04 Decision 2 — Runtime, configuration, and artifact-delivery failure contract (Q1-A, Q1 Adjustment residual exit code `7`, Q2-A, Q3-A, Q4-A)** (project-owner formalization included in the cited consolidation).
+
+Accepted update: **RD-05 — Optional caller-supplied ontology version IRI** (project-owner formalization, Option B, included in the cited consolidation).
 
 Accepted update: **RD-05 — File-only transformation input and exact-byte source checksums** (project-owner formalization included in the cited consolidation).

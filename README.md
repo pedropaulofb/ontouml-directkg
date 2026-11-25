@@ -36,7 +36,7 @@ The design intentionally **does not perform general OntoUML semantic validation*
 | [Current specification](documentation/specification/transformation-specification.md) | Authoritative requirements for mappings, controls, and intended behavior. |
 | [Mereology vocabulary](vocabulary/latest/dkgm-vocabulary.ttl) | Current Turtle representation of the four generic mereological properties and their accepted generic chains; archived releases and PyLODE documentation are maintained under [`vocabulary/`](vocabulary/README.md). **Not** conversion output. |
 | [Tests](tests/README.md) and [coverage inventory](tests/coverage.md) | Executable development tests, fixtures, traceability, and partial production-interface bindings. |
-| [Open design issues](documentation/specification/open-design-issues.md) | Non-normative, incomplete record of unresolved questions. |
+| [Open design issues](documentation/specification/open-design-issues.md) | Non-normative state record of design issues (zero open issues remain following the 2026-11-25 closures). |
 | [Documentation structure](documentation/specification/documentation-structure.md) | Approved page organization and responsibilities; public website sources are under `documentation/site/`. |
 
 ## Getting started with the current repository
@@ -56,7 +56,7 @@ The [test instructions](tests/README.md#actual-invocation-binding) describe part
 
 ## Documentation and development
 
-The current source of truth is the [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c/documentation/specification/transformation-specification.md), not the archived specifications or unresolved-issues record. Baseline consolidated: **2026-11-25**; repository commit: `bd80df44bf9f4bb70ab6b7b9047c8a716fa9466c`; source path: `documentation/specification/transformation-specification.md`. Accepted test expectations and verified production execution are separate evidence.
+The current source of truth is the [consolidated specification](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/documentation/specification/transformation-specification.md), not the archived specifications or design-issues record. Baseline consolidated: **2026-11-25**; repository commit: `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`; source path: `documentation/specification/transformation-specification.md`. Accepted test expectations and verified production execution are separate evidence.
 
 The [documentation website](https://w3id.org/directkg/docs) uses **Zensical**, with **mkdocstrings** generating the [Python API reference](documentation/site/reference/api/index.md) from public source objects and docstrings. Start with [Getting started](documentation/site/getting-started.md), [Semantics and limitations](documentation/site/concepts/semantics.md), [Input contract](documentation/site/reference/input.md), [Output contract](documentation/site/reference/output.md), and [Controls](documentation/site/reference/controls.md). [Examples](documentation/site/examples/index.md) provides a checked Catalog adaptation and illustrative Turtle excerpt. [Contributing](documentation/site/development/contributing.md) covers documentation maintenance, build/preview, and available development checks.
 

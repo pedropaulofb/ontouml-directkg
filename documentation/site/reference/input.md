@@ -18,7 +18,9 @@ The [classes-and-attributes example](../examples/index.md#catalog-source-and-ada
 
 Every transformation in the current version requires a concrete OntoUML JSON input file identified by a file path, through both CLI and Python, independently of provenance mode, including `none`. The file's contents remain subject to the exporter baseline above and the accepted language enrichment below.
 
-Already parsed JSON objects, Python dictionaries, and other fileless representations cannot substitute for the required source file. Internal parsing and processing of that file in memory remain allowed. This restriction does not change Python output or diagnostic capabilities.
+Already parsed JSON objects, Python dictionaries, and other fileless representations cannot substitute for the required source file. Passing a non-path Python source-input argument outside `str | os.PathLike` must be rejected **before conversion starts** as a configuration/invocation error under `§15` (signaled programmatically; producing no conversion start, transformation outcome, ontology, or conversion-diagnostics report), preserving the distinction from source-file read, parse, or root-structure failures on a supplied path (`UNPROCESSABLE_DOCUMENT` under `DK-DIAG-05`). Internal parsing and processing of that file in memory remain allowed. This restriction does not change Python output or diagnostic capabilities.
+
+**Implementation status.** At [specification registration revision `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/src/ontouml_directkg/conversion.py#L132-L135), `convert()` still passes `source` to `Path(source)` inside the conversion `try:` block (line 135) rather than rejecting non-path values outside `str | os.PathLike` pre-conversion.
 
 Alternative source-input mechanisms are outside the current version's scope, with no commitment to implement them in a future release. Source checksums follow [Artifacts and digests](../guides/metadata-and-provenance.md#artifacts-and-digests).
 
@@ -135,7 +137,9 @@ Other recognized omissions, such as `restrictedTo`, have their own rules. Not ev
 
 ---
 
-Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-05–08, 12; DK-CLS-01, 05–09, 11; DK-ATT-01; DK-PROP-03–06; DK-HO-03–04; DK-REL-01–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02–03, 05; DK-DIAG-01, 03, 05–06, 09, 12–19; baseline consolidated: **2026-11-25**; repository commit: `295fa5f296477924d60afa904ac451780e5e56eb`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/295fa5f296477924d60afa904ac451780e5e56eb/documentation/specification/transformation-specification.md).
+Governing rules: §3.2 / RD-01, RD-27; §3.4; §15; DK-GEN-05–08, 12; DK-CLS-01, 05–09, 11; DK-ATT-01; DK-PROP-03–06; DK-HO-03–04; DK-REL-01–03, 05, 15–16, 20; DK-INS-01–02; DK-INV-05–06, 08; DK-LBL-01–02; DK-IRI-03–04, 10; DK-DAT-02–03, 05; DK-DIAG-01, 03, 05–06, 09, 12–19; baseline consolidated: **2026-11-25**; repository commit: `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/documentation/specification/transformation-specification.md).
+
+Accepted update: **RD-04 Decision 2 — Runtime, configuration, and artifact-delivery failure contract (Q3-A non-path Python source rejection)** (project-owner formalization included in the cited consolidation).
 
 Accepted update: **RD-02 — `Class.order` validation and field-level recovery (V4 + R1)** (project-owner formalization included in the cited consolidation).
 
