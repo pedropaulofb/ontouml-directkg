@@ -16,6 +16,9 @@ These are independent initial prompts for separate AI conversations. The project
 | Test Reviewer | [test/test-reviewer.md](test/test-reviewer.md) |
 | Implementation Engineer | [implementation/implementation-engineer.md](implementation/implementation-engineer.md) |
 | Implementation Reviewer | [implementation/implementation-reviewer.md](implementation/implementation-reviewer.md) |
+| Improvement Auditor | [improvement/improvement-auditor.md](improvement/improvement-auditor.md) |
+
+The Improvement Auditor is a separately invoked, read-only role that identifies and recommends optional future improvements. Like the Adviser, it operates independently of both workflows; the owner decides whether to pursue its recommendations through the applicable existing roles.
 
 ## Periodic auditors
 
@@ -62,10 +65,10 @@ flowchart TB
     subgraph Distribution["3. Owner authorization and scheduling"]
         Consolidate --> Authorize["Owner authorizes eligible assignments and records deferrals and limitations"]
         Authorize --> Pending{"Unfinished authorized assignments within executable remediation scope?"}
-        Pending -->|Yes| Ready{"Eligible unblocked assignments with satisfied prerequisites?"}
+        Pending -->|Yes| Ready{"Eligible unblocked assignments with satisfied prerequisites and no conflicting current assignment for the recipient?"}
         Ready -->|No| Resolve["Owner resolves blockers or dependencies, or records explicit deferral and excludes affected work from executable scope"]
         Resolve --> Pending
-        Ready -->|Yes| Dispatch["Owner forwards eligible assignments or unchanged architectural handoffs to the corresponding recipients"]
+        Ready -->|Yes| Dispatch["Owner forwards eligible assignments or unchanged architectural handoffs, at most one current assignment per recipient"]
     end
 
     subgraph Remediation["4. Remediation and independent review for each active assignment"]
@@ -74,9 +77,9 @@ flowchart TB
         Blocked -->|Yes| Requeue["Return unfinished assignment to pending work; retain blocker"]
         Blocked -->|No| Submit["Owner forwards recipient handoff to corresponding Reviewer"]
         Submit --> Review{"Independent review disposition?"}
-        Review -->|NOT OK| Feedback["Owner forwards review findings"]
+        Review -->|NOT OK: correction or resolvable blocker| Feedback["Owner forwards review findings"]
         Feedback --> Work
-        Review -->|Blocked| Requeue
+        Review -->|NOT OK: verification blocker prevents continuation| Requeue
         Review -->|OK| Architecture{"Architectural registration requiring unified downstream handoff?"}
         Architecture -->|Yes| Handoff["Architect prepares unified handoff for all three engineers"]
         Handoff --> Queue["Owner queues all three downstream assessments using the unchanged unified handoff without duplicating assignments"]
@@ -111,7 +114,7 @@ flowchart TB
 - Direct engineering remediation of independent audit defects entirely under existing accepted specifications goes directly to the responsible engineer, without a new Architect registration, unified architectural handoff or Architect Reviewer OK as an entry prerequisite. The engineer and reviewer verify the accepted specification basis, explicit owner assignment and absence of new normative behavior.
 - Architectural investigations and changes follow the existing architectural decision workflow: the owner accepts substantive decisions, the Architect registers the accepted decision or authorized correction, and the Architect Reviewer independently reviews the registration. When the established architectural handoff applies, the Architect prepares it after the applicable Reviewer OK and the owner forwards it unchanged to all three engineers. The Coordinator records dependent downstream responsibilities but does not release them prematurely or produce duplicate engineering messages for work covered by that handoff. Independent eligible engineering assignments need not wait for unrelated architectural work.
 
-**Execution and review.** The owner schedules eligible assignments across different agents independently, preserving material dependencies and one-assignment-at-a-time limits within each agent. Each remediation or registration assignment, including a justified no-change disposition, retains its corresponding independent review. NOT OK returns the same assignment for correction or resolution of the blocker and a current disposition. Blocked work remains unfinished and cannot be redispatched until its blocker is resolved. If the owner explicitly defers affected work, record the deferral and exclude it from the executable queue without treating it as completed. An unresolved semantic question, normative gap or proposed change to accepted behavior discovered during remediation returns to the normal architectural workflow. No extra Coordinator approval is required.
+**Execution and review.** The owner schedules eligible assignments across different agents independently, preserving material dependencies and one-assignment-at-a-time limits within each agent. Each remediation or registration assignment, including a justified no-change disposition, retains its corresponding independent review. NOT OK returns the same assignment for correction or resolution of the blocker and a current disposition. Blocked work remains unfinished and cannot be redispatched until its blocker is resolved. A verification blocker reported by a reviewer is a NOT OK verdict, not a third review outcome. Queue later assignments for the same recipient until its current assignment is closed by the applicable reviewer OK, unless an applicable explicit task-specific sequencing exception authorizes otherwise. If the owner explicitly defers affected work, record the deferral and exclude it from the executable queue without treating it as completed or automatically releasing later assignments for that recipient. An unresolved semantic question, normative gap or proposed change to accepted behavior discovered during remediation returns to the normal architectural workflow. No extra Coordinator approval is required.
 
 **Completion.** The Coordinator's consolidated report distinguishes assessment and assignment status from actual remediation and review completion, and identifies pending decisions, investigations, deferrals and limitations. The owner checks that no remediation is necessary or all applicable assignments have been closed by their corresponding independent Reviewer OK, with no unresolved material findings requiring further action within the current audit scope, outstanding material decisions or investigations, blockers or unresolved material audit limitations, including material follow-up discovered during remediation. Legitimately pending development work requiring no additional action within the current audit scope does not by itself prevent completion. Explicit owner-directed closure with deferred material findings or acknowledged limitations is distinct from successful completion. Completing the current cycle does not claim repository-wide conformance or require the four auditors to run again; any subsequent audit is separately initiated by the owner.
 
@@ -150,6 +153,8 @@ flowchart TD
 
         subgraph Documentation["Documentation"]
             D["Documentation Engineer: assess applicability; EDIT with validation and publication, or justify NO CHANGE"]
+            D -->|BLOCKED| DBlock["Owner coordinates unblocking; assignment remains pending"]
+            DBlock -->|Blocker resolved| D
             D -->|Owner relays handoff when ready| DR{"Documentation Reviewer independently reviews submitted revision and scope"}
             DR -->|NOT OK: owner relays findings| D
             DR -->|OK| DDone["Documentation assignment closed"]
@@ -157,6 +162,8 @@ flowchart TD
 
         subgraph Testing["Testing"]
             T["Test Engineer: assess applicability; TEST CHANGE with validation and publication, or justify NO TEST CHANGE"]
+            T -->|BLOCKED| TBlock["Owner coordinates unblocking; assignment remains pending"]
+            TBlock -->|Blocker resolved| T
             T -->|Owner relays handoff when ready| TR{"Test Reviewer independently reviews submitted revision and scope"}
             TR -->|NOT OK: owner relays findings| T
             TR -->|OK| TDone["Test assignment closed"]
@@ -164,6 +171,8 @@ flowchart TD
 
         subgraph Implementation["Implementation"]
             I["Implementation Engineer: assess applicability; IMPLEMENT with validation and publication, or justify NO CODE CHANGE"]
+            I -->|BLOCKED| IBlock["Owner coordinates unblocking; assignment remains pending"]
+            IBlock -->|Blocker resolved| I
             I -->|Owner relays handoff when ready| IR{"Implementation Reviewer independently reviews submitted revision and scope"}
             IR -->|NOT OK: owner relays findings| I
             IR -->|OK| IDone["Implementation assignment closed"]
@@ -205,7 +214,7 @@ Handoffs identify exact approved scope, source and submitted/snapshot SHAs, chan
 
 ## Active and archived versions
 
-Each role directory contains its current, unversioned prompts and an `archive/` subdirectory for superseded versions. Archived prompts provide historical context and do not govern current agents.
+Each role directory contains its current, unversioned prompts. Superseded versions, where they exist, are stored in the corresponding role directory's `archive/` subdirectory. Archived prompts provide historical context and do not govern current agents.
 
 Archive filenames follow `<document-name>-YYYYMMDDTHHMMSSZ.md`: UTC to seconds from the outgoing revision's last content-changing commit, following pure moves or renames with unchanged content. This matches the specification archive convention.
 
