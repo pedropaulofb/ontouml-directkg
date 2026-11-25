@@ -11,17 +11,23 @@ from .diagnostics import DiagnosticCollector
 from .source import SourceElement, SourceIndex, input_error, validate_boolean_flags
 
 
-def _relation_generalization(index: SourceIndex, element: SourceElement) -> bool:
-    """Route by available declarations; mapping still validates every reference."""
-    references = [element.data.get(field) for field in ("specific", "general")]
+def _endpoint_kinds(index: SourceIndex, element: SourceElement) -> set[str]:
+    """Read classifier kinds solely from structurally resolved declarations."""
     kinds = set()
-    for reference in references:
+    for field in ("specific", "general"):
         try:
-            endpoint = index.resolve(reference)
+            endpoint = index.resolve(element.data.get(field))
         except KeyError:
             continue
         if endpoint.data["type"] in {"Class", "Relation"}:
             kinds.add(endpoint.data["type"])
+    return kinds
+
+
+def _relation_generalization(index: SourceIndex, element: SourceElement) -> bool:
+    """Route by available declarations; mapping still validates every reference."""
+    references = [element.data.get(field) for field in ("specific", "general")]
+    kinds = _endpoint_kinds(index, element)
     if not kinds:
         for reference in references:
             identifier = reference.get("id") if isinstance(reference, dict) else None
@@ -34,7 +40,24 @@ def _relation_generalization(index: SourceIndex, element: SourceElement) -> bool
                for reference in references)
 
 
-def _relation_set(index: SourceIndex, element: SourceElement) -> bool:
+def _set_endpoint_kinds(index: SourceIndex, element: SourceElement) -> set[str]:
+    kinds = set()
+    members = element.data.get("generalizations")
+    if isinstance(members, list):
+        for reference in members:
+            try:
+                member = index.resolve(reference)
+            except KeyError:
+                continue
+            if member.data["type"] == "Generalization":
+                kinds.update(_endpoint_kinds(index, member))
+    return kinds
+
+
+def _relation_set(index: SourceIndex, element: SourceElement, source_index: SourceIndex) -> bool:
+    kinds = _set_endpoint_kinds(source_index, element)
+    if kinds:
+        return "Relation" in kinds
     members = element.data.get("generalizations")
     if not isinstance(members, list):
         return False
@@ -49,14 +72,16 @@ def _relation_set(index: SourceIndex, element: SourceElement) -> bool:
 
 
 def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, URIRef],
-                         diagnostics: DiagnosticCollector, policy: str) -> None:
+                         diagnostics: DiagnosticCollector, policy: str, *,
+                         source_index: SourceIndex | None = None) -> None:
     """Keep source edges separate from coverage edges and powertype traversal."""
+    source_index = index if source_index is None else source_index
     edges: dict[str, tuple[SourceElement, SourceElement]] = {}
     children: dict[str, set[str]] = defaultdict(set)
     for element in index.elements:
         if element.data["type"] != "Generalization":
             continue
-        if _relation_generalization(index, element):
+        if _relation_generalization(source_index, element):
             continue
         identifier = element.data.get("id")
         if not isinstance(identifier, str) or not identifier:
@@ -70,7 +95,11 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
                         (element.location,), "Affected generalization omitted; independently transformable classes and edges retained.")
             continue
         if specific.data["type"] != "Class" or general.data["type"] != "Class":
-            raise NotImplementedError("Non-class generalization mapping belongs to BI-W4")
+            input_error(diagnostics, policy, "INVALID_GENERALIZATION_ENDPOINT",
+                        f"Generalization {identifier!r} has a non-classifier endpoint.",
+                        (element.location, specific.location, general.location),
+                        "Affected hierarchy edge omitted; independent mappings retained.")
+            continue
         sid, gid = specific.data["id"], general.data["id"]
         if sid not in resources or gid not in resources:
             input_error(diagnostics, policy, "FAILED_CLASS_GENERALIZATION",
@@ -83,7 +112,7 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
         graph.add((resources[sid], RDFS.subClassOf, resources[gid]))
 
     for element in index.elements:
-        if element.data["type"] == "GeneralizationSet" and not _relation_set(index, element):
+        if element.data["type"] == "GeneralizationSet" and not _relation_set(index, element, source_index):
             _emit_set(graph, index, element, resources, edges, children, diagnostics, policy)
 
 
@@ -220,10 +249,12 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
 
 def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: dict[str, URIRef],
                                   inverses: dict[str, URIRef], diagnostics: DiagnosticCollector,
-                                  policy: str, kinds: dict[str, URIRef] | None = None) -> None:
+                                  policy: str, kinds: dict[str, URIRef] | None = None, *,
+                                  source_index: SourceIndex | None = None) -> None:
     """Keep surviving specifics for disjointness even when their general fails."""
     from .diagnostics import _AbortConversion
 
+    source_index = index if source_index is None else source_index
     declared = {}
     mapped = set()
     abort_pending = False
@@ -240,7 +271,7 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
             abort_pending = True
 
     for element in index.elements:
-        if element.data["type"] != "Generalization" or not _relation_generalization(index, element):
+        if element.data["type"] != "Generalization" or not _relation_generalization(source_index, element):
             continue
         identifier = element.data.get("id")
         if not isinstance(identifier, str) or not identifier:
@@ -253,10 +284,31 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
             except KeyError as exc:
                 endpoint = None
                 failures.append(f"{field}: {exc}")
-            if endpoint is not None and endpoint.data["type"] != "Relation":
-                raise NotImplementedError("Mixed class/relation generalization mappings remain unspecified")
             endpoints.append(endpoint)
-        specific, general = declared[identifier] = tuple(endpoints)
+        specific, general = endpoints
+        resolved_kinds = _endpoint_kinds(source_index, element)
+        if resolved_kinds == {"Class", "Relation"}:
+            input_error(diagnostics, policy, "MIXED_GENERALIZATION",
+                        f"Generalization {identifier!r} has mixed Class/Relation endpoints.",
+                        (element.location,) + tuple(endpoint.location for endpoint in endpoints if endpoint is not None),
+                        "Affected hierarchy edge omitted; independent mappings retained.")
+            if not failures:
+                continue
+        elif any(endpoint is not None and endpoint.data["type"] not in {"Class", "Relation"} for endpoint in endpoints):
+            input_error(diagnostics, policy, "INVALID_GENERALIZATION_ENDPOINT",
+                        f"Generalization {identifier!r} has a non-classifier endpoint.",
+                        (element.location,) + tuple(endpoint.location for endpoint in endpoints if endpoint is not None),
+                        "Affected hierarchy edge omitted; independent mappings retained.")
+            # A surviving relation specific remains available for homogeneous-set
+            # disjointness, as with other failed generalization endpoints.
+            declared[identifier] = tuple(
+                endpoint if endpoint is not None and endpoint.data["type"] == "Relation" else None
+                for endpoint in endpoints
+            )
+            if not failures:
+                continue
+        else:
+            declared[identifier] = (specific, general)
         if (specific is None or general is None or specific.data["id"] not in primaries
                 or general.data["id"] not in primaries):
             input_error(diagnostics, policy, "FAILED_RELATION_GENERALIZATION",
@@ -281,12 +333,18 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
 
     for element in index.elements:
         data = element.data
-        if data["type"] != "GeneralizationSet" or not _relation_set(index, element):
+        if data["type"] != "GeneralizationSet" or not _relation_set(index, element, source_index):
             continue
         members = data["generalizations"]
         validate_boolean_flags(element, ("isComplete", "isDisjoint"), diagnostics, policy)
+        mixed = _set_endpoint_kinds(source_index, element) == {"Class", "Relation"}
+        if mixed:
+            input_error(diagnostics, policy, "MIXED_GENERALIZATION_SET",
+                        f"Generalization set {data['id']!r} contains mixed Class/Relation membership.",
+                        (element.location,),
+                        "Entire set contribution omitted; independent hierarchy edges and classifications retained.")
         categorizer = data.get("categorizer")
-        if categorizer is not None:
+        if categorizer is not None and not mixed:
             input_error(
                 diagnostics,
                 policy,
@@ -307,16 +365,21 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
             except KeyError as exc:
                 input_error(diagnostics, policy, "UNRESOLVED_GENERALIZATION_SET_MEMBER",
                             f"Relation-set member {reference!r} cannot resolve: {exc}.", (element.location,),
+                            "Entire mixed set contribution omitted; independent mappings retained." if mixed else
                             "Completeness omitted; surviving explicit-specific disjointness and independent mappings retained.")
                 complete = False
                 continue
-            if not _relation_generalization(index, member):
-                raise NotImplementedError("Mixed class/relation set membership remains unspecified")
+            if mixed:
+                continue
             identifier = member.data["id"]
             if identifier in seen:
                 # Reference validation above still applies to every occurrence.
                 continue
             seen.add(identifier)
+            if identifier not in declared:
+                # The independently processed edge already reported its failure.
+                complete = False
+                continue
             specific, general = declared[identifier]
             if specific is not None:
                 sid = specific.data["id"]
@@ -327,6 +390,8 @@ def emit_relation_generalizations(graph: Graph, index: SourceIndex, primaries: d
                 complete = False
             else:
                 resolved.append((specific, general))
+        if mixed:
+            continue
         if data.get("isDisjoint") is True:
             for sid, other in combinations(sorted(specifics), 2):
                 if kinds is not None and kinds.get(sid) != kinds.get(other):

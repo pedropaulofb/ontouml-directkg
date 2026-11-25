@@ -135,6 +135,9 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         project = read_project(Path(source), diagnostics, captured_bytes=captured)
         stage = "index_project"
         index = index_project(project, diagnostics, input_policy)
+        # DK-GEN-12 detects mixed hierarchies from resolved source declarations,
+        # including classifiers whose later input-policy recovery omits output.
+        source_index = index
         stage = "check_stereotypes"
         index = check_stereotypes(index, diagnostics, stereotype_policy, input_policy)
         stage = "apply_identifier_policy"
@@ -199,7 +202,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
         stage = "emit_enumerations"
         emit_enumerations(graph, enumerations, resources, iri_strategy, text, diagnostics)
         stage = "emit_generalizations"
-        emit_generalizations(graph, index, resources, diagnostics, input_policy)
+        emit_generalizations(graph, index, resources, diagnostics, input_policy, source_index=source_index)
         stage = "emit_attributes"
         emit_attributes(graph, attributes, resources, iri_strategy, text, diagnostics, input_policy)
         stage = "PropertyExpressions"
@@ -216,7 +219,7 @@ def convert(source: str | Path, *, base_iri: str | None = None, iri_strategy: st
             {relation.source.data["id"]: resources[relation.target_end.data["id"]] for relation in relations},
             {relation.source.data["id"]: inverses[relation.source_end.data["id"]]
              for relation in relations if relation.source_end.data["id"] in inverses}, diagnostics, input_policy,
-            {relation.source.data["id"]: relation.kind for relation in relations})
+            {relation.source.data["id"]: relation.kind for relation in relations}, source_index=source_index)
         stage = "emit_property_references"
         emit_property_references(graph, index, expressions, diagnostics, input_policy)
         stage = "emit_material_chains"
