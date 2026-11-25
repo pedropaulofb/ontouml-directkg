@@ -2769,7 +2769,11 @@ When inverse generation is disabled, the direct property still uses the target-e
 
 ### DK-IRI-07 — Ordinary name collision groups
 
-After all applicable name fallbacks and source-backed property qualification, DirectKG MUST check local-name collisions. A unique candidate remains unsuffixed. Every member of a collision group of size `N` MUST receive `_1` through `_N`; DirectKG MUST NOT leave one unsuffixed.
+After all applicable name fallbacks and source-backed property qualification, DirectKG MUST check local-name collisions. A candidate that is unique in the current collision-checking round remains unchanged in that round. Every member of a collision group of size `N` MUST receive `_1` through `_N` appended to its current shared candidate; DirectKG MUST NOT leave one unsuffixed.
+
+If ordinary source-backed collision-group suffixing introduces further collisions, DirectKG MUST re-evaluate collisions using the resulting current local-name candidates and repeat the existing deterministic contiguous suffixing procedure until all candidates are distinct (C3, Alternative A). A candidate that was unique in an earlier round but participates in a subsequent collision group MUST receive the same treatment as every other member of that group. Candidates outside the current collision groups remain unchanged in that round. Existing property qualification, enumeration-value naming, generated-inverse allocation and exceptional escaped-ID collision rules remain unchanged.
+
+**Example (non-normative):** For three candidates `Person`, `Person`, and `Person_1`, the first round assigns `Person_1` and `Person_2` to the two `Person` candidates. The second round assigns `Person_1_1` and `Person_1_2` to the two current `Person_1` candidates; `Person_2` remains unchanged. Each round uses the existing deterministic suffix-ordering rule.
 
 Generated inverse allocation MUST follow the more specific source-backed precedence and naming rules in DK-INV-07–08. In particular, DK-INV-08 permits skipping reserved numeric suffixes for generated inverses while source-backed names remain fixed. This exception MUST NOT change the ordinary source-backed collision-group numbering above.
 
