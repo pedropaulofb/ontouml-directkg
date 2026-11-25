@@ -70,7 +70,12 @@ def collect_attributes(index: SourceIndex, classes: tuple[SourceElement, ...],
             raise NotImplementedError("Invalid source-ID recovery requires the deferred Architect decision") from exc
         validate_boolean_flags(element, ("isDerived", "isReadOnly", "isOrdered"), diagnostics, policy)
         if "propertyType" not in data:
-            raise NotImplementedError("Absent attribute propertyType carrier recovery remains outside the decided baseline")
+            input_error(diagnostics, policy, "MISSING_ATTRIBUTE_PROPERTY_TYPE",
+                        f"Attribute {identifier!r} is missing the required propertyType field.",
+                        (element.location,),
+                        "Affected attribute omitted because its property kind cannot be determined; independent mappings retained.")
+            # Incoming references still require the usual unresolved-property diagnostic.
+            continue
         reference = data["propertyType"]
         if reference is None:
             attributes.append(Attribute(element, owner, OWL.DatatypeProperty))
