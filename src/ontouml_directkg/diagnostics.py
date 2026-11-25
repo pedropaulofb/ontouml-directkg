@@ -2,7 +2,9 @@
 
 The report's required member names, types and context representations follow
 the shared JSON contract. The CLI and explicit Python export use this writer.
-Exact diagnostic identifiers and the complete code catalogue remain unspecified.
+Exact diagnostic identifiers outside DK-DIAG-04's stabilized eight-code v1 core
+remain implementation-defined without a separate v1 catalogue; every produced
+diagnostic must populate ``code`` as a nonempty string.
 """
 
 from dataclasses import asdict, dataclass
@@ -33,6 +35,10 @@ class Diagnostic:
     effect: str
     sources: tuple[SourceLocation, ...] = ()
     generated_iri: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.code, str) or not self.code:
+            raise ValueError("Diagnostic code must be a nonempty string")
 
 
 class DiagnosticsExportError(OSError):
@@ -67,6 +73,9 @@ def export_report(outcome: Outcome, events: tuple[Diagnostic, ...],
     This operation is separate from conversion. OSError failures are exposed as
     DiagnosticsExportError, retaining the destination and original failure.
     """
+    for event in events:
+        if not isinstance(event.code, str) or not event.code:
+            raise ValueError("Diagnostic code must be a nonempty string")
     path = Path(destination)
     payload = {"outcome": outcome, "diagnostics": [asdict(event) for event in events]}
     data = (json.dumps(payload, ensure_ascii=True, indent=2) + "\n").encode("utf-8")
