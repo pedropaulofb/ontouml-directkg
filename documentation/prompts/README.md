@@ -61,11 +61,11 @@ flowchart TB
 
     subgraph Distribution["3. Owner authorization and scheduling"]
         Consolidate --> Authorize["Owner authorizes eligible assignments and records deferrals and limitations"]
-        Authorize --> Pending{"Unfinished authorized assignments?"}
+        Authorize --> Pending{"Unfinished authorized assignments within executable remediation scope?"}
         Pending -->|Yes| Ready{"Eligible unblocked assignments with satisfied prerequisites?"}
-        Ready -->|No| Resolve["Owner resolves blockers or dependencies, or explicitly defers affected work"]
+        Ready -->|No| Resolve["Owner resolves blockers or dependencies, or records explicit deferral and excludes affected work from executable scope"]
         Resolve --> Pending
-        Ready -->|Yes| Dispatch["Owner forwards eligible assignments to the Architect or responsible engineers"]
+        Ready -->|Yes| Dispatch["Owner forwards eligible assignments or unchanged architectural handoffs to the corresponding recipients"]
     end
 
     subgraph Remediation["4. Remediation and independent review for each active assignment"]
@@ -78,8 +78,8 @@ flowchart TB
         Feedback --> Work
         Review -->|Blocked| Requeue
         Review -->|OK| Architecture{"Architectural registration requiring unified downstream handoff?"}
-        Architecture -->|Yes| Handoff["Architect prepares unified handoff; owner forwards it unchanged to all three engineers"]
-        Handoff --> Queue["Queue applicable downstream work without duplicating assignments"]
+        Architecture -->|Yes| Handoff["Architect prepares unified handoff for all three engineers"]
+        Handoff --> Queue["Owner queues all three downstream assessments using the unchanged unified handoff without duplicating assignments"]
         Queue --> Complete["Close reviewed assignment"]
         Architecture -->|No| Complete
     end
@@ -111,7 +111,7 @@ flowchart TB
 - Direct engineering remediation of independent audit defects entirely under existing accepted specifications goes directly to the responsible engineer, without a new Architect registration, unified architectural handoff or Architect Reviewer OK as an entry prerequisite. The engineer and reviewer verify the accepted specification basis, explicit owner assignment and absence of new normative behavior.
 - Architectural investigations and changes follow the existing architectural decision workflow: the owner accepts substantive decisions, the Architect registers the accepted decision or authorized correction, and the Architect Reviewer independently reviews the registration. When the established architectural handoff applies, the Architect prepares it after the applicable Reviewer OK and the owner forwards it unchanged to all three engineers. The Coordinator records dependent downstream responsibilities but does not release them prematurely or produce duplicate engineering messages for work covered by that handoff. Independent eligible engineering assignments need not wait for unrelated architectural work.
 
-**Execution and review.** The owner schedules eligible assignments across different agents independently, preserving material dependencies and one-assignment-at-a-time limits within each agent. Each remediation or registration assignment, including a justified no-change disposition, retains its corresponding independent review. NOT OK returns the same assignment for correction or resolution of the blocker and a current disposition. Blocked work remains unfinished and cannot be redispatched until its blocker is resolved. An unresolved semantic question, normative gap or proposed change to accepted behavior discovered during remediation returns to the normal architectural workflow. No extra Coordinator approval is required.
+**Execution and review.** The owner schedules eligible assignments across different agents independently, preserving material dependencies and one-assignment-at-a-time limits within each agent. Each remediation or registration assignment, including a justified no-change disposition, retains its corresponding independent review. NOT OK returns the same assignment for correction or resolution of the blocker and a current disposition. Blocked work remains unfinished and cannot be redispatched until its blocker is resolved. If the owner explicitly defers affected work, record the deferral and exclude it from the executable queue without treating it as completed. An unresolved semantic question, normative gap or proposed change to accepted behavior discovered during remediation returns to the normal architectural workflow. No extra Coordinator approval is required.
 
 **Completion.** The Coordinator's consolidated report distinguishes assessment and assignment status from actual remediation and review completion, and identifies pending decisions, investigations, deferrals and limitations. The owner checks that no remediation is necessary or all applicable assignments have been closed by their corresponding independent Reviewer OK, with no unresolved material findings requiring further action within the current audit scope, outstanding material decisions or investigations, blockers or unresolved material audit limitations, including material follow-up discovered during remediation. Legitimately pending development work requiring no additional action within the current audit scope does not by itself prevent completion. Explicit owner-directed closure with deferred material findings or acknowledged limitations is distinct from successful completion. Completing the current cycle does not claim repository-wide conformance or require the four auditors to run again; any subsequent audit is separately initiated by the owner.
 
