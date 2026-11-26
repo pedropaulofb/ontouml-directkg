@@ -3647,7 +3647,8 @@ def _assert_cli_persistent_report_alias(invoke, tmp_path, target_kind, scenario,
                       "SIDECAR_DELIVERY" if target_kind == "sidecar" else "ONTOLOGY_DELIVERY")
     assert any(severity == "ERROR" and code == expected_error for severity, code, *_ in delivered.events)
     assert console_covers_diagnostic_records(process.console, delivered.events)
-    assert any(diagnostics_delivery_error(event, actual_report, alias=True) for event in process.console)
+    assert any(diagnostics_delivery_error(event, actual_report, alias=True, artifact=target)
+               for event in process.console)
     if target_kind == "sidecar" and scenario == "blocked_delivery":
         assert destination.is_file() and (BASE.C17, RDF.type, OWL.Class) in load_graph(destination)
     elif target_kind == "sidecar":
@@ -3685,23 +3686,54 @@ def test_cli_replacement_separates_report_and_artifact_destinations(invoke, tmp_
 
 
 def test_diagnostics_delivery_error_reader_requires_distinct_failure_destination_and_reason(tmp_path):
-    """Harness only: C13 T1 reporting evidence must not match an unrelated ERROR."""
+    """Harness only: C13 T1 F1–F2 require affirmative, code-independent reporting."""
     destination = tmp_path / "alias-report.json"
+    artifact = tmp_path / "protected artifact.ttl"
     reason = "injected export failure"
     def event(code, message, severity="ERROR"):
         return SimpleNamespace(code=code, message=message, severity=severity)
 
     correct = event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}: {reason}")
-    assert diagnostics_delivery_error(correct, destination, reason=reason)
+    for code in ("DIAGNOSTICS_DELIVERY", "REPORT_EXPORT_FAILURE", "CUSTOM_REPORT_ERROR", None):
+        assert diagnostics_delivery_error(event(code, correct.message), destination, reason=reason)
+        header = f"[ERROR] {code}: " if code else "ERROR: "
+        assert diagnostics_delivery_error(event(code, header + correct.message), destination, reason=reason)
+        assert diagnostics_delivery_error(
+            event(code, f"JSON report export failed for {destination!s} because of {reason}."),
+            destination, reason=reason)
+        assert diagnostics_delivery_error(
+            event(code, f"Diagnostics delivery failure for {str(destination)!r}: {reason}"),
+            destination, reason=reason)
+        for claim in ("same file", f"destination refers to the same file as {artifact}",
+                      "diagnostics destination aliases the protected ontology file",
+                      "pathname alias with the protected artifact"):
+            assert diagnostics_delivery_error(event(code, f"Cannot write diagnostics to {destination}: {claim}"),
+                                              destination, alias=True, artifact=artifact), claim
     for other in (
         event("ONTOLOGY_DELIVERY", correct.message),
+        event("SIDECAR_DELIVERY", correct.message),
         event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}.other: {reason}"),
+        event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination.with_name(destination.name.upper())}: {reason}"),
         event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}: unknown reason"),
         event("DIAGNOSTICS_DELIVERY", correct.message, "WARNING"),
+        event("REPORT_EXPORT_FAILURE", f"Diagnostics export succeeded for {destination}: {reason}"),
+        event("REPORT_EXPORT_FAILURE", f"Cannot write ontology to {destination}: {reason}"),
+        event("REPORT_EXPORT_FAILURE", f"It is not true that {correct.message}"),
     ):
-        assert not diagnostics_delivery_error(other, destination, reason=reason)
-    assert diagnostics_delivery_error(event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}: same file"),
-                                      destination, alias=True)
+        assert not diagnostics_delivery_error(other, destination, reason=reason), other.message
+    for code in ("DIAGNOSTICS_DELIVERY", "REPORT_EXPORT_FAILURE", None):
+        for claim in (f"not {reason}", f"{reason} was ruled out", f"unrelated to {reason}",
+                      f"possibly {reason}", f"{reason} did not occur",
+                      f"permission denied; {reason} was unrelated"):
+            other = event(code, f"Cannot write diagnostics to {destination}: {claim}")
+            assert not diagnostics_delivery_error(other, destination, reason=reason), claim
+        for claim in ("not the same file", "no alias detected", "alias was ruled out", "same file was ruled out",
+                      "possibly the same file", "alias unrelated to this failure", "permission denied; alias was unrelated",
+                      f"destination does not refer to the same file as {artifact}",
+                      f"destination refers to the same file as {artifact} but that was not the cause",
+                      f"destination refers to the same file as {artifact.with_suffix('.other')}"):
+            other = event(code, f"Cannot write diagnostics to {destination}: {claim}")
+            assert not diagnostics_delivery_error(other, destination, alias=True, artifact=artifact), claim
     assert not diagnostics_delivery_error(correct, destination, alias=True)
 
 

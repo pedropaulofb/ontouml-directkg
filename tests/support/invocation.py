@@ -1773,21 +1773,61 @@ def console_covers_diagnostic_records(console, records):
     return True
 
 
-def diagnostics_delivery_error(event, destination, *, reason=None, alias=False):
-    """Bind console evidence to report delivery, destination and observed cause.
+def diagnostics_delivery_error(event, destination, *, reason=None, alias=False, artifact=None):
+    """Read an affirmative report-delivery failure and its applicable cause.
 
-    The current renderer's delivery identifier is a binding detail, not an
-    addition to the specification's stable diagnostic-code core.
+    Interpret complete supported claims, not mentions of a cause. A renderer
+    may use any provisional identifier (or no displayed identifier); the
+    failure stage is established by the prose, not a particular code.
     """
-    if event.severity != "ERROR" or event.code != "DIAGNOSTICS_DELIVERY":
+    code = getattr(event, "code", None)
+    if event.severity != "ERROR" or code in {"ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY"}:
         return False
-    _, separator, detail = event.message.partition(f"{destination}:")
-    if not separator:
+    message = re.sub(r"^\s*(?:\[ERROR\]|ERROR:)\s*", "", event.message, flags=re.IGNORECASE)
+    if code:
+        message = re.sub(rf"^{re.escape(code)}:\s*", "", message)
+
+    path = re.escape(str(destination))
+    target = rf"(?-i:{path}|{re.escape(repr(str(destination)))}|\"{path}\")"
+    report = r"(?:the )?(?:diagnostics?(?:[- ](?:report|file))?|(?:json )?report)"
+    action = r"(?:write|create|save|deliver|export|serialize)"
+    gerund = r"(?:writing|creating|saving|delivering|exporting|serializing)"
+    failure = (
+        rf"(?:cannot|could not|unable to|failed to) {action} {report} (?:to|at|for) {target}"
+        rf"|(?:error|failure) (?:while )?{gerund} {report} (?:to|at|for) {target}"
+        rf"|{report}(?: (?:delivery|export|writing|serialization))? (?:has )?failed (?:to|at|for) {target}"
+        rf"|{report}(?: (?:delivery|export|writing|serialization))? (?:to|at|for) {target} (?:has )?failed"
+        rf"|{report} (?:delivery|export|writing|serialization) (?:error|failure) (?:to|at|for) {target}"
+    )
+    claim = re.fullmatch(rf"(?:{failure})(?::\s*|\s+(?:because(?: of)?|due to)\s+)(?P<cause>.+)",
+                         message.strip(), re.IGNORECASE | re.DOTALL)
+    if claim is None:
         return False
-    if alias:
-        return bool(re.search(r"\balias(?:es|ing)?\b|\bsame (?:file|path|destination|artifact|object)\b",
-                              detail, re.IGNORECASE))
-    return bool(reason and reason in detail)
+    detail = claim["cause"].strip().removesuffix(".")
+    detail = re.sub(r"^(?:(?:the )?(?:cause|reason)(?: is| was|:)\s*|[\w.]*(?:Error|Exception):\s*)",
+                    "", detail, flags=re.IGNORECASE)
+    if not alias:
+        return bool(reason and " ".join(detail.split()).casefold() ==
+                    " ".join(reason.strip().removesuffix(".").split()).casefold())
+
+    # Accept affirmative alias descriptions, including the observed artifact
+    # pathname when supplied. Do not credit negations, hedges, or unrelated
+    # trailing claims merely containing an alias-related word.
+    same = r"(?:the )?same (?:file|path|destination|artifact|object)"
+    peer = r"(?:the )?(?:protected )?(?:ontology|(?:provenance )?sidecar|artifact|output)(?: (?:file|path|destination))?"
+    if artifact is not None:
+        artifact_path = re.escape(str(artifact))
+        peer = rf"(?:{peer}|(?-i:{artifact_path}|{re.escape(repr(str(artifact)))}|\"{artifact_path}\"))"
+    else:
+        peer = rf"(?:{peer}|(?:/|[a-z]:[\\/])\S+|['\"](?:/|[a-z]:[\\/])[^'\"]+['\"])"
+    subject = r"(?:the )?(?:diagnostics? (?:report|file|destination|path)|report(?: (?:destination|path))?|destination|path)"
+    alias_claim = (
+        rf"{same}(?: as {peer})?"
+        rf"|(?:{subject} )?(?:refers to|resolves to|identifies|is) {same}(?: as {peer})?"
+        rf"|(?:{subject} )?aliases {peer}"
+        rf"|(?:an? )?(?:filesystem |pathname |path )?alias(?:ing)?(?: (?:of|with|to) {peer})?"
+    )
+    return bool(re.fullmatch(alias_claim, detail, re.IGNORECASE))
 
 
 def diagnostics_report_write_error(event, destination, observed_error):
