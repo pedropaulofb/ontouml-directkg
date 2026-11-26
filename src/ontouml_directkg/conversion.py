@@ -276,6 +276,10 @@ def convert(source: str | os.PathLike, *, base_iri: str | None = None, iri_strat
                                 f"Cannot construct required transformation provenance: {exc}.",
                                 "Conversion aborted; no ontology, incomplete provenance or substitute mode is delivered.")
                 raise _AbortConversion from exc
+        stage = "result construction"
+        outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"
+        return ConversionResult(graph, outcome, tuple(diagnostics.events),
+                                record.graph if provenance == "sidecar" else None, provenance, record)
     except _AbortConversion:
         return ConversionResult(None, "aborted", tuple(diagnostics.events), provenance_mode=provenance)
     except Exception as exc:
@@ -283,6 +287,3 @@ def convert(source: str | os.PathLike, *, base_iri: str | None = None, iri_strat
                         f"Unexpected internal failure in stage '{stage}': {type(exc).__name__}: {exc}.",
                         "Conversion aborted; no ontology or provenance sidecar is delivered.")
         return ConversionResult(None, "aborted", tuple(diagnostics.events), provenance_mode=provenance)
-    outcome: Outcome = "completed-with-errors" if any(d.severity == "ERROR" for d in diagnostics.events) else "completed"
-    return ConversionResult(graph, outcome, tuple(diagnostics.events),
-                            record.graph if provenance == "sidecar" else None, provenance, record)
