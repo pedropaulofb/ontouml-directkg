@@ -167,6 +167,7 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
                         f"Relation endpoints cannot support transformation: {exc}.",
                         (element.location,) + tuple(end.location for end in declarations),
                         "Neither directional property is generated; independent source mappings are retained.")
+            omitted.add(identifier)
             continue
         if any(endpoint.data["type"] == "Relation" for endpoint in endpoints):
             recognized = False
