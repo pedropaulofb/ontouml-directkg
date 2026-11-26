@@ -3434,6 +3434,90 @@ def malformed_class_order_diagnostic(message: str, sources: tuple = ()) -> froze
     return frozenset(_malformed_class_order_facts(message, sources))
 
 
+def _malformed_aggregation_kind_facts(message: str, sources: tuple = ()) -> set[str]:
+    """Read affirmative malformed aggregationKind ERROR wording without fixing a code.
+
+    Rejects internal/deferred guard wording, conditionals, hedges, negations,
+    bare expectations, valid/null/absent/NONE/SHARED/COMPOSITE statements,
+    UNKNOWN_INFORMATION unrecognized-field wording, generated aggregation-comment
+    wording, and unrelated carrier/container/flag subjects.
+    """
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside bi-w1|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    wording = re.sub(r"\bproperty\.aggregationkind\b", "property aggregationkind", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"(?<!\w)(?:''|\"\"|'\s+'|\"\s+\")(?=$|[\s.,;:)!?])", "<blank_quoted>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(aggregationkind|aggregation(?:\s+(?:kind|metadata|field|value))?|property|association\s+end|null|none|shared|composite|str|string)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    global_disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:aggregationkind|aggregation)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:malformed|invalid|non[- ]?string)\b",
+        r"\baggregation(?:kind)?(?:\s+(?:kind|field|value|metadata))?\s+(?:is|was)\s+(?:explicitly\s+)?(?<!non-)(?<!non )(?:null|none|absent|missing|omitted|shared|composite|a\s+(?:json\s+)?str(?:ing)?|valid|allowed|accepted|preserved)\b",
+        r"\b(?:null|absent|missing|valid|none|shared|composite)\s+or\s+(?:malformed|invalid|non[- ]?string)\b",
+        r"\b(?:malformed|invalid|non[- ]?string)\s+or\s+(?:null|absent|missing|valid)\b",
+        r"\b(?:unrecognized|unknown|unexpected|undefined|unsupported)\s+(?:input\s+)?fields?\b",
+        r"\bnot\s+(?:a\s+)?(?:defined|recognized|supported)\s+(?:property|association[- ]?end)?\s*field\b",
+        r"\bhas\s+(?:shared|composite)\s+aggregation\b",
+        r"\bpreserved\s+as\s+an?\s+(?:annotation|comment)\b",
+        rf"\b(?:stereotype|name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype|package\.contents|class\.properties|class\.literals|relation\.properties|order|{'|'.join(_BOOLEAN_FLAG_NAMES)})\b",
+    )
+    if any(re.search(pattern, wording) for pattern in global_disqualifiers):
+        return set()
+
+    has_agg_locator = any(
+        (getattr(src, "path", "") or "").casefold().endswith(".aggregationkind") for src in sources
+    )
+    has_agg_context = bool(re.search(r"\b(?:aggregationkind|aggregation(?:\s+(?:kind|metadata|field|value))?)\b", wording)) or has_agg_locator
+    if not has_agg_context:
+        return set()
+
+    agg_subj = r"(?:(?:(?:property|association[- ]?end)\s+)?aggregationkind|aggregation(?:\s+(?:kind|metadata|field|value))?)(?:\s+(?:field|value|metadata))?"
+    bad_adj = r"(?:malformed|invalid(?:\s+type)?|non[- ]?string(?:\s+value)?)"
+    bad_type = r"(?:(?:json\s+)?(?:array|list|object|dict(?:ionary)?)|int(?:eger)?|float|number|bool(?:ean)?|<blank_quoted>|<quoted>|<value>)"
+    patterns = (
+        re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)\b{bad_adj}\s+(?:or\s+{bad_adj}\s+)?{agg_subj}\b"),
+        re.compile(rf"\b{agg_subj}(?:\s+(?:<quoted>|<value>))?\s+(?:is|was)\s+(?:(?:a|an)\s+)?(?:{bad_adj}|{bad_type}|not\s+(?:a|an)\s+(?:(?:valid|supported)\s+)?(?:json\s+)?str(?:ing)?)\b"),
+        re.compile(rf"\b(?:has|had|with)\s+(?:a|an)?\s*{bad_adj}(?:\s+or\s+{bad_adj})?\s+{agg_subj}\b"),
+        re.compile(rf"\b{agg_subj}\b[^.!?;]*\b(?:has|had)\s+(?:a|an)?\s*(?:{bad_adj}|wrong\s+type)\b"),
+        re.compile(rf"\b{agg_subj}\b[^.!?;]*(?:must|should|expected(?:\s+to)?)\s+be\b[^.!?;]*(?:got|found|received)\s+(?!null\b|none\b|str(?:ing)?\b)\S+"),
+        re.compile(rf"\b{agg_subj}\b[^.!?;]*\b(?:cannot|must\s+not)\s+be\s+(?:{bad_type}|non[- ]?string(?:\s+value)?)\b"),
+    )
+    locator_pattern = re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)\b{bad_adj}\b")
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+(?:valid|allowed|accepted|preserved)\b", clause) and not re.search(r"\bnot\s+(?:valid|allowed|accepted|preserved)\b", clause):
+            continue
+        if any(p.search(clause) for p in patterns) or (has_agg_locator and locator_pattern.search(clause)):
+            return {"malformed_aggregation_kind"}
+    return set()
+
+
+def malformed_aggregation_kind_diagnostic(message: str, sources: tuple = ()) -> frozenset[str]:
+    """Return recognized malformed aggregationKind ERROR facts for harness checks."""
+    return frozenset(_malformed_aggregation_kind_facts(message, sources))
+
+
 def _unresolved_relation_endpoint_facts(message: str) -> set[str]:
     """Read affirmative DK-DIAG-03 relation-endpoint failure ERROR wording without fixing a code."""
     wording = message.casefold().replace("`", "").replace("’", "'")
@@ -3708,6 +3792,11 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
                 facts.update(order_facts)
                 if kind is None:
                     kind = "malformed_class_order"
+            agg_facts = _malformed_aggregation_kind_facts(event.message, event.sources)
+            if agg_facts:
+                facts.update(agg_facts)
+                if kind is None:
+                    kind = "malformed_aggregation_kind"
         if kind is None:
             if (event.severity == "ERROR" and
                     (re.search(r"\bpackage\b", event.message, re.I)

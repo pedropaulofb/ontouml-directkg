@@ -12,11 +12,11 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, XSD
 
 from tests.support.data import fixture_issues, mixed_hierarchy_document, source_element, write_input
 from tests.support.dkgm import DKGM, DKGM_CHAINS, DKGM_STEREOTYPES, assert_dkgm_vocabulary
-from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, _observed_diagnostics, diagnostic_signatures, mixed_hierarchy_error,
-                                      nonclassifier_hierarchy_error,
+from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, _observed_diagnostics, diagnostic_signatures,
                                       inapplicable_relation_categorizer_diagnostic,
-                                      rd02_relation_diagnostic, relation_end_comment_meanings,
-                                      relation_properties_container_diagnostic)
+                                      malformed_aggregation_kind_diagnostic, mixed_hierarchy_error,
+                                      nonclassifier_hierarchy_error, rd02_relation_diagnostic,
+                                      relation_end_comment_meanings, relation_properties_container_diagnostic)
 from tests.support.rdf import (assert_contains, assert_graph_equal, assert_selected_equal, cardinality_facts, load_graph,
                                necessary_restrictions, one_subject, property_chains, property_expression, rooted_graph)
 
@@ -5516,3 +5516,261 @@ def test_relation_generalization_set_malformed_boolean_flags_recover_only_malfor
     else:
         assert not singleton_infos
 
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('end_side', ['source_end', 'target_end'])
+@pytest.mark.parametrize('bad_value', [
+    pytest.param([], id='empty_array'),
+    pytest.param(['SHARED'], id='array_wrapping_shared'),
+    pytest.param({}, id='empty_object'),
+])
+def test_malformed_aggregation_metadata_on_ordinary_relation_follows_input_policy(
+        run, invoke, source_json, tmp_path, input_policy, end_side, bad_value):
+    """Rules: DK-PROP-04, DK-REL-01, DK-REL-04, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-03, DK-GEN-04, DK-INV-01, DK-LBL-01, DK-LBL-02, DK-CLS-01, DK-DIAG-15.
+
+    C12 regression: malformed aggregationKind on an ordinary, non-mereological
+    binary relation must produce a structural ERROR rather than
+    INTERNAL_TRANSFORMATION_FAILURE, abort under strict/tolerant, and omit only
+    the malformed aggregation contribution under best-effort without guessing
+    or inferring aggregation semantics.
+    """
+    document = source_json('shared/binary_relation')
+    assert not fixture_issues(document)
+    target_end_id = 'sFocus' if end_side == 'source_end' else 'tFocus'
+    baseline_doc = copy.deepcopy(document)
+    source_element(document, target_end_id)['aggregationKind'] = bad_value
+
+    input_path = write_input(tmp_path, document)
+    result = run(path=input_path, iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'malformed_aggregation_kind' in d.facts
+        and target_end_id in d.identified_sources
+        and d.code and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy='id', input_policy='tolerant')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    _direction(graph, BASE.tFocus, BASE.cA, BASE.cB)
+    _chain_inverse(graph, BASE.sFocus, BASE.tFocus)
+    assert set(graph.objects(BASE.tFocus, RDFS.label)) == {Literal('worksFor')}
+    assert set(graph.objects(BASE.sFocus, RDFS.label)) == {Literal('workers')}
+    assert (None, OWL.imports, URIRef('https://w3id.org/directkg/vocab/dkgm')) in graph
+    assert not list(graph.objects(BASE.tFocus, RDFS.subPropertyOf))
+    assert (BASE.tFocus, RDF.type, OWL.AsymmetricProperty) not in graph
+    assert invoke.read_relation_aggregation_comments(result, input_path) == ()
+    assert not list(relation_end_comment_meanings(graph, BASE.tFocus))
+    assert len([d for d in result.diagnostics if d.kind == 'abstractness']) == 3
+
+
+def test_malformed_aggregation_metadata_default_policy_aborts_with_structural_error(run, source_json, tmp_path):
+    """Rules: DK-PROP-04, DK-DIAG-04, DK-DIAG-05. C12 default-policy abort regression."""
+    document = source_json('shared/binary_relation')
+    assert not fixture_issues(document)
+    source_element(document, 'sFocus')['aggregationKind'] = []
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='name')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'malformed_aggregation_kind' in d.facts
+        and 'sFocus' in d.identified_sources
+        and d.code and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('stereotype', ['material', 'mediation'])
+@pytest.mark.parametrize('iri_strategy,inverse_mode', [('id', 'all'), ('name', 'none')])
+def test_malformed_aggregation_metadata_best_effort_preserves_siblings_opposite_end_and_mediation(
+        run, invoke, source_json, tmp_path, input_policy, stereotype, iri_strategy, inverse_mode):
+    """Rules: DK-PROP-04, DK-PROP-05, DK-REL-01, DK-REL-04, DK-REL-09, DK-REL-10, DK-REL-11, DK-GEN-03, DK-GEN-05, DK-CLS-01, DK-INV-01, DK-INV-04, DK-LBL-01, DK-LBL-02, DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-DIAG-15, DK-DIAG-16, DK-DIAG-18. C12."""
+    document = source_json('shared/binary_relation')
+    for cid in ('cA', 'cB'):
+        source_element(document, cid).pop('isAbstract', None)
+    source_element(document, 'rFocus').update(
+        stereotype=stereotype, isAbstract=True, isDerived=True, description='Relation description.',
+    )
+    source_element(document, 'sFocus').update(
+        isReadOnly=True, isDerived=True, isOrdered=True, cardinality='1', description='Source end description.',
+    )
+    source_element(document, 'tFocus').update(
+        isReadOnly=True, isDerived=True, isOrdered=True, cardinality='2..5', description='Target end description.',
+        aggregationKind='COMPOSITE',
+    )
+    assert not fixture_issues(document)
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, 'sFocus').pop('aggregationKind', None)
+    source_element(document, 'sFocus')['aggregationKind'] = []
+
+    input_path = write_input(tmp_path, document)
+    result = run(path=input_path, iri_strategy=iri_strategy, inverse_properties=inverse_mode, input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'malformed_aggregation_kind' in d.facts
+        and 'sFocus' in d.identified_sources
+        and d.code and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy=iri_strategy, inverse_properties=inverse_mode, input_policy='tolerant')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    c_a = _primary(result, 'cA', iri_strategy)
+    c_b = _primary(result, 'cB', iri_strategy)
+    primary = _primary(result, 'tFocus', iri_strategy)
+    _direction(graph, primary, c_a, c_b)
+    _counts(graph, c_a, primary, {('min', 2), ('max', 5)})
+    reverse = _primary(result, 'sFocus', iri_strategy) if inverse_mode == 'all' else ('inverse', primary)
+    _counts(graph, c_b, reverse, {('exact', 1)})
+    assert ((primary, RDF.type, OWL.AsymmetricProperty) in graph) == (stereotype == 'mediation')
+    assert (primary, RDFS.comment, Literal('Relation description.')) in graph
+    assert (primary, RDFS.comment, Literal('Target end description.')) in graph
+    if inverse_mode == 'all':
+        _chain_inverse(graph, reverse, primary)
+        assert (reverse, RDFS.comment, Literal('Source end description.')) in graph
+    else:
+        assert not list(graph.subjects(DCTERMS.identifier, Literal('sFocus')))
+
+    agg_comments = invoke.read_relation_aggregation_comments(result, input_path)
+    assert {(c.subject, c.context, c.value) for c in agg_comments} == {(primary, 'target_end', 'COMPOSITE')}
+    assert {(c.context, c.field, c.value) for c in relation_end_comment_meanings(graph, primary)} == {
+        ('source_end', 'isReadOnly', True),
+        ('target_end', 'isReadOnly', True),
+        ('target_end', 'aggregationKind', 'COMPOSITE'),
+    }
+
+    assert any(d.kind == 'abstractness' and d.severity == 'INFO' and 'rFocus' in d.identified_sources
+               for d in result.diagnostics)
+    for occ_id in ('rFocus', 'sFocus', 'tFocus'):
+        assert any(d.kind == 'derived_status' and d.severity == 'INFO' and occ_id in d.identified_sources
+                   for d in result.diagnostics)
+    for end_id in ('sFocus', 'tFocus'):
+        assert any(d.kind == 'ordering' and d.severity == 'INFO' and end_id in d.identified_sources
+                   for d in result.diagnostics)
+    if stereotype == 'mediation':
+        assert any(
+            d.kind == 'unmapped_relation_stereotype'
+            and d.severity == 'WARNING'
+            and 'rFocus' in d.identified_sources
+            and 'residual_relation_semantics' in d.facts
+            for d in result.diagnostics
+        ), result.diagnostics
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('end_side', ['source_end', 'target_end'])
+def test_datatype_valued_relation_malformed_aggregation_metadata_follows_policy(
+        run, invoke, source_json, tmp_path, input_policy, end_side):
+    """Rules: DK-PROP-04, DK-REL-01, DK-REL-04, DK-REL-10, DK-REL-11, DK-GEN-03, DK-DIAG-04, DK-DIAG-05. C12."""
+    document = source_json('shared/binary_relation')
+    document['model']['contents'].append(_datatype_class(document, 'dInt', 'int'))
+    source_element(document, 'sFocus').update(name=None, cardinality=None)
+    source_element(document, 'tFocus').update(propertyType={'id': 'dInt', 'type': 'Class'}, cardinality='1')
+    assert not fixture_issues(document)
+
+    bad_end_id = 'sFocus' if end_side == 'source_end' else 'tFocus'
+    good_end_id = 'tFocus' if end_side == 'source_end' else 'sFocus'
+    good_ctx = 'target_end' if end_side == 'source_end' else 'source_end'
+    source_element(document, good_end_id)['aggregationKind'] = 'SHARED'
+
+    baseline_doc = copy.deepcopy(document)
+    source_element(baseline_doc, bad_end_id).pop('aggregationKind', None)
+    source_element(document, bad_end_id)['aggregationKind'] = [] if end_side == 'source_end' else ['COMPOSITE']
+
+    input_path = write_input(tmp_path, document)
+    result = run(path=input_path, iri_strategy='id', input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR'
+        and 'malformed_aggregation_kind' in d.facts
+        and bad_end_id in d.identified_sources
+        and d.code and d.code not in STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    baseline = run(path=write_input(tmp_path, baseline_doc, 'baseline.json'),
+                   iri_strategy='id', input_policy='tolerant')
+    assert baseline.outcome == 'completed'
+    assert_graph_equal(result.ontology, baseline.ontology)
+
+    graph = result.ontology
+    assert (BASE.tFocus, RDF.type, OWL.DatatypeProperty) in graph
+    assert set(graph.objects(BASE.tFocus, RDFS.domain)) == {BASE.cA}
+    assert set(graph.objects(BASE.tFocus, RDFS.range)) == {XSD.int}
+    _counts(graph, BASE.cA, BASE.tFocus, {('exact', 1)})
+    assert not any(BASE.sFocus in triple for triple in graph)
+    agg_comments = invoke.read_relation_aggregation_comments(result, input_path)
+    assert {(c.subject, c.context, c.value) for c in agg_comments} == {(BASE.tFocus, good_ctx, 'SHARED')}
+
+
+def test_malformed_aggregation_kind_reader_requires_affirmative_conditions():
+    """Rules: DK-PROP-04, DK-DIAG-04, DK-DIAG-05. Harness: provisional-code independence."""
+    from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
+
+    agg_loc = SourceLocation('$.model.contents[2].properties[0].aggregationKind', 'sFocus', 'Property')
+    prop_loc = SourceLocation('$.model.contents[2].properties[0]', 'sFocus', 'Property')
+
+    for message, sources, expected_code in (
+        ("Property 'sFocus' aggregationKind must be a string or null, got list.", (agg_loc,), 'PROVISIONAL_AGG_TYPE'),
+        ("Property 'sFocus' aggregationKind must be 'NONE', 'SHARED', 'COMPOSITE', or null, got list.", (agg_loc,), 'MALFORMED_AGGREGATION_KIND'),
+        ("Malformed aggregationKind on association end 'sFocus': ['SHARED'] is not a string.", (prop_loc,), 'INVALID_AGGREGATION'),
+        ("Association end 'sFocus' has invalid aggregationKind value [].", (prop_loc,), 'INVALID_AGGREGATION_VALUE'),
+        ("Property 'sFocus' aggregationKind is a JSON array, not a supported string.", (prop_loc,), 'PROVISIONAL_AGG_ARRAY'),
+        ("Invalid aggregation metadata on 'sFocus'.", (prop_loc,), 'MALFORMED_METADATA'),
+        ('Invalid value (got list).', (agg_loc,), 'PROVISIONAL_LOCATOR_ONLY'),
+    ):
+        assert malformed_aggregation_kind_diagnostic(message, sources) == {'malformed_aggregation_kind'}, message
+        observed, = _observed_diagnostics((Diagnostic('ERROR', expected_code, message, 'Omitted.', sources),))
+        assert observed.kind == 'malformed_aggregation_kind'
+        assert 'malformed_aggregation_kind' in observed.facts
+        assert 'sFocus' in observed.identified_sources
+
+    for message, sources in (
+        ("Unexpected internal failure in stage 'emit_relations': TypeError: unhashable type: 'list' on aggregationKind.", (agg_loc,)),
+        ("Property 'sFocus' aggregationKind is not malformed.", (agg_loc,)),
+        ("Property 'sFocus' aggregationKind is valid.", (agg_loc,)),
+        ("Property 'sFocus' aggregationKind is 'NONE'.", (prop_loc,)),
+        ("Property 'sFocus' aggregationKind is null.", (prop_loc,)),
+        ("Property 'sFocus' aggregationKind may be malformed or valid.", (prop_loc,)),
+        ("If aggregationKind is malformed, emit an error.", (prop_loc,)),
+        ("Property 'sFocus' aggregationKind must be a string or null, got str.", (agg_loc,)),
+        ("Property 'sFocus' aggregationKind must be 'NONE', 'SHARED', 'COMPOSITE', or null.", (agg_loc,)),
+        ("Unrecognized input fields on Property: aggregationKind.", (prop_loc,)),
+        ("OntoUML source metadata: the source association end has shared aggregation.", (prop_loc,)),
+        ("Property 'sFocus' isReadOnly must be a boolean or null, got list.", (prop_loc,)),
+    ):
+        assert not malformed_aggregation_kind_diagnostic(message, sources), message
+        observed, = _observed_diagnostics(
+            (Diagnostic('ERROR', 'UNCLASSIFIED_TEST', message, 'Omitted.', sources),),
+            retain_unclassified=True,
+        )
+        assert 'malformed_aggregation_kind' not in observed.facts
