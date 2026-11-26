@@ -104,7 +104,7 @@ Use appropriate **established external vocabulary terms**, without DirectKG-spec
 
 ## Artifacts and digests
 
-Sidecars use Turtle beside a **concrete ontology output path**, named `<output-stem>.provenance.ttl`: for example, `hospital.ttl` → `hospital.provenance.ttl`. Do not invent a name for stdout or an in-memory graph; CLI `stdout` ontology streaming remains outside the first-release scope (`§15`, `DK-GEN-10`). `<output-stem>.provenance.ttl` is a protected output-artifact path **only when `--provenance sidecar` is active**; under `embedded` or `none`, no sidecar artifact is produced or protected, and targeting that path with `--diagnostics-file` is not rejected as an artifact alias. Python must also expose separate provenance as a graph with explicit serialization, without a prescribed graph class or method.
+Sidecars use Turtle beside a **concrete ontology output path**, named `<output-stem>.provenance.ttl`: for example, `hospital.ttl` → `hospital.provenance.ttl`. Do not invent a name for stdout or an in-memory graph; CLI `stdout` ontology streaming remains outside the first-release scope (`§15`, `DK-GEN-10`). `<output-stem>.provenance.ttl` is a protected output-artifact path **only when `--provenance sidecar` is active**. Under `embedded` or `none`, no sidecar artifact is produced or protected; that pathname alone does not exclude its use for diagnostics, subject to the ordinary alias protection of the main ontology destination. See [Replacement-aware CLI aliasing](../reference/diagnostics.md#replacement-aware-cli-aliasing) for invocation and export treatment. Python must also expose separate provenance as a graph with explicit serialization, without a prescribed graph class or method.
 
 Concrete output-file information—filename, serialization format, and content digest—belongs **only in sidecar mode**. Embedded provenance describes the ontology and transformation without representing its containing serialization as an external artifact describing itself. The embedded configuration record also excludes that concrete output-file information.
 
@@ -163,7 +163,7 @@ Required-construction abortion uses CLI `3`, overridden by diagnostics-file fail
 
 ---
 
-Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-25**; repository commit: `ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc/documentation/specification/transformation-specification.md).
+Governing rules: DK-GEN-04, 08–11, including I1's recovery within list-valued metadata; DK-REL-01; DK-LBL-02; DK-DIAG-04–05; §15; baseline consolidated: **2026-11-26**; repository commit: `3156ff81731a7ee5b4720245380bc2ccb72dcaf1`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/3156ff81731a7ee5b4720245380bc2ccb72dcaf1/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-04 Decision 2 — Runtime, configuration, and artifact-delivery failure contract (Q1-A, Q1 Adjustment residual exit code `7`, Q2-A, Q3-A, Q4-A)** (project-owner formalization included in the cited consolidation).
 
