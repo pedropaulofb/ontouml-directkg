@@ -655,6 +655,42 @@ def test_value_prefix_uses_already_resolved_enum_class_name(run, source_json, tm
     _assert_values(result.ontology, enum, values, complete=True)
 
 
+def test_c3_enum_value_prefix_uses_final_secondary_classifier_name(run, source_json, tmp_path):
+    """Rules: DK-IRI-07, DK-IRI-08, DK-IRI-09, DK-CLS-10, DK-CLS-11. C3 Alternative A, F1."""
+    document = source_json("classes/enumerations")
+    source_element(document, "eStatus")["name"] = "Status 1"
+    owner = source_element(document, "cOwner")
+    owner["name"] = "Status"
+    peer = copy.deepcopy(owner)
+    peer.update(id="cPeer", properties=None)
+    document["model"]["contents"].append(peer)
+    assert not fixture_issues(document)
+    result = run(path=write_input(tmp_path, document), iri_strategy="name", input_policy="strict")
+    assert result.outcome == "completed" and not any(event.severity == "ERROR" for event in result.diagnostics)
+    graph = result.ontology
+    ids = ("eStatus", "cOwner", "cPeer", "vPending", "vApproved", "vClosed", "pStatus", "pLegacy")
+    resources = {identifier: one_subject(graph, DCTERMS.identifier, Literal(identifier)) for identifier in ids}
+    assert len(set(resources.values())) == len(ids)
+    enum = resources["eStatus"]
+    # The initially unique Status_1 necessarily participates in round two,
+    # whichever Status classifier received _1 during round one.
+    assert enum in {BASE.Status_1_1, BASE.Status_1_2}
+    assert {resources[i] for i in ("eStatus", "cOwner", "cPeer")} == {BASE.Status_1_1, BASE.Status_1_2, BASE.Status_2}
+    assert set(graph.subjects(RDF.type, OWL.Class)) == {resources[i] for i in ("eStatus", "cOwner", "cPeer")}
+    stem = str(enum).removeprefix(str(BASE))
+    values = set()
+    for literal in source_element(document, "eStatus")["literals"]:
+        value = resources[literal["id"]]
+        assert value == BASE[stem + "_" + literal["name"]]
+        assert (value, RDFS.label, Literal(literal["name"])) in graph
+        assert not any(graph.triples((BASE["Status_1_" + literal["name"]], None, None)))
+        values.add(value)
+    _assert_values(graph, enum, values, complete=True)
+    assert (resources["pStatus"], RDFS.domain, resources["cOwner"]) in graph
+    assert (resources["pStatus"], RDFS.range, enum) in graph
+    assert (resources["pLegacy"], RDFS.domain, enum) in graph
+
+
 @pytest.mark.parametrize("fallback", [False, True], ids=["named_literal", "generic_literal_fallback"])
 def test_literal_collisions_with_other_source_resources_preserve_both(run, source_json, tmp_path, fallback):
     """Rules: DK-IRI-08, DK-IRI-04, DK-IRI-07, DK-CLS-10, DK-CLS-11."""

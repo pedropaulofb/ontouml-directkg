@@ -131,6 +131,51 @@ def test_c3_secondary_collisions_follow_qualified_property_names_and_preserve_in
     assert inverse_names[0] == inverse_names[1]
 
 
+def test_c3_inverse_fallback_uses_final_secondary_primary_name(run, source_json, tmp_path):
+    """Rules: DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-06, DK-INV-07. C3 Alternative A, F2."""
+    document = source_json("shared/property_collisions")
+    source_class = copy.deepcopy(source_element(document, "cPerson"))
+    source_class.update(id="cRelationSource", name="Person 1", properties=None)
+    document["model"]["contents"].append(source_class)
+    source_end = source_element(document, "eSource")
+    source_end.update(propertyType={"id": "cRelationSource", "type": "Class"}, name="code Person 1")
+    assert not fixture_issues(document)
+    source = write_input(tmp_path, document)
+    mappings = []
+    for mode in ("none", "all"):
+        result = run(path=source, iri_strategy="name", input_policy="strict", inverse_properties=mode)
+        assert result.outcome == "completed" and not any(event.severity == "ERROR" for event in result.diagnostics)
+        graph = result.ontology
+        ids = ("a1", "a2", "a3", "eTarget", "cPerson", "cOrg", "cAddress", "cRelationSource")
+        resources = {identifier: one_subject(graph, DCTERMS.identifier, Literal(identifier)) for identifier in ids}
+        assert len(set(resources.values())) == len(ids)
+        primary = resources["eTarget"]
+        # All four raw property candidates are 'code', so qualification is
+        # required. The initially unique qualified primary code_Person_1
+        # must join a later group regardless of which attribute gets _1.
+        assert primary in {BASE.code_Person_1_1, BASE.code_Person_1_2}
+        assert {resources[i] for i in ("a1", "a2", "eTarget")} == {BASE.code_Person_1_1, BASE.code_Person_1_2, BASE.code_Person_2}
+        assert resources["a3"] == BASE.code_Organization
+        assert resources["cRelationSource"] == BASE.Person_1
+        assert (primary, RDF.type, OWL.ObjectProperty) in graph
+        assert set(graph.objects(primary, RDFS.domain)) == {BASE.Person_1}
+        assert set(graph.objects(primary, RDFS.range)) == {BASE.Organization}
+        if mode == "all":
+            inverse = one_subject(graph, DCTERMS.identifier, Literal("eSource"))
+            primary_local = str(primary).removeprefix(str(BASE))
+            assert inverse == BASE["inverseOf" + primary_local[0].upper() + primary_local[1:]]
+            assert inverse not in {BASE.code_Person_1, BASE.inverseOfCode_Person_1}
+            assert (inverse, RDF.type, OWL.ObjectProperty) in graph
+            assert (inverse, OWL.inverseOf, primary) in graph
+            assert (inverse, RDFS.label, Literal("code Person 1")) in graph
+            assert set(graph.objects(inverse, RDFS.domain)) == {BASE.Organization}
+            assert set(graph.objects(inverse, RDFS.range)) == {BASE.Person_1}
+        else:
+            assert not list(graph.subjects(DCTERMS.identifier, Literal("eSource")))
+        mappings.append(resources)
+    assert mappings[0] == mappings[1]
+
+
 # RD-14 and source flags use ID mode to separate property-expression assertions
 # from the naming/inverse naming matrices owned by the other approved waves.
 import copy
