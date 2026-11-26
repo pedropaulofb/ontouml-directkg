@@ -45,8 +45,9 @@ def collect_enumerations(classes: tuple[SourceElement, ...], diagnostics: Diagno
         for number, value in enumerate(raw):
             path = f"{element.path}.literals[{number}]"
             identifier = value.get("id") if isinstance(value, dict) else None
+            element_type = value.get("type") if isinstance(value, dict) else None
             location = SourceLocation(path, identifier if isinstance(identifier, str) else None,
-                                      value.get("type") if isinstance(value, dict) else None)
+                                      element_type if isinstance(element_type, str) else None)
             valid = isinstance(value, dict) and value.get("type") == "Literal" and isinstance(identifier, str) and bool(identifier)
             if valid:
                 try:
