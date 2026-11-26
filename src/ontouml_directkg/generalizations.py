@@ -77,6 +77,7 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
     """Keep source edges separate from coverage edges and powertype traversal."""
     source_index = index if source_index is None else source_index
     edges: dict[str, tuple[SourceElement, SourceElement]] = {}
+    available_specifics: dict[str, SourceElement] = {}
     children: dict[str, set[str]] = defaultdict(set)
     for element in index.elements:
         if element.data["type"] != "Generalization":
@@ -86,26 +87,37 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
         identifier = element.data.get("id")
         if not isinstance(identifier, str) or not identifier:
             raise NotImplementedError("Invalid generalization-ID recovery requires the deferred Architect decision")
-        try:
-            specific = index.resolve(element.data.get("specific"))
-            general = index.resolve(element.data.get("general"))
-        except KeyError as exc:
-            input_error(diagnostics, policy, "FAILED_CLASS_GENERALIZATION",
-                        f"Generalization {identifier!r} has an invalid or unresolved classifier reference: {exc}.",
-                        (element.location,), "Affected generalization omitted; independently transformable classes and edges retained.")
-            continue
-        if specific.data["type"] != "Class" or general.data["type"] != "Class":
+        endpoints = []
+        failures = []
+        for field in ("specific", "general"):
+            try:
+                endpoint = index.resolve(element.data.get(field))
+            except KeyError as exc:
+                endpoint = None
+                failures.append(f"{field}: {exc}")
+            endpoints.append(endpoint)
+        specific, general = endpoints
+        if specific is not None and specific.data["type"] == "Class" and specific.data["id"] in resources:
+            available_specifics[identifier] = specific
+        if any(endpoint is not None and endpoint.data["type"] != "Class" for endpoint in endpoints):
             input_error(diagnostics, policy, "INVALID_GENERALIZATION_ENDPOINT",
                         f"Generalization {identifier!r} has a non-classifier endpoint.",
-                        (element.location, specific.location, general.location),
+                        (element.location,) + tuple(endpoint.location for endpoint in endpoints if endpoint is not None),
                         "Affected hierarchy edge omitted; independent mappings retained.")
+            if not failures:
+                continue
+        if failures:
+            input_error(diagnostics, policy, "FAILED_CLASS_GENERALIZATION",
+                        f"Generalization {identifier!r} has an invalid or unresolved classifier reference: {'; '.join(failures)}.",
+                        (element.location,) + tuple(endpoint.location for endpoint in endpoints if endpoint is not None),
+                        "Affected generalization omitted; independently transformable classes, edges and specific-set disjointness retained.")
             continue
         sid, gid = specific.data["id"], general.data["id"]
         if sid not in resources or gid not in resources:
             input_error(diagnostics, policy, "FAILED_CLASS_GENERALIZATION",
                         f"Generalization {identifier!r} has no generated local OWL class for an endpoint.",
                         (element.location, specific.location, general.location),
-                        "Affected generalization omitted; independently transformable classes and edges retained.")
+                        "Affected generalization omitted; independently transformable classes, edges and specific-set disjointness retained.")
             continue
         edges[identifier] = (specific, general)
         children[gid].add(sid)
@@ -113,7 +125,7 @@ def emit_generalizations(graph: Graph, index: SourceIndex, resources: dict[str, 
 
     for element in index.elements:
         if element.data["type"] == "GeneralizationSet" and not _relation_set(index, element, source_index):
-            _emit_set(graph, index, element, resources, edges, children, diagnostics, policy)
+            _emit_set(graph, index, element, resources, edges, available_specifics, children, diagnostics, policy)
 
 
 def _resolve_categorizer(index: SourceIndex, element: SourceElement, resources: dict[str, URIRef],
@@ -157,8 +169,8 @@ def _resolve_categorizer(index: SourceIndex, element: SourceElement, resources: 
 
 
 def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resources: dict[str, URIRef],
-              edges: dict[str, tuple[SourceElement, SourceElement]], children: dict[str, set[str]],
-              diagnostics: DiagnosticCollector, policy: str) -> None:
+              edges: dict[str, tuple[SourceElement, SourceElement]], available_specifics: dict[str, SourceElement],
+              children: dict[str, set[str]], diagnostics: DiagnosticCollector, policy: str) -> None:
     data = element.data
     members = data.get("generalizations")
     if not isinstance(members, list):
@@ -180,6 +192,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
     validate_boolean_flags(element, ("isComplete", "isDisjoint"), diagnostics, policy)
     seen = set()
     resolved = []
+    disjoint_specifics: dict[str, SourceElement] = {}
     complete = True
     for reference in members:
         try:
@@ -198,6 +211,9 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
             # once within this set (DK-GEN-12).
             continue
         seen.add(identifier)
+        if identifier in available_specifics:
+            specific = available_specifics[identifier]
+            disjoint_specifics[specific.data["id"]] = specific
         if identifier not in edges:
             # The underlying transformation already produced its ERROR. Do not
             # manufacture another failure just to count surviving members.
@@ -208,7 +224,7 @@ def _emit_set(graph: Graph, index: SourceIndex, element: SourceElement, resource
     general_ids = {general.data["id"] for _, general in resolved}
     classifier = _resolve_categorizer(index, element, resources, diagnostics, policy)
     if data.get("isDisjoint") is True:
-        for left, right in combinations(sorted(specifics), 2):
+        for left, right in combinations(sorted(disjoint_specifics), 2):
             graph.add((resources[left], OWL.disjointWith, resources[right]))
     if complete and data.get("isComplete") is True and len(general_ids) == 1:
         general = resolved[0][1]
