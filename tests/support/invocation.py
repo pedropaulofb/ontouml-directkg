@@ -226,7 +226,7 @@ class Fault:
 
     kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics, transformation.
     operation: read, construct, serialize, encode, create, write, enrich, emit_relations,
-    allocate_resources, allocate_inverses, allocate_name_fallbacks. Bind to an
+    result_construction, allocate_resources, allocate_inverses, allocate_name_fallbacks. Bind to an
     observed implementation operation or standard I/O, including child-process
     I/O for CLI cases. Do not implement a replacement transformation, pre-return
     expected outcomes, or add production fault hooks to satisfy this protocol.
@@ -825,8 +825,42 @@ def _fail_relation_emission(trace):
     return patch.object(conversion, "emit_relations", fail)
 
 
+def _fail_result_construction(trace):
+    """Raise once when constructing a non-aborted result, allowing aborted-result construction."""
+    import inspect
+    from unittest.mock import patch
+    from ontouml_directkg import conversion
+
+    real_result = conversion.ConversionResult
+    real_init = real_result.__init__
+    signature = inspect.signature(real_init)
+    state = {"triggered": False}
+
+    def fail_on_success(self, *args, **kwargs):
+        bound = signature.bind(self, *args, **kwargs)
+        bound.apply_defaults()
+        arguments = bound.arguments
+        ontology = arguments["ontology"]
+        outcome = arguments["outcome"]
+        if not state["triggered"] and ontology is not None and outcome != "aborted":
+            state["triggered"] = True
+            error = RuntimeError("RD04-RESULT-CONSTRUCTION-509")
+            trace["transformation_failure"] = {
+                "stage": "result_construction",
+                "graph_size": len(ontology),
+                "attempted_outcome": outcome,
+                "earlier_events": _native_diagnostic_fields(arguments["diagnostics"]),
+                "cause": str(error),
+            }
+            raise error
+        return real_init(self, *args, **kwargs)
+
+    return patch.object(real_result, "__init__", fail_on_success)
+
+
 def _transformation_fault(faults):
-    for operation in ("emit_relations", "allocate_resources", "allocate_inverses", "allocate_name_fallbacks"):
+    for operation in ("emit_relations", "result_construction",
+                      "allocate_resources", "allocate_inverses", "allocate_name_fallbacks"):
         if faults == (Fault("transformation", operation),):
             return operation
     return None
@@ -939,6 +973,8 @@ provenance_fault = os.environ.get("DIRECTKG_TEST_PROVENANCE_FAULT") == "construc
 cli_faults = json.loads(os.environ.get("DIRECTKG_TEST_CLI_FAULTS", "[]"))
 if transformation_fault == "emit_relations":
     _fail_relation_emission(trace).start()
+elif transformation_fault == "result_construction":
+    _fail_result_construction(trace).start()
 elif transformation_fault:
     _force_escaped_id_collision(transformation_fault, trace).start()
 if provenance_fault:
@@ -1179,7 +1215,8 @@ def _run_observed_cli(command, workdir, *, ontology_fault=None, transformation_f
     with TemporaryDirectory(prefix="directkg-cli-observer-", dir=workdir) as directory:
         directory = Path(directory)
         observers = tuple(map(inspect.getsource, (_MetadataCapture, _OntologySerializationProbe,
-                                                   _native_diagnostic_fields, _fail_relation_emission, _force_escaped_id_collision,
+                                                   _native_diagnostic_fields, _fail_relation_emission,
+                                                   _fail_result_construction, _force_escaped_id_collision,
                                                    _fail_required_provenance)))
         (directory / "sitecustomize.py").write_text("\n".join((*observers, _CLI_OBSERVER)), encoding="utf-8")
         trace_path = directory / "execution.json"
@@ -1665,18 +1702,38 @@ def reports_older_ontology_retained(record, destination):
     return bool(claims) and all(not _excluded_diagnostic_claim(clause, match) for clause, match in claims)
 
 
-def transformation_failure_diagnostic(severity, message, effect, cause):
-    """Read an affirmative failure at relation emission and its observed cause."""
+def transformation_failure_diagnostic(severity, message, effect, cause, *, stage="emit_relations"):
+    """Read an affirmative failure at the observed stage and its observed cause."""
     if severity != "ERROR":
         return False
     operation = r"(?:mapping|emission|generation|transformation|creation|construction)"
     action = r"(?:mapping|emitting|generating|transforming|creating|constructing)"
-    relations = r"(?:relations?|relationships?)(?: (?:propert(?:y|ies)|axioms?))?"
-    stage = re.compile(rf"\b(?:emit_relations|{relations} {operation}|{operation} of (?:the )?{relations}"
-                       rf"|{action} (?:the )?{relations})\b")
-    other = r"(?:classes|provenance)"
-    different_stage = re.compile(rf"\b(?:emit_classes|construct_provenance|(?:class(?:es)?|provenance) {operation}|"
-                                 rf"(?:{operation} of|{action}) (?:the )?{other})\b")
+    if stage == "emit_relations":
+        relations = r"(?:relations?|relationships?)(?: (?:propert(?:y|ies)|axioms?))?"
+        stage_pattern = re.compile(rf"\b(?:emit_relations|{relations} {operation}|{operation} of (?:the )?{relations}"
+                                   rf"|{action} (?:the )?{relations})\b")
+        other = r"(?:classes|provenance)"
+        different_stage = re.compile(rf"\b(?:emit_classes|construct_provenance|(?:class(?:es)?|provenance) {operation}|"
+                                     rf"(?:{operation} of|{action}) (?:the )?{other})\b")
+    elif stage == "result_construction":
+        result_noun = r"(?:conversion[- ])?result"
+        stage_pattern = re.compile(
+            rf"\b(?:result_construction|construct_result|build_result|conversionresult(?: construction)?|"
+            rf"{result_noun} (?:construction|creation|building|assembly)|"
+            rf"(?:construction|creation|building|assembly) of (?:the )?{result_noun}|"
+            rf"(?:constructing|creating|building|assembling|construct|create|build|assemble) "
+            rf"(?:the )?(?:{result_noun}|conversionresult))\b"
+        )
+        other = r"(?:classes|relations?|relationships?|metadata|provenance)"
+        different_stage = re.compile(
+            rf"\b(?:emit_classes|emit_relations|emit_metadata|read_metadata|construct_provenance|"
+            rf"transformation[_ ]provenance|"
+            rf"(?:class(?:es)?|relations?|relationships?|metadata|provenance) (?:{operation}|reading)|"
+            rf"(?:{operation}|reading) of (?:the )?{other}|"
+            rf"(?:{action}|reading) (?:the )?{other})\b"
+        )
+    else:
+        raise ValueError(f"Unsupported transformation failure stage: {stage!r}")
     failure = re.compile(r"\b(?:(?:unexpected|internal|transformation) )*"
                          r"(?P<kind>failure|failed|error|exception|crashed)\b")
     cause_text = re.compile(rf"(?<![\w-]){re.escape(cause.casefold())}(?![\w-])")
@@ -1700,6 +1757,10 @@ def transformation_failure_diagnostic(severity, message, effect, cause):
     def describes_failure(location, claim, statement):
         if location.start() >= claim.end():
             between = statement[claim.end():location.start()]
+            if claim.group("kind") == "failed" and between == " to " and re.match(
+                r"(?:construct|create|build|assemble)\b", location.group(0)
+            ):
+                return True
             occurrence = r"(?:occurred|arose|happened|was(?: raised)?)"
             interruption = (r"(?:stopped|halted|interrupted|aborted|ended) (?:the )?"
                             r"(?:transformation|conversion|processing)")
@@ -1730,7 +1791,7 @@ def transformation_failure_diagnostic(severity, message, effect, cause):
             continue
         # The next fields may explicitly describe the same failure's stage or reason.
         stage_reported = any(describes_failure(location, claim, statement)
-                             for location in stage_mentions(stage, statement) for claim in claims)
+                             for location in stage_mentions(stage_pattern, statement) for claim in claims)
         detail = cause_text.search(statement)
         cause_reported = bool(detail and not _excluded_diagnostic_claim(statement, detail))
         for following in statements[index + 1:]:
@@ -1738,7 +1799,7 @@ def transformation_failure_diagnostic(severity, message, effect, cause):
                 if any(stage_mentions(different_stage, following)):
                     stage_reported = False
                     break
-                stage_reported |= any(stage_mentions(stage, following))
+                stage_reported |= any(stage_mentions(stage_pattern, following))
             elif re.match(r"^(?:the )?(?:cause|reason)(?: was| is|:)", following):
                 detail = cause_text.search(following)
                 if any(stage_mentions(different_stage, following)) or (
@@ -3667,6 +3728,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         # no input option is used to infer that a report was or was not written.
         with _observe_metadata_output() as metadata, _observe_python_input() as trace:
             injection = (_fail_relation_emission(trace) if transformation_fault == "emit_relations" else
+                         _fail_result_construction(trace) if transformation_fault == "result_construction" else
                          _force_escaped_id_collision(transformation_fault, trace) if transformation_fault else
                          _fail_required_provenance(trace) if provenance_fault else nullcontext())
             try:

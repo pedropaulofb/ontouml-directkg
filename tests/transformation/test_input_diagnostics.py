@@ -810,6 +810,100 @@ def test_transformation_failure_reader_uses_observed_relation_stage():
         assert transformation_failure_diagnostic("ERROR", message, effect, cause) is expected, (message, effect)
 
 
+def test_transformation_failure_reader_uses_observed_result_construction_stage():
+    """Harness control for the result-construction fault under DK-DIAG-05."""
+    cause = "RD04-RESULT-CONSTRUCTION-509"
+    for message, effect, expected in (
+        (f"Unexpected internal failure in stage 'result construction': {cause}.",
+         "Conversion aborted; no ontology or provenance sidecar is delivered.", True),
+        (f"Unexpected internal failure in stage 'result_construction': {cause}.", "", True),
+        (f"Unexpected internal failure in stage 'ConversionResult': {cause}.", "", True),
+        (f"An unexpected internal error stopped the transformation while constructing the conversion result: {cause}.",
+         "", True),
+        (f"Failed to construct the conversion result: {cause}.", "", True),
+        (f"Conversion result construction failed: {cause}.", "", True),
+        (f"Internal transformation failed: {cause}.", "Stage: result construction.", True),
+        ("Failure during result construction.", f"The cause was {cause}.", True),
+        (f"Provenance construction succeeded, then an unexpected error occurred during result construction: {cause}.",
+         "", True),
+        (f"After transformation provenance, an unexpected error occurred during result construction: {cause}.",
+         "", True),
+        (f"Unexpected internal failure in stage 'transformation provenance': {cause}.", "", False),
+        (f"Unexpected internal failure in stage 'emit_metadata': {cause}.", "", False),
+        (f"Unexpected internal failure in stage 'emit_relations': {cause}.",
+         "Stage: result construction.", False),
+        (f"Result construction completed, then an unexpected error occurred during provenance construction: {cause}.",
+         "", False),
+        (f"No internal transformation failure occurred during result construction: {cause}.", "", False),
+        (f"Result construction failed, but it was not caused by {cause}.", "", False),
+        ("Result construction failed.", "", False),
+    ):
+        assert transformation_failure_diagnostic(
+            "ERROR", message, effect, cause, stage="result_construction"
+        ) is expected, (message, effect)
+
+
+def _assert_python_result_construction_abort(invoke, source, workdir, input_policy, expected_attempted_outcome,
+                                             *, expect_prior_error=False):
+    result = invoke.convert(source, options={"input_policy": input_policy, "provenance": "sidecar"},
+                            workdir=workdir, faults=(Fault("transformation", "result_construction"),))
+    trace = result.execution_trace
+    failure = trace["transformation_failure"]
+    assert result.conversion_started and failure["graph_size"] > 0
+    assert failure["attempted_outcome"] == expected_attempted_outcome
+    earlier = diagnostic_record_counts(failure["earlier_events"])
+    assert any(severity == "WARNING" and code == "PLACEHOLDER_BASE" and "placeholder" in message.casefold()
+               for severity, code, message, _, _, _ in earlier)
+    if expect_prior_error:
+        assert any(severity == "ERROR" and code != "INTERNAL_TRANSFORMATION_FAILURE"
+                   for severity, code, _, _, _, _ in earlier)
+
+    outcome, actual = _native_report_records(invoke.report_content(result))
+    assert outcome == invoke.read_outcome(result) == "aborted"
+    assert earlier <= actual
+    assert any(code == "INTERNAL_TRANSFORMATION_FAILURE"
+               and transformation_failure_diagnostic(
+                   severity, message, effect, failure["cause"], stage="result_construction")
+               for severity, code, message, effect, _, _ in actual - earlier)
+    before_diagnostics = diagnostic_signatures(invoke.read_diagnostics(result))
+    assert before_diagnostics == diagnostic_signatures(result.diagnostics)
+    assert invoke.read_ontology(result) is None and invoke.read_provenance(result) is None
+    assert result.diagnostics_exports == () and not list(workdir.iterdir())
+
+    invoke.deliver(result, output_path=workdir / "out.ttl")
+    assert not list(workdir.iterdir())
+    report = workdir / "report.json"
+    assert invoke.export_diagnostics(result, report).failure is None
+    assert _json_report_contract(json.loads(report.read_bytes())) == (outcome, actual)
+    assert _native_report_records(invoke.report_content(result)) == (outcome, actual)
+    assert diagnostic_signatures(invoke.read_diagnostics(result)) == before_diagnostics
+    assert invoke.read_outcome(result) == "aborted"
+    assert invoke.read_ontology(result) is None and invoke.read_provenance(result) is None
+    assert set(workdir.iterdir()) == {report}
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_python_result_construction_failure_aborts_with_diagnostics(invoke, source_path, tmp_path, input_policy):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 Python outcome, graph absence and reports."""
+    _assert_python_result_construction_abort(
+        invoke, source_path("shared/binary_relation"), tmp_path, input_policy, "completed"
+    )
+
+
+def test_python_result_construction_failure_overrides_completed_with_errors(invoke, source_json, tmp_path):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 abort precedence over completed-with-errors."""
+    document = source_json("shared/binary_relation")
+    _break_end(document, "null_source_type")
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    source = write_input(input_dir, document)
+    _assert_python_result_construction_abort(
+        invoke, source, output_dir, "best-effort", "completed-with-errors", expect_prior_error=True
+    )
+
+
 def _json_contract_source(source_json, tmp_path, scenario):
     """Explicit mutations of complete supported inputs; no new source layout."""
     document = source_json("shared/instantiation" if scenario == "instantiation" else "shared/base_iri")

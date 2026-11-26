@@ -1910,6 +1910,96 @@ def test_cli_unexpected_transformation_failure_aborts_with_diagnostics(invoke, t
         assert set(tmp_path.iterdir()) == existing | {report}
 
 
+def _assert_cli_result_construction_abort(invoke, source, tmp_path, input_policy, reporting,
+                                          expected_attempted_outcome, *, expect_prior_error=False):
+    destination = tmp_path / "out.ttl"
+    report = None if reporting == "report-omitted" else tmp_path / "report.json"
+    if reporting == "report-failure":
+        blocker = tmp_path / "regular-file"
+        blocker.write_bytes(b"Not a directory")
+        report = blocker / report.name
+    existing = set(tmp_path.iterdir())
+
+    process = invoke.cli(source, options={"input_policy": input_policy, "provenance": "sidecar"},
+                         workdir=tmp_path, output_path=destination, diagnostics_path=report,
+                         faults=(Fault("transformation", "result_construction"),))
+    _assert_process(process)
+    trace = process.execution_trace
+    failure = trace["transformation_failure"]
+    assert failure["graph_size"] > 0
+    assert failure["attempted_outcome"] == expected_attempted_outcome
+    earlier = diagnostic_record_counts(failure["earlier_events"])
+    assert any(severity == "WARNING" and code == "PLACEHOLDER_BASE" and "placeholder" in message.casefold()
+               for severity, code, message, _, _, _ in earlier)
+    if expect_prior_error:
+        assert any(severity == "ERROR" and code != "INTERNAL_TRANSFORMATION_FAILURE"
+                   for severity, code, _, _, _, _ in earlier)
+    assert not destination.exists() and not (tmp_path / "out.provenance.ttl").exists()
+    assert process.returncode == (4 if reporting == "report-failure" else 3), process.stderr
+
+    converted, after = invoke.cli_report_content(process)
+    assert converted.outcome == after.outcome == "aborted"
+    actual = diagnostic_record_counts(after.events)
+    assert earlier <= diagnostic_record_counts(converted.events) <= actual
+    assert any(code == "INTERNAL_TRANSFORMATION_FAILURE"
+               and transformation_failure_diagnostic(
+                   severity, message, effect, failure["cause"], stage="result_construction")
+               for severity, code, message, effect, _, _ in actual - earlier)
+    internal_errors = [event for event in process.console
+                       if transformation_failure_diagnostic(
+                           event.severity, event.message, "", failure["cause"], stage="result_construction")]
+    assert internal_errors
+    assert all(event.code is None or event.code == "INTERNAL_TRANSFORMATION_FAILURE" for event in internal_errors)
+    assert console_covers_diagnostic_records(process.console, failure["earlier_events"])
+
+    if report is None:
+        assert trace["diagnostics_exports"] == trace["report_at_export"] == []
+        assert set(tmp_path.iterdir()) == existing
+        return
+    assert trace["diagnostics_exports"] and set(trace["diagnostics_exports"]) == {str(report)}
+    assert trace["report_at_export"]
+    for attempt in trace["report_at_export"]:
+        at_export = diagnostic_record_counts(attempt["events"])
+        assert attempt["outcome"] == "aborted" and earlier <= at_export
+        assert any(code == "INTERNAL_TRANSFORMATION_FAILURE"
+                   and transformation_failure_diagnostic(
+                       severity, message, effect, failure["cause"], stage="result_construction")
+                   for severity, code, message, effect, _, _ in at_export - earlier)
+
+    if reporting == "report-failure":
+        failures = trace["report_io_errors"]
+        assert any(diagnostics_report_write_error(event, report, error)
+                   for event in process.console if all(event is not internal for internal in internal_errors)
+                   for error in failures)
+        assert not report.exists() and set(tmp_path.iterdir()) == existing
+    else:
+        assert trace["report_io_errors"] == []
+        assert _cli_json_report_contract(json.loads(report.read_bytes())) == ("aborted", actual)
+        assert set(tmp_path.iterdir()) == existing | {report}
+
+
+@pytest.mark.parametrize("reporting", ["report-written", "report-omitted", "report-failure"])
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_cli_result_construction_failure_aborts_with_diagnostics(invoke, tmp_path, input_policy, reporting):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 exit 3 and precedence of 4."""
+    _assert_cli_result_construction_abort(
+        invoke, fixture_path("shared/binary_relation"), tmp_path, input_policy, reporting, "completed"
+    )
+
+
+@pytest.mark.parametrize("reporting", ["report-written", "report-failure"])
+def test_cli_result_construction_failure_overrides_completed_with_errors(invoke, tmp_path, reporting):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 abort exit precedence over partial completion."""
+    document = load_json("shared/binary_relation")
+    document["model"]["contents"][-1]["properties"][0]["propertyType"] = None
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    source = write_input(input_dir, document)
+    _assert_cli_result_construction_abort(
+        invoke, source, tmp_path, "best-effort", reporting, "completed-with-errors", expect_prior_error=True
+    )
+
+
 @pytest.mark.parametrize('mode',['embedded','sidecar'])
 @pytest.mark.parametrize('policy',POLICIES)
 @pytest.mark.parametrize('report_failure',[False,True],ids=['report_written','report_failure'])
