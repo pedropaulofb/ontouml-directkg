@@ -3647,7 +3647,8 @@ def _assert_cli_persistent_report_alias(invoke, tmp_path, target_kind, scenario,
                       "SIDECAR_DELIVERY" if target_kind == "sidecar" else "ONTOLOGY_DELIVERY")
     assert any(severity == "ERROR" and code == expected_error for severity, code, *_ in delivered.events)
     assert console_covers_diagnostic_records(process.console, delivered.events)
-    assert any(diagnostics_delivery_error(event, actual_report, alias=True, artifact=target)
+    assert any(diagnostics_delivery_error(event, actual_report, alias=True, artifact=target,
+                                          artifact_kind=target_kind)
                for event in process.console)
     if target_kind == "sidecar" and scenario == "blocked_delivery":
         assert destination.is_file() and (BASE.C17, RDF.type, OWL.Class) in load_graph(destination)
@@ -3686,7 +3687,7 @@ def test_cli_replacement_separates_report_and_artifact_destinations(invoke, tmp_
 
 
 def test_diagnostics_delivery_error_reader_requires_distinct_failure_destination_and_reason(tmp_path):
-    """Harness only: C13 T1 F1–F2 require affirmative, code-independent reporting."""
+    """Harness only: C13 T1 F1–F3 require affirmative, role- and code-consistent reporting."""
     destination = tmp_path / "alias-report.json"
     artifact = tmp_path / "protected artifact.ttl"
     reason = "injected export failure"
@@ -3709,6 +3710,40 @@ def test_diagnostics_delivery_error_reader_requires_distinct_failure_destination
                       "pathname alias with the protected artifact"):
             assert diagnostics_delivery_error(event(code, f"Cannot write diagnostics to {destination}: {claim}"),
                                               destination, alias=True, artifact=artifact), claim
+        # F1: the protected destination's actual role governs any explicit
+        # artifact claim, not a file extension or a generic term in the text.
+        for kind, path, valid_roles, wrong_roles in (
+            ("output", artifact, ("ontology file", "main output destination"), ("sidecar", "provenance sidecar file")),
+            ("sidecar", tmp_path / "model.provenance.ttl", ("sidecar", "provenance sidecar file"),
+             ("ontology file", "main ontology", "output destination")),
+            ("output", tmp_path / "main.provenance.ttl", ("main ontology",), ("sidecar",)),
+        ):
+            for role in (*valid_roles, "artifact", "destination"):
+                for qualifier in ("", f" at {path}"):
+                    for claim in (f"diagnostics destination aliases the protected {role}{qualifier}",
+                                  f"destination refers to the same file as the protected {role}{qualifier}"):
+                        assert diagnostics_delivery_error(
+                            event(code, f"Cannot write diagnostics to {destination}: {claim}"),
+                            destination, alias=True, artifact=path, artifact_kind=kind), claim
+            for role in wrong_roles:
+                for qualifier in ("", f" at {path}"):
+                    for claim in (f"diagnostics destination aliases the protected {role}{qualifier}",
+                                  f"destination refers to the same file as the protected {role}{qualifier}"):
+                        assert not diagnostics_delivery_error(
+                            event(code, f"Cannot write diagnostics to {destination}: {claim}"),
+                            destination, alias=True, artifact=path, artifact_kind=kind), claim
+                        if path.name != "main.provenance.ttl":
+                            assert not diagnostics_delivery_error(
+                                event(code, f"Cannot write diagnostics to {destination}: {claim}"),
+                                destination, alias=True, artifact=path), claim
+    # F3: every stabilized identifier means another condition, even if the
+    # accompanying prose independently resembles a report-delivery error.
+    for code in STABLE_DIAGNOSTIC_CODES:
+        for header in ("", f"[ERROR] {code}: "):
+            assert not diagnostics_delivery_error(event(code, header + correct.message), destination, reason=reason), code
+            assert not diagnostics_delivery_error(
+                event(code, header + f"Cannot write diagnostics to {destination}: same file"),
+                destination, alias=True, artifact=artifact, artifact_kind="output"), code
     for other in (
         event("ONTOLOGY_DELIVERY", correct.message),
         event("SIDECAR_DELIVERY", correct.message),

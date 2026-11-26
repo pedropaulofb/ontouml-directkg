@@ -1773,15 +1773,23 @@ def console_covers_diagnostic_records(console, records):
     return True
 
 
-def diagnostics_delivery_error(event, destination, *, reason=None, alias=False, artifact=None):
+def diagnostics_delivery_error(event, destination, *, reason=None, alias=False, artifact=None,
+                               artifact_kind=None):
     """Read an affirmative report-delivery failure and its applicable cause.
 
     Interpret complete supported claims, not mentions of a cause. A renderer
     may use any provisional identifier (or no displayed identifier); the
-    failure stage is established by the prose, not a particular code.
+    failure stage is established by the prose, not a particular code. The
+    stable first-release core identifies other conditions, never report
+    delivery itself. Explicit artifact descriptions must match the observed
+    protected destination's role, as well as any named pathname.
     """
     code = getattr(event, "code", None)
-    if event.severity != "ERROR" or code in {"ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY"}:
+    stable_core = {
+        "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+        "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+    }
+    if event.severity != "ERROR" or code in stable_core:
         return False
     message = re.sub(r"^\s*(?:\[ERROR\]|ERROR:)\s*", "", event.message, flags=re.IGNORECASE)
     if code:
@@ -1814,12 +1822,26 @@ def diagnostics_delivery_error(event, destination, *, reason=None, alias=False, 
     # pathname when supplied. Do not credit negations, hedges, or unrelated
     # trailing claims merely containing an alias-related word.
     same = r"(?:the )?same (?:file|path|destination|artifact|object)"
-    peer = r"(?:the )?(?:protected )?(?:ontology|(?:provenance )?sidecar|artifact|output)(?: (?:file|path|destination))?"
+    # Actual CLI cases supply the role explicitly: an ontology output can
+    # itself have a sidecar-shaped filename. The conventional suffix retains
+    # the reader's pathname-only binding for simple standalone probes.
+    if artifact_kind is None and artifact is not None:
+        artifact_kind = "sidecar" if str(artifact).endswith(".provenance.ttl") else "output"
+    roles = {
+        "output": r"(?:main )?(?:ontology(?: output)?|output)",
+        "sidecar": r"(?:provenance )?sidecar",
+        None: r"(?!)",  # no independently known specific role
+    }
+    if artifact_kind not in roles:
+        return False
+    peer = (rf"(?:the )?(?:protected )?(?:{roles[artifact_kind]}|artifact)"
+            r"(?: (?:file|path|destination))?|(?:the )?protected (?:file|path|destination)")
     if artifact is not None:
         artifact_path = re.escape(str(artifact))
-        peer = rf"(?:{peer}|(?-i:{artifact_path}|{re.escape(repr(str(artifact)))}|\"{artifact_path}\"))"
+        named_path = rf"(?-i:{artifact_path}|{re.escape(repr(str(artifact)))}|\"{artifact_path}\")"
+        peer = rf"(?:(?:{peer})(?: (?:at|named) {named_path})?|{named_path})"
     else:
-        peer = rf"(?:{peer}|(?:/|[a-z]:[\\/])\S+|['\"](?:/|[a-z]:[\\/])[^'\"]+['\"])"
+        peer = rf"(?:{peer})"
     subject = r"(?:the )?(?:diagnostics? (?:report|file|destination|path)|report(?: (?:destination|path))?|destination|path)"
     alias_claim = (
         rf"{same}(?: as {peer})?"
