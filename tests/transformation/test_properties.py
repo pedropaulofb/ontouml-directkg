@@ -62,6 +62,75 @@ def test_collision_mapping_is_repeatable_without_fixed_suffix_allocation(run):
         assert one_subject(first.ontology, DCTERMS.identifier, Literal(identifier)) == one_subject(again.ontology, DCTERMS.identifier, Literal(identifier))
 
 
+@pytest.mark.parametrize("input_policy", ["strict", "tolerant", "best-effort"])
+def test_c3_secondary_collisions_follow_qualified_property_names_and_preserve_inverse_reservations(run, source_json, tmp_path, input_policy):
+    """Rules: DK-PROP-01, DK-PROP-02, DK-IRI-07, DK-IRI-09, DK-INV-07, DK-INV-08, DK-CONF-01, DK-CONF-02. C3 Alternative A."""
+    document = source_json("shared/property_collisions")
+    owner = source_element(document, "cPerson")
+    for identifier, name in (("cClaim1", "code Person 1"), ("cClaim11", "code Person 1 1"),
+                             ("cUnaffected", "code Person 4")):
+        claim = copy.deepcopy(owner)
+        claim.update(id=identifier, name=name, description="Claim " + identifier, properties=None)
+        document["model"]["contents"].append(claim)
+    # This is a source-backed candidate claim, even though the later rounds
+    # vacate it. A generated inverse must use DK-INV-07, not join the group.
+    source_element(document, "eSource")["name"] = "code Person 1 1"
+    assert not fixture_issues(document)
+    source = write_input(tmp_path, document)
+    mappings = []
+    inverse_names = []
+    for mode in ("none", "all", "all"):
+        result = run(path=source, iri_strategy="name", input_policy=input_policy, inverse_properties=mode)
+        assert result.outcome == "completed" and not any(event.severity == "ERROR" for event in result.diagnostics)
+        graph = result.ontology
+        ids = ("a1", "a2", "a3", "eTarget", "cPerson", "cOrg", "cAddress", "cClaim1", "cClaim11", "cUnaffected")
+        resources = {identifier: one_subject(graph, DCTERMS.identifier, Literal(identifier)) for identifier in ids}
+        assert len(set(resources.values())) == len(ids)
+        chain = {BASE.code_Person_1_2, BASE.code_Person_1_1_1, BASE.code_Person_1_1_2}
+        direct = {BASE.code_Person_2, BASE.code_Person_3}
+        group = {resources[i] for i in ("a1", "a2", "eTarget")}
+        assert group & direct == direct and len(group & chain) == 1
+        assert {resources["cClaim1"], resources["cClaim11"]} == chain - group
+        assert resources["cClaim11"] in {BASE.code_Person_1_1_1, BASE.code_Person_1_1_2}
+        assert resources["a3"] == BASE.code_Organization
+        assert resources["cUnaffected"] == BASE.code_Person_4
+        assert resources["cPerson"] == BASE.Person and resources["cOrg"] == BASE.Organization
+        assert resources["cAddress"] == BASE.Address
+        vacated = {BASE.code_Person, BASE.code_Person_1, BASE.code_Person_1_1}
+        assert not any(term in vacated for triple in graph for term in triple)
+        for identifier, resource in resources.items():
+            assert set(graph.objects(resource, DCTERMS.identifier)) == {Literal(identifier)}
+        for identifier in ("cClaim1", "cClaim11", "cUnaffected"):
+            assert (resources[identifier], RDF.type, OWL.Class) in graph
+            assert (resources[identifier], RDFS.label, Literal(source_element(document, identifier)["name"])) in graph
+            assert (resources[identifier], RDFS.comment, Literal("Claim " + identifier)) in graph
+        for identifier, kind, domain, range_ in (
+            ("a1", OWL.DatatypeProperty, BASE.Person, XSD.int),
+            ("a2", OWL.ObjectProperty, BASE.Person, BASE.Address),
+            ("a3", OWL.DatatypeProperty, BASE.Organization, None),
+            ("eTarget", OWL.ObjectProperty, BASE.Person, BASE.Organization),
+        ):
+            resource = resources[identifier]
+            assert (resource, RDF.type, kind) in graph
+            assert (resource, RDF.type, OWL.ObjectProperty if kind == OWL.DatatypeProperty else OWL.DatatypeProperty) not in graph
+            assert set(graph.objects(resource, RDFS.domain)) == {domain}
+            assert set(graph.objects(resource, RDFS.range)) == ({range_} if range_ is not None else set())
+        if mode == "all":
+            inverse = one_subject(graph, DCTERMS.identifier, Literal("eSource"))
+            primary_local = str(resources["eTarget"]).removeprefix(str(BASE))
+            assert inverse == BASE["inverseOf" + primary_local[0].upper() + primary_local[1:]]
+            assert (inverse, OWL.inverseOf, resources["eTarget"]) in graph
+            assert (inverse, RDFS.label, Literal("code Person 1 1")) in graph
+            assert (inverse, RDFS.domain, BASE.Organization) in graph
+            assert (inverse, RDFS.range, BASE.Person) in graph
+            inverse_names.append(inverse)
+        else:
+            assert not list(graph.subjects(DCTERMS.identifier, Literal("eSource")))
+        mappings.append(resources)
+    assert mappings[0] == mappings[1] == mappings[2]
+    assert inverse_names[0] == inverse_names[1]
+
+
 # RD-14 and source flags use ID mode to separate property-expression assertions
 # from the naming/inverse naming matrices owned by the other approved waves.
 import copy

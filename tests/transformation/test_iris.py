@@ -289,6 +289,55 @@ def test_all_members_of_name_collision_group_are_suffixed_deterministically(run)
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case", ["secondary", "chained"])
+def test_ordinary_secondary_class_collisions_repeat_contiguous_groups(run, source_json, tmp_path, input_policy, case):
+    """Rules: DK-IRI-03, DK-IRI-07, DK-IRI-09, DK-LBL-01, DK-LBL-02, DK-CONF-01, DK-CONF-02, DK-DIAG-05. C3 Alternative A."""
+    document = source_json("iris/collisions")
+    contents = document["model"]["contents"]
+    names = {"c1": "Person", "c2": "Person", "c3": "Person 1"}
+    if case == "chained":
+        # Third round has two simultaneous groups, fourth round another collision.
+        names.update(c4="Person 1 1", c5="Person 1 2", c6="Person 1 1 1")
+        first_branch = {"Person_1_1_1_1", "Person_1_1_1_2", "Person_1_1_2"}
+        second_branch = {"Person_1_2_1", "Person_1_2_2"}
+        deep = first_branch | second_branch
+        allowed = {"c4": first_branch, "c5": second_branch,
+                   "c6": {"Person_1_1_1_1", "Person_1_1_1_2"}}
+    else:
+        deep = {"Person_1_1", "Person_1_2"}
+        allowed = {}
+    names.update(cNumeric="Person 3", cOutside="Outside")
+    allowed.update(c1=deep | {"Person_2"}, c2=deep | {"Person_2"}, c3=deep,
+                   cNumeric={"Person_3"}, cOutside={"Outside"})
+    expected = deep | {"Person_2", "Person_3", "Outside"}
+    prototype = copy.deepcopy(contents[0])
+    contents[:] = [dict(copy.deepcopy(prototype), id=identifier, name=name,
+                        description="Description of " + identifier) for identifier, name in names.items()]
+    assert not fixture_issues(document)
+    # Expected sets are explicit for the selected cases, not a second allocator.
+    # DK-IRI-07 permits any stable source-based assignment within each group.
+    source = write_input(tmp_path, document)
+    mappings = []
+    for _ in range(2):
+        result = run(path=source, iri_strategy="name", input_policy=input_policy)
+        assert result.outcome == "completed"
+        assert not any(event.severity == "ERROR" for event in result.diagnostics)
+        graph = result.ontology
+        mapping = {identifier: one_subject(graph, DCTERMS.identifier, Literal(identifier)) for identifier in names}
+        assert set(mapping.values()) == {BASE[local] for local in expected}
+        assert set(graph.subjects(RDF.type, OWL.Class)) == set(mapping.values())
+        assert len(set(mapping.values())) == len(names)
+        for identifier, resource in mapping.items():
+            assert resource in {BASE[local] for local in allowed[identifier]}
+            assert set(graph.objects(resource, DCTERMS.identifier)) == {Literal(identifier)}
+            assert set(graph.objects(resource, RDFS.label)) == {Literal(names[identifier])}
+            assert (resource, RDFS.comment, Literal("Description of " + identifier)) in graph
+        assert BASE.Person_2 in {mapping["c1"], mapping["c2"]}
+        mappings.append(mapping)
+    assert mappings[0] == mappings[1]
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
 @pytest.mark.parametrize("state,value", NAME_STATES)
 def test_unnamed_class_uses_type_specific_fallback(run, source_json, tmp_path, input_policy, state, value):
     """Rules: DK-IRI-04, DK-IRI-05, DK-IRI-09, DK-LBL-01, DK-DIAG-01, DK-DIAG-05.

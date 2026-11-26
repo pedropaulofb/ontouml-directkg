@@ -567,6 +567,77 @@ def test_distinct_enum_values_survive_name_collisions(run, source_json, tmp_path
     assert len(set(targets)) == 2
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("case", ["named_values", "id_fallback"])
+def test_c3_secondary_enum_collisions_preserve_value_identity_and_closure(run, source_json, tmp_path, input_policy, case):
+    """Rules: DK-IRI-04, DK-IRI-07, DK-IRI-08, DK-IRI-09, DK-CLS-10, DK-CLS-11, DK-CONF-01, DK-CONF-02. C3 Alternative A."""
+    document = source_json("classes/enumerations")
+    enum = source_element(document, "eStatus")
+    owner = source_element(document, "cOwner")
+    if case == "named_values":
+        for literal, name in zip(enum["literals"], ("Same", "Same", "Same 1")):
+            literal["name"] = name
+        stem = "Status_Same"
+        collision_ids = ("vPending", "vApproved", "vClosed", "cClaim11")
+        first_pair = ("vPending", "vApproved")
+        intermediate = "vClosed"
+    else:
+        source_element(document, "vPending")["name"] = None
+        owner["name"] = "vPending"
+        stem = "vPending"
+        claim = copy.deepcopy(owner)
+        claim.update(id="cClaim1", name=stem + " 1", properties=None)
+        document["model"]["contents"].append(claim)
+        collision_ids = ("cOwner", "vPending", "cClaim1", "cClaim11")
+        first_pair = ("cOwner", "vPending")
+        intermediate = "cClaim1"
+    claim = copy.deepcopy(owner)
+    claim.update(id="cClaim11", name=stem.replace("_", " ") + " 1 1", properties=None)
+    document["model"]["contents"].append(claim)
+    assert not fixture_issues(document)
+    source = write_input(tmp_path, document)
+    mappings = []
+    for _ in range(2):
+        result = run(path=source, iri_strategy="name", input_policy=input_policy)
+        assert result.outcome == "completed" and not any(event.severity == "ERROR" for event in result.diagnostics)
+        graph = result.ontology
+        ids = set(collision_ids) | {"eStatus", "cOwner", "pStatus", "pLegacy", "vPending", "vApproved", "vClosed"}
+        mapped = {identifier: one_subject(graph, DCTERMS.identifier, Literal(identifier)) for identifier in ids}
+        assert len(set(mapped.values())) == len(ids)
+        deep = {BASE[stem + "_1_1_1"], BASE[stem + "_1_1_2"]}
+        assert {mapped[i] for i in collision_ids} == deep | {BASE[stem + "_1_2"], BASE[stem + "_2"]}
+        assert BASE[stem + "_2"] in {mapped[i] for i in first_pair}
+        assert mapped[intermediate] != BASE[stem + "_2"] and mapped["cClaim11"] in deep
+        vacated = {BASE[stem], BASE[stem + "_1"], BASE[stem + "_1_1"]}
+        assert not any(term in vacated for triple in graph for term in triple)
+        assert mapped["eStatus"] == BASE.Status
+        values = {mapped[i] for i in ("vPending", "vApproved", "vClosed")}
+        _assert_values(graph, BASE.Status, values, complete=True)
+        assert not (values & set(graph.subjects(RDF.type, OWL.Class)))
+        assert (mapped["cOwner"], RDF.type, OWL.Class) in graph
+        assert (mapped["cClaim11"], RDF.type, OWL.Class) in graph
+        assert (mapped["pStatus"], RDFS.domain, mapped["cOwner"]) in graph
+        assert (mapped["pStatus"], RDFS.range, BASE.Status) in graph
+        assert (mapped["pLegacy"], RDF.type, OWL.DatatypeProperty) in graph
+        assert (mapped["pLegacy"], RDFS.domain, BASE.Status) in graph
+        for identifier, resource in mapped.items():
+            assert set(graph.objects(resource, DCTERMS.identifier)) == {Literal(identifier)}
+        for literal in enum["literals"]:
+            resource = mapped[literal["id"]]
+            labels = set(graph.objects(resource, RDFS.label))
+            assert labels == ({Literal(literal["name"])} if literal["name"] is not None else set())
+        if case == "named_values":
+            assert mapped["cOwner"] == BASE.Owner
+        else:
+            assert mapped["vApproved"] == BASE.Status_Approved and mapped["vClosed"] == BASE.Status_Closed
+            assert (mapped["cClaim1"], RDF.type, OWL.Class) in graph
+            assert any(event.severity == "WARNING" and "vPending" in event.identified_sources
+                       and event.kind in {"missing_name", "generic_id_fallback"}
+                       and str(mapped["vPending"]) in event.generated_iris for event in result.diagnostics)
+        mappings.append(mapped)
+    assert mappings[0] == mappings[1]
+
+
 def test_value_prefix_uses_already_resolved_enum_class_name(run, source_json, tmp_path):
     """Rules: DK-IRI-08, DK-IRI-07, DK-CLS-10."""
     document = source_json("classes/enumerations")
