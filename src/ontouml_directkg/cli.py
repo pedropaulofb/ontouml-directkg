@@ -91,9 +91,18 @@ def _finish(result: ConversionResult, threshold: str, report: Path | None, outpu
                     # Unresolvable paths have no file identity to compare.
                     if exc.errno not in {ENOENT, ENOTDIR, ELOOP, ENAMETOOLONG}:
                         raise
-                    continue
+                    aliases_artifact = False
                 if aliases_artifact:
                     raise OSError(f"destination refers to the same file as {artifact}")
+                # A protected pathname can still alias the report when neither
+                # destination exists, for example through a dangling symlink.
+                try:
+                    aliases_path = report.resolve(strict=False) == artifact.resolve(strict=False)
+                except (OSError, ValueError, RuntimeError):
+                    # Resolution failure alone does not establish an alias.
+                    continue
+                if aliases_path:
+                    raise OSError(f"destination resolves to the same path as {artifact}")
             result.export_diagnostics(report)
         except Exception as exc:
             error = exc if isinstance(exc, DiagnosticsExportError) else DiagnosticsExportError(report, exc)
