@@ -184,7 +184,9 @@ from tests.support.data import fixture_issues, source_element, write_input
 from tests.support.rdf import (assert_selected_equal, cardinality_facts,
                                necessary_restrictions, property_expression)
 from tests.support.invocation import (_observed_diagnostics, absent_attribute_property_type_error,
-                                      diagnostic_signatures, unresolved_property_reference_between)
+                                      diagnostic_signatures, unresolved_property_reference_between,
+                                      unresolved_property_reference_diagnostic,
+                                      unresolved_relation_endpoint_diagnostic)
 from tests.support.rdf import assert_graph_equal, rooted_graph, one_object
 
 POLICIES = ['strict', 'tolerant', 'best-effort']
@@ -192,6 +194,10 @@ REFERENCE_FIELDS = ['subsettedProperties', 'redefinedProperties']
 PROPERTY_TYPES = {OWL.ObjectProperty, OWL.DatatypeProperty, OWL.FunctionalProperty,
                   OWL.InverseFunctionalProperty, OWL.TransitiveProperty, OWL.SymmetricProperty,
                   OWL.AsymmetricProperty, OWL.ReflexiveProperty, OWL.IrreflexiveProperty}
+_STABLE_DIAGNOSTIC_CODES = frozenset({
+    'PLACEHOLDER_BASE', 'UNPROCESSABLE_DOCUMENT', 'DUPLICATE_SOURCE_ID', 'UNKNOWN_INFORMATION',
+    'REQUIRED_PROVENANCE', 'INTERNAL_TRANSFORMATION_FAILURE', 'ONTOLOGY_DELIVERY', 'SIDECAR_DELIVERY',
+})
 
 
 def _reference(identifier):
@@ -453,7 +459,33 @@ def test_unresolved_or_failed_required_property_references_obey_policy(run, sour
         expected = {'unresolved_endpoint'}
     assert fixture_issues(document) == expected
     result = run(path=write_input(tmp_path,document),iri_strategy='id',input_policy=input_policy)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
     assert any(d.severity == 'ERROR' for d in result.diagnostics)
+    if failure in {'unresolved', 'wrong_reference_type'}:
+        target_id = 'missingProperty' if failure == 'unresolved' else 'cA'
+        assert not any(
+            d.kind == 'failed_relation' or 'unresolved_relation_endpoint' in d.facts
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert any(
+            unresolved_property_reference_between(d, 'pChild', field, target_id)
+            and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+            for d in result.diagnostics
+        ), result.diagnostics
+    else:
+        assert any(
+            d.severity == 'ERROR' and d.kind == 'failed_relation'
+            and 'unresolved_relation_endpoint' in d.facts
+            and {'r1', 't1'} <= set(d.identified_sources)
+            and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert not any(
+            d.kind == 'unresolved_property_reference'
+            or 'unresolved_property_reference' in d.facts
+            or d.code == 'UNRESOLVED_PROPERTY_REFERENCE'
+            for d in result.diagnostics
+        ), result.diagnostics
     if input_policy != 'best-effort':
         assert result.outcome == 'aborted' and result.ontology is None
     else:
@@ -461,7 +493,8 @@ def test_unresolved_or_failed_required_property_references_obey_policy(run, sour
         assert _hierarchy(result.ontology) == {(BASE.pChild,BASE.pBase)}
         assert (BASE.pBase,RDF.type,OWL.ObjectProperty) in result.ontology
         assert (BASE.pChild,RDF.type,OWL.ObjectProperty) in result.ontology
-        for absent in (BASE.missingProperty,BASE.s1,BASE.t1) if failure in {'referenced_failed','referencing_failed'} else (BASE.missingProperty,):
+        assert (BASE.t0,RDF.type,OWL.ObjectProperty) in result.ontology
+        for absent in (BASE.missingProperty,BASE.r1,BASE.s1,BASE.t1) if failure in {'referenced_failed','referencing_failed'} else (BASE.missingProperty,):
             assert not any(absent in triple for triple in result.ontology)
 
 
@@ -1931,3 +1964,282 @@ def test_datatype_valued_relation_end_malformed_boolean_flag_omits_only_flag_and
         assert bool(occ_derived) != (target_id == end_id and malformed_flag == 'isDerived')
         assert bool(occ_ordered) != (target_id == end_id and malformed_flag == 'isOrdered')
 
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('scenario', [
+    'attr_to_source_end_null_target',
+    'attr_to_target_end_null_source',
+    'target_end_to_source_end_unresolved_classifier',
+    'named_inverse_to_omitted_end',
+    'anon_inverse_to_omitted_end',
+    'omitted_source_end_to_surviving',
+    'omitted_target_end_to_surviving',
+    'both_directions_with_omitted_flags_and_cardinalities',
+    'omitted_end_to_dangling',
+    'omitted_end_malformed_container',
+])
+def test_omitted_unresolved_endpoint_relation_references_obey_policy_and_suppress_redundant_errors(
+        run, source_json, tmp_path, input_policy, field, scenario):
+    """Rules: DK-PROP-03, DK-DIAG-03, DK-DIAG-05, DK-INV-04, DK-GEN-03."""
+    document = source_json('properties/references')
+    inverse_mode = 'none' if scenario == 'anon_inverse_to_omitted_end' else 'all'
+    failed_end = 't1'
+
+    if scenario == 'attr_to_source_end_null_target':
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('s1')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'attr_to_target_end_null_source':
+        failed_end = 's1'
+        source_element(document, 's1')['propertyType'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('t1')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'target_end_to_source_end_unresolved_classifier':
+        source_element(document, 't1')['propertyType'] = {'id': 'missingClass', 'type': 'Class'}
+        source_element(document, 't0')[field] = [_reference('pChild'), _reference('s1')]
+        expected_hierarchy = {(BASE.t0, BASE.pChild)}
+    elif scenario == 'named_inverse_to_omitted_end':
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 's0')[field] = [_reference('pChild'), _reference('s1')]
+        expected_hierarchy = {(BASE.s0, BASE.pChild)}
+    elif scenario == 'anon_inverse_to_omitted_end':
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 's0')[field] = [_reference('pChild'), _reference('t1')]
+        expected_hierarchy = {(('inverse', BASE.t0), BASE.pChild)}
+    elif scenario == 'omitted_source_end_to_surviving':
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        source_element(document, 's1')[field] = [_reference('pChild'), _reference('s0')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'omitted_target_end_to_surviving':
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        source_element(document, 't1')[field] = [_reference('t0')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'both_directions_with_omitted_flags_and_cardinalities':
+        source_element(document, 'r1')['isDerived'] = True
+        source_element(document, 's1').update(cardinality='1..*', isOrdered=True, **{field: [_reference('pChild')]})
+        source_element(document, 't1').update(propertyType=None, cardinality='0..1', isReadOnly=True,
+                                              **{field: [_reference('t0')]})
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('s1')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif scenario == 'omitted_end_to_dangling':
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        source_element(document, 's1')[field] = [_reference('missingProp')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    else:
+        source_element(document, 't1')['propertyType'] = None
+        source_element(document, 'pChild')[field] = [_reference('t0')]
+        source_element(document, 's1')[field] = 'not-a-list'
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties=inverse_mode)
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+    assert any(
+        d.severity == 'ERROR' and d.kind == 'failed_relation'
+        and 'unresolved_relation_endpoint' in d.facts
+        and {'r1', failed_end} <= set(d.identified_sources)
+        and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in {'unresolved_property_reference', 'invalid_property_references', 'property_inclusion_incompatibility'}
+        or 'unresolved_property_reference' in d.facts
+        or d.code in {'UNRESOLVED_PROPERTY_REFERENCE', 'INVALID_PROPERTY_REFERENCES', 'INCOMPATIBLE_PROPERTY_INCLUSION'}
+        for d in result.diagnostics
+    ), result.diagnostics
+    assert not any(
+        d.kind in {'abstractness', 'derived_status', 'ordering'}
+        and ({'r1', 's1', 't1'} & set(d.identified_sources))
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    graph = result.ontology
+    assert _hierarchy(graph) == expected_hierarchy
+    for absent in (BASE.r1, BASE.s1, BASE.t1, BASE.missingClass, BASE.missingProp):
+        assert not any(absent in triple for triple in graph), absent
+    assert (BASE.pBase, RDF.type, OWL.DatatypeProperty) in graph
+    assert (BASE.pChild, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.t0, RDF.type, OWL.ObjectProperty) in graph
+    assert ((BASE.s0, RDF.type, OWL.ObjectProperty) in graph) == (inverse_mode == 'all')
+    if inverse_mode == 'none':
+        assert not any(BASE.s0 in triple for triple in graph)
+    for owner in (BASE.cA, BASE.cB):
+        assert not necessary_restrictions(graph, owner)
+
+
+@pytest.mark.parametrize('input_policy', POLICIES)
+@pytest.mark.parametrize('field', REFERENCE_FIELDS, ids=['subsets', 'redefines'])
+@pytest.mark.parametrize('boundary', [
+    'attr_to_omitted_and_dangling',
+    'target_end_to_omitted_and_wrong_type',
+    'attr_to_omitted_and_unresolved_attr_type',
+    'attr_malformed_container_and_end_to_omitted',
+])
+def test_best_effort_retains_genuinely_unresolved_references_alongside_omitted_endpoint_relation(
+        run, source_json, tmp_path, input_policy, field, boundary):
+    """Rules: DK-PROP-03, DK-DIAG-03, DK-DIAG-05, DK-ATT-01, DK-GEN-03."""
+    document = source_json('properties/references')
+    source_element(document, 't1')['propertyType'] = None
+
+    if boundary == 'attr_to_omitted_and_dangling':
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('s1'), _reference('missingProp')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    elif boundary == 'target_end_to_omitted_and_wrong_type':
+        source_element(document, 't0')[field] = [_reference('pChild'), _reference('s1'), _reference('cA')]
+        expected_hierarchy = {(BASE.t0, BASE.pChild)}
+    elif boundary == 'attr_to_omitted_and_unresolved_attr_type':
+        source_element(document, 'pBase')['propertyType'] = {'id': 'missingType', 'type': 'Class'}
+        source_element(document, 'pChild')[field] = [_reference('t0'), _reference('s1'), _reference('pBase')]
+        expected_hierarchy = {(BASE.pChild, BASE.t0)}
+    else:
+        source_element(document, 'pBase')['propertyType'] = {'id': 'dCustom', 'type': 'Class'}
+        source_element(document, 'pChild')[field] = 'not-a-list'
+        source_element(document, 't0')[field] = [_reference('pBase'), _reference('s1')]
+        expected_hierarchy = {(BASE.t0, BASE.pBase)}
+
+    result = run(path=write_input(tmp_path, document), iri_strategy='id',
+                 input_policy=input_policy, inverse_properties='all')
+    assert all(d.code != 'INTERNAL_TRANSFORMATION_FAILURE' for d in result.diagnostics), result.diagnostics
+
+    if input_policy != 'best-effort':
+        assert result.outcome == 'aborted' and result.ontology is None
+        assert any(
+            d.severity == 'ERROR' and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES and (
+                (d.kind == 'failed_relation' and 'unresolved_relation_endpoint' in d.facts
+                 and {'r1', 't1'} <= set(d.identified_sources))
+                or (boundary == 'attr_to_omitted_and_unresolved_attr_type'
+                    and d.kind == 'unresolved_attribute_type' and 'pBase' in d.identified_sources)
+            )
+            for d in result.diagnostics
+        ), result.diagnostics
+        return
+
+    assert result.outcome == 'completed-with-errors'
+    assert any(
+        d.severity == 'ERROR' and d.kind == 'failed_relation'
+        and 'unresolved_relation_endpoint' in d.facts
+        and {'r1', 't1'} <= set(d.identified_sources)
+        and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+        for d in result.diagnostics
+    ), result.diagnostics
+
+    if boundary == 'attr_malformed_container_and_end_to_omitted':
+        assert any(
+            d.severity == 'ERROR' and d.kind == 'invalid_property_references'
+            and 'pChild' in d.identified_sources
+            and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+            for d in result.diagnostics
+        ), result.diagnostics
+        assert not any(
+            d.kind == 'unresolved_property_reference'
+            or 'unresolved_property_reference' in d.facts
+            or d.code == 'UNRESOLVED_PROPERTY_REFERENCE'
+            for d in result.diagnostics
+        ), result.diagnostics
+    else:
+        if boundary == 'attr_to_omitted_and_dangling':
+            referencing, target_id = 'pChild', 'missingProp'
+        elif boundary == 'target_end_to_omitted_and_wrong_type':
+            referencing, target_id = 't0', 'cA'
+        else:
+            referencing, target_id = 'pChild', 'pBase'
+            assert any(
+                d.severity == 'ERROR' and d.kind == 'unresolved_attribute_type'
+                and 'pBase' in d.identified_sources
+                and d.code and d.code not in _STABLE_DIAGNOSTIC_CODES
+                for d in result.diagnostics
+            ), result.diagnostics
+        unresolved_events = [
+            d for d in result.diagnostics
+            if d.kind == 'unresolved_property_reference' or 'unresolved_property_reference' in d.facts
+            or d.code == 'UNRESOLVED_PROPERTY_REFERENCE'
+        ]
+        assert len(unresolved_events) == 1, unresolved_events
+        assert unresolved_property_reference_between(unresolved_events[0], referencing, field, target_id), unresolved_events
+        assert unresolved_events[0].code and unresolved_events[0].code not in _STABLE_DIAGNOSTIC_CODES
+        assert not any(
+            unresolved_property_reference_between(d, referencing, field, omitted_end)
+            for d in unresolved_events for omitted_end in ('s1', 't1')
+        ), unresolved_events
+
+    graph = result.ontology
+    assert _hierarchy(graph) == expected_hierarchy
+    for absent in (BASE.r1, BASE.s1, BASE.t1, BASE.missingProp, BASE.missingType):
+        assert not any(absent in triple for triple in graph), absent
+    if boundary == 'attr_to_omitted_and_unresolved_attr_type':
+        assert not any(BASE.pBase in triple for triple in graph)
+    else:
+        assert any((BASE.pBase, RDF.type, kind) in graph for kind in (OWL.DatatypeProperty, OWL.ObjectProperty))
+    assert (BASE.pChild, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.t0, RDF.type, OWL.ObjectProperty) in graph
+    assert (BASE.s0, RDF.type, OWL.ObjectProperty) in graph
+
+
+def test_omitted_relation_diagnostic_readers_verify_meaning_without_fixed_codes():
+    """Rules: DK-PROP-03, DK-DIAG-03, DK-DIAG-04, DK-DIAG-05. Harness: provisional-code independence."""
+    from ontouml_directkg.diagnostics import Diagnostic, SourceLocation
+
+    r1 = SourceLocation("$.model.contents[6]", "r1", "Relation")
+    t1 = SourceLocation("$.model.contents[6].properties[1]", "t1", "Property")
+    p_child = SourceLocation("$.model.contents[0].properties[1]", "pChild", "Property")
+
+    for message in (
+        "Relation endpoints cannot support transformation: 'Malformed source reference'.",
+        "Relation 'r1' endpoint 't1' has null propertyType.",
+        "Association-end 't1' of relation 'r1' cannot be resolved.",
+    ):
+        assert unresolved_relation_endpoint_diagnostic(message) == {"unresolved_relation_endpoint"}
+        observed, = _observed_diagnostics(
+            (Diagnostic("ERROR", "PROVISIONAL_REL_ENDPOINT", message, "Omitted.", (r1, t1)),)
+        )
+        assert observed.kind == "failed_relation"
+        assert "unresolved_relation_endpoint" in observed.facts
+
+    for message in (
+        "Relation 'r1' endpoints are valid.",
+        "Relation 'r1' endpoint 't1' is not unresolved.",
+        "If relation endpoint 't1' is unresolved, omit the relation.",
+        "Relation 'r1' endpoint 't1' may be unresolved or valid.",
+        "Unexpected internal failure while resolving relation endpoints.",
+        "Generalization 'g1' has an unresolved endpoint.",
+    ):
+        assert not unresolved_relation_endpoint_diagnostic(message), message
+
+    for field in REFERENCE_FIELDS:
+        for message in (
+            f"Property {field} reference {{'id': 'missingProp', 'type': 'Property'}} cannot supply a property expression: 'Unresolved source reference'.",
+            f"Property 'pChild' {field} reference to 'missingProp' is unresolved.",
+        ):
+            assert unresolved_property_reference_diagnostic(message) == {"unresolved_property_reference"}
+            observed, = _observed_diagnostics(
+                (Diagnostic("ERROR", "PROVISIONAL_PROP_REF", message, "Omitted.", (p_child,)),)
+            )
+            assert observed.kind == "unresolved_property_reference"
+            assert "unresolved_property_reference" in observed.facts
+            assert unresolved_property_reference_between(observed, "pChild", field, "missingProp")
+
+        for message, expected_kind in (
+            (f"Property {field} reference to 's1' is not unresolved.", "unclassified"),
+            (f"Property {field} reference to 's1' is resolved.", "unclassified"),
+            (f"DirectKG does not emit an unresolved property reference for 's1'.", "unclassified"),
+            (f"Property {field} reference to 's1' may be unresolved or valid.", "unclassified"),
+            (f"If Property {field} reference is unresolved, omit the inclusion.", "unclassified"),
+            (f"Property {field} reference on 'pChild' mixes owl:ObjectProperty and owl:DatatypeProperty.",
+             "property_inclusion_incompatibility"),
+        ):
+            assert not unresolved_property_reference_diagnostic(message), message
+            observed, = _observed_diagnostics(
+                (Diagnostic("ERROR", "UNCLASSIFIED_TEST", message, "Omitted.", (p_child,)),),
+                retain_unclassified=True,
+            )
+            assert observed.kind == expected_kind
+            assert "unresolved_property_reference" not in observed.facts

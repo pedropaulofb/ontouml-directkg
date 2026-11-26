@@ -3434,6 +3434,136 @@ def malformed_class_order_diagnostic(message: str, sources: tuple = ()) -> froze
     return frozenset(_malformed_class_order_facts(message, sources))
 
 
+def _unresolved_relation_endpoint_facts(message: str) -> set[str]:
+    """Read affirmative DK-DIAG-03 relation-endpoint failure ERROR wording without fixing a code."""
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside this increment|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(propertytype|relation|endpoint|endpoints|association|classifier|null)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:relation|endpoint|endpoints|association|propertytype|classifier)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\b(?:valid|resolved|resolvable|transformable)\s+or\s+(?:unresolved|unresolvable|invalid|null|missing)\b",
+        r"\b(?:unresolved|unresolvable|invalid|null|missing)\s+or\s+(?:valid|resolved|resolvable|transformable)\b",
+        r"\b(?:not\s+true|denied)\s+that\b",
+        r"\bnot\s+(?:unresolved|unresolvable|malformed|invalid|missing|null|failed|untransformable)\b",
+        r"\b(?:generalization|generalizations|categorizer|attribute|package\.contents|class\.properties|class\.literals|relation\.properties|subsettedproperties|redefinedproperties|property\s+inclusion|datatype[- ]valued|void)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+
+    endpoint = r"(?:(?:association[- ]?end|endpoint)s?(?:\s+(?:<quoted>|<value>))?)"
+    rel_subj = r"(?:relation(?:\s+(?:<quoted>|<value>))?)"
+    bad_state = r"(?:unresolved|unresolvable|dangling|null|missing|malformed|invalid|non[- ]classifier)"
+    patterns = (
+        re.compile(rf"\b{rel_subj}\s+endpoints?\s+(?:cannot|could\s+not)\s+support\s+transformation\b"),
+        re.compile(rf"\b{rel_subj}\b[^.!?;]*\b(?:has|had|with|contains?)\s+(?:an?\s+)?{bad_state}\s+(?:association[- ]?end|endpoint)(?:\s+(?:classifier|type|propertytype|reference|id|identifier))?\b"),
+        re.compile(rf"\b{rel_subj}\b[^.!?;]*\b{endpoint}\s+(?:has|had|lacks|is\s+missing|is\s+without)\s+(?:(?:a|an|the)\s+)?(?:{bad_state}\s+)?(?:propertytype|classifier|reference|target|id|identifier)\b"),
+        re.compile(rf"\b{rel_subj}\b[^.!?;]*\b{endpoint}\s+(?:propertytype|classifier|reference|target|id|identifier)?\s*(?:is|was)\s+(?:explicitly\s+)?{bad_state}\b"),
+        re.compile(rf"\b{rel_subj}\b[^.!?;]*\b{endpoint}\s+(?:propertytype|classifier|reference)?\s*(?:cannot|could\s+not|failed\s+to)\s+(?:be\s+)?resolv(?:e|ed)\b"),
+        re.compile(rf"\b{endpoint}\s+(?:of|for|on)\s+{rel_subj}[^.!?;]*\b(?:(?:is|was)\s+(?:explicitly\s+)?{bad_state}|(?:cannot|could\s+not)\s+(?:be\s+)?resolv(?:e|ed)|(?:has|had)\s+(?:an?\s+)?{bad_state}\s+(?:propertytype|classifier|reference|target))\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was|are|were)\s+(?:valid|resolved|resolvable|transformable)\b", clause) and not re.search(
+            r"\bnot\s+(?:valid|resolved|resolvable|transformable)\b", clause
+        ):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"unresolved_relation_endpoint"}
+    return set()
+
+
+def unresolved_relation_endpoint_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized DK-DIAG-03 relation-endpoint failure facts for harness checks."""
+    return frozenset(_unresolved_relation_endpoint_facts(message))
+
+
+def _unresolved_property_reference_facts(message: str) -> set[str]:
+    """Read affirmative DK-PROP-03 unresolved property-reference ERROR wording without fixing a code."""
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside this increment|remains (?:unspecified|deferred|outside))\b",
+        wording,
+    ):
+        return set()
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(subsettedproperties|redefinedproperties|property|attribute|reference)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    wording = " ".join(wording.split())
+
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:property|attribute|reference|subsettedproperties|redefinedproperties)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\b(?:valid|resolved)\s+or\s+(?:unresolved|invalid)\b",
+        r"\b(?:unresolved|invalid)\s+or\s+(?:valid|resolved)\b",
+        r"\b(?:not\s+true|denied)\s+that\b",
+        r"\bnot\s+(?:an?\s+)?(?:unresolved|unresolvable)\b",
+        r"\b(?:is|was|has\s+been)\s+resolved\b",
+        r"\b(?:does|did)\s+not\s+(?:emit|produce|generate|report)\b",
+        r"\bno\s+unresolved\s+(?:property|attribute)\b",
+        r"\b(?:attribute\s+value[- ]type|propertytype|generalization|categorizer|package\.contents|class\.properties|class\.literals|relation\.properties|not\s+a\s+reference\s+collection|unavailable\s+inverse|mixes|mixed)\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+
+    unresolved_pred = (
+        r"(?:is\s+unresolved|was\s+unresolved|(?:cannot|could\s+not)\s+be\s+resolved"
+        r"|(?:cannot|could\s+not)\s+supply\s+(?:a\s+)?property\s+expression"
+        r"|does\s+not\s+resolve\s+to\s+(?:a\s+)?property\s+expression)"
+    )
+    patterns = (
+        re.compile(rf"\b(?:property|attribute)(?:\s+(?:<quoted>|<value>))?\s+(?:(?:subsettedproperties|redefinedproperties|subsetting|redefinition)\s+)?reference\b[^.!?;]*\b{unresolved_pred}\b"),
+        re.compile(rf"\b(?:subsettedproperties|redefinedproperties)\s+reference\b[^.!?;]*\b{unresolved_pred}\b"),
+        re.compile(r"\bunresolved\s+(?:property|attribute)(?:\s+(?:subsettedproperties|redefinedproperties|subsetting|redefinition))?\s+reference\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was)\s+valid\b", clause):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"unresolved_property_reference"}
+    return set()
+
+
+def unresolved_property_reference_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized DK-PROP-03 unresolved property-reference facts for harness checks."""
+    return frozenset(_unresolved_property_reference_facts(message))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -3526,6 +3656,18 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             "INVALID_SOURCE_ID", "UNPROCESSABLE_DOCUMENT", "AMBIGUOUS_PROJECT_LANGUAGE",
         }
         if event.severity == "ERROR" and event.code not in _structural_skip:
+            rel_endpoint_facts = _unresolved_relation_endpoint_facts(event.message)
+            if rel_endpoint_facts:
+                facts.update(rel_endpoint_facts)
+                if kind is None:
+                    kind = "failed_relation"
+            prop_ref_facts = _unresolved_property_reference_facts(event.message)
+            if prop_ref_facts:
+                facts.update(prop_ref_facts)
+                if kind is None:
+                    kind = "unresolved_property_reference"
+            elif kind == "unresolved_property_reference":
+                facts.add("unresolved_property_reference")
             cls_prop_facts = _class_properties_container_facts(event.message)
             if cls_prop_facts:
                 facts.update(cls_prop_facts)
