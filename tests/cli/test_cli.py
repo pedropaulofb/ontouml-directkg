@@ -18,7 +18,7 @@ from tests.support.dkgm import DKGM, assert_dkgm_vocabulary
 from tests.support.invocation import (DKGM_CHAIN_WARNING_FACTS, Fault, absent_attribute_property_type_error,
                                       console_covers_diagnostic_records,
                                       diagnostic_record_counts, diagnostic_signatures,
-                                      diagnostics_report_write_error, dkgm_chain_facts, escaped_id_collision_diagnostic,
+                                      diagnostics_delivery_error, diagnostics_report_write_error, dkgm_chain_facts, escaped_id_collision_diagnostic,
                                       malformed_package_contents_diagnostic, ontology_serialization_error,
                                       mixed_hierarchy_error,
                                       read_dkgm_mode_setting, reports_older_ontology_retained,
@@ -3579,10 +3579,31 @@ def test_cli_invocation_time_diagnostics_aliasing_rejected_before_conversion(
 @pytest.mark.parametrize("scenario", ["aborted_conversion", "blocked_delivery"])
 def test_cli_export_time_late_diagnostics_aliasing_falls_back_to_exit_four(
         invoke, tmp_path, target_kind, scenario):
-    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15 exit code 4 fallback. RD-04 Decision 2 (Q2-A)."""
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. C13 Alternative B, persistent identity and T1."""
+    _assert_cli_persistent_report_alias(invoke, tmp_path, target_kind, scenario, "symlink")
+
+
+@pytest.mark.parametrize("target_kind", ["output", "sidecar"])
+@pytest.mark.parametrize("scenario", ["aborted_conversion", "blocked_delivery"])
+@pytest.mark.parametrize("carrier", ["hardlink", "nonexistent"])
+def test_cli_export_time_persistent_report_alias(invoke, tmp_path, target_kind, scenario, carrier):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. C13 Alternative B, existing and absent protected destinations."""
+    _assert_cli_persistent_report_alias(invoke, tmp_path, target_kind, scenario, carrier)
+
+
+@pytest.mark.parametrize("provenance", ["none", "embedded"])
+def test_cli_inactive_sidecar_name_does_not_exempt_main_protection(invoke, tmp_path, provenance):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. C13 Alternative B, inactive sidecar name independently aliasing main."""
+    _assert_cli_persistent_report_alias(invoke, tmp_path, "output", "aborted_conversion", "hardlink",
+                                        provenance=provenance, inactive_sidecar=True)
+
+
+def _assert_cli_persistent_report_alias(invoke, tmp_path, target_kind, scenario, carrier,
+                                        *, provenance=None, inactive_sidecar=False):
     document = load_json("shared/base_iri")
     options = {"base_iri": str(BASE), "iri_strategy": "id",
-               "provenance": "sidecar" if target_kind == "sidecar" else "none"}
+               "provenance": provenance or ("sidecar" if target_kind == "sidecar" else "none"),
+               "console_level": "info"}
     faults = ()
     if scenario == "aborted_conversion":
         document["model"]["contents"][0]["unknownStrictField"] = True
@@ -3593,25 +3614,95 @@ def test_cli_export_time_late_diagnostics_aliasing_falls_back_to_exit_four(
         faults = (Fault("sidecar", "encode") if target_kind == "sidecar" else Fault("ontology", "serialize"),)
 
     source = write_input(tmp_path, document)
-    actual_report = tmp_path / "existing_target.ttl"
-    actual_report.write_bytes(b"RETAINED_EXISTING_CONTENT\n")
     destination = tmp_path / "model.ttl"
     sidecar = tmp_path / "model.provenance.ttl"
-    if target_kind == "output":
-        destination.symlink_to(actual_report)
+    actual_report = sidecar if inactive_sidecar else tmp_path / "report.json"
+    target = destination if target_kind == "output" else sidecar
+    retained = b"RETAINED_EXISTING_CONTENT\n"
+    if carrier != "nonexistent":
+        actual_report.write_bytes(retained)
+    if carrier == "hardlink":
+        target.hardlink_to(actual_report)
     else:
-        sidecar.symlink_to(actual_report)
+        target.symlink_to(actual_report)
+    if carrier == "nonexistent":
+        assert not target.exists() and not actual_report.exists()
+    else:
+        assert target.samefile(actual_report)
 
     process = invoke.cli(source, options=options, workdir=tmp_path,
                          output_path=destination, diagnostics_path=actual_report, faults=faults)
     assert process.conversion_started is True
     assert process.returncode == 4, (process.stdout, process.stderr)
-    assert actual_report.read_bytes() == b"RETAINED_EXISTING_CONTENT\n"
+    if carrier == "nonexistent":
+        assert not actual_report.exists() and not target.exists()
+        assert target.is_symlink() and target.readlink() == actual_report
+    else:
+        assert actual_report.read_bytes() == target.read_bytes() == retained
+        assert target.samefile(actual_report)
     converted, delivered = invoke.cli_report_content(process)
     assert converted.outcome == delivered.outcome == expected_outcome
-    assert any(event.severity == "ERROR" for event in process.console)
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(delivered.events)
+    expected_error = ("UNKNOWN_INFORMATION" if scenario == "aborted_conversion" else
+                      "SIDECAR_DELIVERY" if target_kind == "sidecar" else "ONTOLOGY_DELIVERY")
+    assert any(severity == "ERROR" and code == expected_error for severity, code, *_ in delivered.events)
+    assert console_covers_diagnostic_records(process.console, delivered.events)
+    assert any(diagnostics_delivery_error(event, actual_report, alias=True) for event in process.console)
     if target_kind == "sidecar" and scenario == "blocked_delivery":
         assert destination.is_file() and (BASE.C17, RDF.type, OWL.Class) in load_graph(destination)
+    elif target_kind == "sidecar":
+        assert not destination.exists()
+    elif not inactive_sidecar:
+        assert not sidecar.exists()
+
+
+@pytest.mark.parametrize("target_kind", ["output", "sidecar"])
+@pytest.mark.parametrize("carrier", ["hardlink", "symlink"])
+def test_cli_replacement_separates_report_and_artifact_destinations(invoke, tmp_path, target_kind, carrier):
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15. C13 Alternative B, successful replacement separates identity."""
+    destination = tmp_path / "model.ttl"
+    sidecar = tmp_path / "model.provenance.ttl"
+    report = tmp_path / "report.json"
+    report.write_bytes(b"PREVIOUS_CONTENT\n")
+    artifact = destination if target_kind == "output" else sidecar
+    if carrier == "hardlink":
+        artifact.hardlink_to(report)
+    else:
+        artifact.symlink_to(report)
+    assert artifact.samefile(report)
+    process = invoke.cli(fixture_path("shared/base_iri"),
+                         options={"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar"},
+                         workdir=tmp_path, output_path=destination, diagnostics_path=report)
+    assert process.conversion_started is True
+    assert process.returncode == 0, (process.stdout, process.stderr)
+    assert not artifact.samefile(report)
+    assert (BASE.C17, RDF.type, OWL.Class) in load_graph(destination)
+    assert len(load_graph(sidecar)) > 0
+    converted, delivered = invoke.cli_report_content(process)
+    assert converted.outcome == delivered.outcome == "completed"
+    assert _cli_json_report_contract(json.loads(report.read_bytes())) == (
+        delivered.outcome, diagnostic_record_counts(delivered.events))
+
+
+def test_diagnostics_delivery_error_reader_requires_distinct_failure_destination_and_reason(tmp_path):
+    """Harness only: C13 T1 reporting evidence must not match an unrelated ERROR."""
+    destination = tmp_path / "alias-report.json"
+    reason = "injected export failure"
+    def event(code, message, severity="ERROR"):
+        return SimpleNamespace(code=code, message=message, severity=severity)
+
+    correct = event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}: {reason}")
+    assert diagnostics_delivery_error(correct, destination, reason=reason)
+    for other in (
+        event("ONTOLOGY_DELIVERY", correct.message),
+        event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}.other: {reason}"),
+        event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}: unknown reason"),
+        event("DIAGNOSTICS_DELIVERY", correct.message, "WARNING"),
+    ):
+        assert not diagnostics_delivery_error(other, destination, reason=reason)
+    assert diagnostics_delivery_error(event("DIAGNOSTICS_DELIVERY", f"Cannot write diagnostics to {destination}: same file"),
+                                      destination, alias=True)
+    assert not diagnostics_delivery_error(correct, destination, alias=True)
 
 
 @pytest.mark.parametrize("policy,partial", [("strict", False), ("best-effort", True)],
@@ -3732,7 +3823,10 @@ def test_cli_delivery_unexpected_runtime_and_diagnostics_export_errors(
     assert process.returncode == expected_code, (process.stdout, process.stderr)
     converted, native = invoke.cli_report_content(process)
     assert converted.outcome == native.outcome == expected_outcome
-    assert any(event.severity == "ERROR" for event in process.console)
+    if scenario in {"partial", "aborted"}:
+        assert any(severity == "ERROR" for severity, *_ in converted.events), converted.events
+    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(native.events)
+    assert console_covers_diagnostic_records(process.console, native.events)
 
     if expected_diag_code is not None:
         assert any(code == expected_diag_code and severity == "ERROR"
@@ -3749,7 +3843,10 @@ def test_cli_delivery_unexpected_runtime_and_diagnostics_export_errors(
             assert not sidecar.exists()
     else:
         assert not report_path.exists()
-        assert process.execution_trace["report_export_errors"]
+        failures = process.execution_trace["report_export_errors"]
+        assert failures
+        assert any(diagnostics_delivery_error(event, report_path, reason=failure["reason"])
+                   for event in process.console for failure in failures)
         if expected_outcome == "aborted":
             assert not destination.exists() and not sidecar.exists()
         else:

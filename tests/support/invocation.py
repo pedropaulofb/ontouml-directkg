@@ -1773,6 +1773,23 @@ def console_covers_diagnostic_records(console, records):
     return True
 
 
+def diagnostics_delivery_error(event, destination, *, reason=None, alias=False):
+    """Bind console evidence to report delivery, destination and observed cause.
+
+    The current renderer's delivery identifier is a binding detail, not an
+    addition to the specification's stable diagnostic-code core.
+    """
+    if event.severity != "ERROR" or event.code != "DIAGNOSTICS_DELIVERY":
+        return False
+    _, separator, detail = event.message.partition(f"{destination}:")
+    if not separator:
+        return False
+    if alias:
+        return bool(re.search(r"\balias(?:es|ing)?\b|\bsame (?:file|path|destination|artifact|object)\b",
+                              detail, re.IGNORECASE))
+    return bool(reason and reason in detail)
+
+
 def diagnostics_report_write_error(event, destination, observed_error):
     """Bind a distinct console report-delivery error to the actual failed filesystem call."""
     if (event.severity != "ERROR" or observed_error["destination"] != str(destination)
@@ -4225,16 +4242,26 @@ class _DirectKGInvocation(_UnboundInvocation):
                 all_new_handled = True
         sidecar_path = (Path(output_path).with_name(Path(output_path).stem + ".provenance.ttl")
                         if output_path is not None else None)
+        def shared_identity(artifact):
+            if artifact is None or diagnostics_path is None:
+                return False
+            try:
+                return Path(diagnostics_path).samefile(artifact)
+            except OSError:
+                return False
+
+        shared_output = shared_identity(output_path)
+        shared_sidecar = options.get("provenance") == "sidecar" and shared_identity(sidecar_path)
         allow_existing_output = bool(faults and any(f.kind in {"ontology", "sidecar", "provenance", "diagnostics"} for f in faults)) or (
             output_path is not None and Path(output_path).is_symlink()
-        )
+        ) or shared_output
         allow_existing_diag = bool(faults and any(f.kind == "diagnostics" for f in faults)) or (
             diagnostics_path is not None and (
                 Path(diagnostics_path).is_symlink()
                 or (output_path is not None and Path(output_path).is_symlink())
                 or (sidecar_path is not None and sidecar_path.is_symlink())
             )
-        )
+        ) or shared_output or shared_sidecar
         if ((faults and not (serialization_fault or transformation_fault or provenance_fault or all_new_handled))
                 or extra_args
                 or (output_path is not None and not allow_existing_output and Path(output_path).exists())
