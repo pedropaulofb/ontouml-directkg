@@ -22,13 +22,13 @@ def _write_stream(text: str, stream) -> None:
             encoding = getattr(stream, "encoding", None) or "utf-8"
             safe = text.encode(encoding, errors="backslashreplace").decode(encoding, errors="replace")
             stream.write(safe)
-        except (AttributeError, OSError, UnicodeError, ValueError):
+        except Exception:
             return
-    except (AttributeError, OSError, UnicodeError, ValueError):
+    except Exception:
         return
     try:
         stream.flush()
-    except (AttributeError, OSError, UnicodeError, ValueError):
+    except Exception:
         pass
 
 
