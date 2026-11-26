@@ -82,9 +82,21 @@ Independently modeled properties remain distinct even when names coincide. A uni
 
 If the required owner/source qualifier has no usable name, use its class fallback candidate `unnamedClass_<escaped-source-id>`, based on that **owner/source classifier's own ID**. Reuse the candidate and technical escaping before classifier collision suffixes. Thus a colliding `name` property owned by an unnamed classifier with ID `C17` has qualified candidate `name_unnamedClass_C17`. Qualification itself adds no diagnostic; existing missing-name/fallback/input diagnostics remain.
 
-After applicable fallbacks and qualification, a unique candidate remains unsuffixed. Every member of a remaining collision group of size `N` receives `_1` through `_N`; none remains unsuffixed. Allocation must be deterministic and stable for unchanged supported input, using stable source information, preferably IDs or deterministic source order. The contract does not select which member receives a particular suffix independently of those rules.
+After applicable fallbacks and qualification, check the current local-name candidates for collisions (DK-IRI-07). In each round, every member of a collision group of size `N` receives `_1` through `_N` appended to the group's current shared candidate; no member keeps that candidate unchanged. Candidates outside the round's collision groups remain unchanged in that round. If suffixing introduces further collisions, regroup the resulting candidates and repeat until all are distinct (C3, Alternative A). A previously unique candidate that now collides receives the same treatment as every other member of its new group.
 
-Generated inverses follow the more specific [inverse numeric-allocation rules](../mapping/inverses.md#numeric-allocation): source-backed names remain fixed, reserved numeric slots are skipped, and reservations are shared across inverse groups. This permits gaps in generated-inverse numbering only; ordinary source-backed collision groups retain the contiguous `_1` through `_N` rule above. Keep original numeric text in the inverse's qualified candidate.
+Allocation must be deterministic and stable for unchanged supported input, using stable source information, preferably IDs or deterministic source order. The contract does not select which member receives a particular suffix independently of those rules.
+
+For example, the following **specification illustration** assumes the existing deterministic order assigns suffixes as shown; it introduces no additional ordering rule.
+
+| Initial candidate | First round | Second round |
+| --- | --- | --- |
+| `Person` | `Person_1` | `Person_1_1` |
+| `Person` | `Person_2` | `Person_2` |
+| `Person_1` | `Person_1` | `Person_1_2` |
+
+The first round leaves the initially unique `Person_1` candidate unchanged, but the second round must suffix both current `Person_1` candidates. `Person_2` remains unchanged in the second round. The ordinary collision procedure does not merge the three source elements or trigger the fatal escaped-ID collision contract merely because further grouping is required.
+
+Generated inverses follow the more specific [inverse numeric-allocation rules](../mapping/inverses.md#numeric-allocation): source-backed names remain fixed, reserved numeric slots are skipped, and reservations are shared across inverse groups. Unlike repeated source-backed grouping, generated-inverse allocation retains the original qualified candidate and may skip occupied slots; ordinary source-backed collision groups retain contiguous `_1` through `_N` numbering in every round. Keep original numeric text in the inverse's qualified candidate.
 
 Do not merge properties, change an object/datatype property kind, replace them through inclusion axioms, or repair a merge by introducing union domains/ranges. In `name` mode, ordinary collision handling also applies when a source-ID fallback and a name-derived candidate yield the same local name.
 
@@ -92,7 +104,7 @@ For a usable name-based enumeration value, construct `<ResolvedEnumerationLocalN
 
 ### Collisions between distinct escaped source IDs
 
-DK-IRI-05 requires distinct valid source IDs to produce distinct local names under the same ID-based construction. If allocation detects two such IDs yielding the same local name, the injectivity requirement has been violated. Under DK-IRI-07, DirectKG must abort under every input policy, including `best-effort`. It must neither merge the resources nor add a suffix to resolve the collision. The aborted conversion provides diagnostics and suppresses partial output. [Internal-failure handling](diagnostics.md#unexpected-internal-failures-during-transformation)
+DK-IRI-05 requires distinct valid source IDs to produce distinct local names under the same ID-based construction. If allocation detects two such IDs yielding the same local name, the injectivity requirement has been violated. Under DK-IRI-07, DirectKG must abort under every input policy, including `best-effort`. It must neither merge the resources nor add a suffix to resolve the collision. The aborted conversion provides diagnostics and suppresses partial output. This exceptional condition is not an ordinary secondary name collision; a collision between a source-ID fallback and a name-derived candidate in name mode still follows ordinary collision grouping. [Internal-failure handling](diagnostics.md#unexpected-internal-failures-during-transformation)
 
 Separate declarations with the same ID follow the fatal duplicate-ID rule whenever they fall within its defined scope. [Structural requirements](input.md#structural-requirements)
 
@@ -149,7 +161,7 @@ Deterministic identity does not guarantee byte-identical Turtle. See [Graph and 
 
 ---
 
-Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; DK-LBL-02; baseline consolidated: **2026-11-25**; repository commit: `0523cc4f51356d7de75286ceb176493f714ef7f2`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/0523cc4f51356d7de75286ceb176493f714ef7f2/documentation/specification/transformation-specification.md).
+Governing rules: DK-IRI-01–10; DK-PROP-01–02; DK-INV-05–08, 10; DK-CONF-01–03; DK-DIAG-05; DK-GEN-04; DK-LBL-02; baseline consolidated: **2026-11-25**; repository commit: `1fa4cc99436a07fc1807fa511ec7d01a4c67ee28`; source: [`documentation/specification/transformation-specification.md`](https://github.com/pedropaulofb/ontouml-directkg/blob/1fa4cc99436a07fc1807fa511ec7d01a4c67ee28/documentation/specification/transformation-specification.md).
 
 Accepted update: **RD-02 — Malformed textual and language-tag carriers (`name`, `description`, `languageString`, and `Project.languages`; Alternatives 1A + 2A)** (project-owner formalization included in the cited consolidation).
 
