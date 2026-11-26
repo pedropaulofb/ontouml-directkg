@@ -4432,3 +4432,75 @@ def test_cli_requires_concrete_output_path_and_excludes_stdout_streaming(invoke,
     assert process.observation is None
     assert not report_path.exists()
     assert process.stdout or process.stderr
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_cli_malformed_enumeration_value_type_report_and_recovery_parity(invoke, tmp_path, input_policy):
+    """Rules: DK-CLS-10, DK-CLS-11, DK-DIAG-04, DK-DIAG-05, DK-DIAG-13; §15 CLI/Python parity. Audit remediation C9."""
+    document = load_json("classes/enumerations")
+    source_element(document, "vClosed")["type"] = 7
+    assert fixture_issues(document) == {"wrong_container_type", "unknown_element"}
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+
+    cli_dir, python_dir = tmp_path / "cli", tmp_path / "python"
+    cli_dir.mkdir()
+    python_dir.mkdir()
+    destination, cli_report = cli_dir / "out.ttl", cli_dir / "cli.json"
+    process = invoke.cli(source, options=options, workdir=cli_dir,
+                         output_path=destination, diagnostics_path=cli_report)
+    python = invoke.convert(source, options=options, workdir=python_dir)
+
+    recover = input_policy == "best-effort"
+    expected_outcome = "completed-with-errors" if recover else "aborted"
+    expected_code = 1 if recover else 3
+    assert process.conversion_started is True
+    assert process.returncode == expected_code, process.stderr
+    assert invoke.read_outcome(python) == process.observation.outcome == expected_outcome
+    assert (invoke.read_ontology(python) is not None) == recover
+    assert destination.is_file() == recover
+    assert not python.diagnostics_exports and not list(python_dir.iterdir())
+    assert diagnostic_signatures(process.observation.diagnostics) == diagnostic_signatures(python.diagnostics)
+
+    if recover:
+        delivered_graph = load_graph(destination)
+        assert_graph_equal(delivered_graph, invoke.read_ontology(python))
+        assert (BASE.eStatus, RDF.type, OWL.Class) in delivered_graph
+        assert set(delivered_graph.subjects(RDF.type, BASE.eStatus)) == {BASE.vPending, BASE.vApproved}
+        for survivor in (BASE.vPending, BASE.vApproved):
+            assert (survivor, RDF.type, OWL.NamedIndividual) in delivered_graph
+        assert not list(delivered_graph.triples((BASE.eStatus, OWL.oneOf, None)))
+        assert not any(BASE.vClosed in triple for triple in delivered_graph)
+        assert not list(delivered_graph.subjects(DCTERMS.identifier, Literal("vClosed")))
+        all_different_pairs = set()
+        for axiom in delivered_graph.subjects(RDF.type, OWL.AllDifferent):
+            for head in set(delivered_graph.objects(axiom, OWL.members)) | set(delivered_graph.objects(axiom, OWL.distinctMembers)):
+                all_different_pairs.add(frozenset(rdf_list(delivered_graph, head)))
+        assert all_different_pairs == {frozenset({BASE.vPending, BASE.vApproved})}
+        assert (BASE.cOwner, RDF.type, OWL.Class) in delivered_graph
+        assert (BASE.pLegacy, RDF.type, OWL.DatatypeProperty) in delivered_graph
+        assert (BASE.pLegacy, RDFS.domain, BASE.eStatus) in delivered_graph
+        assert (BASE.pStatus, RDF.type, OWL.ObjectProperty) in delivered_graph
+        assert (BASE.pStatus, RDFS.domain, BASE.cOwner) in delivered_graph
+        assert (BASE.pStatus, RDFS.range, BASE.eStatus) in delivered_graph
+
+    delivered = _assert_cli_json_and_console(invoke, process, cli_report)
+    python_report = python_dir / "python.json"
+    exported = _assert_native_json_mirror(invoke, python, python_report)
+    assert delivered.outcome == exported.outcome == expected_outcome
+    report = invoke.read_report(cli_report)
+    assert report.raw == json.loads(cli_report.read_bytes())
+    assert diagnostic_signatures(report.diagnostics) == diagnostic_signatures(process.observation.diagnostics)
+    produced, reported = invoke.diagnostic_mirror_records(process, report)
+    assert reported == produced
+
+    for payload in (report.raw, json.loads(python_report.read_bytes())):
+        matching = [
+            source_loc
+            for event in payload["diagnostics"]
+            if event["severity"] == "ERROR" and event["code"] not in STABLE_DIAGNOSTIC_CODES
+            for source_loc in event["sources"]
+            if source_loc["path"] == "$.model.contents[0].literals[2]" and source_loc["identifier"] == "vClosed"
+        ]
+        assert matching, payload["diagnostics"]
+        assert all(source_loc["element_type"] is None for source_loc in matching)

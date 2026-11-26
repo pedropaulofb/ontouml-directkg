@@ -340,7 +340,8 @@ def diagnostic_signatures(events):
     meaning. Human wording and native object identity are not standardized.
     """
     return Counter((event.severity, event.kind, tuple(sorted(event.source_ids)),
-                    tuple(sorted(event.source_types)), tuple(sorted(event.generated_iris)),
+                    tuple(sorted(event.source_types, key=lambda item: (type(item).__name__, repr(item)))),
+                    tuple(sorted(event.generated_iris)),
                     tuple(sorted(event.facts)), tuple(sorted(event.identified_sources))) for event in events)
 
 

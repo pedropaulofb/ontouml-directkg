@@ -3421,3 +3421,68 @@ def test_python_preserves_distinction_between_configuration_rejection_and_input_
     assert any(d.kind == "metadata_input" and d.severity == "ERROR" for d in r_meta.diagnostics)
 
 
+def test_diagnostic_signatures_preserves_mixed_source_type_values_without_normalization():
+    """Rules: DK-DIAG-04. Harness only: compare mixed source_types without normalizing non-string values."""
+    from tests.support.invocation import Diagnostic
+
+    numeric = Diagnostic("ERROR", "invalid_enumeration_value", "msg", source_types=(7, "Class"))
+    textual = Diagnostic("ERROR", "invalid_enumeration_value", "msg", source_types=("7", "Class"))
+    omitted = Diagnostic("ERROR", "invalid_enumeration_value", "msg", source_types=("Class",))
+    same_reordered = Diagnostic("ERROR", "invalid_enumeration_value", "msg", source_types=("Class", 7))
+
+    assert diagnostic_signatures((numeric,)) == diagnostic_signatures((same_reordered,))
+    assert diagnostic_signatures((numeric,)) != diagnostic_signatures((textual,))
+    assert diagnostic_signatures((numeric,)) != diagnostic_signatures((omitted,))
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_malformed_enumeration_value_type_json_diagnostics_export_contract(
+        invoke, source_json, tmp_path, input_policy):
+    """Rules: DK-CLS-11, DK-DIAG-04, DK-DIAG-05, DK-DIAG-13; §15 Python JSON export. Audit remediation C9."""
+    document = source_json("classes/enumerations")
+    source_element(document, "vClosed")["type"] = 7
+    assert fixture_issues(document) == {"wrong_container_type", "unknown_element"}
+    source = write_input(tmp_path, document)
+    options = {"base_iri": str(BASE), "iri_strategy": "id", "input_policy": input_policy, "provenance": "none"}
+    result = invoke.convert(source, options=options, workdir=tmp_path)
+    assert result.configuration_error is None
+    assert result.conversion_started is True
+    assert result.diagnostics_exports == ()
+
+    expected_outcome = "completed-with-errors" if input_policy == "best-effort" else "aborted"
+    assert result.outcome == expected_outcome
+    observed_graph = invoke.read_ontology(result)
+    if expected_outcome == "aborted":
+        assert observed_graph is None
+    else:
+        assert observed_graph is not None
+        assert set(observed_graph.subjects(RDF.type, BASE.eStatus)) == {BASE.vPending, BASE.vApproved}
+        assert not list(observed_graph.triples((BASE.eStatus, OWL.oneOf, None)))
+        assert not any(BASE.vClosed in triple for triple in observed_graph)
+        assert (BASE.pLegacy, RDF.type, OWL.DatatypeProperty) in observed_graph
+        assert (BASE.pStatus, RDFS.range, BASE.eStatus) in observed_graph
+
+    before = _native_report_records(invoke.report_content(result))
+    report_path = tmp_path / "enumeration_report.json"
+    assert invoke.export_diagnostics(result, report_path).failure is None
+    payload = json.loads(report_path.read_bytes())
+    assert _json_report_contract(payload) == before
+    assert payload["outcome"] == expected_outcome
+    report = invoke.read_report(report_path)
+    assert report.outcomes == (expected_outcome,)
+    assert diagnostic_signatures(report.diagnostics) == diagnostic_signatures(result.diagnostics)
+
+    matching = [
+        source_loc
+        for event in payload["diagnostics"]
+        if event["severity"] == "ERROR"
+        and event["code"] not in _STABLE_DIAGNOSTIC_CODES
+        and event["message"]
+        and event["effect"]
+        for source_loc in event["sources"]
+        if source_loc["path"] == "$.model.contents[0].literals[2]" and source_loc["identifier"] == "vClosed"
+    ]
+    assert matching, payload["diagnostics"]
+    assert all(source_loc["element_type"] is None for source_loc in matching)
+
+

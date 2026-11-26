@@ -545,6 +545,52 @@ def test_incomplete_enumeration_never_closes_over_survivors(run, source_json, tm
         assert (BASE.pStatus, RDFS.range, BASE.eStatus) in result.ontology
 
 
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_malformed_enumeration_value_type_retains_recovery_and_source_location(run, source_json, tmp_path, input_policy):
+    """Rules: DK-CLS-10, DK-CLS-11, DK-DIAG-04, DK-DIAG-05, DK-DIAG-13. Audit remediation C9."""
+    document = source_json("classes/enumerations")
+    source_element(document, "vClosed")["type"] = 7
+    assert fixture_issues(document) == {"wrong_container_type", "unknown_element"}
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    assert result.configuration_error is None
+    errors = [d for d in result.diagnostics if d.severity == "ERROR"]
+    assert errors
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics)
+    stable_codes = {
+        "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+        "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+    }
+    matching = [
+        d for d in errors
+        if d.kind == "invalid_enumeration_value"
+        and isinstance(d.code, str) and bool(d.code) and d.code not in stable_codes
+        and any(s.path == "$.model.contents[0].literals[2]" and s.identifier == "vClosed" for s in d.raw.sources)
+    ]
+    assert matching, result.diagnostics
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None
+    else:
+        assert result.outcome == "completed-with-errors" and result.ontology is not None
+        _assert_values(result.ontology, BASE.eStatus, [BASE.vPending, BASE.vApproved], complete=False)
+        assert (BASE.vPending, RDFS.label, Literal("Pending")) in result.ontology
+        assert (BASE.vApproved, RDFS.label, Literal("Approved")) in result.ontology
+        assert not any(BASE.vClosed in triple for triple in result.ontology)
+        assert not list(result.ontology.subjects(DCTERMS.identifier, Literal("vClosed")))
+        assert (BASE.cOwner, RDF.type, OWL.Class) in result.ontology
+        assert (BASE.pLegacy, RDF.type, OWL.DatatypeProperty) in result.ontology
+        assert (BASE.pLegacy, RDFS.domain, BASE.eStatus) in result.ontology
+        assert (BASE.pLegacy, RDFS.label, Literal("Pending")) in result.ontology
+        assert not list(result.ontology.objects(BASE.pLegacy, RDFS.range))
+        assert (BASE.pStatus, RDF.type, OWL.ObjectProperty) in result.ontology
+        assert (BASE.pStatus, RDFS.domain, BASE.cOwner) in result.ontology
+        assert (BASE.pStatus, RDFS.range, BASE.eStatus) in result.ontology
+        assert (BASE.pStatus, RDFS.label, Literal("status")) in result.ontology
+    malformed_sources = [s for d in matching for s in d.raw.sources if s.path == "$.model.contents[0].literals[2]"]
+    assert malformed_sources and all(s.identifier == "vClosed" and s.element_type is None for s in malformed_sources)
+    assert all(s.element_type is None or isinstance(s.element_type, str)
+               for d in result.diagnostics for s in d.raw.sources)
+
+
 @pytest.mark.parametrize("names", [("Same", "Same"), ("a-b", "a b")], ids=["identical_names", "normalization_collision"])
 def test_distinct_enum_values_survive_name_collisions(run, source_json, tmp_path, names):
     """Rules: DK-IRI-08, DK-IRI-07, DK-CLS-10, DK-LBL-01."""
