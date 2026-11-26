@@ -224,12 +224,14 @@ class Observation:
 class Fault:
     """Test-only instruction to fail a REAL boundary, never a public option.
 
-    kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics, transformation.
-    operation: read, construct, serialize, encode, create, write, enrich, emit_relations,
-    result_construction, allocate_resources, allocate_inverses, allocate_name_fallbacks. Bind to an
-    observed implementation operation or standard I/O, including child-process
-    I/O for CLI cases. Do not implement a replacement transformation, pre-return
-    expected outcomes, or add production fault hooks to satisfy this protocol.
+    kind: metadata, provenance, optional_enrichment, ontology, sidecar, diagnostics, transformation,
+    stdout, stderr, runtime.
+    operation: read, construct, output_construct, serialize, encode, create, write, flush,
+    write_unexpected, flush_unexpected, unexpected, pre_conversion, parser_setup, post_delivery,
+    enrich, emit_relations, result_construction, allocate_resources, allocate_inverses,
+    allocate_name_fallbacks. Bind to an observed implementation operation or standard I/O,
+    including child-process I/O for CLI cases. Do not implement a replacement transformation,
+    pre-return expected outcomes, or add production fault hooks to satisfy this protocol.
     """
 
     kind: str
@@ -995,17 +997,35 @@ class _FailingConsoleStream:
         self.active = True
 
     def write(self, data):
-        if self.active and self._operation in {"write", "encode"}:
-            trace["console_io_errors"].append({"stream": self._stream_name, "operation": self._operation})
+        if self.active and self._operation in {"write", "encode", "write_unexpected"}:
             if self._operation == "encode":
-                raise UnicodeEncodeError("ascii", "\\u2603", 0, 1, "ordinal not in range(128)")
-            raise OSError(errno.EIO, f"Injected {self._stream_name} write failure")
+                err = UnicodeEncodeError("ascii", "\\u2603", 0, 1, "ordinal not in range(128)")
+            elif self._operation == "write_unexpected":
+                err = RuntimeError(f"Unexpected {self._stream_name} write failure")
+            else:
+                err = OSError(errno.EIO, f"Injected {self._stream_name} write failure")
+            trace["console_io_errors"].append({
+                "stream": self._stream_name,
+                "operation": self._operation,
+                "error_type": type(err).__name__,
+                "reason": str(err),
+            })
+            raise err
         return self._wrapped.write(data)
 
     def flush(self):
-        if self.active and self._operation == "flush":
-            trace["console_io_errors"].append({"stream": self._stream_name, "operation": self._operation})
-            raise OSError(errno.EIO, f"Injected {self._stream_name} flush failure")
+        if self.active and self._operation in {"flush", "flush_unexpected"}:
+            if self._operation == "flush_unexpected":
+                err = RuntimeError(f"Unexpected {self._stream_name} flush failure")
+            else:
+                err = OSError(errno.EIO, f"Injected {self._stream_name} flush failure")
+            trace["console_io_errors"].append({
+                "stream": self._stream_name,
+                "operation": self._operation,
+                "error_type": type(err).__name__,
+                "reason": str(err),
+            })
+            raise err
         return self._wrapped.flush()
 
     def __getattr__(self, name):
@@ -1056,7 +1076,7 @@ for _fault in cli_faults:
             trace["report_export_errors"].append({"operation": _op_name, "error_type": type(err).__name__, "reason": str(err)})
             raise err
         _diag_mod.json.dumps = _failing_json_dumps
-    elif _kind in {"stdout", "stderr"} and _op in {"write", "encode", "flush"}:
+    elif _kind in {"stdout", "stderr"} and _op in {"write", "encode", "flush", "write_unexpected", "flush_unexpected"}:
         _proxy = _FailingConsoleStream(getattr(sys, _kind), _kind, _op)
         setattr(sys, _kind, _proxy)
         _wrapped_streams.append(_proxy)
@@ -4347,7 +4367,9 @@ class _DirectKGInvocation(_UnboundInvocation):
             ("diagnostics", "create"), ("diagnostics", "write"),
             ("diagnostics", "serialize"), ("diagnostics", "unexpected"),
             ("stdout", "write"), ("stdout", "encode"), ("stdout", "flush"),
+            ("stdout", "write_unexpected"), ("stdout", "flush_unexpected"),
             ("stderr", "write"), ("stderr", "encode"), ("stderr", "flush"),
+            ("stderr", "write_unexpected"), ("stderr", "flush_unexpected"),
             ("runtime", "pre_conversion"), ("runtime", "parser_setup"), ("runtime", "post_delivery"),
         }
         new_cli_faults = tuple(
@@ -4418,7 +4440,7 @@ class _DirectKGInvocation(_UnboundInvocation):
         has_late_prov_fault = any((f.kind, f.operation) == ("provenance", "output_construct") for f in new_cli_faults)
         has_delivery_fault = any(f.kind in {"ontology", "sidecar"} for f in new_cli_faults)
         if (completed.returncode == 2 and trace["parser_errors"] and not started) or (
-                not started and (has_runtime_fault or output_path is None)):
+                not started and (has_runtime_fault or has_console_fault or output_path is None)):
             # Actual native rejection or pre-conversion runtime failure has no conversion result.
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   None, _observed_console(completed.stdout, completed.stderr),

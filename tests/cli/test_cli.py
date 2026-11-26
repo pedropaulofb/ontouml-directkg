@@ -3522,6 +3522,206 @@ def test_malformed_class_order_adds_no_new_cli_or_python_controls(invoke):
     } | {"--console-level", "--diagnostics-file", "-h", "--help", "-o", "--output", "--version"}
 
 
+def _normalize_diagnostic_records_for_run(events, run_dir):
+    token = str(run_dir)
+    normalized = []
+    for severity, code, message, effect, sources, iri in events:
+        norm_sources = tuple((path.replace(token, "<RUN_DIR>"), identifier, element_type)
+                             for path, identifier, element_type in sources)
+        normalized.append((severity, code, message.replace(token, "<RUN_DIR>"),
+                           effect.replace(token, "<RUN_DIR>"), norm_sources, iri))
+    return tuple(normalized)
+
+
+def _normalize_report_payload_for_run(payload, run_dir):
+    token = str(run_dir)
+    normalized = copy.deepcopy(payload)
+    for event in normalized["diagnostics"]:
+        event["message"] = event["message"].replace(token, "<RUN_DIR>")
+        event["effect"] = event["effect"].replace(token, "<RUN_DIR>")
+        for source in event["sources"]:
+            source["path"] = source["path"].replace(token, "<RUN_DIR>")
+    return normalized
+
+
+def _normalize_sidecar_for_comparison(graph, ontology_path):
+    spdx_hex = sha256(ontology_path.read_bytes()).hexdigest()
+    activities = set(graph.subjects(RDF.type, PROV.Activity))
+    assert len(activities) == 1, activities
+    activity = next(iter(activities))
+    timestamps = set(graph.objects(activity, PROV.endedAtTime))
+    assert len(timestamps) == 1 and all(
+        isinstance(ts, Literal) and ts.datatype == XSD.dateTime for ts in timestamps
+    ), timestamps
+    outputs = {
+        entity for entity in graph.subjects(DCTERMS.isFormatOf, None)
+        if (entity, RDF.type, PROV.Entity) in graph
+        and (entity, DCTERMS.format, Literal("text/turtle")) in graph
+    }
+    assert len(outputs) == 1, outputs
+    output = next(iter(outputs))
+    expected_loc = URIRef(ontology_path.resolve().as_uri())
+    locations = set(graph.objects(output, PROV.atLocation))
+    if locations:
+        assert locations == {expected_loc}, (locations, expected_loc)
+    checksum_nodes = [
+        node for node in graph.objects(output, SPDX.checksum)
+        if (node, SPDX.algorithm, SPDX.checksumAlgorithm_sha256) in graph
+    ]
+    assert checksum_nodes
+    for node in checksum_nodes:
+        assert {str(value).lower() for value in graph.objects(node, SPDX.checksumValue)} == {spdx_hex}
+
+    norm_activity = URIRef("urn:DirectKG:test:activity")
+    norm_ts = Literal("1970-01-01T00:00:00Z", datatype=XSD.dateTime)
+    norm_loc = URIRef("urn:DirectKG:test:output-location")
+    norm_digest = Literal("0" * 64, datatype=XSD.hexBinary)
+    checksum_set = set(checksum_nodes)
+    normalized = Graph()
+    for subject, predicate, obj in graph:
+        if subject == activity and predicate == PROV.endedAtTime:
+            obj = norm_ts
+        if subject == output and predicate == PROV.atLocation:
+            obj = norm_loc
+        if subject in checksum_set and predicate == SPDX.checksumValue:
+            obj = norm_digest
+        if subject == activity:
+            subject = norm_activity
+        if obj == activity:
+            obj = norm_activity
+        normalized.add((subject, predicate, obj))
+    return normalized
+
+
+def _configure_console_isolation_scenario(scenario, workdir, *, console_level="info"):
+    document = load_json("shared/binary_relation" if scenario == "partial_recovered" else "shared/base_iri")
+    options = {
+        "base_iri": str(BASE),
+        "iri_strategy": "id",
+        "provenance": "sidecar",
+        "console_level": console_level,
+    }
+    destination = workdir / "out.ttl"
+    sidecar = workdir / "out.provenance.ttl"
+    report_path = workdir / "report.json"
+    extra_faults = ()
+
+    if scenario == "warning_completed":
+        options.pop("base_iri")
+        source_element(document, "C17")["isAbstract"] = True
+        expected = ("completed", 0, True, True)
+    elif scenario == "partial_recovered":
+        source_element(document, "tFocus")["propertyType"] = None
+        options["input_policy"] = "best-effort"
+        expected = ("completed-with-errors", 1, True, True)
+    elif scenario == "duplicate_abort":
+        document["model"]["contents"].append(copy.deepcopy(source_element(document, "C17")))
+        expected = ("aborted", 3, False, False)
+    elif scenario == "sidecar_failure":
+        extra_faults = (Fault("sidecar", "unexpected", sidecar),)
+        expected = ("completed", 5, True, False)
+    elif scenario == "ontology_failure":
+        extra_faults = (Fault("ontology", "serialize", destination),)
+        expected = ("completed", 6, False, False)
+    elif scenario == "diagnostics_failure":
+        extra_faults = (Fault("diagnostics", "write", report_path),)
+        expected = ("completed", 4, True, True)
+    else:
+        raise AssertionError(f"Unknown scenario: {scenario}")
+    return document, options, destination, sidecar, report_path, extra_faults, expected
+
+
+def _assert_cli_console_isolation_against_baseline(
+        invoke, tmp_path, stream, operation, scenario, *, console_level="info", expect_fault_triggered=True):
+    baseline_dir = tmp_path / "baseline"
+    faulted_dir = tmp_path / "faulted"
+    baseline_dir.mkdir()
+    faulted_dir.mkdir()
+
+    document, base_options, base_dest, base_sidecar, base_report, base_extra, expected = (
+        _configure_console_isolation_scenario(scenario, baseline_dir, console_level=console_level)
+    )
+    _, fault_options, fault_dest, fault_sidecar, fault_report, fault_extra, _ = (
+        _configure_console_isolation_scenario(scenario, faulted_dir, console_level=console_level)
+    )
+    expected_outcome, expected_code, expect_ontology, expect_sidecar = expected
+    source = write_input(tmp_path, document)
+
+    baseline = invoke.cli(source, options=base_options, workdir=baseline_dir,
+                          output_path=base_dest, diagnostics_path=base_report, faults=base_extra)
+    assert baseline.conversion_started is True
+    assert baseline.execution_trace["console_io_errors"] == []
+    assert baseline.returncode == expected_code, (baseline.stdout, baseline.stderr, baseline.execution_trace)
+
+    faults = (Fault(stream, operation),) + fault_extra
+    process = invoke.cli(source, options=fault_options, workdir=faulted_dir,
+                         output_path=fault_dest, diagnostics_path=fault_report, faults=faults)
+    assert process.conversion_started is True
+    if expect_fault_triggered:
+        expected_error_type = (
+            "UnicodeEncodeError" if operation == "encode"
+            else "RuntimeError" if operation.endswith("_unexpected")
+            else "OSError"
+        )
+        assert any(
+            item["stream"] == stream
+            and item["operation"] == operation
+            and item["error_type"] == expected_error_type
+            for item in process.execution_trace["console_io_errors"]
+        ), (stream, operation, process.execution_trace["console_io_errors"])
+    else:
+        assert process.execution_trace["console_io_errors"] == []
+
+    if stream == "stdout" and not operation.endswith("_unexpected"):
+        assert b"Traceback" not in process.stderr
+    assert process.returncode == baseline.returncode == expected_code, (
+        process.stdout, process.stderr, process.execution_trace
+    )
+
+    base_converted, base_native = invoke.cli_report_content(baseline)
+    converted, native = invoke.cli_report_content(process)
+    assert converted.outcome == native.outcome == base_converted.outcome == base_native.outcome == expected_outcome
+    assert diagnostic_record_counts(converted.events) == diagnostic_record_counts(base_converted.events)
+    assert diagnostic_record_counts(
+        _normalize_diagnostic_records_for_run(native.events, faulted_dir)
+    ) == diagnostic_record_counts(
+        _normalize_diagnostic_records_for_run(base_native.events, baseline_dir)
+    )
+
+    assert fault_dest.is_file() == base_dest.is_file() == expect_ontology
+    assert fault_sidecar.is_file() == base_sidecar.is_file() == expect_sidecar
+    if expect_ontology:
+        assert_graph_equal(load_graph(fault_dest), load_graph(base_dest))
+    if expect_sidecar:
+        assert_graph_equal(
+            _normalize_sidecar_for_comparison(load_graph(fault_sidecar), fault_dest),
+            _normalize_sidecar_for_comparison(load_graph(base_sidecar), base_dest),
+        )
+
+    assert str(base_report) in baseline.execution_trace["diagnostics_exports"]
+    assert str(fault_report) in process.execution_trace["diagnostics_exports"]
+    if scenario != "diagnostics_failure":
+        assert base_report.is_file() and fault_report.is_file()
+        base_payload = json.loads(base_report.read_bytes())
+        fault_payload = json.loads(fault_report.read_bytes())
+        assert _cli_json_report_contract(fault_payload) == (
+            native.outcome, diagnostic_record_counts(native.events)
+        )
+        assert _normalize_report_payload_for_run(fault_payload, faulted_dir) == (
+            _normalize_report_payload_for_run(base_payload, baseline_dir)
+        )
+    else:
+        assert not base_report.exists() and not fault_report.exists()
+        assert len(process.execution_trace["report_io_errors"]) == len(baseline.execution_trace["report_io_errors"]) > 0
+        assert [
+            (err["errno"], err["destination"].replace(str(faulted_dir), "<RUN_DIR>"))
+            for err in process.execution_trace["report_io_errors"]
+        ] == [
+            (err["errno"], err["destination"].replace(str(baseline_dir), "<RUN_DIR>"))
+            for err in baseline.execution_trace["report_io_errors"]
+        ]
+
+
 @pytest.mark.parametrize("stream", ["stderr", "stdout"])
 @pytest.mark.parametrize("operation", ["write", "encode", "flush"])
 @pytest.mark.parametrize("scenario", [
@@ -3536,70 +3736,117 @@ def test_cli_console_only_failures_never_alter_outcome_export_files_or_exit_code
         invoke, tmp_path, stream, operation, scenario):
     """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 console-only failure isolation.
 
-    RD-04 Decision 2 (Q1-A, ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc):
-    stdout/stderr write, encode, or flush failures alone must not alter the
-    transformation outcome, collected diagnostics, delivered artifacts, requested
-    --diagnostics-file export attempt, or CLI exit code (never 4 or 7 for console).
+    RD-04 Decision 2 (Q1-A, ade0de86886c9da316dfbcf2ea5e6d4a3a3447cc) and C8:
+    stdout/stderr write, encode, or flush failures alone must genuinely exercise
+    the target stream operation and preserve transformation outcome, collected
+    diagnostics, delivered artifact semantics, requested --diagnostics-file
+    export attempt, and CLI exit code relative to an equivalent no-fault run.
     """
-    document = load_json("shared/binary_relation" if scenario == "partial_recovered" else "shared/base_iri")
-    options = {"base_iri": str(BASE), "iri_strategy": "id", "provenance": "sidecar", "console_level": "info"}
-    destination = tmp_path / "out.ttl"
-    sidecar = tmp_path / "out.provenance.ttl"
-    report_path = tmp_path / "report.json"
-    extra_faults = ()
+    _assert_cli_console_isolation_against_baseline(invoke, tmp_path, stream, operation, scenario)
 
-    if scenario == "warning_completed":
-        options.pop("base_iri")
-        source_element(document, "C17")["isAbstract"] = True
-        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 0, True, True
-    elif scenario == "partial_recovered":
-        source_element(document, "tFocus")["propertyType"] = None
-        options["input_policy"] = "best-effort"
-        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed-with-errors", 1, True, True
-    elif scenario == "duplicate_abort":
-        document["model"]["contents"].append(copy.deepcopy(source_element(document, "C17")))
-        expected_outcome, expected_code, expect_ontology, expect_sidecar = "aborted", 3, False, False
-    elif scenario == "sidecar_failure":
-        extra_faults = (Fault("sidecar", "unexpected", sidecar),)
-        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 5, True, False
-    elif scenario == "ontology_failure":
-        extra_faults = (Fault("ontology", "serialize", destination),)
-        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 6, False, False
+
+@pytest.mark.parametrize("stream", ["stderr", "stdout"])
+@pytest.mark.parametrize("operation", ["write_unexpected", "flush_unexpected"])
+@pytest.mark.parametrize("scenario", [
+    "warning_completed",
+    "partial_recovered",
+    "duplicate_abort",
+    "sidecar_failure",
+    "ontology_failure",
+    "diagnostics_failure",
+])
+def test_cli_console_unexpected_runtime_errors_never_alter_outcome_export_files_or_exit_code(
+        invoke, tmp_path, stream, operation, scenario):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05, DK-GEN-10; §15 console-only failure isolation (C8).
+
+    Representative unexpected RuntimeError exceptions arising solely from
+    stdout/stderr write or flush operations must not alter the transformation
+    outcome, collected diagnostics, delivered artifact semantics, requested
+    --diagnostics-file export attempt, or CLI exit code (0-6).
+    """
+    _assert_cli_console_isolation_against_baseline(invoke, tmp_path, stream, operation, scenario)
+
+
+@pytest.mark.parametrize("case_kind,stream,operation,exercised", [
+    ("pre_conversion_reject", "stderr", "write", True),
+    ("pre_conversion_reject", "stderr", "encode", True),
+    ("pre_conversion_reject", "stderr", "flush", True),
+    ("pre_conversion_reject", "stderr", "write_unexpected", True),
+    ("pre_conversion_reject", "stderr", "flush_unexpected", True),
+    ("pre_conversion_reject", "stdout", "write", False),
+    ("filtered_clean_stderr", "stderr", "write", False),
+    ("filtered_clean_stderr", "stdout", "write", True),
+    ("filtered_clean_stderr", "stdout", "encode", True),
+    ("filtered_clean_stderr", "stdout", "flush", True),
+    ("filtered_clean_stderr", "stdout", "write_unexpected", True),
+    ("filtered_clean_stderr", "stdout", "flush_unexpected", True),
+], ids=[
+    "pre_conversion_reject-stderr-write",
+    "pre_conversion_reject-stderr-encode",
+    "pre_conversion_reject-stderr-flush",
+    "pre_conversion_reject-stderr-write_unexpected",
+    "pre_conversion_reject-stderr-flush_unexpected",
+    "pre_conversion_reject-stdout-write-unexercised",
+    "filtered_clean_stderr-stderr-write-unexercised",
+    "filtered_clean_stderr-stdout-write",
+    "filtered_clean_stderr-stdout-encode",
+    "filtered_clean_stderr-stdout-flush",
+    "filtered_clean_stderr-stdout-write_unexpected",
+    "filtered_clean_stderr-stdout-flush_unexpected",
+])
+def test_cli_console_failure_isolation_distinguishes_exercised_and_unexercised_streams(
+        invoke, tmp_path, case_kind, stream, operation, exercised):
+    """Rules: DK-DIAG-04, DK-DIAG-05; §15 console-only failure isolation and exit codes 0/2 (C8).
+
+    Distinguishes streams that genuinely occur (stderr on exit-2 rejection;
+    stdout on console-filtered completion) from unexercised streams (stdout on
+    exit-2 rejection; stderr when --console-level error hides all warnings/info).
+    """
+    if case_kind == "filtered_clean_stderr":
+        _assert_cli_console_isolation_against_baseline(
+            invoke, tmp_path, stream, operation, "warning_completed",
+            console_level="error", expect_fault_triggered=exercised,
+        )
+        return
+
+    baseline_dir = tmp_path / "baseline"
+    faulted_dir = tmp_path / "faulted"
+    baseline_dir.mkdir()
+    faulted_dir.mkdir()
+    source = fixture_path("shared/base_iri")
+    options = {"base_iri": "relative/base", "provenance": "none"}
+
+    baseline = invoke.cli(source, options=options, workdir=baseline_dir,
+                          output_path=baseline_dir / "out.ttl", diagnostics_path=baseline_dir / "report.json")
+    assert baseline.returncode == 2
+    assert baseline.conversion_started is False and baseline.observation is None
+    assert baseline.execution_trace["console_io_errors"] == []
+
+    process = invoke.cli(source, options=options, workdir=faulted_dir,
+                         output_path=faulted_dir / "out.ttl", diagnostics_path=faulted_dir / "report.json",
+                         faults=(Fault(stream, operation),))
+    assert process.conversion_started is False and process.observation is None
+    if exercised:
+        expected_error_type = (
+            "UnicodeEncodeError" if operation == "encode"
+            else "RuntimeError" if operation.endswith("_unexpected")
+            else "OSError"
+        )
+        assert any(
+            item["stream"] == stream
+            and item["operation"] == operation
+            and item["error_type"] == expected_error_type
+            for item in process.execution_trace["console_io_errors"]
+        ), process.execution_trace["console_io_errors"]
     else:
-        extra_faults = (Fault("diagnostics", "write", report_path),)
-        expected_outcome, expected_code, expect_ontology, expect_sidecar = "completed", 4, True, True
+        assert process.execution_trace["console_io_errors"] == []
+        assert process.stderr == baseline.stderr
+        assert process.stdout == baseline.stdout == b""
 
-    source = write_input(tmp_path, document)
-    faults = (Fault(stream, operation),) + extra_faults
-    process = invoke.cli(source, options=options, workdir=tmp_path,
-                         output_path=destination, diagnostics_path=report_path, faults=faults)
-    assert process.conversion_started is True
-    if stream == "stdout":
-        assert b"Traceback" not in process.stderr
-    assert process.returncode == expected_code, (process.stdout, process.stderr, process.execution_trace)
-
-    converted, native = invoke.cli_report_content(process)
-    assert converted.outcome == native.outcome == expected_outcome
-    assert diagnostic_record_counts(converted.events) <= diagnostic_record_counts(native.events)
-
-    if operation in {"write", "encode"} and (stream == "stdout" or native.events):
-        assert any(item["stream"] == stream and item["operation"] == operation
-                   for item in process.execution_trace["console_io_errors"])
-
-    assert destination.is_file() == expect_ontology
-    assert sidecar.is_file() == expect_sidecar
-    if expect_ontology:
-        assert len(Graph().parse(destination, format="turtle")) > 0
-    if expect_sidecar:
-        assert len(Graph().parse(sidecar, format="turtle")) > 0
-
-    if scenario != "diagnostics_failure":
-        assert str(report_path) in process.execution_trace["diagnostics_exports"]
-        assert report_path.is_file()
-        assert _cli_json_report_contract(json.loads(report_path.read_bytes())) == (
-            native.outcome, diagnostic_record_counts(native.events))
-    else:
-        assert not report_path.exists()
+    assert process.returncode == baseline.returncode == 2, (
+        process.stdout, process.stderr, process.execution_trace
+    )
+    assert not (faulted_dir / "out.ttl").exists() and not (faulted_dir / "report.json").exists()
 
 
 @pytest.mark.parametrize("provenance", ["embedded", "none"])
@@ -4023,6 +4270,11 @@ def test_cli_residual_exit_code_seven_for_unclassifiable_unexpected_runtime_fail
         source, options={"base_iri": str(BASE), "provenance": "none"},
         workdir=tmp_path, output_path=destination, diagnostics_path=report_path, faults=faults,
     )
+    if console_fault:
+        assert any(
+            item["stream"] == "stderr" and item["operation"] == "write" and item["error_type"] == "OSError"
+            for item in process.execution_trace["console_io_errors"]
+        ), process.execution_trace["console_io_errors"]
     assert process.returncode == 7, (process.stdout, process.stderr, process.execution_trace)
     assert process.execution_trace["runtime_faults"]
     if stage in {"pre_conversion", "parser_setup"}:
@@ -4038,6 +4290,52 @@ def test_cli_residual_exit_code_seven_for_unclassifiable_unexpected_runtime_fail
         "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
         "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
     })
+
+
+@pytest.mark.parametrize("stage", ["pre_conversion", "parser_setup", "post_delivery"])
+@pytest.mark.parametrize("operation", ["flush", "write_unexpected", "flush_unexpected"])
+def test_cli_residual_exit_code_seven_isolates_console_flush_and_unexpected_errors(
+        invoke, tmp_path, stage, operation):
+    """Rules: DK-DIAG-01, DK-DIAG-04, DK-DIAG-05; §15 exit code 7 and console-only isolation (C8)."""
+    baseline_dir = tmp_path / "baseline"
+    faulted_dir = tmp_path / "faulted"
+    baseline_dir.mkdir()
+    faulted_dir.mkdir()
+    source = fixture_path("shared/base_iri")
+    options = {"base_iri": str(BASE), "provenance": "none", "console_level": "error"}
+    base_dest = baseline_dir / "out.ttl"
+    base_report = baseline_dir / "report.json"
+    fault_dest = faulted_dir / "out.ttl"
+    fault_report = faulted_dir / "report.json"
+
+    baseline = invoke.cli(source, options=options, workdir=baseline_dir,
+                          output_path=base_dest, diagnostics_path=base_report,
+                          faults=(Fault("runtime", stage),))
+    assert baseline.returncode == 7
+
+    process = invoke.cli(source, options=options, workdir=faulted_dir,
+                         output_path=fault_dest, diagnostics_path=fault_report,
+                         faults=(Fault("runtime", stage), Fault("stderr", operation)))
+    expected_error_type = "RuntimeError" if operation.endswith("_unexpected") else "OSError"
+    assert any(
+        item["stream"] == "stderr"
+        and item["operation"] == operation
+        and item["error_type"] == expected_error_type
+        for item in process.execution_trace["console_io_errors"]
+    ), process.execution_trace["console_io_errors"]
+    assert process.execution_trace["runtime_faults"]
+    assert process.returncode == baseline.returncode == 7, (
+        process.stdout, process.stderr, process.execution_trace
+    )
+    assert process.conversion_started is baseline.conversion_started
+    if stage in {"pre_conversion", "parser_setup"}:
+        assert process.observation is None
+        assert not fault_dest.exists() and not fault_report.exists()
+    else:
+        assert base_dest.is_file() and fault_dest.is_file()
+        assert_graph_equal(load_graph(fault_dest), load_graph(base_dest))
+        assert base_report.is_file() and fault_report.is_file()
+        assert json.loads(fault_report.read_bytes()) == json.loads(base_report.read_bytes())
 
 
 def test_cli_residual_exit_code_seven_preserves_diagnostics_failure_precedence(invoke, tmp_path):
