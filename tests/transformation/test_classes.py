@@ -22,6 +22,10 @@ GROUPS = [
      "phase", "category", "mixin", "roleMixin", "phaseMixin", "historicalRole",
      "historicalRoleMixin", "type"},
 ]
+STABLE_DIAGNOSTIC_CODES = frozenset({
+    "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
+    "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
+})
 
 
 def _pairs(graph):
@@ -277,6 +281,230 @@ def test_partial_non_disjoint_set_does_not_invent_disjointness(run, source_json,
     assert not list(result.ontology.objects(BASE.cA, RDFS.subClassOf))
     assert (BASE.cB, RDFS.subClassOf, BASE.cA) in result.ontology
     assert (BASE.cC, RDFS.subClassOf, BASE.cA) in result.ontology
+
+
+def _assert_failed_generalization_error(diagnostics, expected_ids, *, require_all=True):
+    assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in diagnostics), diagnostics
+    matched = [
+        identifier for identifier in expected_ids
+        if any(
+            d.severity == "ERROR"
+            and identifier in d.identified_sources
+            and isinstance(d.code, str)
+            and bool(d.code)
+            and d.code not in STABLE_DIAGNOSTIC_CODES
+            for d in diagnostics
+        )
+    ]
+    if require_all:
+        assert set(matched) == set(expected_ids), (expected_ids, diagnostics)
+    else:
+        assert matched, (expected_ids, diagnostics)
+
+
+def _assert_no_coverage_or_singleton_completeness(result):
+    graph = result.ontology
+    assert not list(graph.objects(BASE.cA, RDFS.subClassOf))
+    for predicate in (OWL.unionOf, OWL.equivalentClass, OWL.disjointUnionOf):
+        assert not list(graph.triples((None, predicate, None)))
+    assert not any(isinstance(s, BNode) for s in graph.subjects(RDF.type, OWL.Class))
+    assert not list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
+    assert not any(
+        d.kind == "singleton_completeness"
+        or (
+            d.severity == "INFO"
+            and (
+                {"extensional_equivalence", "distinct_identifiers"} & d.facts
+                or {"gsMain", "cA", "cB"} <= set(d.identified_sources)
+            )
+        )
+        for d in result.diagnostics
+    ), result.diagnostics
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("scenario", [
+    "null_general",
+    "unresolved_general",
+    "no_local_class_general",
+    "both_generals_null",
+    "three_members_one_general_null",
+])
+def test_partial_class_set_retains_disjointness_when_general_fails(
+        run, source_json, tmp_path, input_policy, scenario):
+    """Rules: DK-CLS-02, DK-CLS-06, DK-CLS-08, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
+
+    Audit remediation C11: when a class generalization fails on its general
+    classifier while its specific classifier remains resolved and generated,
+    best-effort retains pairwise disjointness among available specific classes
+    while omitting coverage and singleton completeness.
+    """
+    document = source_json("classes/generalization_sets")
+    gs = source_element(document, "gsMain")
+    gs.update(isDisjoint=True, isComplete=True, categorizer=None)
+    if scenario != "three_members_one_general_null":
+        gs["generalizations"] = [
+            {"id": "gB", "type": "Generalization"},
+            {"id": "gC", "type": "Generalization"},
+        ]
+
+    if scenario == "unresolved_general":
+        source_element(document, "gC")["general"] = {"id": "missingGeneral", "type": "Class"}
+        expected_defects = {"unresolved_reference:missingGeneral"}
+        failed_ids = ("gC",)
+    elif scenario == "no_local_class_general":
+        primitive = copy.deepcopy(source_element(document, "cA"))
+        primitive.update(id="dString", name="string", stereotype="datatype")
+        document["model"]["contents"].append(primitive)
+        source_element(document, "gC")["general"] = {"id": "dString", "type": "Class"}
+        expected_defects = frozenset()
+        failed_ids = ("gC",)
+    elif scenario == "both_generals_null":
+        source_element(document, "gB")["general"] = None
+        source_element(document, "gC")["general"] = None
+        expected_defects = {"malformed_reference"}
+        failed_ids = ("gB", "gC")
+    else:
+        source_element(document, "gC")["general"] = None
+        expected_defects = {"malformed_reference"}
+        failed_ids = ("gC",)
+
+    assert fixture_issues(document) == expected_defects
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    _assert_failed_generalization_error(result.diagnostics, failed_ids, require_all=(input_policy == "best-effort"))
+    assert not any(
+        d.kind == "singleton_completeness"
+        or (d.severity == "INFO" and {"extensional_equivalence", "distinct_identifiers"} & d.facts)
+        for d in result.diagnostics
+    )
+
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors" and result.ontology is not None
+    graph = result.ontology
+    expected_classes = {BASE[name] for name in ("cA", "cB", "cC", "cD", "cE", "cF")}
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == expected_classes
+    for name, label in (("cA", "A"), ("cB", "B"), ("cC", "C"), ("cD", "D"), ("cE", "E"), ("cF", "F")):
+        assert (BASE[name], RDFS.label, Literal(label)) in graph
+    expected_edges = {(BASE.cD, BASE.cA), (BASE.cE, BASE.cB), (BASE.cF, BASE.cA)}
+    if scenario != "both_generals_null":
+        expected_edges.add((BASE.cB, BASE.cA))
+    assert set(graph.subject_objects(RDFS.subClassOf)) == expected_edges
+    assert not any(BASE.gC in triple for triple in graph)
+    assert not any(BASE.gsMain in triple for triple in graph)
+    if scenario == "both_generals_null":
+        assert not any(BASE.gB in triple for triple in graph)
+    elif scenario == "unresolved_general":
+        assert not any(BASE.missingGeneral in triple for triple in graph)
+    elif scenario == "no_local_class_general":
+        assert not any(term in {BASE.dString, XSD.string} for triple in graph for term in triple)
+    assert not list(graph.subjects(RDF.type, OWL.NamedIndividual))
+    _assert_no_coverage_or_singleton_completeness(result)
+    expected_specifics = (
+        [BASE.cB, BASE.cC, BASE.cD]
+        if scenario == "three_members_one_general_null"
+        else [BASE.cB, BASE.cC]
+    )
+    assert _pairs(graph) == _pair_set(expected_specifics)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+@pytest.mark.parametrize("boundary", ["non_disjoint_general_null", "unavailable_specific_primitive"])
+def test_partial_class_set_general_failure_preserves_non_disjoint_and_unusable_specific_boundaries(
+        run, source_json, tmp_path, input_policy, boundary):
+    """Rules: DK-CLS-01, DK-CLS-02, DK-CLS-06, DK-CLS-08, DK-CLS-09, DK-DAT-02, DK-DIAG-05, DK-DIAG-14.
+
+    Audit remediation C11: neither a non-disjoint partial set nor a specific
+    classifier without a generated local owl:Class emits pairwise disjointness.
+    """
+    document = source_json("classes/generalization_sets")
+    gs = source_element(document, "gsMain")
+    gs.update(
+        isComplete=True,
+        isDisjoint=(boundary == "unavailable_specific_primitive"),
+        categorizer=None,
+        generalizations=[
+            {"id": "gB", "type": "Generalization"},
+            {"id": "gC", "type": "Generalization"},
+        ],
+    )
+    if boundary == "non_disjoint_general_null":
+        source_element(document, "gC")["general"] = None
+        expected_defects = {"malformed_reference"}
+    else:
+        source_element(document, "cC").update(stereotype="datatype", name="string")
+        expected_defects = frozenset()
+
+    assert fixture_issues(document) == expected_defects
+    result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy=input_policy)
+    _assert_failed_generalization_error(result.diagnostics, ("gC",))
+    if input_policy != "best-effort":
+        assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        return
+
+    assert result.outcome == "completed-with-errors" and result.ontology is not None
+    graph = result.ontology
+    expected_classes = {BASE[name] for name in ("cA", "cB", "cD", "cE", "cF")}
+    if boundary == "non_disjoint_general_null":
+        expected_classes.add(BASE.cC)
+    else:
+        assert not any(term in {BASE.cC, XSD.string} for triple in graph for term in triple)
+    assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == expected_classes
+    assert set(graph.subject_objects(RDFS.subClassOf)) == {
+        (BASE.cB, BASE.cA), (BASE.cD, BASE.cA), (BASE.cE, BASE.cB), (BASE.cF, BASE.cA),
+    }
+    assert not _pairs(graph)
+    _assert_no_coverage_or_singleton_completeness(result)
+
+
+@pytest.mark.parametrize("input_policy", POLICIES)
+def test_repeated_membership_retains_disjointness_when_general_fails(run, source_json, tmp_path, input_policy):
+    """Rules: DK-GEN-12, DK-CLS-02, DK-CLS-06, DK-CLS-08, DK-CLS-09, DK-DIAG-05, DK-DIAG-14.
+
+    Audit remediation C11: deduplicating repeated gB references must not
+    suppress cB/cC disjointness or trigger singleton completeness when gC fails
+    on its general reference.
+    """
+    document = source_json("classes/generalization_sets")
+    gs = source_element(document, "gsMain")
+    gs.update(
+        isComplete=True,
+        isDisjoint=True,
+        categorizer=None,
+        generalizations=[
+            {"id": "gB", "type": "Generalization"},
+            {"id": "gC", "type": "Generalization"},
+        ],
+    )
+    source_element(document, "gC")["general"] = None
+    observations = []
+    for repeated in (False, True):
+        if repeated:
+            gs["generalizations"].insert(1, copy.deepcopy(gs["generalizations"][0]))
+        assert fixture_issues(document) == {"malformed_reference"}
+        result = run(
+            path=write_input(tmp_path, document, f"general_fail_{repeated}.json"),
+            iri_strategy="id",
+            input_policy=input_policy,
+        )
+        observations.append(result)
+        _assert_failed_generalization_error(result.diagnostics, ("gC",))
+        if input_policy != "best-effort":
+            assert result.outcome == "aborted" and result.ontology is None and result.provenance is None
+        else:
+            assert result.outcome == "completed-with-errors" and result.ontology is not None
+            graph = result.ontology
+            assert {s for s in graph.subjects(RDF.type, OWL.Class) if isinstance(s, URIRef)} == {
+                BASE[name] for name in ("cA", "cB", "cC", "cD", "cE", "cF")
+            }
+            assert set(graph.subject_objects(RDFS.subClassOf)) == {
+                (BASE.cB, BASE.cA), (BASE.cD, BASE.cA), (BASE.cE, BASE.cB), (BASE.cF, BASE.cA),
+            }
+            assert _pairs(graph) == {frozenset((BASE.cB, BASE.cC))}
+            _assert_no_coverage_or_singleton_completeness(result)
+    assert diagnostic_signatures(observations[0].diagnostics) == diagnostic_signatures(observations[1].diagnostics)
 
 
 def _class_set_membership_output(result, general, specifics, *, complete):
