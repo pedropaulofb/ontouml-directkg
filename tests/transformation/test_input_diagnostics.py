@@ -11,18 +11,23 @@ from rdflib.namespace import DCTERMS, OWL, RDF, RDFS
 
 from tests.support.data import (FIXTURES, fixture_issues, fixture_path, load_json,
                                package_contents_document, source_element, source_elements, write_input)
-from tests.support.invocation import (attribute_owner_without_local_class_diagnostic,
+from tests.support.invocation import (_observed_diagnostics,
+                                      attribute_owner_without_local_class_diagnostic,
                                       class_properties_container_diagnostic,
                                       diagnostic_signatures,
+                                      invalid_enumeration_value_diagnostic,
                                       malformed_boolean_flag_diagnostic,
                                       malformed_class_order_diagnostic,
                                       malformed_package_contents_diagnostic,
                                       malformed_stereotype_diagnostic,
+                                      missing_stereotype_diagnostic,
                                       non_enum_literals_diagnostic,
                                       package_contents_entry_diagnostic,
                                       project_languages_diagnostic,
                                       relation_properties_container_diagnostic,
-                                      textual_carrier_diagnostic, unresolved_property_reference_between)
+                                      textual_carrier_diagnostic,
+                                      unrecognized_stereotype_diagnostic,
+                                      unresolved_property_reference_between)
 from tests.support.rdf import assert_contains, assert_graph_equal, assert_selected_equal, load_graph, rdf_list
 
 
@@ -1914,48 +1919,41 @@ def test_excluded_and_omitted_elements_do_not_emit_textual_carrier_errors(run, s
     "untransformable_enum_literal_id",
 ])
 def test_elements_omitted_before_textual_validation_do_not_add_textual_errors(run, source_json, tmp_path, case):
-    """Rules: DK-LBL-02, DK-DIAG-03, DK-DIAG-05, DK-ATT-01, DK-GEN-06, DK-CLS-11, DK-DIAG-13; §3.2. RD-02 Alt 1A."""
+    """Rules: DK-LBL-02, DK-DIAG-03, DK-DIAG-04, DK-DIAG-05, DK-ATT-01, DK-GEN-06, DK-CLS-11, DK-DIAG-13; §3.2. RD-02 Alt 1A; C15."""
     if case == "failed_relation_null_endpoint":
         document = source_json("shared/binary_relation")
         source_element(document, "tFocus")["propertyType"] = None
         source_element(document, "rFocus")["name"] = 123
         source_element(document, "sFocus")["name"] = {"bad tag": "OmittedEnd"}
-        allowed_codes = {"FAILED_RELATION"}
     elif case == "malformed_non_binary_relation":
         document = source_json("shared/binary_relation")
         source_element(document, "rFocus")["name"] = 123
         source_element(document, "rFocus")["properties"] = [source_element(document, "rFocus")["properties"][0]]
-        allowed_codes = set()
     elif case == "primitive_owned_attribute":
         document = source_json("attributes_datatypes/value_types")
         prop = copy.deepcopy(source_element(document, "pFocus"))
         prop.update(id="pOmittedAttr", name=123, description={"bad tag": "OmittedAttr"})
         source_element(document, "dValue")["properties"] = [prop]
-        allowed_codes = set()
     elif case == "misplaced_package_property":
         document = source_json("shared/core_model")
         misplaced = copy.deepcopy(source_element(document, "aAge"))
         misplaced.update(id="pMisplaced", name=123, description={"bad tag": "OmittedMisplaced"})
         document["model"]["contents"].append(misplaced)
-        allowed_codes = set()
     elif case == "unknown_information_element":
         document = source_json("shared/core_model")
         document["model"]["contents"].append({
             "id": "uCustom", "name": 123, "description": {"bad tag": "OmittedUnknown"},
             "type": "CustomNode", "propertyAssignments": None,
         })
-        allowed_codes = {"UNKNOWN_INFORMATION"}
     elif case == "non_enum_disallowed_literal":
         document = source_json("shared/core_model")
         source_element(document, "cOrg")["literals"] = [{
             "id": "vDisallowed", "name": 123, "description": {"bad tag": "OmittedLit"},
             "type": "Literal", "propertyAssignments": None,
         }]
-        allowed_codes = set()
     else:
         document = source_json("classes/enumerations")
         source_element(document, "vPending").update(id="", name=123)
-        allowed_codes = {"UNTRANSFORMABLE_ENUMERATION_VALUE"}
 
     result = run(path=write_input(tmp_path, document), iri_strategy="id", input_policy="best-effort")
     assert all(d.code != "INTERNAL_TRANSFORMATION_FAILURE" for d in result.diagnostics), result.diagnostics
@@ -1965,8 +1963,25 @@ def test_elements_omitted_before_textual_validation_do_not_add_textual_errors(ru
         "malformed_textual_carrier" in d.facts or "invalid_language_string_entry" in d.facts
         for d in result.diagnostics
     ), result.diagnostics
-    if allowed_codes:
-        assert any(d.code in allowed_codes for d in result.diagnostics), result.diagnostics
+    if case == "failed_relation_null_endpoint":
+        assert _has_noncore_condition_error(
+            result.diagnostics,
+            expected_kind="failed_relation",
+            expected_fact="unresolved_relation_endpoint",
+            required_sources=("rFocus", "tFocus"),
+        ), result.diagnostics
+    elif case == "unknown_information_element":
+        assert any(
+            d.code == "UNKNOWN_INFORMATION" and d.severity == "WARNING" and "uCustom" in d.identified_sources
+            for d in result.diagnostics
+        ), result.diagnostics
+    elif case == "untransformable_enum_literal_id":
+        assert _has_noncore_condition_error(
+            result.diagnostics,
+            expected_kind="invalid_enumeration_value",
+            expected_fact="invalid_enumeration_value",
+            required_sources=("eStatus",),
+        ), result.diagnostics
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)
@@ -2138,6 +2153,19 @@ _STABLE_DIAGNOSTIC_CODES = frozenset({
     "PLACEHOLDER_BASE", "UNPROCESSABLE_DOCUMENT", "DUPLICATE_SOURCE_ID", "UNKNOWN_INFORMATION",
     "REQUIRED_PROVENANCE", "INTERNAL_TRANSFORMATION_FAILURE", "ONTOLOGY_DELIVERY", "SIDECAR_DELIVERY",
 })
+
+
+def _has_noncore_condition_error(diagnostics, *, expected_kind, expected_fact, required_sources):
+    return any(
+        d.severity == "ERROR"
+        and d.kind == expected_kind
+        and expected_fact in d.facts
+        and set(required_sources) <= set(d.identified_sources)
+        and isinstance(d.code, str)
+        and bool(d.code)
+        and d.code not in _STABLE_DIAGNOSTIC_CODES
+        for d in diagnostics
+    )
 
 _MALFORMED_STEREOTYPE_VALUES = [
     pytest.param(True, id="bool_true"),
@@ -2782,7 +2810,7 @@ def test_unrecognized_boolean_flag_fields_outside_element_type_use_unknown_infor
 ])
 def test_malformed_boolean_flag_respects_precedence_and_omitted_element_boundaries(
         run, source_json, tmp_path, input_policy, condition):
-    """Rules: DK-DIAG-05, DK-DIAG-06, DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-03, DK-DIAG-12, DK-INS-01, DK-INS-02, DK-REL-08, DK-REL-17; §§3.2, 3.4. RD-02 Alternative 1."""
+    """Rules: DK-DIAG-04, DK-DIAG-05, DK-DIAG-06, DK-GEN-06, DK-ATT-01, DK-CLS-11, DK-DIAG-03, DK-DIAG-12, DK-INS-01, DK-INS-02, DK-REL-08, DK-REL-17; §§3.2, 3.4. RD-02 Alternative 1; C15."""
     options = {"iri_strategy": "id", "input_policy": input_policy}
     always_abort = False
 
@@ -2926,9 +2954,19 @@ def test_malformed_boolean_flag_respects_precedence_and_omitted_element_boundari
         if condition.startswith("duplicate_"):
             assert any(d.code == "DUPLICATE_SOURCE_ID" and d.severity == "ERROR" for d in result.diagnostics)
         elif condition == "rejected_missing_stereotype_class_with_malformed_flag":
-            assert any(d.code == "MISSING_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+            assert _has_noncore_condition_error(
+                result.diagnostics,
+                expected_kind="missing_stereotype",
+                expected_fact="missing_stereotype",
+                required_sources=("cOrg",),
+            ), result.diagnostics
         else:
-            assert any(d.code == "UNRECOGNIZED_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+            assert _has_noncore_condition_error(
+                result.diagnostics,
+                expected_kind="unrecognized_stereotype",
+                expected_fact="unrecognized_stereotype",
+                required_sources=("rWorks",),
+            ), result.diagnostics
         return
 
     if condition == "surviving_property_after_malformed_stereotype_still_validates_flag":
@@ -3135,7 +3173,7 @@ def test_non_class_order_field_routes_through_unknown_information(
 ])
 def test_malformed_class_order_respects_precedence_and_omitted_element_boundaries(
         run, source_json, tmp_path, input_policy, condition):
-    """Rules: DK-CLS-05, DK-DIAG-05, DK-DIAG-06, DK-GEN-06; §§3.2, 3.4. RD-02 V4 + R1."""
+    """Rules: DK-CLS-05, DK-DIAG-04, DK-DIAG-05, DK-DIAG-06, DK-GEN-06; §§3.2, 3.4. RD-02 V4 + R1; C15."""
     document = source_json("shared/core_model")
     options = {"iri_strategy": "id", "input_policy": input_policy}
     always_abort = False
@@ -3188,9 +3226,19 @@ def test_malformed_class_order_respects_precedence_and_omitted_element_boundarie
         if condition == "duplicate_class_id_with_malformed_order":
             assert any(d.code == "DUPLICATE_SOURCE_ID" and d.severity == "ERROR" for d in result.diagnostics)
         elif condition == "rejected_missing_stereotype_class_with_malformed_order":
-            assert any(d.code == "MISSING_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+            assert _has_noncore_condition_error(
+                result.diagnostics,
+                expected_kind="missing_stereotype",
+                expected_fact="missing_stereotype",
+                required_sources=("cOrg",),
+            ), result.diagnostics
         else:
-            assert any(d.code == "UNRECOGNIZED_STEREOTYPE" and d.severity == "ERROR" for d in result.diagnostics)
+            assert _has_noncore_condition_error(
+                result.diagnostics,
+                expected_kind="unrecognized_stereotype",
+                expected_fact="unrecognized_stereotype",
+                required_sources=("cOrg",),
+            ), result.diagnostics
         return
 
     expected_kind = {
@@ -3315,6 +3363,126 @@ def test_malformed_class_order_reader_requires_affirmative_conditions():
     )
     for message in rejected:
         assert not malformed_class_order_diagnostic(message), message
+
+
+def test_noncore_stereotype_and_enumeration_diagnostic_readers_accept_alternative_codes():
+    """Rules: DK-DIAG-04, DK-DIAG-06, DK-CLS-11, DK-DIAG-13. Harness only: verify noncore condition readers and conformance predicates accept alternative valid noncore codes while rejecting nonconforming diagnostics."""
+    missing_accepted = (
+        "Missing stereotype on Class.",
+        "Class 'cOrg' has a missing stereotype.",
+        "Required stereotype is missing on Relation 'rWorks'.",
+        "Class 'cOrg' lacks a required stereotype.",
+        "Null stereotype on Class 'cOrg' is rejected by stereotype policy.",
+    )
+    missing_rejected = (
+        "Malformed stereotype-value recovery is outside BI-W1",
+        "Class 'cOrg' stereotype is null.",
+        "Missing stereotype on Class is accepted under allow-missing.",
+        "Class 'cOrg' stereotype is not missing.",
+        "Class 'cOrg' stereotype must be a nonempty string or null, got int.",
+        "Unrecognized stereotype 'customKind' on Class 'cOrg'.",
+        "Class 'cOrg' isAbstract must be a boolean or null, got str.",
+        "Class 'cOrg' order must be a string or null, got int.",
+    )
+    for message in missing_accepted:
+        assert "missing_stereotype" in missing_stereotype_diagnostic(message), message
+    for message in missing_rejected:
+        assert not missing_stereotype_diagnostic(message), message
+
+    unrec_accepted = (
+        "Unrecognized stereotype 'customRel' on Relation.",
+        "Class 'cOrg' stereotype 'customKind' is unrecognized.",
+        "Relation 'rWorks' has an unknown stereotype 'customRel'.",
+        "Custom stereotype 'customKind' on Class 'cOrg' is rejected by stereotype policy.",
+    )
+    unrec_rejected = (
+        "Unrecognized stereotype handling is outside BI-W1",
+        "Class 'cOrg' stereotype 'kind' is recognized.",
+        "Class 'cOrg' stereotype 'customKind' is not unrecognized.",
+        "Missing stereotype on Class 'cOrg'.",
+        "Class 'cOrg' stereotype must be a nonempty string or null, got int.",
+        "Datatype-valued relation 'rFocus' cannot use stereotype 'mediation', which requires an owl:ObjectProperty.",
+        "Unrecognized input fields on Relation: isReadOnly.",
+        "Class 'cOrg' isAbstract must be a boolean or null, got str.",
+    )
+    for message in unrec_accepted:
+        assert "unrecognized_stereotype" in unrecognized_stereotype_diagnostic(message), message
+    for message in unrec_rejected:
+        assert not unrecognized_stereotype_diagnostic(message), message
+
+    enum_accepted = (
+        "Supplied enumeration value is not a Literal with a usable source ID.",
+        "Enumeration literal 'vPending' lacks a usable source ID.",
+        "Untransformable enumeration value at $.model.contents[0].literals[0].",
+    )
+    enum_rejected = (
+        "Enumeration recovery is outside BI-W1",
+        "Enumeration literal 'vPending' is valid.",
+        "Enumeration literal 'vPending' is not untransformable.",
+        "Literal declaration 'vBad' is not permitted on non-enumeration Class 'cOrg'.",
+        "No enumeration values were available for Class 'eStatus'.",
+        "Class 'cOrg' isAbstract must be a boolean or null, got str.",
+    )
+    for message in enum_accepted:
+        assert "invalid_enumeration_value" in invalid_enumeration_value_diagnostic(message), message
+    for message in enum_rejected:
+        assert not invalid_enumeration_value_diagnostic(message), message
+
+    def _obs(severity, code, message, *source_specs):
+        locs = tuple(
+            SimpleNamespace(path="$.model.contents[0]", identifier=identifier, element_type=element_type)
+            for identifier, element_type in source_specs
+        )
+        native = SimpleNamespace(severity=severity, code=code, message=message, effect="Aborted.", sources=locs, generated_iri=None)
+        return _observed_diagnostics((native,), retain_unclassified=True)
+
+    # Alternative valid noncore codes are accepted.
+    assert _has_noncore_condition_error(
+        _obs("ERROR", "ALT_STEREOTYPE_ABSENT", "Missing stereotype on Class 'cOrg'.", ("cOrg", "Class")),
+        expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",),
+    )
+    assert _has_noncore_condition_error(
+        _obs("ERROR", "ALT_CUSTOM_STEREOTYPE", "Unrecognized stereotype 'customRel' on Relation.", ("rWorks", "Relation")),
+        expected_kind="unrecognized_stereotype", expected_fact="unrecognized_stereotype", required_sources=("rWorks",),
+    )
+    assert _has_noncore_condition_error(
+        _obs("ERROR", "ALT_ENUM_LITERAL_INVALID", "Supplied enumeration value is not a Literal with a usable source ID.", ("eStatus", "Class")),
+        expected_kind="invalid_enumeration_value", expected_fact="invalid_enumeration_value", required_sources=("eStatus",),
+    )
+    assert _has_noncore_condition_error(
+        _obs("ERROR", "ALT_RELATION_ENDPOINT", "Relation endpoints cannot support transformation: 'Malformed source reference'.",
+             ("rFocus", "Relation"), ("tFocus", "Property")),
+        expected_kind="failed_relation", expected_fact="unresolved_relation_endpoint", required_sources=("rFocus", "tFocus"),
+    )
+
+    # Missing, empty-code, stable-core, wrong-severity, wrong-source, and semantically wrong diagnostics are rejected.
+    assert not _has_noncore_condition_error((), expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",))
+    for bad_code in ("", None, "UNKNOWN_INFORMATION", "INTERNAL_TRANSFORMATION_FAILURE", "DUPLICATE_SOURCE_ID"):
+        assert not _has_noncore_condition_error(
+            _obs("ERROR", bad_code, "Missing stereotype on Class 'cOrg'.", ("cOrg", "Class")),
+            expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",),
+        ), bad_code
+    assert not _has_noncore_condition_error(
+        _obs("WARNING", "ALT_STEREOTYPE_ABSENT", "Missing stereotype on Class 'cOrg'.", ("cOrg", "Class")),
+        expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",),
+    )
+    assert not _has_noncore_condition_error(
+        _obs("ERROR", "ALT_STEREOTYPE_ABSENT", "Missing stereotype on Class."),
+        expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",),
+    )
+    assert not _has_noncore_condition_error(
+        _obs("ERROR", "ALT_STEREOTYPE_ABSENT", "Class 'cOrg' isAbstract must be a boolean or null, got str.", ("cOrg", "Class")),
+        expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",),
+    )
+    assert not _has_noncore_condition_error(
+        _obs("ERROR", "MISSING_STEREOTYPE", "Class 'cOrg' order must be a string or null, got int.", ("cOrg", "Class")),
+        expected_kind="missing_stereotype", expected_fact="missing_stereotype", required_sources=("cOrg",),
+    )
+    assert not _has_noncore_condition_error(
+        _obs("ERROR", "UNRECOGNIZED_STEREOTYPE", "Class 'cOrg' stereotype must be a nonempty string or null, got int.", ("cOrg", "Class")),
+        expected_kind="unrecognized_stereotype", expected_fact="unrecognized_stereotype", required_sources=("cOrg",),
+    )
+
 
 
 @pytest.mark.parametrize("input_policy", POLICIES)

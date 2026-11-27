@@ -3648,6 +3648,166 @@ def unresolved_property_reference_diagnostic(message: str) -> frozenset[str]:
     return frozenset(_unresolved_property_reference_facts(message))
 
 
+def _normalize_stereotype_policy_message(message: str) -> str:
+    wording = message.casefold().replace("`", "").replace("’", "'")
+    if re.search(
+        r"\b(?:unexpected internal|not implemented|unimplemented|outside the decided baseline"
+        r"|outside bi-w1|outside this increment|remains (?:unspecified|deferred|outside)"
+        r"|(?:has|have) no assigned (?:baseline )?mapping)\b",
+        wording,
+    ):
+        return ""
+    wording = re.sub(r"\bcan't\b", "cannot", wording)
+    wording = re.sub(r"n't\b", " not", wording)
+    while re.search(r"\[[^\[\]]*\]", wording):
+        wording = re.sub(r"\[[^\[\]]*\]", "<value>", wording)
+    while re.search(r"\{[^{}]*\}", wording):
+        wording = re.sub(r"\{[^{}]*\}", "<value>", wording)
+    wording = re.sub(r"(?<!\w)(?:''|\"\"|'\s+'|\"\s+\")(?=$|[\s.,;:)!?])", "<blank_quoted>", wording)
+    wording = re.sub(
+        r"""(?<!\w)(['"])(stereotype|class|relation|property|null|literal|literals|enumeration|value|id|identifier)\1""",
+        r"\2",
+        wording,
+    )
+    wording = re.sub(r"""(?<!\w)(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")(?=$|[\s.,;:)!?])""", "<quoted>", wording)
+    return " ".join(wording.split())
+
+
+def _missing_stereotype_facts(message: str) -> set[str]:
+    """Read affirmative DK-DIAG-06 missing-stereotype ERROR wording without fixing a code."""
+    wording = _normalize_stereotype_policy_message(message)
+    if not wording or "stereotype" not in wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\bstereotype\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:missing|absent|omitted|rejected|required)\b",
+        r"\bno\s+(?:missing|absent)\s+stereotype\b",
+        r"\b(?:missing|absent)\s+stereotype\b[^.!?;]*\b(?:is|was|are|were)\s+(?:accepted|allowed|permitted|valid)\b",
+        r"\b(?:malformed|invalid|non[- ]?string|empty|blank|whitespace(?:-only)?|unrecognized|unknown|custom|incompatible)\b",
+        r"\bdatatype[- ]valued\b|\brequires\s+(?:an?\s+)?(?:owl:)?object[- ]?propert(?:y|ies)\b",
+        rf"\b(?:name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype|order|package\.contents|class\.properties|class\.literals|relation\.properties|{'|'.join(_BOOLEAN_FLAG_NAMES)})\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    patterns = (
+        re.compile(r"\b(?:missing|absent|omitted)\s+(?:required\s+)?stereotype\b"),
+        re.compile(r"\bstereotype(?:\s+(?:field|value))?\s+(?:is|was)\s+(?:missing|absent|omitted|not\s+(?:present|supplied|provided))\b"),
+        re.compile(r"\b(?:lacks?|is\s+without|has\s+no|does\s+not\s+(?:have|supply|provide))\s+(?:a\s+)?(?:required\s+)?stereotype\b"),
+        re.compile(r"\brequired\s+stereotype\s+(?:is|was)\s+(?:missing|absent|null|none|not\s+(?:present|supplied|provided))\b"),
+        re.compile(r"\bnull\s+stereotype\b[^.!?;]*\b(?:rejected|not\s+(?:allowed|permitted|accepted)|requires?\s+(?:a\s+)?known\s+stereotype)\b"),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was|are|were)\s+(?:valid|allowed|accepted|permitted|recognized)\b", clause) and not re.search(
+            r"\bnot\s+(?:valid|allowed|accepted|permitted|recognized)\b", clause
+        ):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"missing_stereotype"}
+    return set()
+
+
+def missing_stereotype_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized DK-DIAG-06 missing-stereotype facts for harness checks."""
+    return frozenset(_missing_stereotype_facts(message))
+
+
+def _unrecognized_stereotype_facts(message: str) -> set[str]:
+    """Read affirmative DK-DIAG-06 unrecognized-stereotype wording without fixing a code."""
+    wording = _normalize_stereotype_policy_message(message)
+    if not wording or "stereotype" not in wording:
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\bstereotype\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:unrecognized|unknown|custom|rejected)\b",
+        r"\bno\s+(?:unrecognized|unknown)\s+stereotype\b",
+        r"\b(?:missing|absent)\s+stereotype\b",
+        r"\b(?:malformed|non[- ]?string|empty|blank|whitespace(?:-only)?)\b",
+        r"\bdatatype[- ]valued\b|\brequires\s+(?:an?\s+)?(?:owl:)?object[- ]?propert(?:y|ies)\b",
+        r"\b(?:unrecognized|unknown)\s+(?:input\s+)?(?:field|fields|element|elements|information)\b",
+        rf"\b(?:name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype|order|package\.contents|class\.properties|class\.literals|relation\.properties|{'|'.join(_BOOLEAN_FLAG_NAMES)})\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    patterns = (
+        re.compile(r"\b(?:unrecognized|unknown|unsupported)\s+(?:custom\s+)?stereotype\b"),
+        re.compile(r"\bstereotype(?:\s+(?:field|value))?(?:\s+(?:<quoted>|<value>))?\s+(?:is|was)\s+(?:unrecognized|unknown|not\s+(?:recognized|known))\b"),
+        re.compile(r"\b(?:has|had|uses?|used|carries|with)\s+(?:an?\s+)?(?:unrecognized|unknown)\s+(?:custom\s+)?stereotype\b"),
+        re.compile(
+            r"\bcustom\s+stereotype(?:\s+(?:<quoted>|<value>))?"
+            r"(?:\s+(?:on|of|for|in)\s+(?:class|relation|property)(?:\s+(?:<quoted>|<value>))?)?"
+            r"\s+(?:is|was)\s+(?:rejected|not\s+(?:allowed|permitted|accepted))\b"
+        ),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was|are|were)\s+(?:valid|recognized|known)\b", clause) and not re.search(
+            r"\bnot\s+(?:valid|recognized|known)\b", clause
+        ):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"unrecognized_stereotype"}
+    return set()
+
+
+def unrecognized_stereotype_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized DK-DIAG-06 unrecognized-stereotype facts for harness checks."""
+    return frozenset(_unrecognized_stereotype_facts(message))
+
+
+def _invalid_enumeration_value_facts(message: str) -> set[str]:
+    """Read affirmative DK-CLS-11/DK-DIAG-13 untransformable enumeration-value ERROR wording."""
+    wording = _normalize_stereotype_policy_message(message)
+    if not wording or not ("enumeration" in wording or "literal" in wording):
+        return set()
+    disqualifiers = (
+        r"\b(?:if|whether|unless|when|whenever)\b[^.!?;]*\b(?:enumeration|literal|value)\b",
+        r"\b(?:may|might|could)\s+(?:be|have|contain|fail)\b",
+        r"\b(?:may|might|could)\s+or\s+(?:may|might|could)\s+not\b",
+        r"\bnot\s+(?:untransformable|invalid|malformed|unusable)\b",
+        r"\bnon[- ]?enumeration\b|\boutside\s+(?:an?\s+)?enumerations?\b|\bnot\s+(?:an?\s+)?enumeration\b",
+        r"\bno\s+enumeration\s+values\s+(?:were\s+)?available\b",
+        r"\b(?:enumeration|class)\b[^.!?;]*\bhas\s+no\s+(?:enumeration\s+)?values\b",
+        rf"\b(?:stereotype|name|description|languagestring|project\s+languages|generalizations|categorizer|cardinality|propertytype|order|package\.contents|class\.properties|relation\.properties|{'|'.join(_BOOLEAN_FLAG_NAMES)})\b",
+    )
+    if any(re.search(pattern, wording) for pattern in disqualifiers):
+        return set()
+    patterns = (
+        re.compile(r"\b(?:untransformable|invalid|malformed|unusable)\s+(?:supplied\s+)?enumeration\s+(?:value|literal)\b"),
+        re.compile(r"\bsupplied\s+enumeration\s+(?:value|literal)\b[^.!?;]*\b(?:is|was)\s+not\s+(?:a\s+)?(?:valid\s+|transformable\s+)?literal\b"),
+        re.compile(
+            r"\benumeration\s+(?:value|literal)(?:\s+(?:<quoted>|<value>))?\b[^.!?;]*"
+            r"\b(?:(?:is|was)\s+(?:untransformable|invalid|malformed|not\s+(?:a\s+)?literal|missing\s+(?:a\s+)?(?:usable\s+)?(?:source\s+)?(?:id|identifier))"
+            r"|lacks?\s+(?:a\s+)?(?:usable\s+)?(?:source\s+)?(?:id|identifier)"
+            r"|has\s+(?:an?\s+)?(?:invalid|unusable|missing)\s+(?:source\s+)?(?:id|identifier))\b"
+        ),
+    )
+    for clause in re.split(r"[.!?;]+", wording):
+        clause = clause.strip()
+        if not clause:
+            continue
+        if re.search(r"\b(?:is|was|are|were)\s+(?:valid|transformable|usable)\b", clause) and not re.search(
+            r"\bnot\s+(?:valid|transformable|usable)\b", clause
+        ):
+            continue
+        if any(p.search(clause) for p in patterns):
+            return {"invalid_enumeration_value"}
+    return set()
+
+
+def invalid_enumeration_value_diagnostic(message: str) -> frozenset[str]:
+    """Return recognized DK-CLS-11/DK-DIAG-13 invalid-enumeration-value facts for harness checks."""
+    return frozenset(_invalid_enumeration_value_facts(message))
+
+
 def _observed_diagnostics(events, *, retain_unclassified=False):
     """Read inspected production fields; retain every event and its raw object.
 
@@ -3718,6 +3878,23 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             if kind is None:
                 kind = "attribute_owner_without_local_class"
         if event.code != "INTERNAL_TRANSFORMATION_FAILURE":
+            if event.severity == "ERROR":
+                missing_stereo_facts = _missing_stereotype_facts(event.message)
+                if missing_stereo_facts:
+                    facts.update(missing_stereo_facts)
+                    if kind is None:
+                        kind = "missing_stereotype"
+                invalid_enum_facts = _invalid_enumeration_value_facts(event.message)
+                if invalid_enum_facts:
+                    facts.update(invalid_enum_facts)
+                    if kind is None:
+                        kind = "invalid_enumeration_value"
+            if event.severity in {"ERROR", "WARNING"}:
+                unrec_stereo_facts = _unrecognized_stereotype_facts(event.message)
+                if unrec_stereo_facts:
+                    facts.update(unrec_stereo_facts)
+                    if kind is None:
+                        kind = "unrecognized_stereotype"
             rel_kind, rel_facts = _rd02_datatype_relation_facts(event.severity, event.message, event.effect)
             if rel_facts:
                 facts.update(rel_facts)
@@ -3739,7 +3916,8 @@ def _observed_diagnostics(events, *, retain_unclassified=False):
             "MISSING_STEREOTYPE", "UNRECOGNIZED_STEREOTYPE", "MISSING_SOURCE_ID",
             "INVALID_SOURCE_ID", "UNPROCESSABLE_DOCUMENT", "AMBIGUOUS_PROJECT_LANGUAGE",
         }
-        if event.severity == "ERROR" and event.code not in _structural_skip:
+        if (event.severity == "ERROR" and event.code not in _structural_skip
+                and kind not in {"missing_stereotype", "unrecognized_stereotype", "invalid_enumeration_value"}):
             rel_endpoint_facts = _unresolved_relation_endpoint_facts(event.message)
             if rel_endpoint_facts:
                 facts.update(rel_endpoint_facts)
