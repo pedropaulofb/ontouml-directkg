@@ -4115,7 +4115,7 @@ def test_diagnostics_delivery_error_reader_requires_distinct_failure_destination
 @pytest.mark.parametrize("report_failure", [False, True], ids=["report_written", "report_failure"])
 def test_cli_late_sidecar_output_provenance_failure_aborts_before_writing_and_preserves_old_files(
         invoke, tmp_path, policy, partial, old_files, report_failure):
-    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15 exit codes 3/4. RD-04 Decision 2 (Q1-A, Q4-A)."""
+    """Rules: DK-GEN-10, DK-DIAG-04, DK-DIAG-05; §15 exit codes 3/4. RD-04 Decision 2 (Q1-A, Q4-A). Audit remediation C16."""
     document = load_json("shared/binary_relation")
     if partial:
         source_element(document, "tFocus")["propertyType"] = None
@@ -4143,7 +4143,6 @@ def test_cli_late_sidecar_output_provenance_failure_aborts_before_writing_and_pr
     assert process.conversion_started is True
     assert process.returncode == (4 if report_failure else 3), (process.stdout, process.stderr)
     assert process.observation.outcome == "aborted"
-    assert process.observation.ontology is None
     assert any(d.kind == "required_provenance" and d.severity == "ERROR" and d.code == "REQUIRED_PROVENANCE"
                for d in process.observation.diagnostics)
     if partial:
@@ -4162,6 +4161,23 @@ def test_cli_late_sidecar_output_provenance_failure_aborts_before_writing_and_pr
         assert _cli_json_report_contract(payload)[0] == "aborted"
         assert any(item["code"] == "REQUIRED_PROVENANCE" and item["severity"] == "ERROR"
                    for item in payload["diagnostics"])
+
+
+def test_cli_late_provenance_fault_observation_leaves_ontology_unbound(tmp_path):
+    """Rules: DK-GEN-10, DK-DIAG-05 (harness only). Audit remediation C16."""
+    from tests.support.invocation import ImplementationUnavailable, _LateProvenanceFaultCLIObservation
+
+    report_path = tmp_path / "report.json"
+    observed = _LateProvenanceFaultCLIObservation(
+        None, "aborted", (), native={"outcome": "aborted", "events": []},
+        diagnostics_exports=(report_path,),
+    )
+    assert observed.outcome == "aborted"
+    assert observed.diagnostics == ()
+    assert observed.native == {"outcome": "aborted", "events": []}
+    assert observed.diagnostics_exports == (report_path,)
+    with pytest.raises(ImplementationUnavailable):
+        _ = observed.ontology
 
 
 @pytest.mark.parametrize("case,scenario", [

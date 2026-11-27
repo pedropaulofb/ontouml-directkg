@@ -634,6 +634,10 @@ class _NoReportCLIObservation(_BasicObservation):
     _available_fields = _BasicObservation._available_fields | {"diagnostics_exports"}
 
 
+class _LateProvenanceFaultCLIObservation(_BoundFieldsOnly, Observation):
+    _available_fields = frozenset({"outcome", "diagnostics", "configuration_error", "native", "diagnostics_exports"})
+
+
 class _SerializationFaultCLIObservation(_BoundFieldsOnly, Observation):
     _available_fields = frozenset({"outcome", "native"})
 
@@ -4882,19 +4886,28 @@ class _DirectKGInvocation(_UnboundInvocation):
             events = tuple(NativeDiagnostic(severity, code, message, effect,
                                             tuple(SourceLocation(*item) for item in sources), iri)
                            for severity, code, message, effect, sources, iri in native["events"])
-            graph = (
-                Graph().parse(output_path, format="turtle")
-                if output_path is not None and Path(output_path).is_file()
-                and not Path(output_path).is_symlink()
-                and native["outcome"] != "aborted"
-                and not has_delivery_fault and not has_late_prov_fault
-                else None
-            )
-            observed = _NoReportCLIObservation(
-                graph, native["outcome"], _observed_diagnostics(
-                    events, retain_unclassified=bool(has_delivery_fault or trace.get("delivery_faults"))),
-                native=native,
-                diagnostics_exports=tuple(Path(item) for item in trace["diagnostics_exports"]))
+            observed_diagnostics = _observed_diagnostics(
+                events, retain_unclassified=bool(has_delivery_fault or trace.get("delivery_faults")))
+            exports = tuple(Path(item) for item in trace["diagnostics_exports"])
+            if has_late_prov_fault:
+                # CLI late provenance-construction fault does not establish
+                # programmatic graph availability; leave .ontology unbound rather
+                # than assigning a synthetic None.
+                observed = _LateProvenanceFaultCLIObservation(
+                    None, native["outcome"], observed_diagnostics,
+                    native=native, diagnostics_exports=exports)
+            else:
+                graph = (
+                    Graph().parse(output_path, format="turtle")
+                    if output_path is not None and Path(output_path).is_file()
+                    and not Path(output_path).is_symlink()
+                    and native["outcome"] != "aborted"
+                    and not has_delivery_fault
+                    else None
+                )
+                observed = _NoReportCLIObservation(
+                    graph, native["outcome"], observed_diagnostics,
+                    native=native, diagnostics_exports=exports)
             return _ReportProcess(tuple(command), completed.returncode, completed.stdout, completed.stderr,
                                   observed, _observed_console(completed.stdout, completed.stderr),
                                   conversion_started=started, execution_trace=trace)
