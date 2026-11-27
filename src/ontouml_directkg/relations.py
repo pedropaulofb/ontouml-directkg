@@ -21,6 +21,7 @@ _REJECTED_DATATYPE_STEREOTYPES = frozenset({
     "componentOf", "memberOf", "subCollectionOf", "subQuantityOf",
     "characterization", "mediation", "participational", "externalDependence",
 })
+_VALID_AGGREGATION_KINDS = frozenset({"NONE", "SHARED", "COMPOSITE"})
 
 
 @dataclass(frozen=True)
@@ -282,7 +283,42 @@ def collect_relations(index: SourceIndex, classes: tuple[SourceElement, ...],
             omitted.add(rid)
             continue
         filtered.append(relation)
+    for relation in filtered:
+        for end in (relation.source_end, relation.target_end):
+            _validate_aggregation_kind(end, diagnostics, policy)
     return tuple(filtered), {key: tuple(values.values()) for key, values in groundings.items()}, omitted
+
+
+def _validate_aggregation_kind(end: SourceElement, diagnostics: DiagnosticCollector, policy: str) -> None:
+    """Validate association-end aggregationKind without guessing or repairing malformed values."""
+    data = end.data
+    if "aggregationKind" not in data:
+        return
+    value = data["aggregationKind"]
+    if value is None or (isinstance(value, str) and value in _VALID_AGGREGATION_KINDS):
+        return
+    identifier = data.get("id")
+    id_str = identifier if isinstance(identifier, str) else None
+    id_prefix = f"{id_str!r} " if id_str is not None else ""
+    if not isinstance(value, str):
+        message = (
+            f"Property {id_prefix}aggregationKind must be 'NONE', 'SHARED', 'COMPOSITE', or null, "
+            f"got {type(value).__name__}."
+        )
+    else:
+        message = (
+            f"Property {id_prefix}has invalid aggregationKind value {value!r}; "
+            f"expected 'NONE', 'SHARED', 'COMPOSITE', or null."
+        )
+    input_error(
+        diagnostics,
+        policy,
+        "MALFORMED_AGGREGATION_KIND",
+        message,
+        (SourceLocation(f"{end.path}.aggregationKind", id_str, "Property"),),
+        "Malformed aggregationKind field omitted; association end, enclosing Relation, and independent mappings retained.",
+    )
+    data.pop("aggregationKind", None)
 
 
 def _semantic_name(relation: Relation) -> str | None:
@@ -295,8 +331,10 @@ def _semantic_name(relation: Relation) -> str | None:
         "subQuantityOf": ("hasSubQuantity", "subQuantityOf"),
     }
     if stereotype in part_whole:
-        source_whole = relation.source_end.data.get("aggregationKind") in {"SHARED", "COMPOSITE"}
-        target_whole = relation.target_end.data.get("aggregationKind") in {"SHARED", "COMPOSITE"}
+        source_agg = relation.source_end.data.get("aggregationKind")
+        target_agg = relation.target_end.data.get("aggregationKind")
+        source_whole = isinstance(source_agg, str) and source_agg in {"SHARED", "COMPOSITE"}
+        target_whole = isinstance(target_agg, str) and target_agg in {"SHARED", "COMPOSITE"}
         if source_whole != target_whole:
             return part_whole[stereotype][0 if source_whole else 1]
         return None
@@ -467,7 +505,7 @@ def emit_relations(graph: Graph, relations: tuple[Relation, ...], resources: dic
                 graph.add((primary, RDFS.comment,
                            Literal(f"OntoUML source metadata: the {context} association end is read-only.", lang="en")))
             aggregation = occurrence.data.get("aggregationKind")
-            if aggregation in {"SHARED", "COMPOSITE"}:
+            if isinstance(aggregation, str) and aggregation in {"SHARED", "COMPOSITE"}:
                 graph.add((primary, RDFS.comment, Literal(
                     f"OntoUML source metadata: the {context} association end has {aggregation.lower()} aggregation.", lang="en")))
             if occurrence.data.get("isOrdered") is True:
